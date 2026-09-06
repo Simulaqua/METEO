@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dati meteo</title>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==">
+<meta name="description" content="Stazioni idro-meteo del Nord Italia in tempo reale: temperature, piogge, livelli idrometrici, laghi e invasi, qualità dell'aria. Dati delle agenzie regionali, aggiornati ogni 10 minuti.">
+
+<!-- Leaflet (mappa) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- uPlot (grafici time-series) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+
+<style>
+  :root { --bg:#fff; --fg:#1c2733; --muted:#6b7a8d; --line:#e2e8f0; --accent:#2b6cb0;
+          --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; --bar:#f6f8fb; }
+  body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
+              --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
+  /* override scuri (scoped: il tema chiaro resta intatto) */
+  body.dark select, body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
+  body.dark .btn, body.dark #vars button, body.dark #modes .mode, body.dark #modes .act, body.dark #modes a.act
+    { background:var(--soft); color:var(--fg); border-color:var(--line); }
+  body.dark .btn:hover { background:var(--soft2); }
+  body.dark #sidebar { background:var(--side); }
+  body.dark #tabbar { background:var(--bar); }
+  body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); color:var(--muted); }
+  body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
+  body.dark #pages { background:var(--soft2); }
+  body.dark #pages .pg.active { background:var(--card); color:var(--fg); box-shadow:none; }
+  body.dark #srcpanel, body.dark #notepanel, body.dark .colorbar,
+  body.dark #sbToggle, body.dark #srcinfo { background:var(--card); border-color:var(--line); }
+  body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
+  body.dark #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  body.dark #modes .mode.active { background:var(--accent); color:#fff; }
+  body.dark #climabox th, body.dark #climabox td { border-color:var(--line); }
+  body.dark #stationSearch { background:var(--card); }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--fg); background:var(--bg); }
+  #app { display:flex; flex-direction:column; height:100%; }
+  /* ---- layout dashboard: sidebar filtri a sinistra, contenuto (tab bar + mappa/schede) a destra ---- */
+  #layout { display:flex; flex:1 1 auto; min-height:0; }
+  #sidebar { width:264px; flex:0 0 264px; border-right:1px solid var(--line); overflow-y:auto;
+             padding:14px 14px 10px; display:flex; flex-direction:column; gap:14px; background:#fbfcfe; }
+  #sidebar h1 { font-size:16px; margin:0 0 2px; font-weight:700; }
+  .sb-group { display:flex; flex-direction:column; gap:5px; }
+  .sb-title { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .sb-group select, .sb-group #stationSearch { width:100%; max-width:none; }
+  .sb-row { flex-direction:row; align-items:center; gap:8px; }
+  #sidebar #count { margin-top:auto; padding-top:8px; font-size:12px; }
+  #content { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #tabbar { display:flex; align-items:flex-end; gap:3px; padding:6px 8px 0; border-bottom:1px solid var(--line);
+            overflow-x:auto; flex:0 0 auto; scrollbar-width:thin; background:#f6f8fb; }
+  #tabbar .tab { padding:7px 12px; border:1px solid var(--line); border-bottom:none; border-radius:8px 8px 0 0;
+                 background:#eef2f7; font-size:13px; cursor:pointer; white-space:nowrap; color:var(--muted);
+                 display:inline-flex; align-items:center; gap:7px; max-width:190px; }
+  #tabbar .tab .tnm { overflow:hidden; text-overflow:ellipsis; }
+  #tabbar .tab.active { background:#fff; color:var(--fg); font-weight:600; }
+  #tabbar .tab .x { color:#9aa8b8; font-size:14px; line-height:1; }
+  #tabbar .tab .x:hover { color:#d33; }
+  #sbToggle { display:none; }
+  #views { flex:1 1 auto; position:relative; min-height:0; }
+  select { padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; max-width:200px; }
+  #stationSearch { padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; width:150px; }
+  .btn { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#f7fafc;
+         font-size:13px; cursor:pointer; color:var(--fg); }
+  .btn:hover { background:#edf2f7; }
+  /* tab delle 3 pagine: misure dirette / derivate / indici */
+  #pages { display:flex; gap:2px; background:#eef2f7; border-radius:8px; padding:2px; }
+  #pages .pg { padding:5px 12px; border:none; background:transparent; border-radius:6px; font-size:13px;
+               cursor:pointer; color:var(--muted); font-weight:500; }
+  #pages .pg.active { background:#fff; color:var(--fg); box-shadow:0 1px 2px rgba(0,0,0,.12); }
+  /* pannello climatologia (pagina indici) */
+  #climabox { font-size:12px; line-height:1.5; margin-top:10px; }
+  #climabox h4 { margin:0 0 4px; font-size:13px; }
+  #climabox table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+  #climabox th, #climabox td { padding:2px 6px; text-align:right; border-bottom:1px solid var(--line); }
+  #climabox th:first-child, #climabox td:first-child { text-align:left; }
+  #climabox .rec { color:var(--muted); margin-top:6px; }
+  #map { position:absolute; inset:0; }
+  #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
+           flex-direction:column; padding:14px 16px; gap:10px; overflow:auto; }
+  body.view-station #panel { display:flex; }
+  #stationName { font-size:16px; font-weight:600; }
+  #stationMeta { font-size:12px; color:var(--muted); margin-top:-4px; }
+  #vars { display:flex; flex-wrap:wrap; gap:6px; }
+  #vars button { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--line);
+                 background:#f7fafc; border-radius:999px; font-size:12px; cursor:pointer; color:var(--fg); }
+  #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  /* '+' = aggiungi questa variabile come SECONDARIA (linea rossa, asse destro) */
+  #vars button .vadd { font-weight:700; font-size:14px; line-height:1; color:#b7c2ce;
+                       border-left:1px solid var(--line); padding-left:6px; }
+  #vars button .vadd:hover { color:#e53e3e; }
+  #vars button.active2 { border-color:#e53e3e; box-shadow:inset 0 0 0 1px #e53e3e; }
+  #vars button.active2 .vadd { color:#e53e3e; }
+  #modes { display:none; flex-wrap:wrap; gap:6px; align-items:center; }
+  #modes button.mode { padding:4px 10px; border:1px solid var(--line); background:#f7fafc; border-radius:6px;
+                  font-size:12px; cursor:pointer; color:var(--fg); }
+  #modes button.mode.active { background:var(--fg); color:#fff; border-color:var(--fg); }
+  #modes .msp { flex:1 1 8px; }                       /* spinge i tasti azione a destra */
+  #modes .act { padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:6px;
+                font-size:12px; cursor:pointer; color:var(--accent); text-decoration:none; }
+  #modes .act:hover { background:#eef4fb; }
+  /* grafico + legenda in colonna a destra */
+  #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
+  #chart { flex:1 1 auto; min-width:0; }
+  #chartlegend { flex:0 0 auto; width:120px; overflow-y:auto; font-size:12px; padding-top:2px; }
+  #chartlegend .lg { display:flex; align-items:center; gap:6px; margin:3px 0; line-height:1.15; }
+  #chartlegend .sw { width:16px; height:3px; border-radius:2px; flex:0 0 auto; }
+  #chartlegend .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #chartlegend .vl { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+  /* readout (modi a variabile singola): valore + giorno/ora sotto, allineati a sinistra */
+  #chartlegend .rd { display:flex; flex-direction:column; align-items:flex-start; gap:1px; padding-top:2px; }
+  #chartlegend .rv { font-weight:600; font-size:15px; font-variant-numeric:tabular-nums; min-height:19px; }
+  #chartlegend .rv1 { color:#2b6cb0; }   /* valore variabile principale (linea blu, asse sx) */
+  #chartlegend .rv2 { color:#e53e3e; }   /* valore 2ª variabile (linea rossa, asse dx) */
+  #chartlegend .rt { color:var(--muted); font-size:12px; }
+  .hint { color:var(--muted); font-size:13px; }
+  #source { margin-top:12px; line-height:1.6; }
+  #source a { color:var(--accent); }
+  .marker-dot { }
+  .leaflet-tooltip.stz { font-size:12px; }
+  /* colorbar (legenda colori dei puntini quando si sceglie una variabile) */
+  .colorbar { background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:6px;
+              padding:6px 8px; font-size:11px; color:var(--fg); box-shadow:0 1px 4px rgba(0,0,0,.15); line-height:1.3; }
+  .colorbar .cb-title { font-weight:600; margin-bottom:3px; white-space:nowrap; }
+  body.view-compare #refresh, body.view-compare #download, body.view-compare #exportpng,
+  body.view-compare #modes .mode[data-mode="compare"], body.view-compare #modes .mode[data-mode="compare30"],
+  body.view-compare #modes .mode[data-mode="tabs"] { display:none; }
+  .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
+  .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
+  .colorbar .cb-bar { height:10px; width:150px; border-radius:2px; border:1px solid rgba(0,0,0,.15); }
+  .colorbar .cb-scale { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; color:var(--muted); }
+  .colorbar .cb-note { margin-top:3px; color:var(--muted); display:flex; align-items:center; gap:4px; }
+  .colorbar .cb-sw { display:inline-block; width:10px; height:10px; border-radius:50%; background:#9aa5b1; }
+  /* etichette-valore sui puntini (zoom alto) */
+  .vlab { background:rgba(255,255,255,.85); border:none; box-shadow:none; padding:0 3px; font-size:10px;
+          font-weight:600; color:#1c2733; border-radius:3px; }
+  .vlab::before { display:none; }
+  /* banner "dati fermi": compare solo se l'ultimo dato pubblicato ha piu' di STALE_HOURS ore */
+  #stalebanner { display:none; background:#c0392b; color:#fff; padding:6px 14px; font-size:13px;
+                 text-align:center; font-weight:600; }
+  /* "i" stato fonti + pannello semafori */
+  #srcinfo { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line);
+             background:#fff; border-radius:999px; padding:3px 9px; cursor:pointer; }
+  #srcinfo i { font:italic 700 12px Georgia,serif; color:#2b6cb0; }
+  #srcdot { width:9px; height:9px; border-radius:50%; background:#9aa5b1; display:inline-block; }
+  #srcpanel { display:none; position:fixed; left:276px; bottom:12px; z-index:3500; background:#fff;
+              border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.18);
+              padding:8px 10px; min-width:280px; max-width:430px; max-height:70vh; overflow:auto; font-size:12px; }
+  #srcpanel h4 { margin:2px 0 6px; font-size:12px; }
+  .src-row { display:flex; align-items:center; gap:7px; padding:3px 0; border-top:1px solid #f0f3f6; }
+  .src-row:first-of-type { border-top:none; }
+  .src-name { flex:1; }
+  /* nomi cliccabili verso il portale della fonte, ma identici al testo (niente blu/sottolineato) */
+  .src-name a { color:inherit; text-decoration:none; }
+  .src-age { color:var(--muted); white-space:nowrap; }
+  .tl { width:10px; height:10px; border-radius:50%; flex:none; box-shadow:inset 0 0 1px rgba(0,0,0,.4); }
+  .tl-g { background:#2f9e44; } .tl-y { background:#f0a800; } .tl-r { background:#d33; }
+  .src-note { color:var(--muted); font-size:11px; margin-top:6px; }
+  #notepanel { display:none; position:fixed; left:276px; bottom:12px; z-index:3500; background:#fff;
+               border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.18);
+               padding:10px 12px; max-width:430px; font-size:12px; line-height:1.5; color:var(--fg); }
+  /* rosa dei venti: pseudo-variabile "Rosa dei venti" -> mostrata al posto del grafico (non sempre) */
+  #windrose { display:none; }
+  body.rose-mode #windrose { display:block; }
+  body.rose-mode #chartwrap { display:none; }                 /* la rosa sostituisce il grafico */
+  body.rose-mode #modes .mode, body.rose-mode #exportpng { display:none; }   /* modi tempo/PNG non pertinenti */
+  #vars .vrose.active { background:#0b7285; border-color:#0b7285; color:#fff; }   /* chip rosa attivo */
+  #windrose .wr-title { font-weight:600; font-size:13px; margin-bottom:2px; }
+  #windrose .wr-sub { font-weight:400; color:var(--muted); font-size:11px; }
+  #windrose .wr-legend { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; display:flex;
+                         flex-wrap:wrap; gap:6px; justify-content:center; }
+  #windrose .wr-mean { font-size:12px; color:var(--fg); text-align:center; margin-top:5px; }
+
+  /* ---- MOBILE / schermo verticale: sidebar a cassetto, tab scorrevoli ---- */
+  @media (max-width:720px){
+    #sidebar { position:fixed; left:0; top:0; bottom:0; width:280px; z-index:4000;
+               transform:translateX(-105%); transition:transform .18s ease; box-shadow:4px 0 18px rgba(0,0,0,.18); }
+    body.sb-open #sidebar { transform:none; }
+    #sbToggle { display:inline-flex; align-items:center; justify-content:center; padding:6px 11px;
+                border:1px solid var(--line); border-radius:8px 8px 0 0; border-bottom:none;
+                background:#fff; font-size:15px; cursor:pointer; }
+    #srcpanel { left:8px; right:8px; bottom:8px; max-width:none; }
+    #notepanel { left:8px; right:8px; bottom:8px; max-width:none; }
+    #panel { padding:12px 12px 18px; }
+    #vars button { padding:6px 12px; font-size:13px; }   /* tap target piu' grandi */
+    /* su cellulare il grafico e' stretto: la legenda va SOTTO (non a destra) cosi' il grafico
+       resta ampio. chartwrap in colonna, altezza fissa al grafico, legenda a piena larghezza. */
+    #chartwrap { flex-direction:column; overflow:visible; }
+    #chart { flex:0 0 auto; width:100%; height:46vh; min-height:220px; overflow:hidden; }
+    #panel { padding-bottom:28px; }
+    #chartlegend { width:100%; flex:0 0 auto; font-size:12px; padding-top:8px; overflow-y:visible;
+                   display:flex; flex-wrap:wrap; gap:4px 16px; }
+    #chartlegend .lg { margin:0; }                  /* voci confronto affiancate, vanno a capo */
+    #chartlegend .rd { flex-direction:row; align-items:baseline; gap:10px; }  /* readout su una riga */
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stalebanner"></div>
+  <div id="layout">
+  <aside id="sidebar">
+    <h1>Simulaqua Meteo</h1>
+    <div class="sb-group"><div class="sb-title">Dati</div>
+      <div id="pages">
+        <button class="pg active" data-page="dirette">Misure dirette</button>
+        <button class="pg" data-page="derivate">Misure derivate</button>
+        <button class="pg" data-page="indici">Indici</button>
+      </div>
+    </div>
+    <div class="sb-group"><div class="sb-title">Regione</div>
+      <select id="region">
+        <option value="ALL">Tutte</option>
+        <option value="VEN">Veneto</option>
+        <option value="LOM">Lombardia</option>
+        <option value="ER">Emilia-Romagna</option>
+        <option value="TN">Trentino</option>
+        <option value="BZ">Alto Adige</option>
+        <option value="FVG">Friuli V.G.</option>
+        <option value="LIG">Liguria</option>
+        <option value="PO">Po (AIPO + Piemonte)</option>
+        <option value="LAGHI">Laghi</option>
+      </select>
+    </div>
+    <div class="sb-group"><div class="sb-title">Stazione</div>
+      <select id="stationFilter">
+        <option value="">Tutte le stazioni</option>
+      </select>
+    </div>
+    <div class="sb-group"><div class="sb-title">Cerca</div>
+      <input id="stationSearch" list="stationOptions" placeholder="nome stazione…" autocomplete="off">
+      <datalist id="stationOptions"></datalist>
+    </div>
+    <div class="sb-group"><div class="sb-title">Variabile</div>
+      <select id="varFilter">
+        <option value="">Tutte le variabili</option>
+      </select>
+    </div>
+    <div class="sb-group sb-row">
+      <button id="resetBtn" class="btn">Reset filtri</button>
+      <button id="srcinfo" title="Stato delle fonti dati"><i>i</i><span id="srcdot"></span></button>
+      <button id="themeBtn" class="btn" title="Tema chiaro/scuro">🌙</button>
+    </div>
+    <div id="count" class="hint"></div>
+    <button id="noteBtn" class="btn">Note</button>
+  </aside>
+  <div id="content">
+    <nav id="tabbar">
+      <button id="sbToggle" title="Filtri">☰</button>
+      <button class="tab active" id="tabMap">Mappa</button>
+    </nav>
+    <div id="views">
+    <div id="map"></div>
+    <div id="panel">
+      <div id="stationName">Seleziona una stazione</div>
+      <div id="stationMeta"></div>
+      <div id="vars"></div>
+      <div id="modes">
+        <button class="mode active" data-mode="week">7 giorni</button>
+        <button class="mode" data-mode="day3">3 giorni</button>
+        <button class="mode" data-mode="day">24 ore</button>
+        <button class="mode" data-mode="compare">Confronto 7 giorni</button>
+        <button class="mode" data-mode="compare30">Confronto 30 giorni</button>
+        <button class="mode" data-mode="tabs">Confronto schede</button>
+        <span class="msp"></span>
+        <button id="refresh" class="act" title="Ricarica i dati">Aggiorna</button>
+        <a id="download" class="act" download title="Scarica il CSV">CSV</a>
+        <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
+        <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
+      </div>
+      <div id="chartwrap">
+        <div id="chart"></div>
+        <div id="chartlegend"></div>
+      </div>
+      <div id="chartstats" class="hint"></div>
+      <div id="windrose"></div>
+      <div id="status" class="hint"></div>
+      <div id="climabox" style="display:none"></div>
+      <div id="source" class="hint"></div>
+    </div>
+    </div>
+  </div>
+  </div>
+</div>
+<div id="srcpanel"></div>
+<div id="notepanel">
+  <b>Note</b> — Sito amatoriale, senza fini di lucro. I dati appartengono agli enti indicati nel pannello
+  fonti e sono ridistribuiti così come pubblicati dalle rispettive API aperte, senza validazione: possono
+  contenere errori, ritardi o lacune, e fanno fede esclusivamente i canali ufficiali. Le grandezze derivate,
+  gli indici e la climatologia sono elaborazioni non ufficiali di questo sito. Non usare per finalità di
+  allertamento o sicurezza: per le allerte consultare la Protezione Civile e i bollettini ufficiali.
+</div>
+
+<script>
+// ------------------------------------------------------------------------------------------------
+// CONFIG
+// ------------------------------------------------------------------------------------------------
+// Base dei dati (cartelle per regione: <REGION>/stations.geojson, series/<SCODE>.csv, units.json).
+//   '.'  = accanto alla pagina (per il test locale con 'python3 -m http.server' dentro site/).
+// In produzione publish.sh RISCRIVE automaticamente questa riga con l'URL raw del branch 'data'
+// (es. https://raw.githubusercontent.com/utente/repo/data), cosi' i dati si aggiornano senza
+// innescare deploy di GitHub Pages. Per testare la pagina gia' puntata al raw, mettilo qui a mano.
+const DATA_BASE = 'https://raw.githubusercontent.com/Simulaqua/METEO/data';
+// CDN di riserva: se un file non arriva dalla base dati (es. il 400 da cache avvelenata di
+// raw.githubusercontent visto il 31/08 su PC_PIE), riprova da jsDelivr (stesso repo, branch data;
+// al piu' ~12h di ritardo). Attiva solo online: in locale (DATA_BASE '.') nessun fallback.
+const DATA_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@data';
+async function fdata(path, opts){
+  try {
+    const r = await fetch(DATA_BASE + '/' + path, opts);
+    if (r.ok || !DATA_BASE.startsWith('http')) return r;
+  } catch(e){ if (!DATA_BASE.startsWith('http')) throw e; }
+  return fetch(DATA_FALLBACK + '/' + path, opts);
+}
+
+// ------------------------------------------------------------------------------------------------
+// STATO
+// ------------------------------------------------------------------------------------------------
+let map, markersLayer, chart = null;
+let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
+let allFeatures = [], filterVar = '', selectedKey = '';
+let chartMode = 'week';   // 'week' | 'day' | 'compare'
+
+// ogni voce geografica del menu carica PIU' cartelle-dati: meteo/idro + qualita' aria (AQ_) +
+// idrometria Protezione Civile (PC_). Le stazioni (tutte con lat/lon) convivono sulla stessa mappa.
+const REGION_GROUPS = {
+  VEN: ['VEN','AQ_VEN','MAR_VEN','ACQ_VEN','CB_AE'],
+  LOM: ['LOM','AQ_LOM'],
+  ER:  ['ER','AQ_ER','MAR_ER','INV_ER'],
+  TN:  ['TN','AQ_TN','PC_TN'],
+  BZ:  ['BZ','AQ_BZ'],
+  FVG: ['FVG','PC_FVG'],
+  LIG: ['LIG'],
+  PO:  ['PC_PO','PC_PIE'],        // bacino del Po: AIPO (valle) + ARPA Piemonte (monte), cross-regionale
+  LAGHI: ['LAGHI'],              // grandi laghi regolati (Maggiore/Como/Iseo/Idro/Garda)
+};
+const REGIONS_ALL = Object.values(REGION_GROUPS).flat();
+const DOT_COLOR   = '#2b6cb0';                 // colore di default (nessuna variabile selezionata)
+const NEUTRAL_COLOR = '#9aa5b1';               // grigio: valore non disponibile per quella variabile (comunque cliccabile)
+
+// variabili per cui NON ha senso una colormap: sono LIVELLI con riferimento locale (ogni stazione ha
+// il proprio zero/datum -> il valore assoluto non e' confrontabile fra stazioni) oppure grandezze
+// circolari/categoriali. Le grandezze fisiche confrontabili (temperature, qualita' acqua, portate,
+// onde, ecc.) SI colorano. Per le escluse si filtra la stazione ma i puntini restano uniformi.
+const NO_COLORMAP = new Set([
+  'LIVIDRO','LIVLAGO','FREATICA','MAREA',   // livelli: zero/datum locale -> valore assoluto non confrontabile
+  'DVENTO','DVENTOMAX','PREC_TYPE'          // direzione (circolare) / categoriale
+]);
+const canColormap = v => !!v && !NO_COLORMAP.has(v);
+
+// categoria di ogni variabile -> le 3 "pagine" del portale (misure dirette / derivate / indici)
+const WROSE = 'ROSAVENTO';                       // pseudo-variabile (gruppo derivate): apre la rosa dei venti
+const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE]);
+const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC24','PREC48','GDD','HDD','CDD','ET0']);
+function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
+let currentPage = 'dirette';                    // pagina attiva
+
+// colormap sequenziale (Turbo, Google) per colorare i puntini: blu=basso -> verde -> giallo -> rosso=alto.
+const CMAP = [[48,18,59],[70,107,227],[40,170,225],[26,228,182],[95,251,113],
+              [192,229,57],[250,175,42],[245,92,24],[122,4,3]];
+function colormap(t){
+  t = Math.max(0, Math.min(1, t));
+  const n = CMAP.length - 1, i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i;
+  const a = CMAP[i], b = CMAP[i+1], c = k => Math.round(a[k] + (b[k] - a[k]) * f);
+  return `rgb(${c(0)},${c(1)},${c(2)})`;
+}
+// palette DISCRETA dell'indice europeo di qualita' dell'aria (EAQI, colori ufficiali EEA: verde->rosso->viola)
+const EAQI_BANDS = [
+  {v:1, c:'#50f0e6', l:'Buona'},        {v:2, c:'#50ccaa', l:'Discreta'},
+  {v:3, c:'#f0e641', l:'Moderata'},     {v:4, c:'#ff5050', l:'Scarsa'},
+  {v:5, c:'#960032', l:'Molto scarsa'}, {v:6, c:'#7d2181', l:'Estrem. scarsa'}
+];
+function eaqiColor(v){ return EAQI_BANDS[Math.max(1, Math.min(6, Math.round(v))) - 1].c; }
+const isEaqi = v => v === 'EAQI';
+function fmtNum(v){ const a = Math.abs(v); const d = a >= 100 ? 0 : (a >= 1 ? 1 : 2); return (+v).toFixed(d); }
+// unita' di misura di una variabile (prima regione caricata che ce l'ha)
+function unitForVar(v){ for(const r in unitsByRegion){ if(unitsByRegion[r] && unitsByRegion[r][v]) return unitsByRegion[r][v]; } return ''; }
+
+// nomi leggibili delle variabili (sigla comune -> nome esteso)
+const VAR_LABELS = {
+  TEMP:'Temperatura aria', PREC:'Precipitazione', UMID:'Umidità relativa',
+  PRESS:'Pressione atmosferica', RADSOL:'Radiazione solare', SOLEGG:'Durata soleggiamento',
+  VVENTO:'Velocità vento', VVENTOSCAL:'Velocità vento scalare', VVENTOMAX:'Velocità raffica',
+  DVENTO:'Direzione vento', DVENTOMAX:'Direzione raffica', LIVIDRO:'Livello idrometrico',
+  PORTATA:'Portata', FREATICA:'Altezza freatimetrica', TEMPACQUA:'Temperatura acqua',
+  SOLIDI:'Solidi sospesi', LIVNEVE:'Altezza neve', VISIB:'Visibilità',
+  BAGNATURA:'Bagnatura fogliare', PREC_TYPE:'Tipo precipitazione', CLOUDINESS:'Nuvolosità',
+  // qualita' dell'aria
+  PM10:'Polveri PM10', PM25:'Polveri PM2.5', NO2:'Biossido di azoto', O3:'Ozono',
+  SO2:'Biossido di zolfo', CO:'Monossido di carbonio', C6H6:'Benzene',
+  GAMMA:'Radioattività (dose gamma)',
+  // maree / meteo-marino
+  MAREA:'Livello marea', ONDE:'Altezza onde',
+  // qualita' acque marino-costiere
+  SALINITA:'Salinità', OSSIGENO:'Ossigeno disciolto', OSSIGENO_SAT:'Ossigeno (saturazione)',
+  PH:'pH', CLOROFILLA:'Clorofilla a', CONDUCIBILITA:'Conducibilità',
+  // laghi regolati
+  LIVLAGO:'Livello lago', AFFLUSSO:'Afflusso', DEFLUSSO:'Deflusso', VOLINVASO:'Volume invasato',
+  // grandezze DERIVATE (calcolate)
+  TDEW:'Punto di rugiada', TAPP:'Temperatura percepita', VPD:'Deficit press. vapore',
+  QSPEC:'Umidità specifica', PSLM:'Pressione al livello mare', UWND:'Vento (comp. Est)', VWND:'Vento (comp. Nord)',
+  // INDICI
+  EAQI:'Indice qualità aria (EAQI)', O3_8H:'Ozono (media 8h)',
+  PREC24:'Pioggia 24 h', PREC48:'Pioggia 48 h',
+  GDD:'Gradi-giorno crescita', HDD:'Gradi-giorno riscaldamento', CDD:'Gradi-giorno raffrescamento', ET0:'Evapotraspirazione ET₀',
+  // pseudo-variabile
+  ROSAVENTO:'Rosa dei venti'
+};
+const varLabel = v => VAR_LABELS[v] || v;
+
+// nomi stazione: alcune fonti (es. Bolzano) sono TUTTE MAIUSCOLE -> Title Case all'italiana
+// (solo prima lettera maiuscola; preposizioni/articoli minuscoli, es. "ADIGE A SALORNO" -> "Adige a Salorno")
+const NAME_SMALL = new Set(['a','ad','al','allo','alla','ai','agli','alle','da','dal','dalla','dai','dagli','dalle',
+  'di','del','dello','della','dei','degli','delle','in','nel','nello','nella','nei','negli','nelle','e','ed','con',
+  'su','sul','sulla','sui','sugli','sulle','per','il','lo','la','i','gli','le','tra','fra','presso']);
+function prettyName(name){
+  if(!name || name !== name.toUpperCase()) return name;   // trasforma SOLO i nomi tutti maiuscoli
+  return name.toLowerCase().split(' ').map((w, i) => {
+    if(!w) return w;
+    if(i > 0 && NAME_SMALL.has(w)) return w;               // preposizioni/articoli (non la prima parola)
+    return w.split('-').map(p => p ? p[0].toUpperCase() + p.slice(1) : p).join('-');
+  }).join(' ');
+}
+
+// fonte del dato per regione (nome + sito web di origine)
+// url = sito istituzionale (riga "Fonte:" del pannello stazione); data = pagina/servizio SPECIFICO
+// dei dati (usata dai nomi cliccabili nel pannello stato fonti). URL verificate il 18/08/2026.
+const SOURCES = {
+  VEN: { name:'ARPA Veneto',                         url:'https://www.arpa.veneto.it',
+         data:'https://www.arpa.veneto.it/dati-ambientali/dati-in-diretta' },
+  LOM: { name:'ARPA Lombardia',                      url:'https://www.arpalombardia.it',
+         data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-meteo/647i-nhxk' },
+  ER:  { name:'ARPAE Emilia-Romagna',                url:'https://allertameteo.regione.emilia-romagna.it',
+         data:'https://dati.arpae.it/dataset/dati-dalle-stazioni-meteo-locali-della-rete-idrometeorologica-regionale' },
+  TN:  { name:'Meteotrentino – Provincia di Trento', url:'https://www.meteotrentino.it',
+         data:'http://dati.meteotrentino.it/service.asmx' },
+  BZ:  { name:'Provincia Autonoma di Bolzano',       url:'https://weather.provinz.bz.it',
+         data:'https://dati.retecivica.bz.it/services/meteo/v1/stations' },
+  FVG: { name:'OSMER – ARPA FVG',                    url:'https://www.meteo.fvg.it',
+         data:'https://www.osmer.fvg.it/archivio.php?ln=&p=dati' },
+  // qualita' dell'aria
+  AQ_VEN: { name:'ARPA Veneto – Qualità dell\'aria',      url:'https://www.arpa.veneto.it/temi-ambientali/aria',
+            data:'https://www2.arpa.veneto.it/aria-json/exported/aria/data.json' },
+  AQ_LOM: { name:'ARPA Lombardia – Qualità dell\'aria',   url:'https://www.dati.lombardia.it',
+            data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-aria/nicp-bhqi' },
+  AQ_ER:  { name:'ARPAE Emilia-Romagna – Qualità dell\'aria', url:'https://dati.arpae.it',
+            data:'https://dati.arpae.it/dataset/qualita-dell-aria-rete-di-monitoraggio' },
+  AQ_TN:  { name:'APPA Trento – Qualità dell\'aria',      url:'https://bollettino.appa.tn.it/aria',
+            data:'https://bollettino.appa.tn.it/aria/opendata/json/last/' },
+  AQ_BZ:  { name:'APPA Bolzano – Qualità dell\'aria',     url:'https://appa.provincia.bz.it',
+            data:'https://dati.retecivica.bz.it/services/airquality/stations' },
+  AQ_FVG: { name:'ARPA FVG – Qualità dell\'aria',         url:'https://www.dati.friuliveneziagiulia.it' },
+  // idrometria Protezione Civile
+  PC_FVG: { name:'Protezione Civile FVG',                url:'https://monitor.protezionecivile.fvg.it' },
+  PC_TN:  { name:'Ufficio Dighe – Provincia di Trento',  url:'https://www.floods.it' },
+  // maree e bacino del Po
+  MAR_VEN:{ name:'CPSM – Comune di Venezia (maree)',     url:'https://www.comune.venezia.it/it/content/le-previsioni',
+            data:'https://www.comune.venezia.it/it/content/centro-previsioni-e-segnalazioni-maree' },
+  MAR_ER: { name:'ARPAE Emilia-Romagna – Meteo-marino',  url:'https://allertameteo.regione.emilia-romagna.it' },
+  ACQ_VEN:{ name:'ARPA Veneto – Acque marino-costiere',  url:'https://www.arpa.veneto.it/temi-ambientali/acqua',
+            data:'https://api.arpa.veneto.it/REST/v1' },
+  PC_PO:  { name:'AIPO – Agenzia Interregionale per il fiume Po', url:'https://www.agenziapo.it',
+            data:'https://idrometri.agenziapo.it' },
+  PC_PIE: { name:'ARPA Piemonte – Rete Meteoidrografica (bacino Po)', url:'https://www.arpa.piemonte.it',
+            data:'https://utility.arpa.piemonte.it/meteoidro/' },
+  LIG:    { name:'ARPAL – OMIRL (Liguria)',                           url:'https://omirl.regione.liguria.it',
+            data:'https://omirl.regione.liguria.it/Omirl/rest/stations/Termo' },
+  INV_ER: { name:'Romagna Acque – Invasi (Ridracoli e Conca)',        url:'https://www.romagnacque.it',
+            data:'https://www.romagnacque.it/acqua-in-diretta/diga-di-ridracoli/' },
+  LAGHI:  { name:'laghi.net – Enti Regolatori dei Grandi Laghi',      url:'https://www.laghi.net' },
+  CB_AE:  { name:'Consorzio di Bonifica Adige Euganeo',               url:'https://www.adigeuganeo.it',
+            data:'https://info.adigeuganeo.com/rest_v1/idro-stazioni' },
+};
+
+const el = id => document.getElementById(id);
+const setStatus = m => { el('status').textContent = m || ''; };
+
+// ------------------------------------------------------------------------------------------------
+// MAPPA
+// ------------------------------------------------------------------------------------------------
+function initMap(){
+  // renderer CANVAS con 'tolerance': estende l'area di tap attorno a ogni puntino SENZA ingrandirlo
+  // (fondamentale su cellulare, dove i puntini da 4px sono difficilissimi da centrare col dito).
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  map = L.map('map', { scrollWheelZoom:true, zoomAnimation:false, zoomSnap:0.5, wheelPxPerZoomLevel:120, renderer: L.canvas({ tolerance: isTouch ? 16 : 6 }) })
+          .setView([46.0, 12.0], 8);
+  // ricalcola la taglia della mappa ad ogni cambio di layout (sidebar, schede, rotazione, mobile)
+  if(window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(el('map'));
+  // sfondo a scelta (tutte fonti gratuite e anonime); la scelta resta memorizzata nel browser.
+  const _esriImg = () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 18, attribution: 'Tiles © Esri' });
+  const BASEMAPS = {
+    'Mappa': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 18, attribution: '© OpenStreetMap' }),
+    'Satellite': _esriImg(),
+    'Satellite + etichette': L.layerGroup([ _esriImg(),
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 18, attribution: 'Tiles © Esri' }) ]),
+    'Rilievi': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      { maxZoom: 17, attribution: '© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)' }),
+    'Mappa scura': L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 16, attribution: 'Tiles © Esri' }),
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 16, attribution: '' }) ])
+  };
+  let baseChoice = 'Mappa';
+  try { const b = localStorage.getItem('basemap'); if (BASEMAPS[b]) baseChoice = b; } catch(e){}
+  BASEMAPS[baseChoice].addTo(map);
+  L.control.layers(BASEMAPS, null, { position:'topright' }).addTo(map);
+  map.on('baselayerchange', e => { try { localStorage.setItem('basemap', e.name); } catch(err){} });
+  markersLayer = L.layerGroup().addTo(map);
+  map.on('zoomend', () => { if(allFeatures.length) renderMarkers(); });
+  // contenitore della colorbar (legenda colori) in basso a sinistra
+  const cbCtl = L.control({ position:'bottomleft' });
+  cbCtl.onAdd = () => { const d = L.DomUtil.create('div', 'colorbar'); d.id = 'colorbar'; d.style.display = 'none'; return d; };
+  cbCtl.addTo(map);
+}
+
+function resetPanel(){
+  el('stationName').textContent = 'Seleziona una stazione';
+  el('stationMeta').textContent = '';
+  el('vars').innerHTML = '';
+  el('source').innerHTML = '';
+  el('modes').style.display = 'none';
+  document.body.classList.remove('rose-mode');
+  const wr = el('windrose'); if(wr) wr.innerHTML = '';
+}
+// nota oraria (senza icona), mostrata in coda alla riga della fonte
+const TZNOTE = 'Orari in ora locale italiana (CET / CEST con ora legale).';
+
+async function loadRegions(regions){
+  _needFit = true;                 // nuova selezione di regioni: rifitta la mappa una volta
+  clearChart();
+  resetPanel();
+  setStatus('Carico le stazioni…');
+
+  allFeatures = [];
+  // caricamento PARALLELO di tutte le regioni (prima era sequenziale -> 7-8s con 13 cartelle)
+  await Promise.all(regions.map(async region => {
+    try { unitsByRegion[region] = await (await fdata(`${region}/units.json`)).json(); }
+    catch(e){ unitsByRegion[region] = {}; }
+    let geo;
+    try { geo = await (await fdata(`${region}/stations.geojson`)).json(); }
+    catch(e){ return; }
+    (geo.features || []).forEach(f => {
+      f.properties._region = region;
+      f.properties._lon = f.geometry.coordinates[0];
+      f.properties._lat = f.geometry.coordinates[1];
+      allFeatures.push(f);
+    });
+  }));
+  selectedKey = '';
+  refreshFilters();
+  renderMarkers();
+}
+
+// ------------------------------------------------------------------------------------------------
+// FILTRI A CASCATA (regione -> stazione -> variabile)
+// ------------------------------------------------------------------------------------------------
+const featKey  = f => f.properties._region + '|' + f.properties.scode;
+const featName = f => prettyName(f.properties.name || f.properties.scode);
+const selectedFeature = () => selectedKey ? allFeatures.find(f => featKey(f) === selectedKey) : null;
+
+// stazioni da mostrare in elenco/mappa: filtrate per variabile (se selezionata)
+function stationsForList(){
+  return allFeatures.filter(f => {
+    const vars = f.properties.variables || [];
+    let ok = vars.some(v => varCat(v) === currentPage);            // stazioni con variabili della pagina attiva
+    if(!ok && currentPage === 'indici')                           // pagina indici: includi anche chi ha climatologia
+      ok = vars.includes('TEMP') || vars.includes('PREC');
+    if(!ok) return false;
+    return !filterVar || vars.includes(filterVar);
+  });
+}
+
+function refreshFilters(){
+  // valida il filtro variabile contro l'insieme globale
+  const allVars = new Set();
+  allFeatures.forEach(f => (f.properties.variables || []).forEach(v => allVars.add(v)));
+  if(filterVar && !allVars.has(filterVar)) filterVar = '';
+  buildStationFilter();
+  buildVarFilter();
+}
+
+// elenco stazioni: se c'è una variabile selezionata solo quelle con quella variabile; ordine alfabetico
+function buildStationFilter(){
+  const list = stationsForList().slice().sort((a,b) => featName(a).localeCompare(featName(b)));
+  const sel = el('stationFilter');
+  sel.innerHTML = '<option value="">Tutte le stazioni</option>';
+  list.forEach(f => {
+    const o = document.createElement('option'); o.value = featKey(f); o.textContent = featName(f); sel.appendChild(o);
+  });
+  sel.value = (selectedKey && list.some(f => featKey(f) === selectedKey)) ? selectedKey : '';
+  // datalist della ricerca per nome ("Nome · REGIONE" -> chiave stazione; omonimie disambiguate)
+  const dl = el('stationOptions');
+  if(dl){
+    dl.innerHTML = ''; _searchMap = {};
+    list.forEach(f => {
+      let lab = featName(f) + ' · ' + f.properties._region;
+      if(_searchMap[lab]) lab += ' · ' + f.properties.scode;
+      _searchMap[lab] = featKey(f);
+      const o = document.createElement('option'); o.value = lab; dl.appendChild(o);
+    });
+  }
+}
+
+// elenco variabili: se c'è una stazione selezionata solo le sue; altrimenti l'unione delle stazioni in elenco
+function buildVarFilter(){
+  const set = new Set();
+  const sf = selectedFeature();
+  const add = v => { if(varCat(v) === currentPage) set.add(v); };   // solo variabili della pagina attiva
+  if(sf) (sf.properties.variables || []).forEach(add);
+  else stationsForList().forEach(f => (f.properties.variables || []).forEach(add));
+  const sel = el('varFilter');
+  sel.innerHTML = '<option value="">Tutte le variabili</option>';
+  [...set].sort((a,b) => varLabel(a).localeCompare(varLabel(b))).forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = varLabel(v); sel.appendChild(o);
+  });
+  if(filterVar && !set.has(filterVar)) filterVar = '';
+  sel.value = filterVar;
+}
+
+// disegna i marker (stazioni in elenco), evidenziando quella selezionata
+let _needFit = true;              // fitBounds SOLO dopo un (ri)caricamento dati, mai sullo zoom
+function renderMarkers(){
+  markersLayer.clearLayers();
+  const bounds = [];
+  const list = stationsForList();
+  // colormap SOLO quando e' selezionata UNA regione specifica (unita' coerente, confronto sensato)
+  // e la variabile e' confrontabile nello spazio (cmVar). Colora con l'ULTIMO valore disponibile,
+  // A PRESCINDERE dal ritardo (nessuna soglia di freschezza). Livelli/acqua/marea/direzione: mai.
+  const singleRegion = el('region') && el('region').value !== 'ALL';
+  const cmVar = (singleRegion && canColormap(filterVar)) ? filterVar : null;
+  let vmin = null, vmax = null;
+  const valFor = p => {
+    if(!cmVar || !p.latest || p.latest[cmVar] == null) return null;
+    const nv = parseFloat(p.latest[cmVar]);
+    return isNaN(nv) ? null : nv;
+  };
+  if(cmVar){
+    list.forEach(f => { const nv = valFor(f.properties);
+      if(nv != null){ vmin = (vmin==null)?nv:Math.min(vmin,nv); vmax = (vmax==null)?nv:Math.max(vmax,nv); } });
+  }
+  list.forEach(f => {
+    const p = f.properties;
+    const isSel = featKey(f) === selectedKey;
+    let fill = DOT_COLOR, stroke = DOT_COLOR;
+    if(cmVar){
+      const nv = valFor(p);
+      if(nv == null) fill = NEUTRAL_COLOR;
+      else if(isEaqi(cmVar)) fill = eaqiColor(nv);                                    // palette discreta EAQI
+      else fill = (vmin != null) ? colormap(vmax > vmin ? (nv - vmin) / (vmax - vmin) : 0.5) : NEUTRAL_COLOR;
+      stroke = '#33475a';
+    }
+    const z = map.getZoom();
+    const rBase = z <= 7 ? 3 : (z <= 9 ? 4 : 6);      // piu' zoom = puntini piu' grandi
+    const m = L.circleMarker([p._lat, p._lon], {
+      radius: isSel ? rBase + 2 : rBase, color: isSel ? '#c05621' : stroke,
+      weight: isSel ? 2 : 1, fillColor: fill, fillOpacity: cmVar ? 0.9 : 0.75
+    });
+    const nvLab = valFor(p);
+    if(cmVar && nvLab != null && map.getZoom() >= 11){
+      // zoom alto: etichetta del valore sempre visibile accanto al puntino
+      m.bindTooltip(String(nvLab), { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
+    } else {
+      m.bindTooltip(tooltipHtml(p), { className:'stz', direction:'top' });
+    }
+    m.on('click', () => selectStation(p));
+    m.addTo(markersLayer);
+    bounds.push([p._lat, p._lon]);
+  });
+  if(bounds.length && _needFit && !selectedKey){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }
+  el('count').textContent = list.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
+  updateColorbar(cmVar, vmin, vmax);
+  setStatus('');
+}
+
+
+// colorbar di legenda (in basso a sinistra sulla mappa): mostrata solo quando c'e' una variabile scelta
+function updateColorbar(varName, vmin, vmax){
+  const cb = document.getElementById('colorbar');
+  if(!cb) return;
+  if(!varName || vmin == null){ cb.style.display = 'none'; return; }
+  cb.style.display = 'block';
+  if(isEaqi(varName)){                                        // legenda DISCRETA a 6 bande (colori EEA)
+    const bar = EAQI_BANDS.map(b => '<span title="' + b.v + ' ' + b.l + '" style="flex:1;height:100%;background:'
+                 + b.c + '"></span>').join('');
+    cb.innerHTML =
+      '<div class="cb-title">Indice qualita’ aria (EAQI)</div>' +
+      '<div class="cb-bar" style="display:flex;overflow:hidden">' + bar + '</div>' +
+      '<div class="cb-scale"><span>' + EAQI_BANDS[0].l + '</span><span>' + EAQI_BANDS[5].l + '</span></div>' +
+      '<div class="cb-note"><span class="cb-sw"></span>valore non disponibile</div>';
+    return;
+  }
+  const unit = unitForVar(varName), grad = [0,.2,.4,.6,.8,1].map(t => colormap(t)).join(',');
+  cb.innerHTML =
+    '<div class="cb-title">' + varLabel(varName) + (unit ? ' (' + unit + ')' : '') + '</div>' +
+    '<div class="cb-bar" style="background:linear-gradient(to right,' + grad + ')"></div>' +
+    '<div class="cb-scale"><span>' + fmtNum(vmin) + '</span><span>' + fmtNum(vmax) + '</span></div>' +
+    '<div class="cb-note"><span class="cb-sw"></span>valore non disponibile</div>';
+}
+
+function tooltipHtml(p){
+  const units = unitsByRegion[p._region] || {};
+  let s = '<b>' + prettyName(p.name || p.scode) + '</b>';
+  if(p.latest){
+    const parts = Object.keys(p.latest).map(v => {
+      // LIVIDRO -> quota assoluta (m s.m.m.) se la stazione ha lo zero idrometrico (cm -> /100)
+      const off = (v === 'LIVIDRO' && p.zero_idro != null) ? p.zero_idro : 0;
+      const scale = (off && units[v] === 'cm') ? 0.01 : 1;
+      const val = (off && p.latest[v] != null) ? Math.round((p.latest[v] * scale + off) * 1000) / 1000 : p.latest[v];
+      const u = off ? 'm s.m.m.' : (units[v] || '');
+      return `${v}: ${val}${u ? ' ' + u : ''}`;
+    });
+    if(parts.length) s += '<br>' + parts.join('<br>');
+  }
+  if(p.latest_time) s += `<br><span style="color:#888">${p.latest_time.replace('T',' ')}</span>`;
+  return s;
+}
+
+// ------------------------------------------------------------------------------------------------
+// SELEZIONE STAZIONE -> SERIE
+// ------------------------------------------------------------------------------------------------
+async function selectStation(props){
+  currentStation = props;
+  selectedKey = props._region + '|' + props.scode;
+  const region = props._region;
+  openStationTab(props);                         // scheda nella tab bar + vista stazione
+  if(props._lat != null) map.panTo([props._lat, props._lon]);
+  currentUnits = unitsByRegion[region] || {};
+  el('panel').scrollTop = 0;            // su mobile: mostra la stazione dall'inizio
+  el('stationName').textContent = prettyName(props.name || props.scode);
+  el('stationMeta').textContent = 'Codice ' + props.scode + (props.latest_time ? ' · ultimo dato ' + props.latest_time.replace('T',' ') : '');
+  const src = SOURCES[region];
+  el('source').innerHTML = (src
+    ? `Fonte: ${src.name} · <a href="${src.url}" target="_blank" rel="noopener">${src.url}</a> · `
+    : '') + TZNOTE + ' Dati in tempo reale non validati.';
+  setStatus('Carico la serie…');
+
+  // fetch CSV della stazione (dalla sua regione)
+  let table;
+  if(props._table && props._tableAt && (Date.now() - props._tableAt) < 5*60*1000){
+    table = props._table;                 // cambio scheda: riusa la serie recente (<5 min)
+  } else {
+    let csv;
+    try {
+      csv = await (await fdata(`${region}/${props.series}`)).text();
+    } catch(e){ setStatus('Serie non disponibile (' + e + ')'); return; }
+    table = parseCSV(csv);                // {header:[datetime,VAR,...], cols:{name:[...]}, x:[epoch]}
+    props._table = table; props._tableAt = Date.now();
+  }
+
+  // pulsante di download del CSV della stazione
+  const dl = el('download');
+  dl.href = `${DATA_BASE}/${region}/${props.series}`;
+  dl.download = prettyName(props.name || props.scode).replace(/[^\w-]+/g,'_') + '_' + region + '.csv';
+  el('modes').style.display = 'flex';
+
+  // bottoni variabile: SOLO le variabili della pagina attiva (dirette / derivate / indici)
+  const allVars = ((props.variables && props.variables.length) ? props.variables
+                : table.header.slice(1)).slice();
+  if(windObsCount(table) >= 10) allVars.push(WROSE);   // chip "Rosa dei venti" nel gruppo derivate
+  const vars = allVars.filter(v => varCat(v) === currentPage);
+  currentVar2 = null;                     // nuova stazione: azzera l'eventuale 2ª variabile precedente
+  document.body.classList.remove('rose-mode');         // nuova stazione: riparti dal grafico
+  buildVarButtons(vars);
+  updateClimaBox();                       // pannello climatologia (solo pagina "indici")
+  if(vars.length){
+    // scegli la variabile: quella filtrata se presente, poi quella corrente, poi la prima
+    const pick = (filterVar && vars.includes(filterVar)) ? filterVar
+               : (vars.includes(currentVar) ? currentVar : vars[0]);
+    drawVar(pick);
+  } else {
+    clearChart();                         // questa stazione non ha variabili per la pagina attiva
+  }
+  setStatus('');
+
+  // aggiorna i menu a tendina in base alla stazione selezionata
+  el('stationFilter').value = selectedKey;
+  buildVarFilter();
+  renderMarkers();
+  updateHash();
+}
+
+function buildVarButtons(vars){
+  const box = el('vars'); box.innerHTML = '';
+  vars.forEach(v => {
+    const b = document.createElement('button');
+    b.dataset.var = v;
+    if(v === WROSE){                        // pseudo-variabile: apre la rosa dei venti (niente 2ª variabile)
+      b.classList.add('vrose');
+      b.innerHTML = `<span class="vnm">🧭 ${varLabel(v)}</span>`;
+      b.onclick = () => drawVar(WROSE);
+    } else {
+      // click sul NOME -> variabile principale (blu); click sul '+' -> 2ª variabile (rossa, asse dx)
+      const u = varUnit(v, currentStation);   // LIVIDRO con zero -> 'm s.m.m.'
+      b.innerHTML = `<span class="vnm">${varLabel(v)}${u ? ' ('+u+')' : ''}</span>`
+                  + `<span class="vadd" title="Aggiungi come 2ª variabile (asse destro)">＋</span>`;
+      b.onclick = (e) => {
+        if(e.target.classList.contains('vadd')) toggleVar2(v);
+        else drawVar(v);
+      };
+    }
+    box.appendChild(b);
+  });
+  syncVarButtons();
+}
+
+// evidenzia le pillole (principale=blu, secondaria=bordo rosso) e mostra il '+' solo dove ha senso
+function syncVarButtons(){
+  const compare = isCompareMode();
+  [...el('vars').children].forEach(b => {
+    const v = b.dataset.var;
+    b.classList.toggle('active',  v === currentVar);
+    b.classList.toggle('active2', !compare && v === currentVar2);
+    const add = b.querySelector('.vadd');
+    // il '+' non ha senso nei confronti (una sola variabile) né sulla variabile già principale
+    if(add) add.style.display = (compare || v === currentVar) ? 'none' : '';
+  });
+}
+
+function drawVar(v){
+  currentVar = v;
+  if(currentVar2 === v) currentVar2 = null;   // una variabile non può essere sia principale sia secondaria
+  syncVarButtons();
+  if(v === WROSE){ document.body.classList.add('rose-mode'); updateWindRose(); }   // mostra la rosa al posto del grafico
+  else { document.body.classList.remove('rose-mode'); renderChart(v); }
+  if(typeof updateHash === 'function' && currentStation) updateHash();
+}
+
+// ---- CLIMATOLOGIA (pagina "indici"): riassunto da site/<REGIONE>/climate.json ----------------------
+const _climaCache = {};
+async function loadClimate(region){
+  if(region in _climaCache) return _climaCache[region];
+  try { _climaCache[region] = await (await fdata(`${region}/climate.json`, {cache:'no-store'})).json(); }
+  catch(e){ _climaCache[region] = null; }
+  return _climaCache[region];
+}
+const _fmtMon = s => s ? s.substr(4,2) + '/' + s.substr(0,4) : '';
+const _fmtDay = s => s ? s.substr(6,2) + '/' + s.substr(4,2) + '/' + s.substr(0,4) : '';
+async function updateClimaBox(){
+  const box = el('climabox');
+  if(currentPage !== 'indici' || !currentStation){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block'; box.innerHTML = '<div class="hint">Carico la climatologia…</div>';
+  const clima = await loadClimate(currentStation._region);
+  if(!currentStation){ return; }
+  const e = clima && clima[currentStation.scode];
+  if(!e){ box.innerHTML = '<div class="hint">Climatologia non disponibile per questa stazione.</div>'; return; }
+  const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  let rows = '';
+  const mon = e.monthly || {};
+  for(let m=1;m<=12;m++){ const d = mon[String(m).padStart(2,'0')]; if(!d) continue;
+    rows += `<tr><td>${MESI[m-1]}</td><td>${d.tmin??'–'}</td><td>${d.tmax??'–'}</td><td>${d.tmean??'–'}</td><td>${d.prec??'–'}</td></tr>`; }
+  let html = `<h4>Climatologia — ${_fmtMon(e.period.from)}–${_fmtMon(e.period.to)} · ${e.period.days} giorni</h4>`;
+  if(rows) html += `<table><tr><th>Mese</th><th>T min</th><th>T max</th><th>T media</th><th>Pioggia</th></tr>${rows}</table>`;
+  const r = e.records || {}, rb = [];
+  if(r.tmax) rb.push(`T max ${r.tmax.val} °C (${_fmtDay(r.tmax.date)})`);
+  if(r.tmin) rb.push(`T min ${r.tmin.val} °C (${_fmtDay(r.tmin.date)})`);
+  if(r.prec_day) rb.push(`pioggia/g ${r.prec_day.val} mm (${_fmtDay(r.prec_day.date)})`);
+  if(rb.length) html += `<div class="rec"><b>Record:</b> ${rb.join(' · ')}</div>`;
+  const ix = e.indices || {}, IXL = {frost_days:'gelo', ice_days:'ghiaccio', summer_days:'estivi',
+    hot_days:'caldi (>30°)', tropical_nights:'notti tropicali', rainy_days:'piovosi'};
+  const ib = Object.keys(IXL).filter(k => ix[k] != null).map(k => `${IXL[k]} ${ix[k]}`);
+  if(ib.length) html += `<div class="rec"><b>Giorni/anno:</b> ${ib.join(' · ')}</div>`;
+  box.innerHTML = html;
+}
+
+// ---- ROSA DEI VENTI + VENTO MEDIO VETTORIALE (dal _table: DVENTO direzione + VVENTO velocita') ----
+const _DIR16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+const _WR_CLASSES = [                                    // classi di velocita' (m/s) -> colore (debole->forte)
+  {lo:0.5, hi:2,        c:'#c7e9b4', l:'0.5–2'}, {lo:2, hi:4,   c:'#7fcdbb', l:'2–4'},
+  {lo:4,   hi:6,        c:'#41b6c4', l:'4–6'},   {lo:6, hi:9,   c:'#1d91c0', l:'6–9'},
+  {lo:9,   hi:Infinity, c:'#225ea8', l:'≥9'}
+];
+function windObsCount(t){                        // n. di coppie (direzione,velocita') valide nella serie
+  const d = t && t.cols['DVENTO'], s = t && t.cols['VVENTO'];
+  if(!d || !s) return 0;
+  let n = 0;
+  for(let i=0;i<d.length;i++){ if(d[i]!=null && s[i]!=null && !isNaN(d[i]) && !isNaN(s[i])) n++; }
+  return n;
+}
+function updateWindRose(){
+  const box = el('windrose');
+  if(!box) return;
+  const t = currentStation && currentStation._table;
+  const dirs = t && t.cols['DVENTO'], sps = t && t.cols['VVENTO'];
+  if(!dirs || !sps){ box.innerHTML = ''; return; }
+  // conteggi per (settore 16 × classe di velocita'), + accumulo vettoriale e scalare
+  const grid = Array.from({length:16}, () => new Array(_WR_CLASSES.length).fill(0));
+  let n = 0, calm = 0, su = 0, sv = 0, ss = 0;
+  for(let i=0;i<dirs.length;i++){
+    const d = dirs[i], s = sps[i];
+    if(d == null || s == null || isNaN(d) || isNaN(s)) continue;
+    n++; ss += s;
+    const rad = d * Math.PI / 180; su += -s * Math.sin(rad); sv += -s * Math.cos(rad);   // vettore "verso cui"
+    if(s < 0.5){ calm++; continue; }
+    const sec = Math.round(((d % 360) + 360) % 360 / 22.5) % 16;
+    let ci = _WR_CLASSES.findIndex(c => s >= c.lo && s < c.hi); if(ci < 0) ci = _WR_CLASSES.length - 1;
+    grid[sec][ci]++;
+  }
+  if(n < 10){ box.innerHTML = '<div class="hint">Dati di vento insufficienti per la rosa.</div>'; return; }   // troppo pochi dati
+  // massima frequenza di settore (per scalare i raggi)
+  let maxPct = 0; const secPct = grid.map(cl => { const tot = cl.reduce((a,b)=>a+b,0)/n*100; if(tot>maxPct) maxPct=tot; return tot; });
+  const cx = 130, cy = 118, R = 92, calmR = 12;
+  const step = maxPct <= 10 ? 2 : (maxPct <= 25 ? 5 : 10);
+  const gridMax = Math.max(step, Math.ceil(maxPct / step) * step);
+  const rOf = pct => calmR + (R - calmR) * pct / gridMax;
+  const P = (r, thDeg) => { const a = thDeg * Math.PI/180; return [(cx + r*Math.sin(a)).toFixed(1), (cy - r*Math.cos(a)).toFixed(1)]; };
+  let svg = '';
+  // cerchi guida + etichette percentuale
+  for(let g=step; g<=gridMax; g+=step){ const r = rOf(g).toFixed(1);
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d7dee6"/>`;
+    svg += `<text x="${cx+2}" y="${(cy - r + 3).toFixed(1)}" font-size="8" fill="#9aa5b1">${g}%</text>`;
+  }
+  // raggi + etichette bussola (N/E/S/O)
+  ['N','E','S','O'].forEach((lab,k) => { const [x,y] = P(R+11, k*90);
+    svg += `<text x="${x}" y="${y}" font-size="11" font-weight="600" fill="#5a6b7b" text-anchor="middle" dominant-baseline="middle">${lab}</text>`; });
+  // petali impilati per classe di velocita'
+  const HALF = 10;                                      // semiampiezza del settore (gradi); 22.5 pieno, con gap
+  for(let sec=0; sec<16; sec++){
+    const th = sec * 22.5, t1 = th - HALF, t2 = th + HALF;
+    let acc = 0;
+    for(let ci=0; ci<_WR_CLASSES.length; ci++){
+      const cnt = grid[sec][ci]; if(!cnt) continue;
+      const p0 = acc/n*100, p1 = (acc+cnt)/n*100; acc += cnt;
+      const ri = rOf(p0), ro = rOf(p1);
+      const [ax,ay] = P(ri,t1), [bx,by] = P(ro,t1), [dcx,dcy] = P(ro,t2), [ex,ey] = P(ri,t2);
+      svg += `<path d="M${ax},${ay} L${bx},${by} A${ro.toFixed(1)},${ro.toFixed(1)} 0 0 1 ${dcx},${dcy} `
+           + `L${ex},${ey} A${ri.toFixed(1)},${ri.toFixed(1)} 0 0 0 ${ax},${ay} Z" `
+           + `fill="${_WR_CLASSES[ci].c}" stroke="#fff" stroke-width="0.4"/>`;
+    }
+  }
+  svg += `<circle cx="${cx}" cy="${cy}" r="${calmR}" fill="#eef2f6" stroke="#d7dee6"/>`
+       + `<text x="${cx}" y="${cy+3}" font-size="8" fill="#7a8794" text-anchor="middle">calme</text>`;
+  // vento medio vettoriale + freccia (dalla direzione di provenienza verso il centro)
+  const vspeed = Math.hypot(su, sv) / n, sspeed = ss / n;
+  const fromDeg = (Math.atan2(-su, -sv) * 180/Math.PI + 360) % 360;   // direzione DA cui spira il vento medio
+  if(vspeed > 0.1){ const [hx,hy] = P(R*0.62, fromDeg);               // freccia verso la PROVENIENZA (come i petali)
+    svg += `<line x1="${cx}" y1="${cy}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="2"/>`
+         + `<circle cx="${hx}" cy="${hy}" r="2.5" fill="#c05621"/>`; }
+  const legend = _WR_CLASSES.map(c => `<span style="white-space:nowrap"><i style="display:inline-block;width:9px;height:9px;background:${c.c};border:1px solid #bbb;vertical-align:-1px"></i> ${c.l}</span>`).join(' ');
+  box.innerHTML =
+    `<div class="wr-title">Rosa dei venti <span class="wr-sub">· ${n} osservazioni</span></div>` +
+    `<svg viewBox="0 0 260 250" width="100%" style="max-width:300px;display:block;margin:0 auto">${svg}</svg>` +
+    `<div class="wr-legend">m/s: ${legend}</div>` +
+    `<div class="wr-mean">Vento medio (vettoriale): <b>${vspeed.toFixed(1)} m/s</b> da <b>${_dirName(fromDeg)}</b>` +
+      ` · media scalare ${sspeed.toFixed(1)} m/s · calme ${(calm/n*100).toFixed(0)}%</div>`;
+}
+
+// aggiunge/rimuove la 2ª variabile (linea rossa, asse destro). Solo nei modi a variabile singola.
+function toggleVar2(v){
+  if(isCompareMode() || v === currentVar) return;
+  currentVar2 = (currentVar2 === v) ? null : v;
+  syncVarButtons();
+  renderChart(currentVar);
+}
+
+// scarica (se mancanti) le serie di tutte le schede aperte, per il confronto fra schede
+async function ensureTabTables(){
+  for(const t of openTabs){
+    if(t.props._table) continue;
+    try {
+      const csv = await (await fdata(`${t.props._region}/${t.props.series}`)).text();
+      t.props._table = parseCSV(csv); t.props._tableAt = Date.now();
+    } catch(e){}
+  }
+}
+
+// CONFRONTO SCHEDE: stessa variabile, una serie per ogni stazione aperta in scheda
+function renderCompareTabs(label, unit){
+  if(unit === undefined){
+    const t0 = openTabs.find(t => (unitsByRegion[t.props._region] || {})[label]);
+    unit = t0 ? (unitsByRegion[t0.props._region] || {})[label] : '';
+  }
+  clearChart();
+  el('chartstats').textContent = '';
+  const tabs = openTabs.filter(t => t.props._table && (t.props._table.cols[label] || []).some(v => v != null));
+  if(tabs.length < 2){
+    el('chartlegend').innerHTML = '';
+    setStatus('Apri in schede almeno 2 stazioni che misurano ' + varLabel(label) + ', poi torna qui.');
+    return;
+  }
+  setStatus('');
+  // unita' miste (es. livelli in cm e in m): tutto in m; zeri idrometrici applicati dove presenti
+  const normOf = t => {
+    const off = varOffset(label, t.props);
+    const um = (unitsByRegion[t.props._region] || {})[label];
+    const sc = off ? varScale(label, t.props) : (um === 'cm' ? 0.01 : 1);
+    return { off: off || 0, sc };
+  };
+  const anyCm = tabs.some(t => (unitsByRegion[t.props._region] || {})[label] === 'cm');
+  const anyOff = tabs.some(t => varOffset(label, t.props));
+  const uLab = anyOff ? 'm s.m.m.' : (anyCm ? 'm' : unit);
+  const xset = new Set();
+  tabs.forEach(t => { const tb = t.props._table, c = tb.cols[label] || [];
+    for(let i=0;i<tb.x.length;i++) if(tb.x[i] != null && c[i] != null) xset.add(tb.x[i]); });
+  let xs = [...xset].sort((a,b) => a-b);
+  if((chartMode === 'day' || chartMode === 'day3') && xs.length){
+    const span = (chartMode === 'day3' ? 3 : 1) * 86400;
+    const mx = xs[xs.length - 1];
+    xs = xs.filter(x => x >= mx - span);
+  }
+  const idx = new Map(xs.map((v,i) => [v,i]));
+  const data = [xs];
+  const COLS = ['#2b6cb0','#e53e3e','#2f9e44','#f59f00','#7048e8','#0ca678','#d6336c','#845ef7'];
+  const series = [{ value: (u, ts) => ts==null ? '--' : fmtFull(ts) }];
+  tabs.forEach((t, k) => {
+    const tb = t.props._table, c = tb.cols[label] || [], n = normOf(t);
+    const arr = new Array(xs.length).fill(null);
+    for(let i=0;i<tb.x.length;i++){
+      if(tb.x[i] == null || c[i] == null) continue;
+      arr[idx.get(tb.x[i])] = Math.round((c[i] * n.sc + n.off) * 1000) / 1000;
+    }
+    series.push({ label: prettyName(t.props.name || t.props.scode), stroke: COLS[k % COLS.length],
+                  width:1.5, spanGaps:false, points:{ show:true, size:4 } });
+    data.push(arr);
+  });
+  const axes = [
+    { grid:{stroke:GRID()}, stroke:AXTX(), values: (u, ticks) => ticks.map(fmtAxis) },
+    { grid:{stroke:GRID()}, size:58, label: uLab, labelSize:26, labelGap:4, stroke:AXTX() }
+  ];
+  const opts = {
+    width: chartWidth(), height: chartHeight(), tzDate: TZ_UTC, legend: { show:false },
+    series, axes, cursor: { drag:{ x:true, y:false } },
+    hooks: { drawClear: [ dayBands ] },
+  };
+  chart = new uPlot(opts, data, el('chart'));
+  // legenda: nome stazione con il suo colore
+  el('chartlegend').style.display = '';
+  el('chartlegend').innerHTML = series.slice(1).map((sr, k) =>
+    '<div class="lg-row"><span class="lg-sw" style="background:' + COLS[k % COLS.length] + '"></span>'
+    + sr.label + '</div>').join('');
+}
+
+// ricarica i dati della stazione aperta e ridisegna il grafico (senza ricaricare la pagina)
+async function refreshStation(){
+  if(!currentStation) return;
+  const region = currentStation._region;
+  const btn = el('refresh'); const label = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  try {
+    const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
+    const t = parseCSV(csv);
+    currentStation._table = t;
+    const vars = t.header.slice(1);
+    if(currentVar === WROSE) updateWindRose();                       // resta sulla rosa, ridisegnala coi dati freschi
+    else drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
+    // ultimo dato MISURATO: ignora le righe con sole derivate/indici (es. GDD/ET0 alle 12:00 solari,
+    // che al mattino sono "nel futuro")
+    let lastX = null;
+    for(let i = t.x.length - 1; i >= 0 && lastX == null; i--){
+      for(const v of t.header.slice(1)){
+        if(varCat(v) === 'dirette' && t.cols[v][i] != null){ lastX = t.x[i]; break; }
+      }
+    }
+    el('stationMeta').textContent = 'Codice ' + currentStation.scode +
+      (lastX ? ' · ultimo dato ' + fmtFull(lastX) : '');
+  } catch(e){ setStatus('Aggiornamento non riuscito.'); }
+  btn.textContent = label; btn.disabled = false;
+}
+
+// ------------------------------------------------------------------------------------------------
+// GRAFICO (uPlot)
+// ------------------------------------------------------------------------------------------------
+function clearChart(){ if(chart){ chart.destroy(); chart = null; } el('chart').innerHTML='';
+  const cs = el('chartstats'); if(cs) cs.textContent = ''; }
+
+// larghezza = colonna del grafico (a sinistra della legenda); altezza = tutto il contenitore
+// (la legenda uPlot integrata e' disattivata -> usiamo quella nostra a destra, in colonna).
+function chartWidth(){ return Math.max(220, el('chart').clientWidth || (el('chartwrap').clientWidth - 128)); }
+// misura #chart (non #chartwrap): su mobile la legenda va SOTTO (chartwrap in colonna), quindi
+// l'altezza utile del grafico e' quella del solo #chart, non dell'intero wrap.
+function chartHeight(){ return Math.max(180, el('chart').clientHeight || el('chartwrap').clientHeight); }
+
+// LEGENDA a destra del grafico, in colonna: uno swatch colorato + nome serie + valore live all'hover.
+// giorno+ora compatti per il readout ('19/07 14:30')
+function fmtDayTime(ts){ const d = new Date(ts*1000);
+  return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1)+' '+pad(d.getUTCHours())+':'+pad(d.getUTCMinutes()); }
+const isCompareMode = () => (chartMode === 'compare' || chartMode === 'compare30' || chartMode === 'tabs');
+const GRID = () => document.body.classList.contains('dark') ? '#223146' : '#eef2f7';
+const AXTX = () => document.body.classList.contains('dark') ? '#c7d3e0' : '#1c2733';
+
+function renderLegend(u){
+  const box = el('chartlegend'); box.innerHTML = '';
+  if(chartMode === 'compare30'){ box._rows = null; box._readout = null; return; }  // colonna vuota ma presente (larghezza uniforme)
+  if(!isCompareMode()){
+    // modi a variabile singola: nessun nome. Solo VALORE all'hover, con giorno/ora sotto (a capo, a sinistra).
+    // se c'è una 2ª variabile: due valori, blu (principale) e rosso (secondaria).
+    const two = currentVar2 && currentVar2 !== currentVar;
+    box.innerHTML = '<div class="rd"><span class="rv rv1"></span>'
+                  + (two ? '<span class="rv rv2"></span>' : '')
+                  + '<span class="rt"></span></div>';
+    box._readout = { v: box.querySelector('.rv1'), v2: two ? box.querySelector('.rv2') : null, t: box.querySelector('.rt') };
+    box._rows = null;
+    return;
+  }
+  // confronto: lista dei giorni (swatch + etichetta + valore all'hover)
+  const rows = [];
+  for(let i = 1; i < u.series.length; i++){
+    const s = u.series[i];
+    const stroke = (typeof s.stroke === 'function') ? s.stroke(u, i) : s.stroke;
+    const div = document.createElement('div'); div.className = 'lg';
+    div.innerHTML = `<span class="sw" style="background:${stroke||'#888'}"></span>`
+                  + `<span class="nm">${s.label || ''}</span><span class="vl"></span>`;
+    box.appendChild(div); rows.push(div.querySelector('.vl'));
+  }
+  box._rows = rows; box._readout = null;
+}
+function legendCursor(u){
+  const box = el('chartlegend'); const idx = u.cursor.idx;
+  if(box._readout){
+    const v = (idx != null) ? u.data[1][idx] : null;         // serie principale -> indice 1
+    box._readout.v.textContent = (v == null || v === '') ? '' : v;
+    if(box._readout.v2){                                      // 2ª variabile -> indice 2
+      const v2 = (idx != null && u.data[2]) ? u.data[2][idx] : null;
+      box._readout.v2.textContent = (v2 == null || v2 === '') ? '' : v2;
+    }
+    box._readout.t.textContent = (idx != null && u.data[0][idx] != null) ? fmtDayTime(u.data[0][idx]) : '';
+    return;
+  }
+  if(box._rows){
+    for(let i = 1; i < u.series.length; i++){
+      const v = (idx != null) ? u.data[i][idx] : null;
+      box._rows[i-1].textContent = (v == null || v === '') ? '' : v;
+    }
+  }
+}
+
+// formattazione orari 24h. I timestamp sono ORA LOCALE ITALIANA salvata come testo "naive";
+// in parseCSV li trattiamo come UTC epoch e qui li formattiamo con getUTC* -> mostriamo le cifre
+// esatte in 24h a prescindere dal fuso del browser.
+const pad = n => String(n).padStart(2,'0');
+// asse X: etichetta solo sui tick dell'ora tonda (es. 6, 8, 10 ...); a mezzanotte la data GG/MM;
+// tick a minuti non tondi restano senza etichetta (evita "11 11 11 12" con finestre strette).
+function fmtAxis(ts){ const d = new Date(ts*1000);
+  if(d.getUTCMinutes() !== 0) return '';
+  return d.getUTCHours()===0 ? pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1) : String(d.getUTCHours()); }
+// hover (legenda TIME): DD/MM/YYYY HH:MM
+function fmtFull(ts){ const d = new Date(ts*1000);
+  return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()+' '+pad(d.getUTCHours())+':'+pad(d.getUTCMinutes()); }
+// per il modo "Confronto": x = secondi da mezzanotte (trattati come epoch 1970 -> ora del giorno)
+function fmtTod(sec){ const d = new Date(sec*1000); return d.getUTCMinutes()===0 ? String(d.getUTCHours()) : ''; }
+function hhmm(sec){ const d = new Date(sec*1000); return pad(d.getUTCHours())+':'+pad(d.getUTCMinutes()); }
+function dayLabel(dayIdx){ const d = new Date(dayIdx*86400*1000); return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1); }
+// forza uPlot a piazzare i tick in UTC (i nostri epoch sono ora-civile-salvata-come-UTC): cosi'
+// i tick cadono a mezzanotte e combaciano con le bande giornaliere.
+const TZ_UTC = ts => uPlot.tzDate(new Date(ts*1000), 'Etc/UTC');
+
+// bande verticali alternate (grigio tenue) per distinguere i giorni sul grafico
+function dayBands(u){
+  const s = u.scales.x;
+  if(s.min == null) return;
+  const DAY = 86400, ctx = u.ctx;
+  ctx.save();
+  ctx.fillStyle = 'rgba(30,45,60,0.045)';
+  for(let d = Math.floor(s.min / DAY); d*DAY < s.max; d++){
+    if((((d % 2) + 2) % 2) === 0) continue;              // banda solo sui giorni "dispari" (alternati)
+    const x0 = Math.max(d*DAY, s.min), x1 = Math.min((d+1)*DAY, s.max);
+    const px0 = u.valToPos(x0, 'x', true), px1 = u.valToPos(x1, 'x', true);
+    ctx.fillRect(px0, u.bbox.top, px1 - px0, u.bbox.height);
+  }
+  ctx.restore();
+}
+
+// LIVIDRO -> QUOTA ASSOLUTA (m s.m.m.): se la stazione ha lo zero idrometrico (zero_idro, dal PDF ARPAV),
+// il livello va mostrato sommato allo zero. Vale SOLO per la variabile LIVIDRO e solo dove lo zero esiste.
+function varOffset(v, st){ return (v === 'LIVIDRO' && st && st.zero_idro != null) ? st.zero_idro : 0; }
+// fattore per portare il valore grezzo in METRI prima di sommare lo zero: alcune reti (LOM, BZ)
+// pubblicano il livello in cm -> /100. Le altre (VEN, Piemonte, Po) sono gia' in metri.
+function varScale(v, st){ return (varOffset(v, st) && currentUnits[v] === 'cm') ? 0.01 : 1; }
+function varUnit(v, st){ return (v === 'LIVIDRO' && st && st.zero_idro != null) ? 'm s.m.m.' : (currentUnits[v] || ''); }
+function applyOff(arr, off, scale){
+  if(!off) return arr;
+  scale = scale || 1;
+  return arr.map(y => y == null ? null : Math.round((y * scale + off) * 1000) / 1000);
+}
+
+// grafico principale: 'week' (7gg), 'day3' (3gg), 'day' (24h); 'compare'/'compare30' -> renderCompare
+function renderChart(label){
+  clearChart();
+  // Confronto 30 giorni: la legenda resta VUOTA (troppi giorni per elencarli), ma la sua colonna
+  // resta al suo posto -> il grafico ha la STESSA larghezza di tutti gli altri modi (non si allarga).
+  el('chartlegend').style.display = '';
+  const unit = varUnit(label, currentStation);
+  if(chartMode === 'compare' || chartMode === 'compare30'){
+    const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
+    el('chartstats').textContent = '';
+    if(t) renderCompare(t, label, unit);
+    return;
+  }
+  if(chartMode === 'tabs'){ renderCompareTabs(label, unit); return; }
+  const t = currentStation._table;
+  const v2 = (currentVar2 && currentVar2 !== label) ? currentVar2 : null;   // 2ª variabile (asse dx, rossa)
+  const off = varOffset(label, currentStation), off2 = v2 ? varOffset(v2, currentStation) : 0;
+  let xs = t.x, ys = applyOff(t.cols[label] || [], off, varScale(label, currentStation)),
+      ys2 = v2 ? applyOff(t.cols[v2] || [], off2, varScale(v2, currentStation)) : null;
+  if(chartMode === 'day' || chartMode === 'day3'){          // solo le ultime 24h / 3 giorni
+    const span = (chartMode === 'day3') ? 3*86400 : 86400;
+    const xv0 = xs.filter(v => v != null);
+    if(xv0.length){
+      const from = Math.max(...xv0) - span, X = [], Y = [], Y2 = v2 ? [] : null;
+      for(let i=0;i<xs.length;i++){ if(xs[i] != null && xs[i] >= from){ X.push(xs[i]); Y.push(ys[i]); if(v2) Y2.push(ys2[i]); } }
+      xs = X; ys = Y; if(v2) ys2 = Y2;
+    }
+  }
+  const xv = xs.filter(v => v != null);
+  const xmin = xv.length ? Math.min(...xv) : null, xmax = xv.length ? Math.max(...xv) : null;
+  const series = [
+    { value: (u, ts) => ts==null ? '--' : fmtFull(ts) },
+    { label: varLabel(label), stroke:'#2b6cb0', width:1.5, spanGaps:false, points:{ show:true, size:5 } }
+  ];
+  const axes = [
+    { grid:{stroke:GRID()}, stroke:AXTX(), values: (u, ticks) => ticks.map(fmtAxis) },
+    { grid:{stroke:GRID()}, size:58, label: unit, labelSize: 26, labelGap: 4, stroke:'#2b6cb0' }
+  ];
+  const chartData = [xs, ys];
+  if(v2){
+    // seconda serie su scala 'y2' con asse a DESTRA, in rosso; niente griglia (per non raddoppiarla)
+    series.push({ label: varLabel(v2), stroke:'#e53e3e', width:1.5, spanGaps:false, points:{ show:true, size:5 }, scale:'y2' });
+    axes.push({ scale:'y2', side:1, grid:{ show:false }, size:58, label: varUnit(v2, currentStation), labelSize:26, labelGap:4, stroke:'#e53e3e' });
+    chartData.push(ys2);
+  }
+  const opts = {
+    width: chartWidth(), height: chartHeight(), tzDate: TZ_UTC, legend: { show:false },
+    scales: { x: { time:true, range: (u, a, b) =>
+      xmin == null ? [a, b] : (xmin === xmax ? [xmin - 3600, xmax + 3600] : [xmin, xmax]) } },
+    series, axes,
+    cursor: { drag:{ x:true, y:false } },
+    hooks: { drawClear: [ dayBands ], setCursor: [ legendCursor ] },
+  };
+  chart = new uPlot(opts, chartData, el('chart'));
+  renderLegend(chart);
+  // statistiche della finestra visualizzata (+ record storici dal climate.json quando disponibili)
+  const vv = ys.filter(v => v != null && !isNaN(v));
+  if(vv.length){
+    const mn = Math.min.apply(null, vv), mx = Math.max.apply(null, vv);
+    const avg = vv.reduce((a,b)=>a+b,0) / vv.length;
+    let txt = 'min ' + fmtNum(mn) + ' · max ' + fmtNum(mx) + ' · media ' + fmtNum(Math.round(avg*100)/100)
+            + (unit ? ' ' + unit : '');
+    const clima = _climaCache[currentStation._region];
+    const ce = clima && clima[currentStation.scode];
+    if(label === 'TEMP' && ce && ce.records){
+      const r = ce.records, rb = [];
+      if(r.tmax) rb.push('max ' + r.tmax.val + '°');
+      if(r.tmin) rb.push('min ' + r.tmin.val + '°');
+      if(rb.length) txt += '  ·  record storici: ' + rb.join(' / ');
+    }
+    el('chartstats').textContent = txt;
+  } else el('chartstats').textContent = '';
+}
+
+// modo 'Confronto': una curva per ogni giorno (grigie) sovrapposte per ora del giorno; oggi in blu sopra
+function renderCompare(t, label, unit){
+  const DAY = 86400, ys = applyOff(t.cols[label] || [], varOffset(label, currentStation), varScale(label, currentStation));
+  const byDay = new Map();                                 // dayIdx -> Map(tod -> valore)
+  for(let i=0;i<t.x.length;i++){
+    const y = ys[i];
+    if(y == null || t.x[i] == null) continue;
+    const day = Math.floor(t.x[i] / DAY), tod = t.x[i] - day*DAY;
+    if(!byDay.has(day)) byDay.set(day, new Map());
+    byDay.get(day).set(tod, y);
+  }
+  // scarta l'eventuale giorno piu' vecchio PARZIALE: con la finestra mobile (168h / 30gg) il primo
+  // giorno inizia all'ora attuale, non a mezzanotte. Tengo solo i giorni la cui mezzanotte cade
+  // dentro la finestra -> cosi' ogni linea di confronto parte da mezzanotte.
+  const xv = t.x.filter(v => v != null);
+  const firstFull = xv.length ? Math.ceil(Math.min.apply(null, xv) / DAY) : 0;
+  const allDayKeys = [...byDay.keys()];
+  const maxDay = allDayKeys.length ? Math.max.apply(null, allDayKeys) : 0;   // giorno corrente
+  // tengo i giorni la cui mezzanotte cade dentro la finestra (scarta il frammento parziale piu' vecchio),
+  // ma SEMPRE il giorno corrente (oggi e' per natura parziale in coda).
+  const days = allDayKeys.filter(d => d >= firstFull || d === maxDay).sort((a,b) => a-b);
+  if(!days.length){ chart = new uPlot({width:chartWidth(),height:chartHeight(),legend:{show:false},series:[{},{}]}, [[],[]], el('chart')); renderLegend(chart); return; }
+  const today = days[days.length-1];
+  const nGrey = days.length - 1;                            // giorni non-oggi
+  const todSet = new Set(); days.forEach(d => byDay.get(d).forEach((v,tod) => todSet.add(tod)));
+  const X = [...todSet].sort((a,b) => a-b);
+
+  const series = [{ value: (u, ts) => ts==null ? '--' : hhmm(ts) }];
+  const data = [X];
+  days.forEach((day, idx) => {
+    const m = byDay.get(day), isToday = day === today;
+    let stroke, width, pts;
+    if(isToday){
+      stroke = '#2b6cb0'; width = 2.5; pts = { show:false };   // oggi: blu; spanGaps:true la tiene visibile
+    } else {
+      // grigio da CHIARO (piu' vecchio) a SCURO (piu' recente)
+      const frac = nGrey <= 1 ? 1 : idx / (nGrey - 1);       // 0=piu' vecchio ... 1=piu' recente
+      const l = Math.round(206 - frac * 96);                 // 206 (chiaro) -> 110 (scuro)
+      stroke = `rgb(${l},${l},${l})`; width = 1.2; pts = { show:false };
+    }
+    // spanGaps:true -> la serie di oggi (a griglia piu' rada) resta una linea continua e visibile
+    series.push({ label: isToday ? 'Oggi' : dayLabel(day), stroke, width, spanGaps:true, points:pts });
+    data.push(X.map(tod => m.has(tod) ? m.get(tod) : null));
+  });
+  const opts = {
+    width: chartWidth(), height: chartHeight(), tzDate: TZ_UTC, legend: { show:false },
+    scales: { x: { time:true } },
+    series,
+    axes: [
+      { grid:{stroke:GRID()}, values: (u, ticks) => ticks.map(fmtTod) },
+      { grid:{stroke:GRID()}, size:58, label: unit, labelSize: 26, labelGap: 4 }
+    ],
+    cursor: { drag:{ x:true, y:false } },
+    hooks: { setCursor: [ legendCursor ] },
+  };
+  chart = new uPlot(opts, data, el('chart'));
+  renderLegend(chart);
+}
+
+// ------------------------------------------------------------------------------------------------
+// EXPORT PNG del grafico mostrato (alta risoluzione, font grandi, legenda in colonna a destra)
+// ------------------------------------------------------------------------------------------------
+async function exportChartPNG(){
+  if(!chart || !currentStation){ return; }
+  const btn = el('exportpng'), lbl = btn.textContent;
+  btn.textContent = '⏳'; btn.disabled = true;
+  try {
+    // geometria dell'immagine (logica; il canvas finale e' a 2x per la nitidezza)
+    const W_PLOT = 1500, H_PLOT = 780, W_LEG = 320, PAD_TOP = 84, PAD_BOT = 18, PAD_L = 12, R = 2;
+    const isCompare = chartMode === 'compare' || chartMode === 'compare30';
+    const unit = varUnit(currentVar, currentStation);   // LIVIDRO -> 'm s.m.m.' se c'è lo zero
+
+    // riuso i dati/serie del grafico live (vale per tutti e tre i modi), ingranditi per la stampa
+    const series = chart.series.map((s, i) => i === 0 ? {} : {
+      label: s.label,
+      stroke: (typeof s.stroke === 'function' ? s.stroke(chart, i) : s.stroke),
+      width:  (s.label === 'Oggi') ? 3 : (isCompare ? 1.5 : 2.5),
+      spanGaps: isCompare,
+      // nei confronti (7/30 gg) MAI puntini: solo linee, come a schermo
+      points: { show: isCompare ? false : !!(s.points && s.points.show), size: 8 },
+      scale: s.scale                       // mantiene la 2ª serie sulla scala 'y2' (asse destro)
+    });
+    // 2ª variabile attiva (asse destro, rossa): serve un secondo asse Y nell'immagine
+    const v2png = (!isCompare && currentVar2 && currentVar2 !== currentVar) ? currentVar2 : null;
+    const unit2 = v2png ? varUnit(v2png, currentStation) : '';
+    // stessa finestra X visualizzata (rispetta anche un eventuale zoom)
+    const xr = (chart.scales.x.min != null) ? [chart.scales.x.min, chart.scales.x.max] : null;
+    const AXFONT = '20px system-ui, sans-serif', LBFONT = '700 24px system-ui, sans-serif';
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:' + W_PLOT + 'px;height:' + H_PLOT + 'px';
+    document.body.appendChild(host);
+
+    const axes = [
+      { grid:{stroke:'#e3e9f0'}, stroke:'#33475a', font:AXFONT, size:46,
+        values: (u, ticks) => ticks.map(isCompare ? fmtTod : fmtAxis) },
+      { grid:{stroke:'#e3e9f0'}, stroke: v2png ? '#2b6cb0' : '#33475a', font:AXFONT, size:82,
+        label: unit, labelFont: LBFONT, labelSize: 32, labelGap: 6 }
+    ];
+    if(v2png){
+      axes.push({ scale:'y2', side:1, grid:{ show:false }, stroke:'#e53e3e', font:AXFONT, size:82,
+                  label: unit2, labelFont: LBFONT, labelSize: 32, labelGap: 6 });
+    }
+    const opts = {
+      width: W_PLOT, height: H_PLOT, pxRatio: R, tzDate: TZ_UTC, legend: { show:false }, cursor: { show:false },
+      scales: { x: { time: true, range: xr ? (() => xr) : undefined } },
+      series, axes,
+      hooks: { drawClear: isCompare ? [] : [ dayBands ] },
+    };
+    const u = new uPlot(opts, chart.data, host);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // attende il draw
+
+    // canvas finale (titolo + grafico + legenda) a 2x
+    const totW = PAD_L + W_PLOT + W_LEG, totH = PAD_TOP + H_PLOT + PAD_BOT;
+    const cv = document.createElement('canvas');
+    cv.width = totW * R; cv.height = totH * R;
+    const ctx = cv.getContext('2d'); ctx.scale(R, R);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, totW, totH);
+
+    // titolo + sottotitolo
+    const title = prettyName(currentStation.name || currentStation.scode) +
+                  ' — ' + varLabel(currentVar) + (unit ? ' (' + unit + ')' : '') +
+                  (v2png ? '  +  ' + varLabel(v2png) + (unit2 ? ' (' + unit2 + ')' : '') : '');
+    const MODE_TXT = { week:'Ultimi 7 giorni', day3:'Ultimi 3 giorni', day:'Ultime 24 ore', tabs:'Confronto schede',
+                       compare:'Confronto 7 giorni', compare30:'Confronto 30 giorni' };
+    const modeTxt = MODE_TXT[chartMode] || '';
+    const src = SOURCES[currentStation._region];
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#0f2233'; ctx.font = '700 32px system-ui, sans-serif';
+    ctx.fillText(title, PAD_L, 44);
+    ctx.fillStyle = '#5a6b7a'; ctx.font = '16px system-ui, sans-serif';
+    ctx.fillText(modeTxt + (src ? '  ·  Fonte: ' + src.name : '') +
+                 '  ·  Orari in ora locale italiana (CET/CEST)', PAD_L, 70);
+
+    // grafico (il canvas uPlot e' gia' a 2x -> resta nitido)
+    ctx.drawImage(u.ctx.canvas, PAD_L, PAD_TOP, W_PLOT, H_PLOT);
+
+    // legenda in colonna a destra
+    let lx = PAD_L + W_PLOT + 26, ly = PAD_TOP + 6;
+    ctx.fillStyle = '#0f2233'; ctx.font = '700 20px system-ui, sans-serif';
+    ctx.fillText('Legenda', lx, ly); ly += 30;
+    ctx.font = '17px system-ui, sans-serif';
+    for(let i = 1; i < series.length; i++){
+      const s = series[i]; if(!s.label) continue;
+      if(ly > totH - 24){ ctx.fillStyle = '#5a6b7a'; ctx.fillText('…', lx, ly); break; }
+      ctx.strokeStyle = s.stroke; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(lx, ly - 6); ctx.lineTo(lx + 30, ly - 6); ctx.stroke();
+      ctx.fillStyle = '#22303c'; ctx.fillText(s.label, lx + 40, ly);
+      ly += 28;
+    }
+
+    // scarica
+    const a = document.createElement('a');
+    a.download = prettyName(currentStation.name || currentStation.scode).replace(/[^\w-]+/g,'_') +
+                 '_' + currentStation._region + '_' + currentVar + '_' + chartMode + '.png';
+    a.href = cv.toDataURL('image/png');
+    a.click();
+
+    u.destroy(); host.remove();
+  } catch(e){
+    setStatus('Export del grafico non riuscito (' + e + ').');
+  } finally {
+    btn.textContent = lbl; btn.disabled = false;
+  }
+}
+
+// ridimensiona il grafico col pannello
+new ResizeObserver(() => { if(chart) chart.setSize({ width: chartWidth(), height: chartHeight() }); })
+  .observe(el('panel'));
+
+// ------------------------------------------------------------------------------------------------
+// CSV -> colonne + asse x (epoch secondi)
+// ------------------------------------------------------------------------------------------------
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(',');
+  const cols = {}; header.slice(1).forEach(h => cols[h] = []);
+  const x = [];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i]) continue;
+    const cells = lines[i].split(',');
+    x.push(Date.parse(cells[0] + 'Z') / 1000);    // naive (ora locale IT) trattato come UTC epoch
+    for(let j=1;j<header.length;j++){
+      const raw = cells[j];
+      cols[header[j]].push(raw === '' || raw === undefined ? null : Number(raw));
+    }
+  }
+  return { header, cols, x };
+}
+
+// ------------------------------------------------------------------------------------------------
+// AVVIO
+// ------------------------------------------------------------------------------------------------
+initMap();
+let _rsT = null;
+window.addEventListener('resize', () => {
+  if(map) map.invalidateSize();
+  clearTimeout(_rsT);           // ridisegna il grafico con la nuova taglia (evita canvas troppo alti)
+  _rsT = setTimeout(() => {
+    if(currentStation && document.body.classList.contains('view-station') && currentVar && currentVar !== WROSE)
+      renderChart(currentVar);
+  }, 250);
+});
+el('refresh').addEventListener('click', refreshStation);
+el('exportpng').addEventListener('click', exportChartPNG);
+el('copylink').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(location.href); } catch(e){}
+  const b = el('copylink'); b.textContent = 'copiato ✓';
+  setTimeout(() => { b.textContent = 'Link'; }, 1500);
+});
+// ✕ (solo mobile): chiude l'overlay del grafico e torna alla mappa, mantenendo la stazione selezionata
+// ---- TAB BAR: [Mappa] + una scheda per ogni stazione aperta --------------------------------------
+let openTabs = [];                     // [{key, props}] in ordine di apertura
+const MAX_TABS = 8;
+const tabKeyOf = p => p._region + '|' + p.scode;
+function openStationTab(props){
+  const key = tabKeyOf(props);
+  const t = openTabs.find(x => x.key === key);
+  if(t) t.props = props;                            // aggiorna il riferimento (reload regioni)
+  else {
+    openTabs.push({key, props});
+    if(openTabs.length > MAX_TABS) openTabs.shift();  // limite: chiude la piu' vecchia
+  }
+  document.body.classList.add('view-station');
+  document.body.classList.remove('sb-open', 'view-compare');   // chiude cassetto mobile e vista confronto
+  renderTabbar(key);
+}
+function renderTabbar(activeKey){
+  const bar = el('tabbar');
+  [...bar.querySelectorAll('.tab.station')].forEach(b => b.remove());
+  openTabs.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab station' + (activeKey === t.key ? ' active' : '');
+    b.innerHTML = '<span class="tnm"></span><span class="x" title="Chiudi">×</span>';
+    b.querySelector('.tnm').textContent = prettyName(t.props.name || t.props.scode);
+    b.onclick = (e) => {
+      if(e.target.classList.contains('x')) closeTab(t.key);
+      else selectStation(t.props);
+    };
+    bar.appendChild(b);
+  });
+  if(compareOpen){
+    const b = document.createElement('button');
+    b.className = 'tab station' + (activeKey === CMP_KEY ? ' active' : '');
+    b.innerHTML = '<span class="tnm">Confronto</span><span class="x" title="Chiudi">×</span>';
+    b.onclick = (e) => {
+      if(e.target.classList.contains('x')) closeCompare();
+      else { renderTabbar(CMP_KEY); renderCompareView(); }
+    };
+    bar.appendChild(b);
+  }
+  el('tabMap').classList.toggle('active', !activeKey);
+}
+let compareOpen = false, compareVar = null;
+const CMP_KEY = '__cmp__';
+function openCompareTab(){
+  compareOpen = true;
+  renderTabbar(CMP_KEY);
+  renderCompareView();
+}
+function closeCompare(){
+  compareOpen = false;
+  if(document.body.classList.contains('view-compare')) showMapView();
+  else renderTabbar(document.body.classList.contains('view-station') && currentStation ? tabKeyOf(currentStation) : null);
+}
+// vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
+async function renderCompareView(){
+  document.body.classList.add('view-station', 'view-compare');
+  document.body.classList.remove('rose-mode', 'sb-open');
+  el('panel').scrollTop = 0;
+  el('stationName').textContent = 'Confronto schede';
+  el('stationMeta').textContent = openTabs.length
+    ? openTabs.map(t => prettyName(t.props.name || t.props.scode)).join('  ·  ')
+    : 'Nessuna scheda aperta';
+  el('source').innerHTML = TZNOTE + ' Dati in tempo reale non validati.';
+  el('modes').style.display = 'flex';
+  const wr = el('windrose'); if(wr) wr.innerHTML = '';
+  const cbx = el('climabox'); if(cbx){ cbx.style.display = 'none'; cbx.innerHTML = ''; }
+  el('chartstats').textContent = '';
+  history.replaceState(null, '', '#confronto');
+  await ensureTabTables();
+  const set = new Set();
+  openTabs.forEach(t => (t.props.variables || []).forEach(v => { if(v !== WROSE) set.add(v); }));
+  const vars = [...set].sort((a,b) => varLabel(a).localeCompare(varLabel(b)));
+  if(!compareVar || !set.has(compareVar)) compareVar = set.has(currentVar) ? currentVar : vars[0];
+  const box = el('vars'); box.innerHTML = '';
+  vars.forEach(v => {
+    const b = document.createElement('button');
+    b.dataset.var = v;
+    b.innerHTML = '<span class="vnm">' + varLabel(v) + '</span>';
+    b.classList.toggle('active', v === compareVar);
+    b.onclick = () => { compareVar = v;
+      [...box.children].forEach(x => x.classList.toggle('active', x.dataset.var === v));
+      renderCompareTabs(v); };
+    box.appendChild(b);
+  });
+  if(['compare','compare30','tabs'].indexOf(chartMode) >= 0) chartMode = 'week';
+  [...document.querySelectorAll('#modes button.mode')].forEach(x => x.classList.toggle('active', x.dataset.mode === chartMode));
+  if(compareVar) renderCompareTabs(compareVar); else clearChart();
+}
+function showMapView(){
+  document.body.classList.remove('view-station', 'view-compare');
+  renderTabbar(null);
+  history.replaceState(null, '', location.pathname + location.search);
+  if(map) setTimeout(() => map.invalidateSize(), 40);
+}
+function closeTab(key){
+  openTabs = openTabs.filter(t => t.key !== key);
+  if(document.body.classList.contains('view-compare')){ renderTabbar(CMP_KEY); renderCompareView(); return; }
+  if(currentStation && tabKeyOf(currentStation) === key) showMapView();
+  else renderTabbar(currentStation && document.body.classList.contains('view-station') ? tabKeyOf(currentStation) : null);
+}
+el('tabMap').addEventListener('click', showMapView);
+el('noteBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const n = el('notepanel');
+  n.style.display = (n.style.display === 'block') ? 'none' : 'block';
+});
+document.addEventListener('click', (e) => {
+  const n = el('notepanel');
+  if(n && n.style.display === 'block' && !n.contains(e.target)) n.style.display = 'none';
+});
+el('sbToggle').addEventListener('click', () => document.body.classList.toggle('sb-open'));
+// tema chiaro/scuro (persistito); al cambio ridisegna il grafico per aggiornare griglia e assi
+try { if(localStorage.getItem('theme') === 'dark'){ document.body.classList.add('dark'); } } catch(e){}
+function _syncThemeBtn(){ el('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙'; }
+_syncThemeBtn();
+el('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  try { localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); } catch(e){}
+  _syncThemeBtn();
+  if(currentStation && currentVar && currentVar !== WROSE && document.body.classList.contains('view-station'))
+    renderChart(currentVar);
+});
+
+// carica ON-DEMAND la serie a 30 giorni (series30/) per il "Confronto 30 giorni", e la mette in cache
+async function ensureTable30(){
+  if(!currentStation) return false;
+  if(currentStation._table30) return true;
+  setStatus('Carico gli ultimi 30 giorni…');
+  try {
+    const region = currentStation._region;
+    const csv = await (await fdata(`${region}/series30/${currentStation.scode}.csv`, {cache:'no-store'})).text();
+    currentStation._table30 = parseCSV(csv);
+    setStatus(''); return true;
+  } catch(e){ setStatus('Serie a 30 giorni non ancora disponibile.'); return false; }
+}
+
+// modi grafico: 7 giorni / 3 giorni / 24 ore / Confronto 7 gg / Confronto 30 gg
+[...document.querySelectorAll('#modes button.mode')].forEach(b => b.addEventListener('click', async () => {
+  if(b.dataset.mode === 'tabs'){ openCompareTab(); return; }   // scheda dedicata, non un modo
+  chartMode = b.dataset.mode;
+  [...document.querySelectorAll('#modes button.mode')].forEach(x => x.classList.toggle('active', x === b));
+  if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
+  syncVarButtons();                        // nasconde il '+' nei confronti, lo mostra nei modi singoli
+  if(!currentStation || !currentVar) return;
+  if(chartMode === 'compare30'){ const ok = await ensureTable30(); if(!ok) return; }
+  renderChart(currentVar);
+}));
+
+el('region').addEventListener('change', e => {
+  const v = e.target.value;
+  loadRegions(v === 'ALL' ? REGIONS_ALL : (REGION_GROUPS[v] || [v]));
+});
+
+// selezione stazione dal menu -> apre la stazione (o deseleziona)
+el('stationFilter').addEventListener('change', e => {
+  selectedKey = e.target.value;
+  const f = selectedFeature();
+  if(f){ selectStation(f.properties); }
+  else { clearChart(); resetPanel(); buildVarFilter(); renderMarkers(); }
+});
+
+// selezione variabile -> filtra le stazioni (e l'elenco)
+el('varFilter').addEventListener('change', e => {
+  filterVar = e.target.value;
+  // se la stazione aperta non ha la variabile, deselezionala
+  const f = selectedFeature();
+  if(f && filterVar && !(f.properties.variables || []).includes(filterVar)){
+    selectedKey = ''; clearChart(); resetPanel();
+  }
+  buildStationFilter();
+  buildVarFilter();
+  renderMarkers();
+  // se resta una stazione aperta e ha la variabile, mostrala nel grafico
+  const f2 = selectedFeature();
+  if(f2 && filterVar && f2.properties._table) drawVar(filterVar);
+});
+
+el('resetBtn').addEventListener('click', () => {
+  el('region').value = 'ALL';
+  filterVar = ''; selectedKey = '';
+  loadRegions(REGIONS_ALL);
+});
+
+// 3 pagine: misure dirette / derivate / indici. Cambiano quali variabili sono selezionabili + la
+// pagina "indici" mostra anche la climatologia della stazione.
+[...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => {
+  currentPage = b.dataset.page;
+  [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x === b));
+  filterVar = '';                              // la variabile potrebbe non appartenere alla nuova pagina
+  document.body.classList.remove('rose-mode'); // cambio pagina: riparti dal grafico (drawVar la riattiva se serve)
+  const sf = selectedFeature();
+  if(sf){                                      // stazione aperta: ricostruisci per la nuova pagina
+    const base = (sf.properties.variables || []).slice();
+    if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WROSE);   // chip rosa (gruppo derivate)
+    const vars = base.filter(v => varCat(v) === currentPage);
+    buildVarButtons(vars); updateClimaBox();
+    if(vars.length) drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
+    else clearChart();
+  }
+  buildStationFilter(); buildVarFilter(); renderMarkers();
+}));
+
+// ---- WATCHDOG "dati fermi": STATUS/status.json (scritto dal publish) contiene il timestamp della
+// misura piu' recente fra TUTTE le regioni. Se supera STALE_HOURS -> banner rosso. Silenzioso se il
+// file manca (es. sviluppo locale). Ricontrolla ogni 10 minuti.
+const STALE_HOURS = 3;
+// timestamp civili italiani -> epoch nello stesso riferimento (adesso portato all'ora di Roma)
+const isoCivil = s => Date.parse((s.length === 16 ? s + ':00' : s) + 'Z');
+const nowRome = () => Date.parse(new Date().toLocaleString('sv-SE', {timeZone:'Europe/Rome'}).replace(' ','T') + 'Z');
+const _ageTxt = min => min < 90 ? Math.max(0, Math.round(min)) + ' min fa'
+                     : min < 48*60 ? Math.round(min/60) + ' h fa' : Math.round(min/1440) + ' g fa';
+
+// freschezza ATTESA per fonte (ore): cadenza tipica + ritardo fisiologico della sorgente
+// (es. LOM pubblica con 4-5 h di ritardo: e' normale, non e' un guasto)
+const SRC_EXPECT = { VEN:1.5, LOM:6, ER:1, TN:1, BZ:1, FVG:1.5,
+  AQ_VEN:4, AQ_TN:4, AQ_BZ:4, AQ_ER:4, AQ_LOM:4,
+  PC_FVG:1, PC_TN:3, PC_PO:4, PC_PIE:2,
+  MAR_VEN:1, MAR_ER:1, ACQ_VEN:3, LAGHI:2, CB_AE:1, INV_ER:3, LIG:3 };
+
+// semaforo di una fonte: 'g' ok | 'y' in ritardo oppure troppe stazioni indietro | 'r' ferma
+function srcState(reg, info, nowIt){
+  const exp = SRC_EXPECT[reg] || 2;
+  const ageH = (nowIt - isoCivil(info.latest)) / 3600000;
+  if(ageH > Math.max(3 * exp, 6)) return 'r';
+  if(ageH > exp) return 'y';
+  if(info.n && info.old / info.n > 0.15) return 'y';   // >15% di stazioni indietro di 3h sul resto
+  return 'g';
+}
+
+let _lastStatus = null;
+async function checkStale(){
+  const b = el('stalebanner');
+  try {
+    const r = await fdata('STATUS/status.json', {cache:'no-store'});
+    if(!r.ok) throw 0;
+    const s = _lastStatus = await r.json();
+    const ageMin = (nowRome() - isoCivil(s.latest)) / 60000;
+    if(b){
+      if(ageMin > STALE_HOURS * 60){
+        const txt = ageMin >= 48*60 ? Math.round(ageMin/1440) + ' giorni' : Math.round(ageMin/60) + ' ore';
+        b.textContent = '⚠ Dati non aggiornati da ' + txt + ' (ultimo dato: ' + s.latest.replace('T',' ') + ')';
+        b.style.display = 'block';
+      } else b.style.display = 'none';
+    }
+    updateSrcUI();
+  } catch(e){ if(b) b.style.display = 'none'; }   // status assente/illeggibile: niente banner
+}
+
+// pallino accanto alla "i" = stato peggiore fra tutte le fonti
+const TL_COLOR = { g:'#2f9e44', y:'#f0a800', r:'#d33' };
+function updateSrcUI(){
+  const dot = el('srcdot');
+  const regs = _lastStatus && _lastStatus.regions;
+  if(!dot) return;
+  if(!regs){ dot.style.background = '#9aa5b1'; return; }
+  const nowIt = nowRome();
+  let worst = 'g';
+  for(const reg in regs){
+    const st = srcState(reg, regs[reg], nowIt);
+    if(st === 'r'){ worst = 'r'; break; }
+    if(st === 'y') worst = 'y';
+  }
+  dot.style.background = TL_COLOR[worst];
+  const p = el('srcpanel');
+  if(p && p.style.display === 'block') renderSrcPanel();   // pannello aperto: aggiorna i semafori
+}
+
+function renderSrcPanel(){
+  const p = el('srcpanel');
+  const regs = _lastStatus && _lastStatus.regions;
+  let html = '<h4>Stato delle fonti</h4>';
+  if(!regs){
+    html += '<div class="src-note">Stato non ancora disponibile (riprova fra qualche minuto).</div>';
+  } else {
+    const nowIt = nowRome();
+    REGIONS_ALL.forEach(reg => {
+      const info = regs[reg];
+      if(!info) return;
+      const st = srcState(reg, info, nowIt);
+      const age = _ageTxt((nowIt - isoCivil(info.latest)) / 60000);
+      const lag = (st !== 'r' && info.n && info.old / info.n > 0.15)
+                ? ' · ' + info.old + '/' + info.n + ' staz. indietro' : '';
+      const src = SOURCES[reg] || {};
+      const name = src.name || reg;
+      const durl = src.data || src.url;             // pagina specifica dei dati; fallback al sito
+      const label = durl
+        ? '<a href="' + durl + '" target="_blank" rel="noopener" title="Apri i dati della fonte">' + name + '</a>'
+        : name;
+      html += '<div class="src-row"><span class="tl tl-' + st + '"></span>'
+            + '<span class="src-name">' + label + '</span>'
+            + '<span class="src-age">' + age + lag + '</span></div>';
+    });
+    html += '<div class="src-note"><span class="tl tl-g" style="display:inline-block;vertical-align:-1px"></span> aggiornata &nbsp;'
+          + '<span class="tl tl-y" style="display:inline-block;vertical-align:-1px"></span> in ritardo / dati mancanti &nbsp;'
+          + '<span class="tl tl-r" style="display:inline-block;vertical-align:-1px"></span> ferma</div>';
+  }
+
+  p.innerHTML = html;
+}
+
+el('srcinfo').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = el('srcpanel');
+  if(p.style.display === 'block'){ p.style.display = 'none'; return; }
+  renderSrcPanel();
+  p.style.display = 'block';
+  if(!_lastStatus) checkStale();          // primo click prima del fetch: carica e ridisegna
+});
+document.addEventListener('click', (e) => {
+  const p = el('srcpanel');
+  if(p.style.display === 'block' && !p.contains(e.target)) p.style.display = 'none';
+});
+
+checkStale();
+setInterval(checkStale, 10*60*1000);
+
+// ---- RICERCA STAZIONE (campo con suggerimenti) --------------------------------------------------
+let _searchMap = {};
+el('stationSearch').addEventListener('change', () => {
+  const k = _searchMap[el('stationSearch').value];
+  if(!k) return;
+  const f = allFeatures.find(x => featKey(x) === k);
+  if(f){ el('stationSearch').value = ''; selectStation(f.properties); }
+});
+
+// ---- LINK CONDIVISIBILI: #REGIONE|CODICE|VARIABILE ----------------------------------------------
+// aggiornato ad ogni selezione; all'apertura, se presente, riporta alla stessa vista.
+function updateHash(){
+  if(!currentStation) return;
+  const h = '#' + [currentStation._region, currentStation.scode, currentVar || '']
+                  .map(encodeURIComponent).join('|');
+  history.replaceState(null, '', h);
+}
+async function applyHash(){
+  const parts = location.hash.slice(1).split('|').map(decodeURIComponent);
+  if(parts.length < 2 || !parts[0]) return;
+  const [reg, sc, v] = parts;
+  const f = allFeatures.find(x => x.properties._region === reg && x.properties.scode === sc);
+  if(!f) return;
+  if(v && varCat(v) !== currentPage){
+    currentPage = varCat(v);
+    [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x.dataset.page === currentPage));
+  }
+  await selectStation(f.properties);
+  if(v){
+    const btn = [...el('vars').children].find(b => b.dataset.var === v);
+    if(btn) drawVar(v);
+  }
+}
+
+loadRegions(REGIONS_ALL).then(() => applyHash());   // default: Tutte (+ eventuale link condiviso)
+</script>
+</body>
+</html>
