@@ -1,0 +1,25 @@
+# Watchdog GitHub Actions: ogni ora controlla l'ultimo dato pubblicato (branch data); se piu'
+# vecchio di 3 ore il job fallisce -> mail all'account. Il nome del workflow = oggetto della mail.
+# Vive in .github/workflows/watchdog.yml su gh-pages: ce lo rimette publish.sh ad ogni push pagina.
+name: 'Warning - meteo off'
+on:
+  schedule:
+    - cron: '25 * * * *'
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, datetime, time, sys, zoneinfo
+          url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+          j = json.load(urllib.request.urlopen(url, timeout=30))
+          lat = datetime.datetime.strptime(j['latest'], '%Y-%m-%dT%H:%M')
+          now = datetime.datetime.now(zoneinfo.ZoneInfo('Europe/Rome')).replace(tzinfo=None)
+          age = (now - lat).total_seconds() / 60.0
+          print('ultimo dato: %s (%.0f min fa)' % (j['latest'], age))
+          if age > 180:
+              sys.exit('meteo off da %.1f ore. Controllare: Raspberry acceso, rete di casa, ssh manuel01.' % (age / 60.0))
+          PY
