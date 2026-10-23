@@ -1,0 +1,71 @@
+# ===========================================================================================
+# AVVISO 'Warning - backup off' (GitHub Actions) - ogni mattina: mail se l'ultima versione sulla
+# chiavetta ha 2+ giorni (una notte saltata non basta), se non ce n'e' nessuna, o se l'ultimo log di
+# backup_usb.sh ha etichette ERRORE/ATTENZIONE (righe 'LIVELLO: etichetta -- dettagli').
+# SCHEMA COMUNE DEGLI AVVISI (watchdog_actions.yml = meteo, watchdog_backup.yml = backup):
+#   - leggono site/STATUS/status.json dal branch 'data' (scritto da publish.sh sul Pi)
+#   - esito = UNA annotazione stile SMS nel riepilogo del run (e nella mail):
+#       ok  titolo '<area> ok'   testo 'ultima versione: oggi'
+#       ko  titolo '<area> off'  testo '<motivo> | <motivo>'      -> job fallito = mail
+#   - oggetto della mail = nome del workflow ('Warning - <area> off')
+#   - status.json illeggibile = avviso anche lui
+#   - prova: Actions -> il workflow -> Run workflow con 'prova' spuntato
+#   - la parte 'comune' del codice e' identica nei due file; cambia solo la parte 'specifica'
+# Vive in .github/workflows/watchdog_backup.yml su gh-pages: ce lo rimette publish.sh a ogni push pagina.
+# ===========================================================================================
+name: 'Warning - backup off'
+on:
+  schedule:
+    - cron: '35 7 * * *'
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: 'Fallisci apposta per provare la mail'
+        type: boolean
+        default: false
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: check
+        env:
+          PROVA: ${{ inputs.prova }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, datetime, urllib.request, zoneinfo
+          AREA = 'backup'
+          SOGLIA_GIORNI = 2
+
+          # --- comune a tutti gli avvisi ---
+          def fine(motivi, stato):
+              if motivi:
+                  print('::error title=%s off::%s' % (AREA, ' | '.join(motivi).replace('%', '%25')))
+                  sys.exit(1)
+              print('::notice title=%s ok::%s' % (AREA, stato.replace('%', '%25')))
+              sys.exit(0)
+
+          if os.environ.get('PROVA') == 'true':
+              fine(['prova'], '')
+          try:
+              url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+              j = json.load(urllib.request.urlopen(url, timeout=30))
+          except Exception as e:
+              print(e)
+              fine(['status illeggibile'], '')
+          adesso = datetime.datetime.now(zoneinfo.ZoneInfo('Europe/Rome')).replace(tzinfo=None)
+
+          # --- specifico: eta' dell'ultima versione + etichette dell'ultimo log ---
+          b = j.get('backup') or {}
+          motivi = list(b.get('warn') or [])
+          try:
+              giorni = (adesso.date() - datetime.date.fromisoformat(b.get('last') or '')).days
+              stato = 'ultima versione: ' + {0: 'oggi', 1: 'ieri'}.get(giorni, '%d gg fa' % giorni)
+              if giorni >= SOGLIA_GIORNI:
+                  motivi.insert(0, stato)
+          except ValueError:
+              stato = 'nessuna versione'
+              motivi.insert(0, stato)
+          fine(motivi, stato)
+          PY
