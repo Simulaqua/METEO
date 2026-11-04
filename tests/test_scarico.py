@@ -45,6 +45,12 @@ class TestScarico(unittest.TestCase):
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
 
+    def test_liguria(self):
+        self.check_source('liguria', 'normale', 'dati_liguria.py', [])
+
+    def test_liguria_full(self):
+        self.check_source('liguria', 'full', 'dati_liguria.py', ['--full'])
+
 
 if __name__ == '__main__':
     unittest.main()
