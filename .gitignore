@@ -3,10 +3,9 @@
 */data-parsed/
 
 # --- dati web generati (pubblicati su gh-pages via publish.sh, non nel repo sorgente) ---
-site/VEN/
-site/BZ/
-site/TN/
-site/FVG/
+site/*/
+*/sensors_map.json
+*/elements_map.json
 
 # --- radar DPC: fotogrammi generati sul Pi (pubblicati sul branch 'radar' da dati_radar.py) ---
 radar_out/
