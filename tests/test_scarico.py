@@ -42,6 +42,9 @@ class TestScarico(unittest.TestCase):
     def test_invasi(self):
         self.check_source('invasi', 'normale', 'dati_invasi.py', ['-r', 'all'])
 
+    def test_aria(self):
+        self.check_source('aria', 'normale', 'dati_aria.py', ['-r', 'all'])
+
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
 
