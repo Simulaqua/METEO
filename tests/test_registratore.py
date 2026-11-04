@@ -2,7 +2,8 @@
 # risposte si ripetono senza rete, con l'orologio fermo all'ora della registrazione. Solo sul Mac.
 # La registrazione dorme davvero i 30 s dello script di prova: queste prove durano mezzo minuto.
 #   /usr/bin/python3 -m unittest tests.test_registratore -v
-import http.server, json, os, shutil, subprocess, sys, tempfile, threading, unittest, urllib.request
+import contextlib, http.server, io, json, os, shutil, subprocess, sys, tempfile, threading, unittest, urllib.request
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
@@ -36,6 +37,17 @@ try:
     requests.get(sys.argv[1] + '/nuovo')
 except Exception as error:
     print('ERRORE: ' + str(error))
+'''
+
+# lascia una cartella con un file, una vuota dentro la stessa cartella e una vuota da sola, poi esce con il codice 2
+FOLDERS_SCRIPT = '''
+import os, sys
+
+for folder in ('dati/a', 'dati/b', 'vuota'):
+    os.makedirs(folder, exist_ok=True)
+with open('dati/a/x.txt', 'w', encoding='utf-8') as fp:
+    fp.write('x')
+sys.exit(2)
 '''
 
 
@@ -112,6 +124,68 @@ class TestRegistratore(unittest.TestCase):
         proc = registratore.replay(self.run_dir, 'nuovo.py', [self.base], self.project)
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn('risposta non registrata: GET http://127.0.0.1', proc.stderr)
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as fp:
+        fp.write(text)
+
+
+def read_json(path):
+    with open(path, encoding='utf-8') as fp:
+        return json.load(fp)
+
+
+def listing(folder):
+    """Tutto quello che c'è in folder: cartelle e file, percorsi relativi."""
+    found = []
+    for root, dirs, names in os.walk(folder):
+        found += [os.path.relpath(os.path.join(root, name), folder) for name in dirs + names]
+    return sorted(found)
+
+
+class TestAttesi(unittest.TestCase):
+    """Il comando attesi, su un progetto di prova (cartelle.py e la configurazione conf/x.json) senza rete."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.source = os.path.join(self.tmp, 'progetto')
+        write(os.path.join(self.source, 'cartelle.py'), FOLDERS_SCRIPT)
+        write(os.path.join(self.source, 'conf', 'x.json'), '{}')
+        self.run_dir = os.path.join(self.tmp, 'giro')
+        write(os.path.join(self.run_dir, 'ora.json'), json.dumps({'epoch': 1793000000.0}))
+        os.makedirs(os.path.join(self.run_dir, 'risposte'))
+
+    def attesi(self):
+        argv = ['registratore.py', 'attesi', self.run_dir, '--', 'cartelle.py']
+        with mock.patch.object(registratore, 'PROJECT', self.source), \
+                mock.patch.object(registratore, 'PROJECT_FILES', ['cartelle.py', 'conf/x.json']), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            registratore.main(argv)
+
+    def test_salva_codici_e_cartelle(self):
+        self.attesi()
+        self.assertEqual(read_json(os.path.join(self.run_dir, 'codici.json')), [2, 2])
+        # conf/ ha solo il file copiato dal progetto: non è una cartella lasciata dai giri
+        self.assertEqual(read_json(os.path.join(self.run_dir, 'cartelle.json')), ['dati', 'dati/a', 'dati/b', 'vuota'])
+        self.assertEqual(registratore.tree(os.path.join(self.run_dir, 'attesi')), {'dati/a/x.txt': b'x'})
+
+    def test_rifiuta_un_giro_incompleto(self):
+        write(os.path.join(self.run_dir, 'attesi', 'vecchio.txt'), 'attesi di prima')
+        for name in ('ora.json', 'risposte'):
+            with self.subTest(manca=name):
+                path, aside = os.path.join(self.run_dir, name), os.path.join(self.tmp, name)
+                os.rename(path, aside)
+                try:
+                    before = listing(self.run_dir)
+                    with self.assertRaises(SystemExit) as stop:
+                        self.attesi()
+                    self.assertIn('ora.json', str(stop.exception.code))      # esce con un messaggio, codice 1
+                    self.assertEqual(listing(self.run_dir), before)
+                finally:
+                    os.rename(aside, path)
 
 
 if __name__ == '__main__':

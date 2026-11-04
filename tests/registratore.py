@@ -4,7 +4,8 @@
 #   registra  lo script gira dal vivo: l'ora di partenza va in CARTELLA_GIRO/ora.json, ogni risposta in
 #             CARTELLA_GIRO/risposte/; i file che scrive si buttano
 #   attesi    lo script gira due volte di fila sulle risposte registrate, senza rete, in una copia nuova; i file che
-#             scrive o cambia vanno in CARTELLA_GIRO/attesi/
+#             scrive o cambia vanno in CARTELLA_GIRO/attesi/, i codici di uscita dei due giri in codici.json e le
+#             cartelle che lasciano in cartelle.json (git non tiene le cartelle vuote)
 # In ogni giro l'orologio parte da ora.json e avanza solo con time.sleep, che aspetta davvero solo dal vivo.
 #   python3 tests/registratore.py registra tests/fixtures/scarico/laghi/normale -- dati_laghi.py
 #   python3 tests/registratore.py attesi tests/fixtures/scarico/laghi/normale -- dati_laghi.py
@@ -62,13 +63,30 @@ def replay(run_dir, script, args, project):
 
 
 def replay_twice(run_dir, script, args):
-    """Due giri di fila in riproduzione in una copia nuova del progetto: i file scritti o cambiati e i due giri."""
+    """Due giri di fila in riproduzione in una copia nuova del progetto: i file scritti o cambiati, i due giri e le
+    cartelle lasciate dai giri."""
     with tempfile.TemporaryDirectory() as project:
         copy_project(project)
         before = tree(project)
         runs = [replay(run_dir, script, args, project) for _ in range(2)]
         after = tree(project)
-    return {name: content for name, content in after.items() if before.get(name) != content}, runs
+        files = {name: content for name, content in after.items() if before.get(name) != content}
+        return files, runs, folders(project, files)
+
+
+def folders(project, files):
+    """Le cartelle dei file scritti o cambiati e quelle vuote, con le cartelle che le contengono, in ordine.
+    Non quelle che hanno solo i file copiati dal progetto: sparirebbero quando uno script lascia la sua regione."""
+    found = {os.path.dirname(name) for name in files}
+    for root, dirs, names in os.walk(project):
+        if root != project and not dirs and not names:
+            found.add(os.path.relpath(root, project))
+    result = set()
+    for folder in found:
+        while folder:
+            result.add(folder)
+            folder = os.path.dirname(folder)
+    return sorted(result)
 
 
 def run(mode, run_dir, script, args, project, capture):
@@ -275,7 +293,9 @@ def main(argv):
         print('%d risposte in %s, codice di uscita %d' % (len(os.listdir(answers)), answers, proc.returncode))
         sys.exit(proc.returncode)
 
-    files, runs = replay_twice(run_dir, script, args)
+    if not os.path.isfile(os.path.join(run_dir, 'ora.json')) or not os.path.isdir(os.path.join(run_dir, 'risposte')):
+        sys.exit('attesi non salvati: in %s mancano ora.json o risposte/ (prima si registra)' % run_dir)
+    files, runs, folder_list = replay_twice(run_dir, script, args)
     for number, proc in enumerate(runs, 1):
         print('--- giro %d in riproduzione: codice di uscita %d' % (number, proc.returncode))
         print(proc.stdout, end='', flush=True)
@@ -290,7 +310,12 @@ def main(argv):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'wb') as fp:
             fp.write(content)
-    print('%d file in %s' % (len(files), expected))
+    codes = [proc.returncode for proc in runs]
+    with open(os.path.join(run_dir, 'codici.json'), 'w', encoding='utf-8') as fp:
+        fp.write(json.dumps(codes) + '\n')
+    with open(os.path.join(run_dir, 'cartelle.json'), 'w', encoding='utf-8') as fp:
+        fp.write(json.dumps(folder_list, indent=1) + '\n')
+    print('%d file in %s, %d cartelle, codici di uscita %s' % (len(files), expected, len(folder_list), codes))
 
 
 if __name__ == '__main__':
