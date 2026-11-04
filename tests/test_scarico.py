@@ -60,6 +60,17 @@ class TestScarico(unittest.TestCase):
     def test_liguria_full(self):
         self.check_source('liguria', 'full', 'dati_liguria.py', ['--full'])
 
+    def test_pc_tutte(self):
+        self.check_source('pc', 'tutte', 'dati_pc.py', ['-r', 'all'])
+
+    def test_pc_tutte_500(self):
+        # come tutte, ma measures/latest della rete FVG risponde 500 con un corpo JSON (senza il controllo dello
+        # stato si leggerebbe come zero misure): FVG salta, le altre reti si scrivono, stesso codice di uscita
+        self.check_source('pc', 'tutte_500', 'dati_pc.py', ['-r', 'all'])
+
+    def test_pc_pie_full(self):
+        self.check_source('pc', 'pie_full', 'dati_pc.py', ['-r', 'PIE', '--full'])
+
 
 if __name__ == '__main__':
     unittest.main()
