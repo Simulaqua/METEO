@@ -70,11 +70,11 @@ Nomi in inglese come nel resto del codice, commenti in italiano.
 | Funzione | Cosa fa |
 |---|---|
 | `BASE`, `region_dir(code)` | cartella del progetto; cartella dati di una regione (`region_dir('VEN')`) |
-| `load_json(path)` | legge un JSON; `None` se manca o è rotto |
-| `save_json(data, path)` | scrive su un file temporaneo e poi rinomina (mai un file a metà) |
-| `get(url, **kw)`, `get_json(url, params)` | `requests` con timeout e un nuovo tentativo |
-| `now_solar()`, `civil_to_solar(dt)` | ora solare italiana adesso; da ora civile a solare |
-| `is_dst_civil(dt)`, `is_dst_solar(dt)` | le due regole dell'ora legale, con l'ora in ingresso detta nel nome (confonderle ha già prodotto un errore a ottobre) |
+| `load_json(path)` | legge un JSON; `{}` con un avviso se manca, è vuoto o è rotto (come oggi) |
+| `save_json(data, path, sort_keys=False)` | scrive su un file temporaneo e poi rinomina (mai un file a metà); i regionali ordinano le chiavi |
+| `get(url, …)`, `get_text(url, …)`, `get_json(url, …)` | `requests` con timeout e un nuovo tentativo; il testo sempre decodificato come UTF-8 |
+| `now_solar()`, `civil_to_solar(dt)` | ora solare italiana adesso; da ora civile a solare (stringa `AAAAMMGGhhmm`) |
+| `is_dst_civil(dt)` | la regola dell'ora legale con l'ora civile in ingresso, l'unica che usano gli script di scarico; quella con l'ora solare (`is_dst_solar`, confonderle ha già prodotto un errore a ottobre) arriva con `export_web.py` nella parte 3 |
 | `to_float(text)` | numero o `None` ("", "n.d.", virgola decimale) |
 | `write_parsed(...)` | il file interpretato nel formato comune; dove uno script regionale ha un formato suo, resta il suo |
 
