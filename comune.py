@@ -51,14 +51,17 @@ def save_json(data, path, sort_keys=False):
 # Rete
 
 def get(url, params=None, headers=None, timeout=60, verify=True):
-    """GET che non solleva per lo stato HTTP; su errore di rete riprova una volta dopo 5 secondi."""
+    """GET che non solleva per lo stato HTTP. Su errore di connessione (rete caduta, connessione rifiutata o
+    chiusa) riprova una volta dopo 5 secondi. Dopo un timeout NON riprova: una fonte ferma verrebbe
+    interrogata due volte e il giro durerebbe il doppio. ConnectTimeout è anche ConnectionError: conta come
+    timeout, quindi niente secondo tentativo."""
     if headers is None:
         headers = {'User-Agent': USER_AGENT}
     for attempt in (1, 2):
         try:
             return requests.get(url, params=params, headers=headers, timeout=timeout, verify=verify)
-        except (requests.ConnectionError, requests.Timeout):
-            if attempt == 2:
+        except requests.ConnectionError as error:
+            if attempt == 2 or isinstance(error, requests.Timeout):
                 raise
             time.sleep(5)
 

@@ -22,14 +22,18 @@ RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class ServerLocale:
     """Server HTTP locale: opzionalmente la prima connessione cade, le altre rispondono."""
 
-    def __init__(self, cadi_la_prima=False, status=200, corpo=b'{"x": 1}'):
+    def __init__(self, cadi_la_prima=False, status=200, corpo=b'{"x": 1}', muto=False):
         self.user_agents = []
+        self.fine = threading.Event()
         self.connessioni = 0
         padre = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
                 padre.connessioni += 1
+                if muto:  # accetta e non risponde mai
+                    padre.fine.wait(10)
+                    return
                 if cadi_la_prima and padre.connessioni == 1:
                     self.connection.close()
                     return
@@ -42,11 +46,12 @@ class ServerLocale:
             def log_message(self, *args):
                 pass
 
-        self.server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         self.url = 'http://127.0.0.1:%d/' % self.server.server_port
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def close(self):
+        self.fine.set()
         self.server.shutdown()
         self.server.server_close()
 
@@ -126,6 +131,15 @@ class TestRete(unittest.TestCase):
         s = ServerLocale(corpo='àè'.encode('utf-8'))
         self.addCleanup(s.close)
         self.assertEqual(get_text(s.url), 'àè')
+
+    def test_get_non_riprova_dopo_un_timeout(self):
+        s = ServerLocale(muto=True)
+        self.addCleanup(s.close)
+        with mock.patch('comune.time.sleep') as dorme:
+            with self.assertRaises(requests.Timeout):
+                get(s.url, timeout=0.5)
+        self.assertEqual(s.connessioni, 1)
+        dorme.assert_not_called()
 
     def test_get_solleva_dopo_due_tentativi(self):
         with mock.patch('comune.time.sleep'), \
