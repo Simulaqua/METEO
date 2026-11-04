@@ -1,0 +1,199 @@
+# FVG station coordinates (WGS84). Fonte: osmer.fvg.it/ajax/stationList.php (match per sigla).
+# 461000 = coordinata APPROSSIMATA (mareografo di Lignano): da confermare.
+scode,lat,lon,nome,match
+101,45.97707,13.59432,Scedina - San Floriano,sigla
+102,45.94688,13.56583,Fornace Lucinico,sigla
+103,46.21918,13.26323,Nimis - Ramandolo,sigla
+104,46.16378,13.27633,Savorgnano,sigla
+105,46.0334,13.44282,Spessa di Cividale,sigla
+107,45.90666,13.45315,Mariano del Friuli,sigla
+109,45.959933,13.476072,Cormons Monte,sigla
+112,46.00439,13.35599,Buttrio,sigla
+113,45.99164,13.41224,Dolegnano,sigla
+114,46.03814,13.42421,Premariacco - Ipplis,sigla
+115,45.86692,13.47545,Fogliano Redipuglia,sigla
+117,45.98485,12.46588,Caneva,sigla
+136,46.57,12.7083,Sappada,sigla
+178200,45.68035,13.373289,Grado Meteo,sigla
+181300,45.6198,13.167114,Lignano Boa Meteo,sigla
+343400,45.78141,13.54884,Monfalcone,sigla
+435000,45.609232,13.360072,Grado Boa Meteo,sigla
+461000,45.686525,13.121131,Lignano Marea (approx: Lignano Sabbiadoro PCR),approx
+499800,46.594601,12.89503,Rifugio Marinelli,sigla
+499900,46.343737,13.105049,S.Simeone Meteo,sigla
+502600,46.240556,12.750278,Tramonti Invaso,sigla
+503700,46.055278,12.461944,Col della Gallina Meteo,sigla
+503800,46.351948,12.802559,Rest,sigla
+A009,46.114603,12.492021,Val dei Sass,sigla
+A021,45.950857,12.502079,Sacile,sigla
+A050,46.064354,12.60278,Aviano,sigla
+A202,46.298169,12.793117,Tramonti di Sotto,sigla
+A204,46.348198,12.798537,Malga Rest,sigla
+A220,46.292222,12.716111,Ca' Zul Invaso,sigla
+A221,46.258611,12.700556,Ca' Selva Invaso,sigla
+A224,46.259215,12.831351,Campone,sigla
+A226,46.235908,12.676121,Malga Valine,sigla
+A241,46.217914,12.773192,Meduno,sigla
+A261,46.173933,12.718689,Maniago,sigla
+A280,46.142609,12.808239,Arba,sigla
+A303,45.958625,12.649689,Pordenone Meteo,sigla
+A325,45.921778,12.614194,Porcia,sigla
+A401,46.285648,12.440848,Cimolais,sigla
+A409,46.242252,12.573013,Baldass,sigla
+A410,46.297339,12.601821,Casera Podestine,sigla
+A411,46.255849,12.564044,Casera Pradut,sigla
+A414,46.349259,12.485796,Forcella Savalons,sigla
+A415,46.378671,12.489299,Rifugio Pordenone,sigla
+A416,46.345209,12.590968,Rifugio Pussa,sigla
+A417,46.263561,12.500194,Claut Tre Pini,sigla
+A422,46.192833,12.489006,Prescudin,sigla
+A463,46.192837,12.563592,Barcis,sigla
+A464,46.198877,12.611826,Andreis,sigla
+A467,46.195958,12.659091,Pala Barzana,sigla
+A601,46.118073,12.505815,Val Sughet,sigla
+A603,46.064118,12.442887,Candaglia,sigla
+A624,46.088194,12.790553,Basaldella di Vivaro,sigla
+A627,46.009227,12.700492,Cordenons,sigla
+A640,45.998441,12.588596,Forcate,sigla
+B001,46.277745,12.370643,Erto e Casso,sigla
+B004,46.320701,12.393682,Rifugio Maniago,sigla
+BIC,45.928808,13.24014,Bicinicco,sigla
+BOA,45.618291,13.565022,Boa Paloma,sigla
+BRU,45.917972,12.545003,Brugnera,sigla
+C009,46.454826,12.560169,Varmost M.te Simone,sigla
+C022,46.392815,12.714758,Forni di Sotto,sigla
+C032,46.351197,12.678983,Malga Chiampiuz,sigla
+C052,46.358905,12.940293,Sella Chianzutan,sigla
+C100,46.467271,12.681997,Sauris di Sopra,sigla
+C103,46.452038,12.626938,Chiansaveit,sigla
+C104,46.484142,12.722987,Casera Pieltinis,sigla
+C150,46.586742,12.773752,Forni Avoltri,sigla
+C151,46.585548,12.839108,Collina (Forni Avoltri),sigla
+C154,46.52188,12.775179,Pesariis,sigla
+C155,46.516967,12.864919,Comeglians,sigla
+C156,46.519457,12.917413,Ravascletto,sigla
+C164,46.570496,12.746582,Stadio Biathlon Piani di Luzza,sigla
+C183,46.411242,12.906678,Villa Santina T.Degano,sigla
+C201,46.576365,13.006879,Timau,sigla
+C203,46.528107,13.012036,Paluzza,sigla
+C206,46.594328,12.899767,Malga Plotta,sigla
+C207,46.587302,13.029349,Pramosio,sigla
+C208,46.557444,12.983632,Casera Zoufplan bassa,sigla
+C211,46.501434,12.931552,Rifugio Tamai - Zoncolan,sigla
+C230,46.526404,13.121001,Paularo,sigla
+C235,46.567892,13.168633,Cason di Lanza,sigla
+C236,46.481274,13.14116,Casera Del Mestri,sigla
+C263,46.421844,13.021877,Tolmezzo meteo,sigla
+C301,46.543173,13.474892,Val Ugovizza,sigla
+C304,46.507888,13.441782,Malborghetto F.Fella,sigla
+C307,46.548152,13.515438,Malga Acomizza,sigla
+C333,46.50607,13.307517,Pontebba T.P.,sigla
+C338,46.559729,13.275149,Passo Pramollo,sigla
+C361,46.462206,13.448543,Sella di Sompdogna,sigla
+C362,46.452159,13.371912,Chiout,sigla
+C410,46.402789,13.375346,Saletto,sigla
+C411,46.404778,13.317483,Chiusaforte,sigla
+C412,46.375066,13.469737,Livinal Lunc,sigla
+C414,46.3906,13.47604,Sella Nevea,sigla
+C420,46.347911,13.392204,Coritis,sigla
+C423,46.376105,13.295674,Resia,sigla
+C440,46.486164,13.189593,Bevorchians,sigla
+C445,46.456198,13.248731,Bivacco Bianchi,sigla
+C464,46.400134,13.185105,Moggio Udinese,sigla
+C467,46.360225,13.18774,Malga Cjariguart,sigla
+C503,46.33526,13.1348,Venzone Tagliamento,sigla
+C551,46.309219,13.055655,Alesso,sigla
+C553,46.23644,13.071405,Osoppo,sigla
+C555,46.22849,13.161321,Magnano in Riviera,sigla
+C600,46.312492,12.936359,S.Francesco T.P.,sigla
+C603,46.241105,12.993168,Monte Prat,sigla
+C640,46.229896,12.917969,Clauzetto,sigla
+C643,46.144297,12.887793,Vacile,sigla
+C665,46.108575,12.882533,Spilimbergo,sigla
+C701,45.964923,12.903387,Ponte Delizia,sigla
+CAP,45.958094,13.512333,Capriva del Friuli,sigla
+CDP,46.437067,13.567703,Cave del Predil,sigla
+CER,45.849486,13.337015,Cervignano del Friuli,sigla
+CHI,46.254523,12.734044,Chievolis,sigla
+CIV,46.080442,13.420014,Cividale del Friuli,sigla
+CMT,45.9203,12.9386,Camino,sigla
+COD,45.952356,13.002742,Codroipo,sigla
+D002,46.016592,12.870546,Arzenutto,sigla
+D101,45.840324,12.805129,Mure,sigla
+D200,45.855035,12.757572,Villotta di Chions,sigla
+D300,45.874034,12.713023,Zuiano,sigla
+D401,45.843958,12.617692,Squarzare,sigla
+E200,46.157018,13.013972,San Daniele del Friuli,sigla
+E501,46.047574,12.981745,Grions,sigla
+E502,45.951195,13.135353,Lestizza,sigla
+E513,46.014194,13.039309,Pantianicco,sigla
+E514,46.05721,13.139569,Colloredo di Prato,sigla
+ENE,46.410416,12.862536,Enemonzo,sigla
+FAG,46.101692,13.073886,Fagagna,sigla
+FOS,45.714768,13.458865,Fossalon,sigla
+FSP,46.409798,12.59368,Forni di Sopra,sigla
+G001,46.196033,13.153396,Zeglianutto,sigla
+G004,46.11783,13.165783,Alnicco,sigla
+G010,46.06495,13.236568,Udine,sigla
+G054,45.914425,13.161898,S.Andrat del Cormor,sigla
+G100,45.833602,13.159913,Zavattina T.Cormor,sigla
+G200,46.151419,13.214072,Tricesimo,sigla
+G201,46.115245,13.228998,Adegliacco,sigla
+GEM,46.261297,13.122088,Gemona del Friuli,sigla
+GRA,45.889791,13.481807,Gradisca d'Is.,sigla
+GRG,45.736227,13.021904,Gorgo,sigla
+GRM,45.671362,13.396556,Grado-mare,sigla
+J209,45.818818,13.275573,Torviscosa,sigla
+J405,45.910897,13.333247,Palmanova,sigla
+J406,45.992028,13.296516,Pavia di Udine,sigla
+LAU,45.982046,13.272538,Lauzacco,sigla
+LIG,45.701909,13.147078,Lignano Sabbiadoro,sigla
+LSR,46.482536,13.520058,Monte Lussari sm,sigla
+M002,45.686525,13.121131,Lignano Sabbiadoro PCR,sigla
+M053,45.683158,13.383429,Grado Marea,sigla
+MAT,46.211683,13.529107,Monte Matajur,sigla
+MGG,45.610484,13.752633,Muggia,sigla
+MUS,46.312663,13.274682,Musi,sigla
+N001,46.306499,13.400352,Uccea,sigla
+N042,45.766088,13.404853,San Lorenzo,sigla
+N101,46.307267,13.272579,Musi ponte,sigla
+N108,46.290693,13.350829,Gran Monte,sigla
+N151,46.171419,13.254918,Zompitta Meteo,sigla
+N200,46.266809,13.329354,Ponte Sambo,sigla
+N302,46.122912,13.309144,Povoletto,sigla
+N313,46.061729,13.358023,Orzano,sigla
+N400,46.242834,13.380049,Platischis,sigla
+N404,46.173193,13.483301,Pulfero,sigla
+N405,46.194487,13.532923,Montemaggiore,sigla
+N406,46.164899,13.642517,S.Volfango,sigla
+N417,46.212269,13.524321,Malghe Mersino - Matajur,sigla
+N450,46.096646,13.418361,Cividale T.P.,sigla
+N602,45.976674,13.453563,Cormons,sigla
+N701,45.91039,13.595497,Gorizia Aeroporto,sigla
+N705,45.93043,13.62839,Gorizia - sede ARPA FVG,sigla
+P005,45.796511,13.511506,Monfalcone pluvio,sigla
+PAL,45.805702,13.052598,Palazzolo dello Stella,sigla
+PDA,46.157287,12.597723,Pala d'Altei,sigla
+PIA,46.114922,12.524386,Piancavallo,sigla
+PRD,46.044247,13.303041,Pradamano,sigla
+R001,45.842975,13.547305,Doberdo',sigla
+R100,45.765474,13.686795,San Pelagio,sigla
+R101,45.703943,13.75672,Prosecco,sigla
+RIV,46.0108,12.9458,Rivis,sigla
+S005,45.600645,13.775776,Muggia TP,sigla
+S006,45.635432,13.833167,Trieste Cattinara,sigla
+SAN,45.895661,12.814989,San Vito al Tgl.,sigla
+SGO,45.738004,13.742056,Sgonico-Zgonik,sigla
+SPN,46.11426,13.486796,San Pietro al Natisone,sigla
+TAL,45.882311,13.155779,Talmassons,sigla
+TAR,46.510775,13.551886,Tarvisio,sigla
+TRI,45.649996,13.752242,Trieste molo F.lli Bandiera,sigla
+TRS,45.647393,13.76454,Trieste Ist. Nautico,sigla
+TRZ,45.770946,13.31338,Terzo d'Aquileia,sigla
+UDI,46.035212,13.226672,Udine S.O.,sigla
+V001,46.504361,13.593907,Tarvisio bassa,sigla
+V005,46.496034,13.686881,Fusine Valico,sigla
+V008,46.418783,13.573752,Passo Predil,sigla
+V013,46.466821,13.662068,Fusine Alpe del Lago,sigla
+VIV,46.076529,12.768814,Vivaro,sigla
+ZON,46.502355,12.926251,Monte Zoncolan,sigla

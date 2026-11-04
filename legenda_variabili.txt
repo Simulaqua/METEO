@@ -1,0 +1,140 @@
+LEGENDA VARIABILI - corrispondenza tra le regioni
+
+Codici regione : VEN=Veneto (ARPAV) | LOM=Lombardia (ARPA Lombardia) | ER=Emilia-Romagna (ARPAE) |
+                 TN=Trentino | BZ=Alto Adige (Bolzano) | FVG=Friuli V.G. (OSMER)
+                 (PIE=Piemonte e LIG=Liguria: tabella a parte in fondo al file)
+Sigla comune   : nome uniforme usato negli script e nelle cartelle data-parsed/<SIGLA>/.
+Colonne regione: nome ORIGINALE della variabile nella fonte.  '-' = non fornita.
+
++-------------------------------+--------------+---------+---------------------+----------------+-------------+--------+------------+
+| Variabile (nome esteso)       | Sigla comune | VEN     | LOM                 | ER             | TN          | BZ     | FVG        |
++-------------------------------+--------------+---------+---------------------+----------------+-------------+--------+------------+
+| Temperatura aria              | TEMP         | TEMP    | Temperatura         | temperatura    | temperatura | LT     | t180       |
+| Precipitazione                | PREC         | PREC    | Precipitazione      | precipitazioni | pioggia     | N      | rr         |
+| Umidita' relativa             | UMID         | UMID    | Umidità Relativa    | umidita        | rh          | LF     | rh         |
+| Pressione atmosferica         | PRESS        | PRESS   | -                   | pressione      | -           | LD.RED | press      |
+| Radiazione solare (globale)   | RADSOL       | RADSOL  | Radiazione Globale  | -              | rsg         | GS     | rg         |
+| Durata soleggiamento          | SOLEGG       | -       | -                   | -              | -           | SD     | -          |
+| Velocita' vento               | VVENTO       | VVENTO  | Velocità Vento      | vento          | v           | WG     | ff10       |
+| Velocita' vento scalare       | VVENTOSCAL   | -       | -                   | -              | -           | -      | v10        |
+| Velocita' raffica             | VVENTOMAX    | -       | -                   | -              | vmax        | WG.BOE | vmax       |
+| Direzione vento               | DVENTO       | DVENTO  | Direzione Vento     | -              | d           | WR     | dd10       |
+| Direzione raffica             | DVENTOMAX    | -       | -                   | -              | -           | -      | dd10max    |
+| Livello idrometrico           | LIVIDRO      | LIVIDRO | Livello Idrometrico | idrometrico    | -           | W      | -          |
+| Portata                       | PORTATA      | PORTATA | -                   | -              | -           | Q      | -          |
+| Altezza freatimetrica (falda) | FREATICA     | -       | -                   | -              | -           | W.ABST | -          |
+| Temperatura acqua             | TEMPACQUA    | -       | -                   | -              | -           | WT     | tmare      |
+| Concentrazione solidi sospesi | SOLIDI       | -       | -                   | -              | -           | SSTF   | -          |
+| Altezza neve al suolo         | LIVNEVE      | LIVNEVE | Altezza Neve        | -              | -           | HS     | -          |
+| Visibilita'                   | VISIB        | VISIB   | -                   | -              | -           | -      | -          |
+| Bagnatura fogliare            | BAGNATURA    | -       | -                   | -              | -           | -      | bf         |
+| Tipo di precipitazione        | PREC_TYPE    | -       | -                   | -              | -           | -      | prec_type  |
+| Nuvolosita'                   | CLOUDINESS   | -       | -                   | -              | -           | -      | cloudiness |
++-------------------------------+--------------+---------+---------------------+----------------+-------------+--------+------------+
+
+Note sulle fonti:
+  VEN (ARPAV, XML)      : attributo TYPE di <SENSORE>; valore in <VM>. Ora solare.
+  LOM (Lombardia, JSON) : 'tipologia' (anagrafica nf78-nj6b) + 'valore' (dati 647i-nhxk). Ora solare.
+  ER  (ARPAE, API)      : descrittore BUFR 'variabile' (Allerta Meteo); t = epoch UTC -> ora solare.
+                          Temperatura in Kelvin e pressione in Pascal -> convertite (°C, hPa).
+  TN  (Trentino, XML)   : tag-foglia dentro <sezione>/<item>.
+  BZ  (Bolzano, JSON)   : campo TYPE (/sensors); valore in VALUE.
+  FVG (meteo.fvg, XML)  : tag dentro <meteo_data>.
+
+
+===========================================================================================
+QUALITA' DELL'ARIA (dati_aria.py) - reti separate, codice archivio AQ_<REG>. Stazioni con lat/lon.
+===========================================================================================
++-------------------------------+--------+---------+------------------+--------+--------+--------+
+| Inquinante                    | Sigla  | VEN     | LOM (ARPA)       | BZ     | TN     | ER     |
++-------------------------------+--------+---------+------------------+--------+--------+--------+
+| Polveri PM10                  | PM10   | pm10    | PM10 (SM2005)    | PM10   | pm10   | PM10   |
+| Polveri PM2.5                 | PM25   | -       | Part. sosp. PM2.5| PM2.5  | pm25   | PM2.5  |
+| Ozono                         | O3     | ozono   | Ozono            | O3     | o3     | O3     |
+| Biossido di azoto             | NO2    | -       | Biossido di Azoto| NO2    | no2    | NO2    |
+| Biossido di zolfo             | SO2    | -       | Biossido di Zolfo| SO2    | so2    | SO2    |
+| Monossido di carbonio         | CO     | -       | Monossido Carbon.| CO     | co     | CO     |
+| Benzene                       | C6H6   | -       | Benzene          | -      | -      | C6H6   |
+| Radioattivita' (dose gamma)   | GAMMA  | -       | -                | GAMMA  | -      | -      |
++-------------------------------+--------+---------+------------------+--------+--------+--------+
+
+Note sulle fonti aria:
+  VEN : ARPAV aria-json (data.json), coord da coords.json. Ora civile -> solare.
+  LOM : ARPA Socrata, anagrafica ib47-atvt (coord) + dati nicp-bhqi (orari), operatore '1'. Ora solare.
+  BZ  : APPA, valori airquality/timeseries; COORDINATE da Open Data Hub (EnvironmentStation, APPABZ).
+        La dose gamma (GAMMA, µSv/h) e' nello STESSO feed aria di Bolzano -> 4 stazioni sotto AQ_BZ.
+  TN  : APPA bollettino JSON (orario). Il feed non ha coordinate -> tabella curata (geocodifica OSM).
+  ER  : ARPAE datastore CKAN; join station_id==Cod_staz(senza punti) e variable_id==IdParametro
+        con le anagrafiche (coord LAT_GEO/LON_GEO). reftime locale -> solare.
+  FVG : SALTATA (dato libero pubblicato con ~7 giorni di ritardo; l'orario e' dietro login).
+
+
+===========================================================================================
+MAREE / METEO-MARINO / ACQUE MARINO-COSTIERE (dati_mare.py) - codice archivio per fonte.
+Raggruppate nel frontend sotto la voce geografica (MAR_VEN+ACQ_VEN -> Veneto, MAR_ER -> Emilia-R.,
+MAR_FVG -> Friuli V.G.).
+===========================================================================================
++-------------------------------+--------------+--------------+-----------------+-------------------+-----------------+
+| Variabile (nome esteso)       | Sigla comune | MAR_VEN      | MAR_ER (BUFR)   | ACQ_VEN           | MAR_FVG (OGS)   |
++-------------------------------+--------------+--------------+-----------------+-------------------+-----------------+
+| Livello marea                 | MAREA        | livello      | B22037          | -                 | ASLV (PIEZTAG)  |
+| Altezza onde (Hs)             | ONDE         | onde         | B22070          | -                 | VAVH (DWRG1-3)  |
+| Portata fiume                 | PORTATA      | -            | -               | -                 | RVFL (CURRISO)  |
+| Temperatura acqua             | TEMPACQUA    | -            | B22043 (K->°C)  | Temperatura acqua | TEMP (CURRISO/PIEZTAG) |
+| Temperatura aria              | TEMP         | -            | B12101 (K->°C)  | -                 | DRYT (MAMBO1)   |
+| Umidita' relativa             | UMID         | -            | B13003          | -                 | RELH (MAMBO1)   |
+| Pressione atmosferica         | PRESS        | -            | -               | -                 | ATMS (MAMBO1, mbar=hPa) |
+| Velocita' vento               | VVENTO       | vento        | B11002          | -                 | WSPD (MAMBO1)   |
+| Direzione vento               | DVENTO       | -            | -               | -                 | WDIR (MAMBO1)   |
+| Salinita'                     | SALINITA     | -            | -               | Salinità          | -               |
+| Ossigeno disciolto            | OSSIGENO     | -            | -               | Ossigeno disciolto| -               |
+| Ossigeno (saturazione)        | OSSIGENO_SAT | -            | -               | Oss. disc. al prel| -               |
+| pH                            | PH           | -            | -               | pH misurato a campo| -              |
+| Clorofilla a                  | CLOROFILLA   | -            | -               | Clorofilla a      | -               |
+| Conducibilita' elettrica      | CONDUCIBILITA| -            | -               | Conducibilità elettr| -             |
++-------------------------------+--------------+--------------+-----------------+-------------------+-----------------+
+
+Note sulle fonti marino-costiere:
+  MAR_VEN : CPSM Comune di Venezia (dati.venezia.it), un JSON per grandezza; 'valore' sono stringhe
+            ("0.63 m", "209 gradi, 1.4 m/s") -> estrazione numeri. Snapshot ~5 min, accumula.
+  MAR_ER  : ARPAE Allerta Meteo, realtime.jsonl (reti 'boa'/'marefe'); descrittori BUFR B22037/B22070/
+            B22043/B12101/B13003/B11002 (Kelvin->°C dove serve). date UTC 'Z' -> ora solare. Snapshot.
+  ACQ_VEN : ARPAV REST (acqua_boe_stazioni_point per coord GeoJSON, acqua_boe_dati per valori); join su
+            CODSEQST, PARAMETRO->sigla, MEDIA=valore, DATA locale -> ora solare. Orario (~1h30 ritardo).
+  MAR_FVG : OGS Trieste ERDDAP (nodc.ogs.it), 6 dataset '<ID>_TS' (boa meteo-oceanografica MAMBO1,
+            3 ondametri DWRG1/2/3, sensore di portata alla foce Isonzo CURRISO, piezometro/livello
+            alla foce Tagliamento PIEZTAG). Coordinate fisse hardcoded (confermate dal .das). QC
+            SeaDataNet L20, accettati 0/1/2. time UTC 'Z' -> ora solare. RVFL (portata) a CURRISO
+            puo' essere negativa (risalita di marea alla foce): valore reale, non filtrato.
+
+
+===========================================================================================
+PIEMONTE (PIE, dati_pc.py -r PIE) e LIGURIA (LIG, dati_liguria.py) - aggiunti/estesi il 2026-11-02
+===========================================================================================
++-------------------------------+--------------+----------------------------+-----------------------------+
+| Variabile (nome esteso)       | Sigla comune | PIE (ARPA Piemonte API)    | LIG (ARPAL OMIRL, classe)   |
++-------------------------------+--------------+----------------------------+-----------------------------+
+| Temperatura aria              | TEMP         | air_temperature            | Termo                       |
+| Umidita' relativa             | UMID         | humidity                   | Igro                        |
+| Precipitazione (1 h)          | PREC         | cum_rain_1h                | Pluvio (serie "Pioggia 1h") |
+| Velocita' vento               | VVENTO       | wind (km/h -> m/s)         | Vento (km/h -> m/s)         |
+| Direzione vento               | DVENTO       | wind_direction             | Vento (grafico XML)         |
+| Velocita' raffica             | VVENTOMAX    | gust_of_wind (km/h -> m/s) | Vento, 2a colonna serie     |
+| Direzione raffica             | DVENTOMAX    | gust_direction             | -                           |
+| Altezza neve al suolo         | LIVNEVE      | snow_height (cm)           | Neve (cm)                   |
+| Livello idrometrico           | LIVIDRO      | hydrometric_level (m)      | Idro (m)                    |
+| Radiazione solare (globale)   | RADSOL       | -                          | Radio (W/m²)                |
+| Pressione atmosferica         | PRESS        | -                          | Press (hPa)                 |
+| Bagnatura fogliare            | BAGNATURA    | -                          | Foglie (%)                  |
+| Durata soleggiamento          | SOLEGG       | -                          | Elio (min)                  |
+| Altezza onde                  | ONDE         | -                          | Boa (m, boa di Capo Mele)   |
++-------------------------------+--------------+----------------------------+-----------------------------+
+
+Note sulle fonti:
+  PIE    : utility.arpa.piemonte.it/api_realtime (/pie_anag + /data_pie, BULK paginato), dati ORARI, ultimi 3 giorni.
+           Data con offset esplicito ('+01:00'/'+02:00') -> ora solare. Lo stesso scarico scrive anche PC_PIE (i soli
+           idrometri, voce "Po (AIPO + Piemonte)"). Verificato contro ItaliaMeteo: orari esatti, vento in km/h.
+  LIG    : omirl.regione.liguria.it/Omirl/rest: stations/<Classe> (istantanee con coordinate) + charts/csv/<Codice>/
+           <Classe> (serie). TUTTI i tempi sono UTC (verificato contro ItaliaMeteo) -> ora solare = UTC + 1 h; l'archivio
+           precedente (letto per errore come ora italiana) e' stato corretto il 2026-11-02. La pioggia viene solo dalla
+           serie oraria (l'istantanea e' una cumulata mobile di 1 h).

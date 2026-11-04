@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><title>Larghezza telefono</title>
+<style>html,body{margin:0;background:#888} iframe{border:0;display:block;background:#fff}</style></head>
+<body>
+<iframe id="f"></iframe><pre id="out">in corso…</pre>
+<script>
+// Contenitore di prova (NON pubblicato): mostra una pagina in un iframe largo come un telefono
+// (Chrome headless non scende sotto ~500 px di finestra) e ne copia l'esito in #out.
+const q = new URLSearchParams(location.search), f = document.getElementById('f');
+f.style.width = (q.get('w') || 375) + 'px'; f.style.height = (q.get('h') || 812) + 'px';
+f.src = q.get('src');
+const iv = setInterval(() => {
+  try {
+    const o = f.contentDocument && f.contentDocument.getElementById('out');
+    if(o && /RISULTATO/.test(o.textContent)){ document.getElementById('out').textContent = o.textContent; o.style.display = 'none'; clearInterval(iv); }
+  } catch(e){}
+}, 200);
+</script>
+</body></html>

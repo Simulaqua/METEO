@@ -1,0 +1,32 @@
+# --- dati grezzi e archivio (rigenerati dagli script dati_*.py) ---
+*/data-downloaded/
+*/data-parsed/
+
+# --- dati web generati (pubblicati su gh-pages via publish.sh, non nel repo sorgente) ---
+site/VEN/
+site/BZ/
+site/TN/
+site/FVG/
+
+# --- radar DPC: fotogrammi generati sul Pi (pubblicati sul branch 'radar' da dati_radar.py) ---
+radar_out/
+.radar.lock
+
+# --- spazio di lavoro dei piani (superpowers) ---
+.superpowers/
+
+# --- stato di tracking (check_updates.py) ---
+.tracking/
+tracking.log
+
+# --- log ---
+logs/
+*/logs/
+
+# --- python ---
+__pycache__/
+*.pyc
+
+# --- tooling / OS ---
+.claude/
+.DS_Store

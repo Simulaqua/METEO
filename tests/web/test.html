@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><title>Test radar.js</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>#map{width:800px;height:600px} pre{font:12px monospace}</style>
+</head><body>
+<div id="map"></div><pre id="out">in corso…</pre>
+<script>
+// Pagina di prova di site/radar.js (NON pubblicata): dati locali in data/, manifest finti via fetch intercettato,
+// orologio iniettato. Esito in #out ("RISULTATO: n/n").
+window.RADAR_BASE_OVERRIDE = 'data';
+window.RADAR_FALLBACK_OVERRIDE = 'data_fb';               // inesistente: il fallback risponde 404
+const T = 1792658700;                                       // 2026-10-22 08:45 UTC
+const TIMES = Array.from({ length: 72 }, (_, i) => T - (71 - i) * 300);
+const SHIFTED = TIMES.slice(1).concat([T + 300]);
+const man = frames => ({ v: 1, updated: T, source: 'Radar-DPC – Dipartimento della Protezione Civile', license: 'CC BY-SA 4.0',
+  products: { SRI: { unit: 'mm/h', step: 300, size: [773, 517], bounds: [[43.307491, 6.0], [47.3, 14.492432]],
+                     steps: [0.1, 0.5, 1, 2, 5, 10, 20, 30, 50], frames } } });
+let MANIFEST = man(TIMES), NOW = (T + 600) * 1000;
+// conta le immagini che radar.js precarica (new Image(): src impostato)
+const PRELOADS = [], RealImage = window.Image;
+window.Image = function(){
+  const im = new RealImage(), d = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  Object.defineProperty(im, 'src', { set(v){ PRELOADS.push(String(v)); d.set.call(im, v); }, get(){ return d.get.call(im); } });
+  return im;
+};
+const realFetch = window.fetch.bind(window);
+window.fetch = (url, opts) => /index\.json/.test(String(url))
+  ? Promise.resolve(MANIFEST ? new Response(JSON.stringify(MANIFEST), { status: 200 }) : new Response('nf', { status: 404 }))
+  : realFetch(url, opts);
+</script>
+<script src="../radar.js"></script>
+<script>
+const out = [], log = (ok, name, info) => out.push((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : ': ' + info));
+const eq = (name, got, want) => log(JSON.stringify(got) === JSON.stringify(want), name, 'got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hhmm = civ => { const d = new Date(civ * 1000), z = n => (n < 10 ? '0' : '') + n; return z(d.getUTCHours()) + ':' + z(d.getUTCMinutes()); };
+const visible = () => [...document.querySelectorAll('.leaflet-radar-pane img')].filter(i => +getComputedStyle(i).opacity > 0);
+const visibleSrc = () => (visible()[0] || {}).src || '';
+async function until(fn, ms = 4000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return true; await sleep(50); } return false; }
+
+(async () => {
+  try {
+    const map = L.map('map', { zoomAnimation: false }).setView([46.0, 12.0], 8);
+    L.circleMarker([45.5, 11.5], { radius: 5 }).addTo(map);              // un "puntino" nell'overlayPane
+    const calls = { state: [], time: [], frames: 0, buffer: 0 };
+    Radar.init({ map, now: () => NOW, onState: s => calls.state.push(s), onTime: (u, c) => calls.time.push([u, c]),
+                 onFrames: () => calls.frames++, onBuffer: () => calls.buffer++,
+                 stationLabel: civ => 'stazioni ' + hhmm(Math.floor(civ / 3600) * 3600) });
+
+    // 1. ora civile italiana (regola dell'ora legale, cambi del 2026)
+    eq('utcToCivil 25/10 00:55Z = 02:55 CEST', hhmm(Radar.utcToCivil(1792889700)), '02:55');
+    eq('utcToCivil 25/10 01:00Z = 02:00 CET', hhmm(Radar.utcToCivil(1792890000)), '02:00');
+    eq('utcToCivil 29/03 00:55Z = 01:55 CET', hhmm(Radar.utcToCivil(1774745700)), '01:55');
+    eq('utcToCivil 29/03 01:00Z = 03:00 CEST', hhmm(Radar.utcToCivil(1774746000)), '03:00');
+    eq('utcToCivil estate', hhmm(Radar.utcToCivil(T)), '10:45');
+    eq('utcToCivil inverno', hhmm(Radar.utcToCivil(1800000000)), '09:00');
+    // 2. testo delle classi
+    eq('classe 0', Radar.classLabel(0), 'meno di 0,1 mm/h');
+    eq('classe 2', Radar.classLabel(2), '0,5-1 mm/h');
+    eq('classe 5', Radar.classLabel(5), '5-10 mm/h');
+    eq('classe 9', Radar.classLabel(9), 'oltre 50 mm/h');
+
+    // 3. accensione con manifest fresco
+    eq('enable fresco', await Radar.enable(), true);
+    eq('stato on', Radar.state, 'on');
+    // scaricamento: prima l'ultimo fotogramma da solo, poi gli altri dal piu' vecchio (l'ordine del play)
+    eq('niente precarica prima del primo fotogramma', PRELOADS.length, 0);
+    eq('appena acceso: niente di scaricato dall\'inizio', Radar.source.buffered && Radar.source.buffered(), 0);
+    await until(() => PRELOADS.length >= 8);
+    eq('precarica dal piu\' vecchio', PRELOADS.slice(0, 8).map(u => u.split('/').pop()),
+       TIMES.slice(0, 8).map(t => new Date(t * 1000).toISOString().replace(/\D/g, '').slice(0, 12) + '.png'));
+    // manifest del rilascio 1 (solo SRI, senza etichette/puntini/colori): letto come "Pioggia adesso" sulle stazioni a 1 h
+    eq('manifest v1: pioggia accoppiata a PREC1', [Radar.product.key, Radar.product.dots, Radar.legend().label], ['SRI', 'PREC1', 'Pioggia adesso']);
+    eq('72 fotogrammi', Radar.source.max(), 71);
+    log(await until(() => visibleSrc().endsWith('data/SRI/202610220845.png')), 'mostra l\'ultimo', visibleSrc());
+    log(visible().length && getComputedStyle(visible()[0]).imageRendering === 'pixelated', 'pixel nitidi',
+        visible().length && getComputedStyle(visible()[0]).imageRendering);
+    log(document.querySelector('.leaflet-control-attribution').textContent.includes('Radar-DPC'), 'attribuzione', '');
+    log(+map.getPane('radarPane').style.zIndex < +getComputedStyle(map.getPane('overlayPane')).zIndex, 'sotto i puntini', map.getPane('radarPane').style.zIndex);
+    eq('pixel Udine', Radar.gridPixel(46.06, 13.23), [164, 658]);
+    eq('pixel Padova', Radar.gridPixel(45.41, 11.88), [249, 535]);
+    // 4. etichetta e sorgente di tempo
+    const lab = Radar.source.label(71);
+    log(lab.includes('<span>10:45</span>') && lab.includes('gio 22/10') && lab.includes('stazioni 10:00'), 'etichetta: ora grande, giorno, stazioni', lab);
+    eq('civ = ora civile del fotogramma', Radar.source.civ && Radar.source.civ(71) % 86400, (10 * 60 + 45) * 60);
+    eq('next in mezzo', Radar.source.next(5), 6);
+    eq('next in fondo = loop', Radar.source.next(71), 0);
+    eq('periodo 250 ms', Radar.source.periodMs, 250);
+    Radar.source.apply(10);
+    log(await until(() => visibleSrc().endsWith('data/SRI/202610220340.png')), 'apply(10)', visibleSrc());
+    eq('onTime', calls.time[calls.time.length - 1], [1792640400, 1792647600]);
+    log(visible().length === 1, 'un solo overlay visibile', visible().length);
+    // 5. zoom: nascosto da 11 in su
+    map.setZoom(11);
+    await sleep(100);
+    log(Radar.state === 'zoom' && visible().length === 0, 'nascosto a zoom 11', Radar.state + ' ' + visible().length);
+    map.setZoom(8);
+    log(await until(() => Radar.state === 'on' && visible().length === 1), 'di nuovo visibile a zoom 8', Radar.state);
+    // 6. popup con la classe al tocco di un punto vuoto
+    Radar.source.apply(71);
+    await until(() => visibleSrc().endsWith('202610220845.png'));
+    map.fire('click', { latlng: L.latLng(46.06, 13.23) });
+    await until(() => document.querySelector('.leaflet-popup-content'));
+    const pop = (document.querySelector('.leaflet-popup-content') || {}).textContent || '';
+    log(pop.includes('10:45') && pop.includes('0,5-1 mm/h'), 'popup Udine', pop);
+    map.closePopup();
+    // precaricamento: ogni fotogramma una volta sola, anche quando l'elenco si rinnova
+    await until(() => PRELOADS.length >= 72, 8000);
+    eq('precaricati i 72 fotogrammi', new Set(PRELOADS).size, 72);
+    log(await until(() => Radar.source.buffered && Radar.source.buffered() === 1, 8000), 'tutto scaricato: buffered 1',
+        Radar.source.buffered && Radar.source.buffered());
+    log(Radar.source.ready && Radar.source.ready(0) && Radar.source.ready(71), 'ready dei fotogrammi scaricati', '');
+    log(calls.buffer >= 72, 'onBuffer a ogni fotogramma scaricato (' + calls.buffer + ')', calls.buffer);
+    // 7. aggancio ai fotogrammi nuovi (si e' sull'ultimo)
+    MANIFEST = man(SHIFTED);
+    const f0 = calls.frames, p0 = PRELOADS.length;
+    await Radar.poll();
+    await sleep(500);
+    eq('precaricato solo il nuovo', PRELOADS.slice(p0).map(u => u.split('/').pop()), ['202610220850.png']);
+    log(await until(() => visibleSrc().endsWith('202610220850.png')), 'segue il nuovo fotogramma', visibleSrc());
+    log(calls.frames > f0 && Radar.source.max() === 71, 'onFrames + finestra 72', calls.frames + ' ' + Radar.source.max());
+    // 8. se si guarda indietro resta fermo sullo stesso istante
+    MANIFEST = man(TIMES);
+    await Radar.poll();
+    Radar.source.apply(10);
+    await until(() => visibleSrc().endsWith('202610220340.png'));
+    MANIFEST = man(SHIFTED);
+    await Radar.poll();
+    await sleep(300);
+    log(visibleSrc().endsWith('202610220340.png'), 'resta sullo stesso istante', visibleSrc());
+    eq('onTime invariato', calls.time[calls.time.length - 1][0], 1792640400);
+    // 9. radar fermo
+    NOW = (T + 300 + 7200) * 1000;
+    await Radar.poll();
+    log(Radar.state === 'fermo' && Radar.source.label(71).includes('radar fermo alle 10:50'), 'radar fermo', Radar.state + ' ' + Radar.source.label(71));
+    NOW = (T + 600) * 1000;
+    // 10. fotogramma mancante (404 sia su base sia su fallback): non si mostra e la riproduzione lo salta
+    MANIFEST = man(SHIFTED.concat([T + 600]));
+    await Radar.poll();
+    Radar.source.apply(Radar.source.max());
+    await sleep(1500);
+    log(!visibleSrc().endsWith('202610220855.png') && visible().length === 1, 'mancante non mostrato', visibleSrc());
+    eq('next salta il mancante', Radar.source.next(Radar.source.max() - 1), 0);
+    // 11. spegnimento
+    Radar.disable();
+    eq('stato off', Radar.state, 'off');
+    eq('niente immagini radar', document.querySelectorAll('.leaflet-radar-pane img').length, 0);
+    log(!document.querySelector('.leaflet-control-attribution').textContent.includes('Radar-DPC'), 'attribuzione tolta', '');
+    // 12. manifest irraggiungibile
+    MANIFEST = null;
+    eq('enable senza manifest', await Radar.enable(), false);
+    eq('stato nd', Radar.state, 'nd');
+
+    // ===== rilascio 2: piu' prodotti (palette, etichette e unita' dal manifest) =====
+    const B = [[43.307491, 6.0], [47.3, 14.492432]], SZ = [773, 517];
+    const RAINC = ['', '#a9d6f2', '#6db3e6', '#3a8fd9', '#2a62c4', '#4b3fb8', '#8a2fb0', '#d0238c', '#e5412d', '#8e0b0b'];
+    const DBZS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+    const DBZC = ['', '#04e9e7', '#019ff4', '#0300f4', '#02fd02', '#01c501', '#008e00', '#fdf802', '#e5bc00', '#fd9500', '#fd0000', '#bc0000'];
+    const TEMPS = Array.from({ length: 24 }, (_, i) => -10 + 2 * i);
+    const TEMPC = Array.from({ length: 25 }, (_, i) => '#' + (40 + i * 8).toString(16).padStart(2, '0') + '4060');
+    const TT = Array.from({ length: 6 }, (_, i) => T - 2700 - (5 - i) * 3600);        // 03:00 ... 08:00 UTC
+    const man2 = () => ({ v: 2, order: ['SRI', 'VMI', 'TEMP'], products: {
+      SRI: { group: 'Pioggia', label: 'Adesso', unit: 'mm/h', step: 300, size: SZ, bounds: B, steps: [0.1, 0.5, 1, 2, 5, 10, 20, 30, 50],
+             colors: RAINC, dots: 'PREC1', frames: TIMES },
+      VMI: { group: 'Radar', label: 'Riflettività', unit: 'dBZ', step: 300, size: SZ, bounds: B, steps: DBZS, colors: DBZC, dots: null, frames: TIMES },
+      TEMP: { group: 'Altro', label: 'Temperatura', unit: '°C', step: 3600, size: SZ, bounds: B, steps: TEMPS, colors: TEMPC, dots: 'TEMP', frames: TT } } });
+    MANIFEST = man2(); NOW = (T + 600) * 1000;
+    eq('enable multi-prodotto', await Radar.enable(), true);
+    eq('prodotti nel menu', Radar.products().map(p => p.key + ':' + p.group + ':' + p.frames), ['SRI:Pioggia:72', 'VMI:Radar:72', 'TEMP:Altro:6']);
+    Radar.source.apply(10);                                                          // 03:40 UTC sulla pioggia
+    await until(() => visibleSrc().endsWith('data/SRI/202610220340.png'));
+    const q0 = PRELOADS.length;
+    eq('setProduct VMI', Radar.setProduct('VMI'), true);
+    log(await until(() => visibleSrc().endsWith('data/VMI/202610220340.png')), 'cambio prodotto: stesso istante', visibleSrc());
+    eq('legenda del prodotto', [Radar.legend().label, Radar.legend().unit, Radar.legend().steps.length, Radar.legend().dots], ['Riflettività', 'dBZ', 11, null]);
+    await sleep(800);
+    log(PRELOADS.length > q0 && PRELOADS.slice(q0).every(u => u.includes('/VMI/')), 'precarica solo il prodotto scelto', PRELOADS.slice(q0, q0 + 2).join(' '));
+    map.fire('click', { latlng: L.latLng(46.06, 13.23) });
+    await until(() => document.querySelector('.leaflet-popup-content'));
+    const pop2 = (document.querySelector('.leaflet-popup-content') || {}).textContent || '';
+    log(/^Radar 05:40 · Riflettività: /.test(pop2) && pop2.includes('dBZ'), 'popup del prodotto', pop2);
+    map.closePopup();
+    eq('setProduct TEMP', Radar.setProduct('TEMP'), true);
+    log(await until(() => visibleSrc().endsWith('data/TEMP/202610220300.png')), 'temperatura: ora piena precedente (03:00)', visibleSrc());
+    // passando da un prodotto orario si torna all'istante scelto dall'utente (03:40), non all'ora piena (03:00):
+    // anche se la pagina, dopo il cambio, riapplica lo stesso fotogramma (setFrame -> source.apply), come fa index.html
+    Radar.source.apply(Radar.index);
+    Radar.setProduct('VMI');
+    log(await until(() => visibleSrc().endsWith('data/VMI/202610220340.png')), 'nessuna deriva: di nuovo 03:40', visibleSrc());
+    Radar.setProduct('TEMP');
+    await until(() => visibleSrc().endsWith('data/TEMP/202610220300.png'));
+    NOW = (T - 2700 + 4200) * 1000;                                                // 70 min dopo l'ultima temperatura
+    await Radar.poll();
+    eq('prodotto orario non "fermo" a 70 min', Radar.state, 'on');
+    Radar.source.apply(Radar.source.max());                                       // dal vivo sulla temperatura
+    Radar.setProduct('VMI');
+    log(await until(() => visibleSrc().endsWith('data/VMI/202610220845.png')), 'dal vivo: ultimo fotogramma del nuovo prodotto', visibleSrc());
+    eq('prodotto sconosciuto', Radar.setProduct('XYZ'), false);
+    eq('product.dots della pioggia', (Radar.setProduct('SRI'), Radar.product.dots), 'PREC1');
+    Radar.disable();
+  } catch (e) { log(false, 'eccezione', e && e.stack || e); }
+  const ok = out.filter(l => l.startsWith('PASS')).length;
+  document.getElementById('out').textContent = out.join('\n') + '\nRISULTATO: ' + ok + '/' + out.length;
+})();
+</script>
+</body></html>

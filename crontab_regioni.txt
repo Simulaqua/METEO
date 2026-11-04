@@ -1,0 +1,192 @@
+# >>> METEO (blocco gestito da deploy.sh: aggiorna SOLO fra questi due marcatori) >>>
+# ===========================================================================================
+# CRONTAB - download & parse dati idro-meteo regionali (Raspberry)
+# ===========================================================================================
+# I percorsi degli SCRIPT sono ricavati da un'unica variabile BASE: impostala sulla cartella
+# che contiene le sottocartelle VEN/BZ/TN/FVG e poi non serve toccare altro. Gli script Python
+# capiscono da soli la propria cartella (via __file__) e ci creano dentro data-downloaded/,
+# data-parsed/ e web/.
+# Le cartelle 'logs' si creano da sole (ogni riga fa 'mkdir -p <logs> && ...').
+# Ogni script fa download + parse e, a elaborazione riuscita, CANCELLA i file grezzi (-c yes).
+# NB: nel crontab il carattere '%' va sempre escapato come '\%'.
+#
+# CADENZE (24 ore, minuti sfalsati per non sovrapporre i run):
+#   Bolzano  ogni 10 min   (fonte a snapshot, ~10 min: cosi' non si perde nulla)
+#   Trentino ogni 15 min   (dato a 15 min)
+#   Veneto   ogni 30 min   (dato a 30 min) + run 'ieri' una volta al giorno
+#   Friuli   ogni 60 min   (osservazione oraria)
+# ===========================================================================================
+
+BASE=/home/manuel/METEO
+PYTHON=/usr/bin/python3
+
+# -------------------------------------------------------------------------------------------
+# ALTO ADIGE / BOLZANO - ogni 10 minuti, 24h
+# -------------------------------------------------------------------------------------------
+2,12,22,32,42,52 * * * * mkdir -p $BASE/BZ/logs && $PYTHON $BASE/BZ/dati_altoadige.py >> $BASE/BZ/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# TRENTINO - ogni 15 minuti, 24h
+# -------------------------------------------------------------------------------------------
+4,19,34,49 * * * * mkdir -p $BASE/TN/logs && $PYTHON $BASE/TN/dati_trentino.py >> $BASE/TN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# VENETO (ARPAV) - ogni 30 minuti, 24h + run 'ieri' una volta (per i dati arrivati in ritardo)
+# -------------------------------------------------------------------------------------------
+# flock -n evita che un run parta se il precedente non ha ancora finito (VEN scarica centinaia di
+# stazioni una a una e puo' sforare i 30 min: senza lock il cron lo ammazzerebbe a meta', lasciando
+# grezzi orfani). Se il lock e' occupato il run viene semplicemente saltato.
+6,36 * * * * mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/VEN/dati_veneto.py -date t >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+5 6  * * *   mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/VEN/dati_veneto.py -date y >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# FRIULI VENEZIA GIULIA - ogni 60 minuti, 24h
+# -------------------------------------------------------------------------------------------
+8 * * * * mkdir -p $BASE/FVG/logs && $PYTHON $BASE/FVG/dati_fvg.py >> $BASE/FVG/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# LOMBARDIA (ARPA Lombardia) - ogni 30 minuti, 24h (dato a 10 min, finestra 3h: ogni run riscarica le
+#   ultime 3 ore, quindi anche 5 run di fila falliti non lasciano buchi). Il portale Socrata limita le
+#   richieste anonime (HTTP 429): lo script ritenta con pause e, se non basta, esce senza scrivere nulla;
+#   a 10 min facevamo 3 chiamate/run (432/giorno), ora 2 (96/giorno) + l'anagrafica una volta al giorno.
+#   flock -n: mai due istanze insieme (con i ritentativi un run puo' durare qualche minuto).
+# -------------------------------------------------------------------------------------------
+0,30 * * * * mkdir -p $BASE/LOM/logs && flock -n $BASE/LOM/.lock $PYTHON $BASE/LOM/dati_lombardia.py >> $BASE/LOM/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# EMILIA-ROMAGNA (ARPAE / Allerta Meteo) - ogni 15 minuti, 24h (snapshot arrotondato a 15 min)
+# -------------------------------------------------------------------------------------------
+9,24,39,54 * * * * mkdir -p $BASE/ER/logs && $PYTHON $BASE/ER/dati_emilia_romagna.py >> $BASE/ER/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# QUALITA' DELL'ARIA (dati_aria.py) - ogni ora, 24h. Un solo run per tutte le reti disponibili
+# (VEN/LOM/BZ/TN/ER). Ogni fonte e' oraria/giornaliera e scarica una finestra multi-giorno, quindi
+# il run stesso ricuce eventuali buchi (nessun recover dedicato). Scrive in AQ_<REG>/data-parsed.
+# -------------------------------------------------------------------------------------------
+12 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/dati_aria.py -r all >> $BASE/logs/aria-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# IDROMETRIA PROTEZIONE CIVILE (dati_pc.py) - stazioni idrometriche con coordinate.
+#   PC_FVG: snapshot (measures/latest) -> ogni 20 min, la serie si accumula.
+#   PC_TN : ogni serie porta gia' 7 giorni di storico -> ogni 2 ore basta (131 serie/run).
+# -------------------------------------------------------------------------------------------
+7,27,47 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/dati_pc.py -r FVG >> $BASE/logs/pc-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+17 */2 * * *   mkdir -p $BASE/logs && $PYTHON $BASE/dati_pc.py -r TN >> $BASE/logs/pc-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# MAREE / METEO-MARINO (dati_mare.py -r VEN,ER,FVG) - snapshot ogni 10 min (accumula), cadenza = sorgente:
+#   MAR_VEN (CPSM Venezia) e MAR_ER (ARPAE boe/mareografi) aggiornano ~10 min; MAR_FVG (OGS Trieste
+#   ERDDAP, boe golfo di Trieste + Isonzo/Tagliamento) e' oraria, ma si interroga ogni 10 min cosi'
+#   il ritardo aggiunto dalla nostra pipeline resta minimo (richiesta piccola, finestra 2 gg, dedup).
+# ACQUE MARINO-COSTIERE (dati_mare.py -r ACQVEN) - ARPAV, sorgente ORARIA (~1h30 ritardo): un solo run
+#   l'ora, a :50, cosi' non si sprecano chiamate REST (evitato il 6x del vecchio run ogni 10 min).
+# AIPO / BACINO DEL PO (dati_pc.py -r PO) - ogni serie porta 7 giorni -> ogni 3 ore (auth anonima, SSL
+#   incompleto gestito nello script). AIPO e' pubblicato COMPLETO (anche i doppioni con ER/LOM).
+# -------------------------------------------------------------------------------------------
+3,13,23,33,43,53 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/dati_mare.py -r VEN,ER,FVG >> $BASE/logs/mare-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+50 * * * *    mkdir -p $BASE/logs && $PYTHON $BASE/dati_mare.py -r ACQVEN >> $BASE/logs/mare-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+37 */3 * * *   mkdir -p $BASE/logs && $PYTHON $BASE/dati_pc.py -r PO >> $BASE/logs/pc-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# PIEMONTE (dati_pc.py -r PIE) - ARPA Piemonte, API bulk paginata, dati orari: un solo scarico scrive PIE
+# (tutte le ~370 stazioni, meteo + livelli) e PC_PIE (i ~100 idrometri del Po a monte, voce Po). Finestra 7 h;
+# nel giro delle 03 i 3 giorni interi (richiude i buchi).
+# GRANDI LAGHI REGOLATI (dati_laghi.py) - laghi.net (Maggiore/Como/Iseo/Idro/Garda), serie 3 giorni
+# per sensore -> orario (a :40, sfalsato). Livello/Afflusso/Deflusso.
+# -------------------------------------------------------------------------------------------
+22 * * * *    mkdir -p $BASE/logs && $PYTHON $BASE/dati_pc.py -r PIE >> $BASE/logs/pc-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+40 * * * *    mkdir -p $BASE/logs && $PYTHON $BASE/dati_laghi.py >> $BASE/logs/laghi-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# INVASI ARTIFICIALI (dati_invasi.py) - INV_ER Romagna Acque (diga di Ridracoli + traversa del Conca),
+# endpoint JSON anonimo, timestamp esplicito, aggiornamento sorgente ~30-60 min -> ogni 30 min basta.
+12,42 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/dati_invasi.py -r all >> $BASE/logs/invasi-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# LIGURIA (dati_liguria.py) - ARPAL/OMIRL (ora UTC): istantanee di tutte le classi + serie oraria della pioggia;
+# ogni 3 ore anche le raffiche; nel giro delle 03:14 le serie complete di tutte le classi (~3-4 min).
+14,44 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/dati_liguria.py >> $BASE/logs/liguria-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# EXPORT 30 GIORNI (per il "Confronto 30 giorni") - una volta l'ora. Scrive SOLO le serie in
+# site/<REG>/series30/ (niente geojson/units, gia' fatti dal publish a 7gg). Legge anche l'archivio
+# compresso (.json.gz). Piu' pesante -> cadenza oraria; il publish successivo lo pubblica.
+# -------------------------------------------------------------------------------------------
+48 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/export_web.py -r all --site-dir $BASE/site --days 30 --series-dir series30 --series-only >> $BASE/logs/export30-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# CLIMATOLOGIA (climatology.py) - statistiche e indici climatici dall'ARCHIVIO COMPLETO (non solo la
+# finestra) -> site/<REG>/climate.json (piccolo). Pesante (legge tutto l'archivio, anche i .gz) ->
+# UNA VOLTA AL GIORNO (04:10). Il publish successivo lo pubblica. NON archivia nulla di nuovo.
+# -------------------------------------------------------------------------------------------
+10 4 * * *  mkdir -p $BASE/logs && $PYTHON $BASE/climatology.py -r all --site-dir $BASE/site >> $BASE/logs/climate-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# PUBLISH ogni 10 min (a :05,:15,... cosi' gira dopo i download).
+# publish.sh pusha i DATI sul branch 'data' (letto dal sito via raw, NIENTE deploy Pages) e la
+# PAGINA su gh-pages solo se cambia -> si puo' pubblicare spesso senza far fallire i deploy Pages.
+# Imposta REMOTE dentro publish.sh. Verifica il path di bash con 'which bash' (spesso /bin/bash).
+# -------------------------------------------------------------------------------------------
+5,15,25,35,45,55 * * * * mkdir -p $BASE/logs && /bin/bash $BASE/publish.sh >> $BASE/logs/publish-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# In alternativa a publish (se NON pubblichi su GitHub, solo sito locale): solo export
+# 5,15,25,35,45,55 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/export_web.py -r all >> $BASE/logs/export-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# CHECK UPDATES (una volta al giorno) - segnala nuove stazioni / variabili non mappate.
+# -------------------------------------------------------------------------------------------
+30 6 * * * mkdir -p $BASE/logs && $PYTHON $BASE/check_updates.py -r all >> $BASE/logs/check-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# RECOVER (riempimento buchi da blackout) - @reboot quando torna la corrente + 4 volte al giorno.
+# Cerca buchi INTERNI nell'archivio recente e, solo se ne trova, scarica lo storico dalle fonti
+# (VEN via -date, BZ /timeseries, ER get-time-series, LOM Socrata). TN/FVG non hanno storico.
+# Il gate e' leggero (legge solo i file locali): i run "a vuoto" costano pochissimo.
+# Lo 'sleep 120' a reboot da' tempo alla rete di salire.
+# -------------------------------------------------------------------------------------------
+@reboot sleep 120 && mkdir -p $BASE/logs && $PYTHON $BASE/recover.py -r all >> $BASE/logs/recover-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+40 0,6,12,18 * * * mkdir -p $BASE/logs && $PYTHON $BASE/recover.py -r all >> $BASE/logs/recover-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# PULIZIA notturna (03:15):
+#   - log piu' vecchi di 14 giorni
+#   - grezzi 'orfani' piu' vecchi di 2 giorni (rimasti da un eventuale parse fallito)
+# NON cancella data-parsed/ (archivio storico) ne' site/ (finestra 7gg, dimensione costante).
+# -------------------------------------------------------------------------------------------
+15 3 * * * find $BASE/logs $BASE/*/logs -name '*.log*' -mtime +14 -delete 2>/dev/null ; find $BASE/*/data-downloaded -type f -mtime +2 -delete 2>/dev/null ; find $BASE/*/data-parsed $BASE/site -name '*.tmp' -mtime +1 -delete 2>/dev/null
+
+# -------------------------------------------------------------------------------------------
+# COMPRESSIONE archivio (03:30): gzip dei file data-parsed piu' vecchi di 8 giorni. L'archivio
+# storico resta COMPLETO (nessuna cancellazione), ma occupa ~1/8. I file recenti (<=8gg, usati da
+# export_web -finestra 7gg- e da recover) restano NON compressi. gzip e' idempotente (salta i .gz).
+# Per rileggere un file storico: gunzip <file>.json.gz (oppure zcat).
+# -------------------------------------------------------------------------------------------
+30 3 * * * find $BASE/*/data-parsed -name '*-*.json' -mtime +8 -exec gzip -q {} \; 2>/dev/null
+# comprime anche i LOG piu' vecchi di 1 giorno (testo -> ~15x): tiene 14 giorni di storico ma occupa poco.
+# VEN e' molto verboso (una riga per stazione scaricata) -> i suoi log dominavano lo spazio.
+35 3 * * * find $BASE/logs $BASE/*/logs -name '*.log' -mtime +1 -exec gzip -q {} \; 2>/dev/null
+
+# -------------------------------------------------------------------------------------------
+# BACKUP sulla chiavetta USB (04:40: dopo compressione e climatologia, prima del riavvio 05:50).
+# backup_usb.sh salva ogni notte una versione completa di METEO (senza site/, log, grezzi) e del
+# vecchio ARPAV in /mnt/usb/backup/AAAA-MM-GG/ e tiene le ultime 30: i file uguali sono hard link,
+# occupano spazio una volta sola. Chiavetta non montata -> non scrive nulla. Mai due insieme (flock
+# dentro lo script). Controllo veloce: ~/METEO/check_size.sh, sezione CHIAVETTA.
+# -------------------------------------------------------------------------------------------
+40 4 * * * mkdir -p $BASE/logs && /bin/bash $BASE/backup_usb.sh >> $BASE/logs/backup-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# STORICO LUNGO (07:20): aggregati giornalieri di pioggia e temperatura di tutto l'archivio
+# (history.py) -> branch 'history' (publish_history.sh), letto dalla scheda "Storico" del sito.
+# Rielabora solo i giorni nuovi + gli ultimi 3 (cache in history_cache/). Alle 07:20 il giorno
+# prima e' arrivato anche dalle fonti lente (Lombardia pubblica con 4-5 h di ritardo).
+# -------------------------------------------------------------------------------------------
+20 7 * * * mkdir -p $BASE/logs && /bin/bash $BASE/publish_history.sh >> $BASE/logs/history-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# -------------------------------------------------------------------------------------------
+# RADAR DPC (dati_radar.py): radar SRI della Protezione Civile, ultime 6 ore in PNG per la mappa,
+# pubblicate sul branch 'radar' (letto da site/radar.js). Ogni 5 min a :03/:08/...: il DPC pubblica
+# ogni fotogramma ~7-8 min dopo l'istante, cosi' lo prendiamo appena esce. flock -n: mai due insieme.
+# Log: un file al giorno (288 giri), una riga per giro; la pulizia notturna dei log vale anche qui.
+# -------------------------------------------------------------------------------------------
+3-58/5 * * * * mkdir -p $BASE/logs && flock -n $BASE/.radar.lock $PYTHON $BASE/dati_radar.py >> $BASE/logs/radar-`date +\%Y\%m\%d`.log 2>&1
+
+# <<< METEO <<<
