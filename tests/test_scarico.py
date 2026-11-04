@@ -39,6 +39,9 @@ class TestScarico(unittest.TestCase):
         self.assertEqual(different, [], 'file con un contenuto diverso dagli attesi')
         self.assertEqual(folders, read_json(os.path.join(run_dir, 'cartelle.json')), 'cartelle diverse dalle attese')
 
+    def test_invasi(self):
+        self.check_source('invasi', 'normale', 'dati_invasi.py', ['-r', 'all'])
+
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
 
