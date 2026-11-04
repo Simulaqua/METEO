@@ -1,0 +1,21 @@
+[
+ "MAR_ER",
+ "MAR_ER/data-parsed",
+ "MAR_ER/data-parsed/MAREA",
+ "MAR_ER/data-parsed/ONDE",
+ "MAR_ER/data-parsed/TEMP",
+ "MAR_ER/data-parsed/TEMPACQUA",
+ "MAR_ER/data-parsed/UMID",
+ "MAR_ER/data-parsed/VVENTO",
+ "MAR_FVG",
+ "MAR_FVG/data-parsed",
+ "MAR_FVG/data-parsed/DVENTO",
+ "MAR_FVG/data-parsed/MAREA",
+ "MAR_FVG/data-parsed/ONDE",
+ "MAR_FVG/data-parsed/PORTATA",
+ "MAR_FVG/data-parsed/PRESS",
+ "MAR_FVG/data-parsed/TEMP",
+ "MAR_FVG/data-parsed/TEMPACQUA",
+ "MAR_FVG/data-parsed/UMID",
+ "MAR_FVG/data-parsed/VVENTO"
+]

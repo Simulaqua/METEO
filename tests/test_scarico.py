@@ -45,6 +45,12 @@ class TestScarico(unittest.TestCase):
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
 
+    def test_mare_reti(self):
+        self.check_source('mare', 'reti', 'dati_mare.py', ['-r', 'VEN,ER,FVG'])
+
+    def test_mare_acqven(self):
+        self.check_source('mare', 'acqven', 'dati_mare.py', ['-r', 'ACQVEN'])
+
     def test_liguria(self):
         self.check_source('liguria', 'normale', 'dati_liguria.py', [])
 

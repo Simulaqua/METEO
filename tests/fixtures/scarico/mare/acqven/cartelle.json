@@ -1,0 +1,11 @@
+[
+ "ACQ_VEN",
+ "ACQ_VEN/data-parsed",
+ "ACQ_VEN/data-parsed/CLOROFILLA",
+ "ACQ_VEN/data-parsed/CONDUCIBILITA",
+ "ACQ_VEN/data-parsed/OSSIGENO",
+ "ACQ_VEN/data-parsed/OSSIGENO_SAT",
+ "ACQ_VEN/data-parsed/PH",
+ "ACQ_VEN/data-parsed/SALINITA",
+ "ACQ_VEN/data-parsed/TEMPACQUA"
+]
