@@ -3,7 +3,7 @@
 # script di prima (tests/fixtures/scarico/<fonte>/<giro>/: codici.json, attesi/, cartelle.json). Solo sul Mac.
 # Una fonte nuova: tests/registratore.py registra, poi attesi, con lo script di prima; poi la sua prova qui.
 #   /usr/bin/python3 -m unittest tests.test_scarico -v
-import importlib.util, json, os, sys, unittest
+import importlib.util, json, os, re, sys, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
@@ -11,14 +11,17 @@ from tests import registratore
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
 # i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG e TN recover.py ha solo
 # il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì.
-# recover.py legge solar_moment di BZ con getattr e ha una sua copia di riserva: se il nome sparisse, userebbe la copia
-# senza dirlo
+# recover.py legge solar_moment di BZ e OPERATORS, SKIP_VALUES e SKIP_DIR_VALUES di LOM con getattr, con dei valori di
+# riserva suoi: se un nome sparisse, userebbe quelli senza dirlo (il suo SKIP_VALUES non scarta -999)
 READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': [],
-                   'BZ': ['PARSE_DIR', 'SENSORS_URL', 'VARIABLES', 'solar_moment']}
+                   'BZ': ['PARSE_DIR', 'SENSORS_URL', 'VARIABLES', 'solar_moment'],
+                   'LOM': ['DATA_URL', 'OPERATORS', 'PARSE_DIR', 'REGISTRY_URL', 'SKIP_DIR_VALUES', 'SKIP_VALUES',
+                           'VARIABLES']}
 READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES'],
                          'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES'],
-                         'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES']}
+                         'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES'],
+                         'LOM': ['REGISTRY_URL', 'VARIABLES']}
 
 
 def load_file(path):
@@ -47,7 +50,7 @@ class TestScarico(unittest.TestCase):
     def check_source(self, fonte, giro, script, args, json_equal=False):
         """Due giri di script sulle risposte di fonte/giro: stessi codici di uscita, stessi file (byte per byte; con
         json_equal i .json prodotti dopo averli riscritti con il codificatore di prima) e stesse cartelle degli
-        attesi."""
+        attesi. Restituisce i due giri."""
         run_dir = os.path.join(FIXTURES, fonte, giro)
         files, runs, folders = registratore.replay_twice(run_dir, script, args)
         output = ''.join(proc.stdout + proc.stderr for proc in runs)
@@ -59,6 +62,7 @@ class TestScarico(unittest.TestCase):
         different = [name for name in sorted(files) if not same(name, files[name], expected[name], json_equal)]
         self.assertEqual(different, [], 'file con un contenuto diverso dagli attesi')
         self.assertEqual(folders, read_json(os.path.join(run_dir, 'cartelle.json')), 'cartelle diverse dalle attese')
+        return runs
 
     def test_invasi(self):
         self.check_source('invasi', 'normale', 'dati_invasi.py', ['-r', 'all'])
@@ -108,6 +112,20 @@ class TestScarico(unittest.TestCase):
 
     def test_altoadige(self):
         self.check_source('altoadige', 'normale', 'dati_altoadige.py', [])
+
+    def test_lombardia(self):
+        self.check_source('lombardia', 'normale', 'dati_lombardia.py', [])
+
+    def test_lombardia_429(self):
+        # come normale, ma la prima chiamata ai dati risponde sempre 429 (il portale limita le chiamate anonime): dopo
+        # i tentativi lo script esce con l'errore, senza file scaricati né dati scritti
+        runs = self.check_source('lombardia', '429', 'dati_lombardia.py', [])
+        # file e codici di uscita non dicono quanti tentativi fa né se esce con il messaggio o con un crash: in ogni
+        # giro quattro chiamate, con le pause di 5, 15 e 30 secondi, poi il messaggio dell'errore
+        for proc in runs:
+            self.assertEqual(re.findall(r'riprovo fra (\d+) s', proc.stdout), ['5', '15', '30'])
+            self.assertEqual(proc.stderr.strip().splitlines()[-1],
+                             'Error downloading https://www.dati.lombardia.it/resource/647i-nhxk.json: HTTP 429')
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si

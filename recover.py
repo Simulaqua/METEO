@@ -38,7 +38,7 @@ SOURCE_MAX_DAYS = {'ER': 3}
 REGION_FILE = {
     'VEN': 'dati_veneto.py',          'TN' : 'dati_trentino.py',
     'BZ' : 'dati_altoadige.py',       'FVG': 'dati_fvg.py',
-    'LOM': 'LOM/dati_lombardia.py',   'ER' : 'ER/dati_emilia_romagna.py',
+    'LOM': 'dati_lombardia.py',       'ER' : 'ER/dati_emilia_romagna.py',
 }
 
 #-----------------------------------------------------------------------------------------------------------
@@ -279,19 +279,19 @@ def _iso_to_istante(iso_string):
 def fetch_lom(mod, days, debug=False):
     ''' Lombardia: Socrata storico a chunk di 4h (<50000 righe/richiesta). data e' gia' ora solare.
         Autonomo: non usa gli helper privati dello script (robusto anche con versioni piu' vecchie). '''
-    pref_operator   = getattr(mod, 'pref_operator', {'PREC': '4'})
+    pref_operator   = getattr(mod, 'OPERATORS', {'PREC': '4'})
     SKIP_VALUES     = getattr(mod, 'SKIP_VALUES', {'-9999', '-9999.0'})
     SKIP_DIR_VALUES = getattr(mod, 'SKIP_DIR_VALUES', {'777', '7777', '888', '8888'})
     # anagrafica: idsensore -> (tipo, stazione, nome, coord, unit)
-    anag = http_json(mod.url_anagrafica, {'$limit': '10000'})
-    type2var = {getattr(mod.variables, v).tipo: v for v in var_list(mod)}
+    anag = http_json(mod.REGISTRY_URL, {'$limit': '10000'})
+    type2var = {tipo: v for v, tipo in mod.VARIABLES.items()}
     sens = {}
     station_records = {}
     for a in anag:
         sens[a.get('idsensore')] = a
     # ANCORA la finestra all'ultimo timestamp del dataset (non all'orologio): il portale pubblica con
     # ritardo, quindi usare l'ora di sistema perderebbe i dati piu' recenti.
-    latest = http_json(mod.url_dati, {'$select': 'data', '$order': 'data DESC', '$limit': '1'})
+    latest = http_json(mod.DATA_URL, {'$select': 'data', '$order': 'data DESC', '$limit': '1'})
     if latest:
         now = datetime.datetime.strptime(latest[0]['data'][:19], '%Y-%m-%dT%H:%M:%S')
     else:
@@ -306,7 +306,7 @@ def fetch_lom(mod, days, debug=False):
         where = "data > '%s' AND data <= '%s'" % (t0.strftime('%Y-%m-%dT%H:%M:%S'),
                                                   t1.strftime('%Y-%m-%dT%H:%M:%S'))
         try:
-            rows = http_json(mod.url_dati, {'$where': where, '$order': 'data', '$limit': '50000'})
+            rows = http_json(mod.DATA_URL, {'$where': where, '$order': 'data', '$limit': '50000'})
         except Exception as e:
             if debug: print(f'  LOM chunk {where} skip: {e}')
             t0 = t1; continue
@@ -337,9 +337,9 @@ def fetch_lom(mod, days, debug=False):
 #-----------------------------------------------------------------------------------------------------------
 def recover_snapshot_region(region, mod, fetcher, days, force, debug):
     ''' Regioni a snapshot (BZ/ER/LOM): gate sul buco, poi fetch storico + merge. '''
-    if region == 'BZ':
+    if region in ('BZ', 'LOM'):
         variables, parse_dir = list(mod.VARIABLES), mod.PARSE_DIR
-    else:                                                        # ER e LOM hanno ancora le classi
+    else:                                                        # ER ha ancora le classi
         variables, parse_dir = var_list(mod), mod.directory.parse
     eff_days = min(days, SOURCE_MAX_DAYS.get(region, days))   # limita alla profondita' servibile dalla fonte
     hole, why = has_hole(parse_dir, variables, eff_days, CADENCE[region])

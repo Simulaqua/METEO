@@ -28,7 +28,7 @@ REGIONS = {
     'TN' : 'dati_trentino.py',
     'BZ' : 'dati_altoadige.py',
     'FVG': 'dati_fvg.py',
-    'LOM': 'LOM/dati_lombardia.py',
+    'LOM': 'dati_lombardia.py',
     'ER' : 'ER/dati_emilia_romagna.py',
     # layer aggiuntivi: il "modulo" e' lo script multi-rete (per riusarne le mappe sigla/variabile)
     'AQ_VEN': 'dati_aria.py', 'AQ_LOM': 'dati_aria.py', 'AQ_BZ': 'dati_aria.py',
@@ -154,10 +154,10 @@ def scan_fvg(m, sample):
     return mapped, dict(live), stations
 
 def scan_lom(m, sample):
-    mapped = set(getattr(m.variables, n).tipo for n in var_names(m))
+    mapped = set(m.VARIABLES.values())                           # le tipologie dei sensori lette dallo script
     q = "?$select=tipologia,idstazione,nomestazione&$where=storico%3D%27N%27&$limit=20000"
     stations, live = {}, Counter()
-    raw = get(m.url_anagrafica + q)
+    raw = get(m.REGISTRY_URL + q)
     if raw:
         for a in json.loads(raw):
             live[a.get('tipologia')] += 1

@@ -51,7 +51,7 @@ PYTHON=/usr/bin/python3
 #   a 10 min facevamo 3 chiamate/run (432/giorno), ora 2 (96/giorno) + l'anagrafica una volta al giorno.
 #   flock -n: mai due istanze insieme (con i ritentativi un run puo' durare qualche minuto).
 # -------------------------------------------------------------------------------------------
-0,30 * * * * mkdir -p $BASE/LOM/logs && flock -n $BASE/LOM/.lock $PYTHON $BASE/LOM/dati_lombardia.py >> $BASE/LOM/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+0,30 * * * * mkdir -p $BASE/LOM/logs && flock -n $BASE/LOM/.lock $PYTHON $BASE/dati_lombardia.py >> $BASE/LOM/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # EMILIA-ROMAGNA (ARPAE / Allerta Meteo) - ogni 15 minuti, 24h (snapshot arrotondato a 15 min)
