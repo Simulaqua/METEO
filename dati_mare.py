@@ -85,7 +85,7 @@ def download_ven(debug=False):
         try:
             files[name] = comune.get_json(CPSM_BASE + name + '.json')
         except Exception as e:
-            if debug: print('  CPSM ' + name + ' skip: ' + str(e))
+            print('WARN: [VEN] file %s saltato (%s)' % (name, e))
             files[name] = []
         for r in files[name]:
             sid = r.get('ID_stazione')

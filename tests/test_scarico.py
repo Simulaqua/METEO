@@ -3,7 +3,7 @@
 # script di prima (tests/fixtures/scarico/<fonte>/<giro>/: codici.json, attesi/, cartelle.json). Solo sul Mac.
 # Una fonte nuova: tests/registratore.py registra, poi attesi, con lo script di prima; poi la sua prova qui.
 #   /usr/bin/python3 -m unittest tests.test_scarico -v
-import importlib.util, json, os, re, sys, unittest
+import base64, contextlib, glob, gzip, importlib.util, io, json, os, re, sys, tempfile, unittest, urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
@@ -67,6 +67,41 @@ class TestScarico(unittest.TestCase):
         self.assertEqual(folders, read_json(os.path.join(run_dir, 'cartelle.json')), 'cartelle diverse dalle attese')
         return runs
 
+    def assert_warnings(self, runs, patterns):
+        """In ogni giro una riga WARN per ogni espressione regolare di patterns, nello stesso ordine, e nessun'altra:
+        un elemento saltato deve lasciare traccia nel log anche senza --debug."""
+        for proc in runs:
+            lines = [line for line in proc.stdout.splitlines() if line.startswith('WARN:')]
+            self.assertEqual(len(lines), len(patterns), 'righe WARN del giro:\n' + '\n'.join(lines))
+            for line, pattern in zip(lines, patterns):
+                self.assertRegex(line, pattern)
+
+    def check_er_instants(self, giro):
+        """Gli attesi di emilia_romagna/giro (uguali ai file prodotti, li confronta check_source): ogni variabile ha i
+        valori all'istante dell'intestazione {'time': ...} della sua risposta registrata, e solo delle stazioni che
+        hanno misurato a quell'istante, non delle voci 'precedente' S (un valore di prima ripetuto)."""
+        er = load_file(os.path.join(registratore.PROJECT, 'dati_emilia_romagna.py'))
+        variables = {descriptor: var for var, (descriptor, _) in er.VARIABLES.items()}
+        run_dir = os.path.join(FIXTURES, 'emilia_romagna', giro)
+        checked = set()
+        for path in glob.glob(os.path.join(run_dir, 'risposte', '*.json.gz')):
+            with gzip.open(path, 'rt', encoding='utf-8') as fp:
+                response = json.load(fp)
+            query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(response['url']).query))
+            if 'time' not in query:
+                continue                    # la serie di REF_STATION
+            var = variables[query['variabile']]
+            answer = json.loads(base64.b64decode(response['body']).decode('utf-8'))
+            moment = er.solar_moment(int(answer[0]['time']))
+            measured = {item['idstazione'] for item in answer[1:]
+                        if item['value'] is not None and item['precedente'] != 'S'}
+            day = read_json(os.path.join(run_dir, 'attesi', 'ER', 'data-parsed', var, var + '-' + moment[:8] + '.json'))
+            self.assertEqual(set(day), measured, var)
+            for code, record in day.items():
+                self.assertEqual(record['MISURE']['ISTANTE'], [moment], var + ' ' + code)
+            checked.add(var)
+        self.assertEqual(checked, set(er.VARIABLES))
+
     def test_invasi(self):
         self.check_source('invasi', 'normale', 'dati_invasi.py', ['-r', 'all'])
 
@@ -75,12 +110,15 @@ class TestScarico(unittest.TestCase):
 
     def test_aria_bz_errore(self):
         # come normale, ma la serie della stazione BZ4 risponde 500: BZ4 salta (niente valori di BZ, la stazione
-        # prima), le altre stazioni e le altre reti restano uguali
-        self.check_source('aria', 'bz_errore', 'dati_aria.py', ['-r', 'all'])
+        # prima), con un avviso nel log; le altre stazioni e le altre reti restano uguali
+        runs = self.check_source('aria', 'bz_errore', 'dati_aria.py', ['-r', 'all'])
+        self.assert_warnings(runs, [r'^WARN: \[BZ\] stazione BZ4 saltata \(.+\)$'])
 
     def test_aria_tn_senza_coordinate(self):
-        # come normale, ma il bollettino TN ha una stazione senza coordinate in testa: salta, il resto di TN si scrive
-        self.check_source('aria', 'tn_senza_coordinate', 'dati_aria.py', ['-r', 'all'])
+        # come normale, ma il bollettino TN ha una stazione senza coordinate in testa: salta, con un avviso nel log, e
+        # il resto di TN si scrive
+        runs = self.check_source('aria', 'tn_senza_coordinate', 'dati_aria.py', ['-r', 'all'])
+        self.assert_warnings(runs, [r'^WARN: \[TN\] stazione senza coordinate: Stazione Inventata$'])
 
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
@@ -91,9 +129,11 @@ class TestScarico(unittest.TestCase):
     def test_mare_ven_file_mancanti(self):
         # derivata da mare/reti: le risposte dei file CPSM 'livello' e 'temparia' sono sostituite dalla pagina di blocco
         # Incapsula registrata il 2026-11-04, perché CPSM a volte blocca i client automatici. Prova che la rete VEN
-        # salta i file mancanti e scrive il resto (senza le loro variabili e le stazioni che avevano solo loro), e che
-        # ER e FVG restano uguali
-        self.check_source('mare', 'ven_file_mancanti', 'dati_mare.py', ['-r', 'VEN,ER,FVG'])
+        # salta i file mancanti, con un avviso nel log per ognuno, e scrive il resto (senza le loro variabili e le
+        # stazioni che avevano solo loro), e che ER e FVG restano uguali
+        runs = self.check_source('mare', 'ven_file_mancanti', 'dati_mare.py', ['-r', 'VEN,ER,FVG'])
+        self.assert_warnings(runs, [r'^WARN: \[VEN\] file livello saltato \(.+\)$',
+                                    r'^WARN: \[VEN\] file temparia saltato \(.+\)$'])
 
     def test_mare_acqven(self):
         self.check_source('mare', 'acqven', 'dati_mare.py', ['-r', 'ACQVEN'])
@@ -148,6 +188,37 @@ class TestScarico(unittest.TestCase):
 
     def test_emilia_romagna(self):
         self.check_source('emilia_romagna', 'normale', 'dati_emilia_romagna.py', [])
+        self.check_er_instants('normale')
+
+    def test_emilia_romagna_quarto_dispari(self):
+        # registrato dal vivo a un quarto :15/:45: la pioggia (totali di 30 minuti, alle :00 e alle :30) torna solo come
+        # valori ripetuti ('precedente' S), che non si scrivono: derive.py li conterebbe due volte nelle PREC1..48
+        self.check_source('emilia_romagna', 'quarto_dispari', 'dati_emilia_romagna.py', [])
+        self.check_er_instants('quarto_dispari')
+
+    def test_emilia_romagna_risposta_senza_istante(self):
+        # una risposta senza l'intestazione {'time': ...} non dice a che istante sono i valori: la variabile salta, con
+        # un avviso nel log, le altre si scrivono
+        er = load_file(os.path.join(registratore.PROJECT, 'dati_emilia_romagna.py'))
+        station = {'idstazione': '7', 'nomestaz': 'S. Pietro Capofiume', 'lat': '4465378', 'lon': '1162264',
+                   'precedente': 'N'}
+        answers = {'TEMP': [{'time': '1793863800000'}, dict(station, value=281.55)],     # 07:30 UTC
+                   'UMID': [dict(station, value=77)]}
+        with tempfile.TemporaryDirectory() as folder:
+            er.DOWNLOAD_DIR = os.path.join(folder, 'data-downloaded')
+            er.PARSE_DIR = os.path.join(folder, 'data-parsed')
+            er.STATIONS_JSON = os.path.join(er.PARSE_DIR, 'stazioni.json')
+            for var, answer in answers.items():
+                path = os.path.join(er.DOWNLOAD_DIR, er.RAW_SUBDIR, '20261105-083900-' + var + '.json')
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'w', encoding='utf-8') as fp:
+                    json.dump(answer, fp)
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                er.parse('20261105-083900')
+            self.assertIn('WARN: [ER] variabile UMID saltata (risposta senza istante)\n', output.getvalue())
+            self.assertEqual(os.listdir(os.path.join(er.PARSE_DIR, 'UMID')), [])
+            temp = read_json(os.path.join(er.PARSE_DIR, 'TEMP', 'TEMP-20261105.json'))
+            self.assertEqual(temp['7']['MISURE'], {'ISTANTE': ['202611050830'], 'VALORE': [8.4]})
 
     def test_emilia_romagna_quarto_d_ora(self):
         # l'istante del giro è il campione di riferimento arrotondato per difetto al quarto d'ora: quasi tutte le
