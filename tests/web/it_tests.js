@@ -815,7 +815,8 @@
     const open = async p => { await selectStation(p); await until(() => currentStation === p); await sleep(400); };
     const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();      // il file vero, per i conteggi attesi
     const nrow = raw.p.filter((x, i) => x != null || (raw.tm || [])[i] != null || (raw.tn || [])[i] != null).length;
-    const inside = e => { const r = e.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1; };
+    // dentro lo schermo; sul telefono la riga dei comandi scorre di lato: prima la si porta al comando (come col dito)
+    const inside = e => { e.scrollIntoView({ block:'nearest', inline:'nearest' }); const r = e.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1; };
     const okView = (name) => {
       const c = el('hvChart');
       log(!!c.querySelector('canvas') && !c.querySelector('.hint'), name + ': grafico disegnato', c.innerHTML.slice(0, 120));
@@ -964,9 +965,175 @@
     finish();
   }
 
+  // scheda della stazione su due righe: in alto nome, codice e ultimo dato, azioni; sotto variabili e modi (i tre confronti
+  // in "Confronti ▾"); nello Storico la sua barra al posto di variabili e modi, in fondo "Storico ×".
+  // Desktop (w.html 1024x768): grafico entro 75 px dalla barra delle schede. Telefono (w.html 320/375/430, FVG/A280 con
+  // molte variabili): la seconda riga resta una e scorre di lato, niente esce dalla pagina, le azioni restano visibili
+  async function suiteSchede(){
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2;
+    const phone = innerWidth <= 720, fa = () => document.activeElement;
+    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc) || {}).properties;
+    const P = st('VEN', '234'), V = st('VEN', '79'), A = st('FVG', 'A280');        // Padova; Valdagno (nel campione dello Storico); Arba
+    log(P && V && A, 'stazioni di prova trovate', JSON.stringify([!!P, !!V, !!A]));
+    if(!(P && V && A)) return finish();
+    const open = async p => { await selectStation(p); await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000); await sleep(300); };
+    const gap = id => Math.round(R(el(id)).top - R(el('tabbar')).bottom);        // dalla barra delle schede all'inizio del grafico
+    const sameRow = es => es.length > 0 && Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
+    const acts = () => ['refresh', 'download', 'exportpng', 'hvCsv', 'copylink'].filter(id => vis(el(id)));
+    // riga 2 tutta sotto la riga 1 (nome, dati, azioni) e tutta sopra il grafico: niente sovrapposizioni
+    const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
+      return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
+    // comandi visibili della seconda riga, nell'ordine della pagina (le voci di "Confronti" stanno nel menu chiuso)
+    const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvRange')].filter(vis);
+    const tag2 = e => e.id || (e.dataset.mode ? 'mode:' + e.dataset.mode : 'var');
+    const scroller = () => { for(let e = el('vars'); e && e !== el('panel'); e = e.parentElement) if(/auto|scroll/.test(getComputedStyle(e).overflowX)) return e; return null; };
+    const clipped = e => { for(let a = e.parentElement; a && a !== el('panel'); a = a.parentElement) if(getComputedStyle(a).overflowX !== 'visible') return true; return false; };
+    const noOverflow = tag => {
+      const pn = el('panel'), de = document.documentElement;
+      const out = [...pn.querySelectorAll('*')].filter(e => vis(e) && !clipped(e) && (R(e).left < -0.5 || R(e).right > innerWidth + 0.5)).map(e => e.id || e.className || e.tagName);
+      log(de.scrollWidth <= innerWidth && pn.scrollWidth <= pn.clientWidth && !out.length, tag + ': niente esce dalla pagina a ' + innerWidth + ' px',
+          JSON.stringify([de.scrollWidth, pn.scrollWidth, pn.clientWidth, out.slice(0, 6)]));
+    };
+    const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte
+      const bad = want.filter(id => { const e = el(id); if(!vis(e)) return true;
+        const r = R(e), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return r.left < -0.5 || r.right > innerWidth + 0.5 || !(h && e.contains(h)); });
+      eq(tag + ': azioni visibili e intere', bad, []);
+    };
+    const M = { w:innerWidth, h:innerHeight };
+    setMapVar(''); await until(() => filterVar === '');
+
+    // riga 1 e riga 2 (Padova: tre variabili)
+    await open(P); await until(() => vis(el('histbtn')), 5000);
+    const name = el('stationName'), meta = el('stationMeta');
+    log(/^234\b|\b234\b/.test(meta.textContent) && /ultimo dato \S/.test(meta.textContent), 'riga 1: codice e ultimo dato', meta.textContent);
+    eq('riga 1: azioni', acts(), ['refresh', 'download', 'exportpng', 'copylink']);
+    if(!phone) log(sameRow([name, meta, ...acts().map(el)]), 'riga 1: nome, dati e azioni sulla stessa riga',
+                   JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
+    else log(sameRow([name, ...acts().map(el)]) && R(meta).top >= R(name).bottom - 1, 'riga 1 (telefono): nome e azioni, sotto codice e ultimo dato',
+             JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
+    const c2 = ctl2();
+    eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'cmpBtn', 'stackbtn', 'histbtn']);
+    log(sameRow(c2) && stacked(c2, 'chart'), 'riga 2: tutta su una riga, fra la prima e il grafico',
+        JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
+    M.normale = gap('chart');
+    if(!phone) log(M.normale <= 75, 'normale: grafico a ' + M.normale + ' px dalla barra delle schede (al massimo 75)', M.normale);
+
+    // "Confronti ▾": un comando, un menu con i tre confronti
+    const cb = el('cmpBtn'), cm = el('cmpMenu');
+    log(!!cb && !!cm, 'Confronti: un comando con il suo menu', 'assente');
+    if(cb && cm){
+      const item = m => cm.querySelector('[data-mode="' + m + '"]');
+      const esc = () => fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true }));
+      const openCmp = async () => { cb.scrollIntoView({ block:'nearest', inline:'nearest' }); await sleep(120); cb.focus(); cb.click(); await sleep(60); };
+      log(!vis(cm) && cb.getAttribute('aria-haspopup') === 'menu' && cb.getAttribute('aria-expanded') === 'false' && /Confronti/.test(cb.textContent),
+          'Confronti: chiuso all\'inizio', cb.outerHTML.slice(0, 120));
+      await openCmp();
+      log(vis(cm) && cb.getAttribute('aria-expanded') === 'true', 'Confronti: si apre', '');
+      eq('Confronti: le tre voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
+         [['compare', 'Confronto 7 giorni'], ['compare30', 'Confronto 30 giorni'], ['tabs', 'Confronto schede']]);
+      {
+        const r = R(cm), b = R(item('tabs')), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        log(cm.contains(hit) && r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
+            'Confronti: menu sopra il grafico e dentro lo schermo', JSON.stringify([r.left, r.right, r.bottom, hit && (hit.id || hit.className || hit.tagName)]));
+      }
+      log(cm.contains(fa()) && fa().dataset.mode === 'compare', 'Confronti: il fuoco entra sulla prima voce', fa() && (fa().dataset.mode || fa().id || fa().tagName));
+      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown', bubbles:true }));
+      eq('Confronti: freccia giù', fa().dataset.mode, 'compare30');
+      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'End', bubbles:true }));
+      eq('Confronti: Fine', fa().dataset.mode, 'tabs');
+      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowUp', bubbles:true }));
+      eq('Confronti: freccia su', fa().dataset.mode, 'compare30');
+      esc(); await sleep(60);
+      log(!vis(cm) && fa() === cb && cb.getAttribute('aria-expanded') === 'false', 'Confronti: Esc chiude e il fuoco torna al comando', fa() && (fa().id || fa().tagName));
+      await openCmp();
+      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true }));
+      log(!vis(cm) && fa() === cb, 'Confronti: Tab chiude', fa() && (fa().id || fa().tagName));
+      await openCmp();
+      name.click(); await sleep(60);
+      log(!vis(cm), 'Confronti: clic fuori chiude', '');
+      for(const [m, lab] of [['compare', 'Confronto 7 g'], ['compare30', 'Confronto 30 g']]){
+        await openCmp(); item(m).click();
+        await until(() => chartMode === m && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
+        const others = [...document.querySelectorAll('button[data-mode]')].filter(b => vis(b) && b.classList.contains('active'));
+        log(chartMode === m && !vis(cm) && cb.classList.contains('active') && cb.textContent.includes(lab) && !others.length,
+            'Confronti: ' + lab + ' scelto, acceso sul comando', [chartMode, vis(cm), cb.className, cb.textContent, others.map(tag2)].join(' | '));
+        log(!!chart && chart.series.length > 3, 'Confronti: ' + lab + ': grafico coi giorni sovrapposti', chart && chart.series.length);
+        await openCmp();
+        eq('Confronti: ' + lab + ' segnato nel menu', [...cm.querySelectorAll('[data-mode]')].map(b => b.classList.contains('on')), [m === 'compare', m === 'compare30', false]);
+        esc(); await sleep(60);
+      }
+      document.querySelector('button[data-mode="week"]').click(); await until(() => chartMode === 'week'); await sleep(200);
+      log(!cb.classList.contains('active') && /Confronti/.test(cb.textContent) && document.querySelector('button[data-mode="week"]').classList.contains('active'),
+          'Confronti: 7 g lo spegne', cb.className + ' ' + cb.textContent);
+      await openCmp(); item('tabs').click();
+      await until(() => document.body.classList.contains('view-compare'), 8000); await sleep(300);
+      log(document.body.classList.contains('view-compare') && !vis(cm) && el('stationName').textContent === 'Confronto schede',
+          'Confronti: "Confronto schede" apre la scheda Confronto', '');
+      eq('scheda Confronto: niente Confronti, Impilato, Storico', [vis(cb), vis(el('stackbtn')), vis(el('histbtn'))], [false, false, false]);
+      closeCompare(); await sleep(100);
+    }
+
+    // Storico: la sua barra nella seconda riga, "Storico ×" in fondo, CSV e Link in alto
+    await open(V); await until(() => vis(el('histbtn')), 5000);
+    el('histbtn').click(); await until(() => histMode && !!histU, 8000); await sleep(300);
+    const hb = el('histbtn');
+    log(histMode && vis(hb) && /Storico\s*×/.test(hb.innerText), 'Storico: "Storico ×"', hb.innerText);
+    log(![...el('vars').children].some(vis), 'Storico: niente variabili', '');
+    eq('Storico: azioni', acts(), ['hvCsv', 'copylink']);
+    eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    M.storico = gap('hvChart');
+    if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
+    el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
+    eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    log(R(hb).left >= Math.max(...ctl2().filter(e => e !== hb).map(e => R(e).right)), 'Storico ×: in fondo alla riga', '');
+    if(!phone) log(gap('hvChart') <= 75, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
+    if(phone){ actsOk('telefono, Storico', ['hvCsv', 'copylink']); noOverflow('telefono, Storico'); }
+    hb.click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
+    log(!histMode && !vis(el('histview')) && [...el('vars').children].some(vis) && vis(document.querySelector('button[data-mode="week"]')) && !/×/.test(hb.innerText),
+        '"Storico ×" esce dallo Storico: tornano variabili e modi', hb.innerText);
+    await open(P); await until(() => vis(el('histbtn')), 5000);
+    el('histbtn').click(); await until(() => histMode, 8000); await sleep(800);
+    M.storico234 = gap('hvChart');                                    // Padova non e' nel campione: barra vera, grafico vuoto
+    if(!phone) log(M.storico234 <= 75, 'Storico (Padova): grafico a ' + M.storico234 + ' px dalla barra delle schede (al massimo 75)', M.storico234);
+    await setHistMode(false);
+
+    // telefono: Arba (12 variabili) e la stazione dal nome piu' lungo
+    if(phone){
+      await open(A);
+      const c = ctl2(), sc = scroller();
+      log(c.length >= 15 && sameRow(c) && stacked(c, 'chart'), 'telefono: riga 2 su una riga sola (' + c.length + ' comandi), fra la prima e il grafico', JSON.stringify([...new Set(c.map(e => Math.round(mid(e))))]));
+      log(!!sc && sc.scrollWidth > sc.clientWidth + 20, 'telefono: la riga 2 scorre di lato', sc ? sc.scrollWidth + ' / ' + sc.clientWidth : 'nessuna riga che scorre');
+      if(sc){
+        const last = c[c.length - 1];
+        sc.scrollLeft = sc.scrollWidth; await sleep(150);
+        const r = R(last), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        log(r.left >= -0.5 && r.right <= innerWidth + 0.5 && !!h && last.contains(h), 'telefono: scorrendo si arriva all\'ultimo comando', tag2(last) + ' ' + JSON.stringify([r.left, r.right]));
+        sc.scrollLeft = 0; await sleep(100);
+      }
+      actsOk('telefono, Arba', ['refresh', 'download', 'exportpng', 'copylink']);
+      noOverflow('telefono, Arba');
+      M.telefono = gap('chart');
+      const long = allFeatures.map(f => f.properties).filter(p => (p.variables || []).some(v => varCat(v) === currentPage))
+                              .reduce((a, p) => prettyName(p.name || p.scode).length > prettyName(a.name || a.scode).length ? p : a);
+      await open(long);
+      actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'download', 'exportpng', 'copylink']);
+      noOverflow('telefono, nome lungo');
+      log(stacked(ctl2(), 'chart'), 'telefono, nome lungo: riga 2 fra la prima e il grafico', '');
+      log(name.scrollWidth <= name.clientWidth + 1 && meta.scrollWidth <= meta.clientWidth + 1 || getComputedStyle(meta).textOverflow === 'ellipsis',
+          'telefono, nome lungo: nome intero (va a capo), dati interi o coi puntini', JSON.stringify([name.scrollWidth, name.clientWidth, meta.scrollWidth, meta.clientWidth]));
+    }
+    showMapView();
+    eq('errori JS', window.__errs, []);
+    finish('MISURE ' + JSON.stringify(M));
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
-            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico })[suite]())
+            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

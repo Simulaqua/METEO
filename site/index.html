@@ -22,7 +22,7 @@
               --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
   /* override scuri (scoped: il tema chiaro resta intatto) */
   body.dark select, body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
-  body.dark .btn, body.dark #vars button, body.dark #modes .mode, body.dark #modes .act, body.dark #modes a.act
+  body.dark .btn, body.dark #vars button, body.dark #pbar .mode, body.dark #pact .act
     { background:var(--soft); color:var(--fg); border-color:var(--line); }
   body.dark .btn:hover { background:var(--soft2); }
   body.dark #tabbar { background:var(--bar); }
@@ -33,7 +33,7 @@
   body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
   body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
   body.dark #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  body.dark #modes .mode.active { background:var(--accent); color:#fff; }
+  body.dark #pbar .mode.active { background:var(--accent); color:#fff; }
   body.dark #climabox th, body.dark #climabox td { border-color:var(--line); }
   * { box-sizing:border-box; }
   html { -webkit-text-size-adjust:100%; }   /* iPhone: niente ingrandimento automatico dei testi (sballa il layout) */
@@ -71,13 +71,26 @@
   #climabox .rec { color:var(--muted); margin-top:6px; }
   #map { position:absolute; inset:0; }
   #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
-           flex-direction:column; padding:14px 16px; gap:10px; overflow:auto; }
+           flex-direction:column; padding:8px 16px 14px; gap:8px; overflow:auto; }
   body.view-station #panel { display:flex; }
-  #stationName { font-size:16px; font-weight:600; }
-  #stationMeta { font-size:12px; color:var(--muted); margin-top:-4px; }
-  #vars { display:flex; flex-wrap:wrap; gap:6px; }
-  #vars button { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--line);
-                 background:#f7fafc; border-radius:999px; font-size:12px; cursor:pointer; color:var(--fg); }
+  /* scheda della stazione in due righe: 1) nome · codice e ultimo dato, azioni a destra; 2) variabili | modi
+     (nello Storico la sua barra al posto di entrambi). Sopra al grafico restano ~70 px */
+  #phead { display:grid; grid-template-columns:auto minmax(0, 1fr) auto; align-items:baseline; column-gap:8px; }
+  #stationName { font-size:16px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
+  #stationMeta { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #stationMeta:not(:empty)::before { content:'· '; }
+  #pact { display:flex; gap:4px; align-self:center; }
+  #pact[hidden], #pbar[hidden] { display:none; }
+  /* flex:none: col pannello piu' alto dello schermo la riga 2 (che sul telefono scorre di lato, quindi senza altezza
+     minima) verrebbe schiacciata a 0 e i pulsanti finirebbero sopra la riga 1 */
+  #phead, #pbar { flex:none; }
+  /* le pillole vanno a capo una per una, i modi (nello Storico la sua barra e "Storico ×") tutti insieme */
+  #pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  #vars { display:contents; }
+  #modes { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:0; }
+  .pb-sep { flex:none; width:1px; height:18px; margin:0 3px; background:var(--line); }
+  #vars button { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--line);
+                 background:#f7fafc; border-radius:999px; font-size:12px; cursor:pointer; color:var(--fg); white-space:nowrap; }
   #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
   /* '+' = aggiungi questa variabile come SECONDARIA (linea rossa, asse destro) */
   #vars button .vadd { font-weight:700; font-size:14px; line-height:1; color:#b7c2ce;
@@ -85,14 +98,18 @@
   #vars button .vadd:hover { color:#e53e3e; }
   #vars button.active2 { border-color:#e53e3e; box-shadow:inset 0 0 0 1px #e53e3e; }
   #vars button.active2 .vadd { color:#e53e3e; }
-  #modes { display:none; flex-wrap:wrap; gap:6px; align-items:center; }
-  #modes button.mode { padding:4px 10px; border:1px solid var(--line); background:#f7fafc; border-radius:6px;
-                  font-size:12px; cursor:pointer; color:var(--fg); }
-  #modes button.mode.active { background:var(--fg); color:#fff; border-color:var(--fg); }
-  #modes .msp { flex:1 1 8px; }                       /* spinge i tasti azione a destra */
-  #modes .act { padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:6px;
-                font-size:12px; cursor:pointer; color:var(--accent); text-decoration:none; }
-  #modes .act:hover { background:#eef4fb; }
+  #pbar button.mode, #pbar button.tog { height:24px; padding:0 10px; border:1px solid var(--line); background:#f7fafc; border-radius:6px;
+                  font-size:12px; cursor:pointer; color:var(--fg); white-space:nowrap; }
+  #pbar button.mode.active { background:var(--fg); color:#fff; border-color:var(--fg); }
+  #pbar button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  #histbtn .hb-x { display:none; }
+  body.hist-mode #histbtn .hb-x { display:inline; }   /* "Storico ×": lo stesso pulsante fa uscire */
+  #cmpMenu { z-index:20; }                            /* sopra il grafico (etichetta e "Tutto" stanno a 4-5) */
+  #pact .act { display:inline-flex; align-items:center; height:24px; padding:0 9px; border:1px solid var(--line); background:#fff;
+               border-radius:6px; font-size:12px; cursor:pointer; color:var(--accent); text-decoration:none; white-space:nowrap; }
+  #pact .act:hover { background:#eef4fb; }
+  #pact .act svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  body:not(.hist-mode) #hvCsv { display:none; }       /* CSV dello Storico: al posto di quello della serie */
   /* grafico + legenda in colonna a destra */
   #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
   #chart { flex:1 1 auto; min-width:0; }
@@ -121,9 +138,9 @@
   #source { margin-top:12px; line-height:1.6; }
   #source a { color:var(--accent); }
   .marker-dot { }
+  /* scheda Confronto: niente confronti, Impilato e Storico (aprirebbe quello dell'ultima stazione) */
   body.view-compare #refresh, body.view-compare #download, body.view-compare #exportpng, body.view-compare #stackbtn,
-  body.view-compare #modes .mode[data-mode="compare"], body.view-compare #modes .mode[data-mode="compare30"],
-  body.view-compare #modes .mode[data-mode="tabs"] { display:none; }
+  body.view-compare #cmpBtn, body.view-compare #histbtn { display:none; }
   .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
   .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
   /* etichette-valore sui puntini (zoom alto) */
@@ -322,16 +339,13 @@
   #histview { display:none; flex-direction:column; gap:8px; }
   body.hist-mode #histview { display:flex; }
   body.hist-mode #chartwrap, body.hist-mode #chartstats, body.hist-mode #climabox, body.hist-mode #windrose,
-  body.hist-mode #modes .mode, body.hist-mode #stackbtn, body.hist-mode #exportpng, body.hist-mode #refresh,
-  body.hist-mode #download, body.hist-mode #vars .vadd { display:none; }
-  .hv-bar { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
-  .hv-bar .act { padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:6px; font-size:12px; cursor:pointer;
-                 color:var(--accent); }
-  .hv-bar .act:hover { background:#eef4fb; }
-  body.dark .hv-bar .act { background:var(--soft); color:var(--fg); }
+  body.hist-mode #vars, body.hist-mode .pb-sep, body.hist-mode #modes > .mode, body.hist-mode #stackbtn, body.hist-mode #exportpng,
+  body.hist-mode #refresh, body.hist-mode #download { display:none; }
+  .hv-bar { display:none; }
+  body.hist-mode .hv-bar { display:contents; }        /* nella riga 2, al posto di variabili e modi */
   .hv-seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-  .hv-seg button { border:none; border-right:1px solid var(--line); background:transparent; color:var(--fg); padding:5px 11px;
-                   font-size:12px; cursor:pointer; }
+  .hv-seg button { border:none; border-right:1px solid var(--line); background:transparent; color:var(--fg); height:22px; padding:0 11px;
+                   font-size:12px; cursor:pointer; white-space:nowrap; }
   .hv-seg button:last-child { border-right:none; }
   .hv-seg button.on { background:var(--accent); color:#fff; }
   #hvChart { width:100%; min-height:120px; }
@@ -345,11 +359,8 @@
   #hvTable .tot { font-weight:600; border-left:1px solid var(--line); }
   #hvNote { color:var(--muted); font-size:12px; line-height:1.5; }
   /* modo "Impilato": un pannello per variabile, asse del tempo condiviso, cursore e zoom sincronizzati */
-  #modes button.tog { padding:4px 10px; border:1px solid var(--line); background:#f7fafc; border-radius:6px;
-                      font-size:12px; cursor:pointer; color:var(--fg); }
-  #modes button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  body.dark #modes button.tog { background:var(--soft); color:var(--fg); border-color:var(--line); }
-  body.dark #modes button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  body.dark #pbar button.tog { background:var(--soft); color:var(--fg); border-color:var(--line); }
+  body.dark #pbar button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
   body.stacked #chartlegend { display:none; }
   body.stacked #chartwrap { flex:0 0 auto; min-height:0; }
   body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible; }
@@ -498,8 +509,22 @@
     .pm-filter { height:38px; font-size:16px; }
     #srcpanel, #notepanel { right:0; min-width:0; max-width:none; }
     #sheet { left:8px; right:8px; bottom:8px; width:auto; max-width:none; }
-    #panel { padding:12px 12px 18px; }
-    #vars button { padding:6px 12px; font-size:13px; }   /* tap target piu' grandi */
+    #panel { padding:10px 12px 18px; }
+    /* riga 1: nome e azioni (mai nascoste: il nome va a capo), sotto codice e ultimo dato */
+    #phead { grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"name act" "meta meta"; align-items:center; }
+    #stationName { grid-area:name; line-height:1.25; }
+    #pact { grid-area:act; }
+    #stationMeta { grid-area:meta; }
+    #stationMeta:not(:empty)::before { content:none; }
+    #pact .act { height:28px; padding:0 8px; }
+    /* riga 2: una riga sola che scorre di lato (anche partendo fra due pulsanti), senza barra visibile */
+    #pbar, #modes { flex-wrap:nowrap; }
+    #pbar { overflow-x:auto; scrollbar-width:none; margin:0 -12px; padding:0 12px; }
+    #pbar::-webkit-scrollbar { display:none; }
+    #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
+    #vars button, #pbar button.mode, #pbar button.tog { height:30px; font-size:13px; }   /* tap target piu' grandi */
+    #vars button { padding:0 12px; }
+    .hv-seg button { height:28px; font-size:13px; }
     /* su cellulare il grafico e' stretto: la legenda va SOTTO (non a destra) cosi' il grafico
        resta ampio. chartwrap in colonna, altezza fissa al grafico, legenda a piena larghezza.
        flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra
@@ -619,35 +644,47 @@
     </div>
     <div id="prodMenu" class="dk-menu" role="menu" aria-label="Cosa mostra la mappa"></div>
     <div id="panel">
-      <div id="stationName">Seleziona una stazione</div>
-      <div id="stationMeta"></div>
-      <div id="vars"></div>
-      <div id="modes">
-        <button class="mode active" data-mode="week">7 giorni</button>
-        <button class="mode" data-mode="day3">3 giorni</button>
-        <button class="mode" data-mode="day">24 ore</button>
-        <button class="mode" data-mode="compare">Confronto 7 giorni</button>
-        <button class="mode" data-mode="compare30">Confronto 30 giorni</button>
-        <button class="mode" data-mode="tabs">Confronto schede</button>
-        <button id="stackbtn" class="tog" aria-pressed="false" title="Una fascia per variabile, con cursore e zoom sincronizzati">Impilato</button>
-        <button id="histbtn" class="tog" aria-pressed="false" title="Storico lungo: totali mensili, anni a confronto, giorni" style="display:none">Storico</button>
-        <span class="msp"></span>
-        <button id="refresh" class="act" title="Ricarica i dati">Aggiorna</button>
-        <a id="download" class="act" download title="Scarica il CSV">CSV</a>
-        <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
-        <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
+      <!-- riga 1: nome · codice e ultimo dato; a destra le azioni (nello Storico il suo CSV e Link) -->
+      <div id="phead">
+        <div id="stationName">Seleziona una stazione</div>
+        <div id="stationMeta"></div>
+        <div id="pact" hidden>
+          <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
+          <a id="download" class="act" download title="Scarica il CSV">CSV</a>
+          <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
+          <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
+          <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
+        </div>
+      </div>
+      <!-- riga 2: variabili | modi; nello Storico la sua barra al posto di entrambi e in fondo "Storico ×" -->
+      <div id="pbar" hidden>
+        <div id="vars"></div>
+        <div id="modes">
+          <span class="pb-sep" aria-hidden="true"></span>
+          <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
+          <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
+          <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
+          <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronti</span> <span aria-hidden="true">▾</span></button>
+          <button id="stackbtn" class="tog" aria-pressed="false" title="Una fascia per variabile, con cursore e zoom sincronizzati">Impilato</button>
+          <div class="hv-bar">
+            <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
+            <div class="hv-seg" id="hvView"><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="giorni">Giorni</button><button data-w="tabella">Tabella</button></div>
+            <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
+          </div>
+          <button id="histbtn" class="tog" aria-pressed="false" title="Storico lungo: totali mensili, anni a confronto, giorni" style="display:none">Storico<span class="hb-x" aria-hidden="true"> ×</span></button>
+        </div>
+      </div>
+      <!-- menu di "Confronti": fuori dalla riga 2, che sul telefono scorre di lato -->
+      <div id="cmpMenu" class="tb-menu" role="menu" aria-label="Confronti" hidden>
+        <button data-mode="compare" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 7 giorni</button>
+        <button data-mode="compare30" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 30 giorni</button>
+        <button data-mode="tabs" role="menuitem" tabindex="-1">Confronto schede</button>
       </div>
       <div id="chartwrap">
         <div id="chart"></div>
         <div id="chartlegend"></div>
       </div>
       <div id="histview">
-        <div class="hv-bar">
-          <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
-          <div class="hv-seg" id="hvView"><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="giorni">Giorni</button><button data-w="tabella">Tabella</button></div>
-          <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
-          <button id="hvCsv" class="act" title="Scarica i dati giornalieri (CSV)">CSV</button>
-        </div>
         <div id="hvChart"></div>
         <div id="hvTable"></div>
         <div id="hvNote"></div>
@@ -980,7 +1017,8 @@ function resetPanel(){
   el('stationMeta').textContent = '';
   el('vars').innerHTML = '';
   el('source').innerHTML = '';
-  el('modes').style.display = 'none';
+  cmpClose();
+  el('pact').hidden = true; el('pbar').hidden = true;
   document.body.classList.remove('rose-mode');
   const wr = el('windrose'); if(wr) wr.innerHTML = '';
 }
@@ -1690,6 +1728,16 @@ function radarOff(restore){
 // SELEZIONE STAZIONE -> SERIE
 // ------------------------------------------------------------------------------------------------
 const OPEN_ORDER = ['TEMP', 'PREC', 'LIVIDRO'];   // con che variabile si apre una stazione, se sulla mappa non ce n'e' una scelta
+// accanto al nome: "234 · ultimo dato 14:30" se e' di oggi, se no "11/10 14:30" (l'anno solo se non e' questo); c = ora civile
+function setMeta(code, c){
+  let when = '';
+  if(c != null){
+    const d = new Date(c * 1000), n = new Date(civT(Date.now() / 1000) * 1000), hm = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    when = d.toISOString().slice(0, 10) === n.toISOString().slice(0, 10) ? hm
+         : pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + (d.getUTCFullYear() === n.getUTCFullYear() ? '' : '/' + d.getUTCFullYear()) + ' ' + hm;
+  }
+  el('stationMeta').textContent = code + (when ? ' · ultimo dato ' + when : '');
+}
 async function selectStation(props){
   snapPause();                                   // apri una stazione: il cursore del tempo si ferma
   closeSheet();                                  // e il foglio basso (anche di un'altra: ricerca, link, schede) si chiude
@@ -1701,7 +1749,7 @@ async function selectStation(props){
   currentUnits = unitsByRegion[region] || {};
   el('panel').scrollTop = 0;            // su mobile: mostra la stazione dall'inizio
   el('stationName').textContent = prettyName(props.name || props.scode);
-  el('stationMeta').textContent = 'Codice ' + props.scode + (props.latest_time ? ' · ultimo dato ' + props.latest_time.replace('T',' ') : '');
+  setMeta(props.scode, civSec(props.latest_time));
   const src = SOURCES[region];
   el('source').innerHTML = (src
     ? `Fonte: ${src.name} · <a href="${src.url}" target="_blank" rel="noopener">${src.url}</a> · `
@@ -1725,7 +1773,7 @@ async function selectStation(props){
   const dl = el('download');
   dl.href = `${DATA_BASE}/${region}/${props.series}`;
   dl.download = prettyName(props.name || props.scode).replace(/[^\w-]+/g,'_') + '_' + region + '.csv';
-  el('modes').style.display = 'flex';
+  el('pact').hidden = false; el('pbar').hidden = false;
 
   // bottoni variabile: SOLO le variabili della pagina attiva (dirette / derivate / indici)
   const allVars = ((props.variables && props.variables.length) ? props.variables
@@ -2066,7 +2114,7 @@ function renderCompareTabs(label, unit){
 async function refreshStation(){
   if(!currentStation) return;
   const region = currentStation._region;
-  const btn = el('refresh'); const label = btn.textContent;
+  const btn = el('refresh'); const icon = btn.innerHTML;
   btn.textContent = '⏳'; btn.disabled = true;
   try {
     const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
@@ -2083,10 +2131,9 @@ async function refreshStation(){
         if(varCat(v) === 'dirette' && t.cols[v][i] != null){ lastX = t.x[i]; break; }
       }
     }
-    el('stationMeta').textContent = 'Codice ' + currentStation.scode +
-      (lastX ? ' · ultimo dato ' + fmtFull(lastX) : '');
+    setMeta(currentStation.scode, lastX ? civT(lastX) : null);
   } catch(e){ setStatus('Aggiornamento non riuscito.'); }
-  btn.textContent = label; btn.disabled = false;
+  btn.innerHTML = icon; btn.disabled = false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2942,7 +2989,7 @@ function setStackMode(on, vars){
     if(!currentStation || !currentVar) return;
     if(isCompareMode()){                          // il confronto non ha senso a fasce: torna ai 7 giorni
       chartMode = 'week';
-      [...document.querySelectorAll('#modes button.mode')].forEach(x => x.classList.toggle('active', x.dataset.mode === 'week'));
+      syncModes();
     }
     document.body.classList.remove('rose-mode');
     const avail = stationVarsAll();
@@ -3630,7 +3677,7 @@ async function renderCompareView(){
     ? openTabs.map(t => prettyName(t.props.name || t.props.scode)).join('  ·  ')
     : 'Nessuna scheda aperta';
   el('source').innerHTML = TZNOTE + ' Dati in tempo reale non validati.';
-  el('modes').style.display = 'flex';
+  el('pact').hidden = false; el('pbar').hidden = false;
   const wr = el('windrose'); if(wr) wr.innerHTML = '';
   const cbx = el('climabox'); if(cbx){ cbx.style.display = 'none'; cbx.innerHTML = ''; }
   el('chartstats').textContent = '';
@@ -3652,7 +3699,7 @@ async function renderCompareView(){
     box.appendChild(b);
   });
   if(['compare','compare30','tabs'].indexOf(chartMode) >= 0) chartMode = 'week';
-  [...document.querySelectorAll('#modes button.mode')].forEach(x => x.classList.toggle('active', x.dataset.mode === chartMode));
+  syncModes();
   if(compareVar) renderCompareTabs(compareVar); else clearChart();
 }
 function showMapView(){
@@ -3703,18 +3750,55 @@ async function ensureTable30(){
   } catch(e){ setStatus('Serie a 30 giorni non ancora disponibile.'); return false; }
 }
 
-// modi grafico: 7 giorni / 3 giorni / 24 ore / Confronto 7 gg / Confronto 30 gg
-[...document.querySelectorAll('#modes button.mode')].forEach(b => b.addEventListener('click', async () => {
-  if(b.dataset.mode === 'tabs'){ openCompareTab(); return; }   // scheda dedicata, non un modo
-  chartMode = b.dataset.mode;
-  [...document.querySelectorAll('#modes button.mode')].forEach(x => x.classList.toggle('active', x === b));
+// modi grafico: 7 g / 3 g / 24 h e, nel menu "Confronti", Confronto 7 giorni / 30 giorni / schede
+async function pickMode(mode){
+  if(mode === 'tabs'){ openCompareTab(); return; }   // scheda dedicata, non un modo
+  chartMode = mode;
+  syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
   if(chartMode === 'compare' || chartMode === 'compare30') exitStack();    // i confronti sono a variabile singola
   syncVarButtons();                        // nasconde il '+' nei confronti, lo mostra nei modi singoli
   if(!currentStation || !currentVar) return;
   if(chartMode === 'compare30'){ const ok = await ensureTable30(); if(!ok) return; }
   renderChart(currentVar);
-}));
+}
+// un confronto acceso accende "Confronti", che ne prende il nome, e la sua voce nel menu
+const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g' };
+function syncModes(){
+  document.querySelectorAll('#modes .mode[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === chartMode));
+  el('cmpMenu').querySelectorAll('[role="menuitemradio"]').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === chartMode); b.setAttribute('aria-checked', String(b.dataset.mode === chartMode)); });
+  el('cmpBtn').classList.toggle('active', !!CMP_LABEL[chartMode]);
+  el('cmpBtn').firstElementChild.textContent = CMP_LABEL[chartMode] || 'Confronti';
+}
+document.querySelectorAll('#modes .mode[data-mode]').forEach(b => b.addEventListener('click', () => pickMode(b.dataset.mode)));
+
+// "Confronti ▾": menu sotto il pulsante; frecce, Inizio e Fine fra le voci; Esc e Tab chiudono tornando al pulsante; clic fuori chiude
+function cmpOpen(){
+  const m = el('cmpMenu');
+  m.hidden = false; el('cmpBtn').setAttribute('aria-expanded', 'true');
+  placeMenu(m, el('cmpBtn'));
+  (m.querySelector('.on') || m.querySelector('button')).focus({ preventScroll:true });
+}
+function cmpClose(refocus){
+  const m = el('cmpMenu');
+  if(m.hidden) return;
+  m.hidden = true; el('cmpBtn').setAttribute('aria-expanded', 'false');
+  if(refocus) el('cmpBtn').focus({ preventScroll:true });
+}
+el('cmpBtn').addEventListener('click', () => el('cmpMenu').hidden ? cmpOpen() : cmpClose());
+el('cmpMenu').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(b){ cmpClose(true); pickMode(b.dataset.mode); } });
+el('cmpMenu').addEventListener('keydown', e => {
+  const bs = [...el('cmpMenu').querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+  if(e.key === 'Tab'){ cmpClose(true); if(e.shiftKey) e.preventDefault(); return; }
+  const j = { ArrowDown:Math.min(i + 1, bs.length - 1), ArrowUp:Math.max(i - 1, 0), Home:0, End:bs.length - 1 }[e.key];
+  if(j == null) return;
+  e.preventDefault(); bs[j].focus({ preventScroll:true });
+});
+document.addEventListener('click', e => { if(!e.target.closest('#cmpMenu, #cmpBtn')) cmpClose(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') cmpClose(el('cmpMenu').contains(document.activeElement)); });
+el('panel').addEventListener('scroll', () => cmpClose(), { passive:true });      // il menu e' fisso: non seguirebbe il pulsante
+window.addEventListener('resize', () => { if(!el('cmpMenu').hidden) placeMenu(el('cmpMenu'), el('cmpBtn')); });
 
 el('stackbtn').addEventListener('click', () => setStackMode(!stackMode));
 buildHistControls();
