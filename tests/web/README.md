@@ -16,6 +16,7 @@
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dhover"   # la stessa a 375 px
     tests/web/run.sh "w.html?w=667&h=375&src=it_local.html%3Fsuite%3Dhover"   # telefono in orizzontale (anche 812x375)
     tests/web/run.sh "it_prod.html?suite=hoverradar"  # scheda col radar locale (SRI coi puntini, VMI senza)
+    tests/web/run.sh "it_local.html?suite=stazione"   # variabile con cui si apre una stazione
     tests/web/run.sh "w.html?w=375&h=812&src=it_live.html%3Fsuite%3Dlayout"   # ingombri a 375 px
     python3 tests/web/setup.py --clean    # toglie site/_radar_test/
 

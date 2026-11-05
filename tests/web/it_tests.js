@@ -777,9 +777,35 @@
     finish();
   }
 
+  async function suiteStazione(){                     // con quale variabile si apre una stazione
+    const has = (p, v) => (p.variables || []).includes(v);
+    const onPage = p => (p.variables || []).filter(v => varCat(v) === currentPage).sort(natVars);
+    const pick = test => (allFeatures.find(f => test(f.properties)) || {}).properties;
+    const A = pick(p => has(p, 'TEMP') && has(p, 'UMID'));
+    const A2 = pick(p => has(p, 'TEMP') && has(p, 'UMID') && p !== A);
+    const B = pick(p => !has(p, 'TEMP') && has(p, 'PREC'));
+    const C = pick(p => !has(p, 'TEMP') && !has(p, 'PREC') && has(p, 'LIVIDRO'));
+    const D = pick(p => !has(p, 'TEMP') && !has(p, 'PREC') && !has(p, 'LIVIDRO') && onPage(p).length);
+    log(A && A2 && B && C && D, 'stazioni di prova trovate', JSON.stringify([!!A, !!A2, !!B, !!C, !!D]));
+    if(!(A && A2 && B && C && D)) return finish();
+    const open = async p => { await selectStation(p); await until(() => currentStation === p); return currentVar; };
+    setMapVar(''); await until(() => filterVar === '');
+    eq('si apre sulla temperatura', await open(A), 'TEMP');
+    eq('senza temperatura: la precipitazione', await open(B), 'PREC');
+    eq('senza temperatura né precipitazione: il livello idrometrico', await open(C), 'LIVIDRO');
+    eq('altrimenti la prima variabile disponibile', await open(D), onPage(D)[0]);
+    await open(A); drawVar('UMID');
+    eq('la variabile della stazione di prima non passa alla successiva', await open(A2), 'TEMP');
+    setMapVar('UMID'); await until(() => filterVar === 'UMID');
+    eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
+    showMapView(); setMapVar('');
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
-            hoverradar:suiteHoverRadar })[suite]())
+            hoverradar:suiteHoverRadar, stazione:suiteStazione })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

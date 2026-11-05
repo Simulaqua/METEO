@@ -1689,6 +1689,7 @@ function radarOff(restore){
 // ------------------------------------------------------------------------------------------------
 // SELEZIONE STAZIONE -> SERIE
 // ------------------------------------------------------------------------------------------------
+const OPEN_ORDER = ['TEMP', 'PREC', 'LIVIDRO'];   // con che variabile si apre una stazione, se sulla mappa non ce n'e' una scelta
 async function selectStation(props){
   snapPause();                                   // apri una stazione: il cursore del tempo si ferma
   closeSheet();                                  // e il foglio basso (anche di un'altra: ricerca, link, schede) si chiude
@@ -1749,9 +1750,9 @@ async function selectStation(props){
     if(eff.length){ currentVar = eff[0]; syncVarButtons(); renderChart(currentVar); }
     else { exitStack(); clearChart(); }
   } else if(vars.length){
-    // scegli la variabile: quella filtrata se presente, poi quella corrente, poi la prima
+    // la variabile scelta sulla mappa; se no temperatura, poi pioggia, poi livello; se no la prima
     const pick = (filterVar && vars.includes(filterVar)) ? filterVar
-               : (vars.includes(currentVar) ? currentVar : vars[0]);
+               : (OPEN_ORDER.find(v => vars.includes(v)) || vars[0]);
     drawVar(pick);
   } else {
     clearChart();                         // questa stazione non ha variabili per la pagina attiva
