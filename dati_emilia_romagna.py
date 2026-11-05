@@ -96,7 +96,7 @@ def solar_moment(ms):
     """Epoch in ms (UTC) -> AAAAMMGGhhmm in ora solare (UTC+1), come tutto l'archivio, arrotondato ai 15 minuti."""
     moment = datetime.datetime.utcfromtimestamp(ms / 1000)
     moment = moment.replace(minute=moment.minute // 15 * 15, second=0, microsecond=0)
-    return (moment + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
+    return comune.utc_to_solar(moment)
 
 
 def coordinate(value):

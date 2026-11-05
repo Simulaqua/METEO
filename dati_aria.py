@@ -5,7 +5,7 @@
 # così export_web.py la esporta senza modifiche (basta aggiungerla a REGION_CFG) e la mappa la mostra.
 # Sigle comuni degli inquinanti: PM10, PM25, NO2, O3, SO2, CO, C6H6 (benzene).
 # Ogni stazione ha sempre lat/lon (senza coordinate valide si scarta). Gli istanti sono in ora solare (UTC+1).
-# Uso: python3 dati_aria.py [-r all | -r VEN | -r TN,...] [--debug]
+# Uso: python3 dati_aria.py [-r all | -r VEN|TN|BZ|LOM|ER] [--debug]   (una rete per volta)
 import argparse
 import csv
 import datetime
@@ -13,7 +13,6 @@ import io
 
 import comune
 
-SOLAR = datetime.timezone(datetime.timedelta(hours=1))
 
 # sigle comuni + unità per la legenda del sito
 POLLUTANTS = {
@@ -66,11 +65,6 @@ TN_COORDS = {
 
 def slug(name):
     return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or 'staz'
-
-
-def aware_to_solar(dt):
-    """Istante con fuso (+01:00 / +02:00) -> AAAAMMGGhhmm in ora solare."""
-    return dt.astimezone(SOLAR).strftime('%Y%m%d%H%M')
 
 
 def pollutant_symbol(name):
@@ -185,7 +179,7 @@ def download_bz(debug=False, days=7):
                 dt = datetime.datetime.fromisoformat(e['DATE'])
             except (KeyError, ValueError):
                 continue
-            readings.setdefault(var, {}).setdefault(sc, []).append((aware_to_solar(dt), val))
+            readings.setdefault(var, {}).setdefault(sc, []).append((comune.aware_to_solar(dt), val))
             units[var] = POLLUTANTS.get(var)
             got = True
         if got:

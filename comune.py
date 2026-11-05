@@ -1,6 +1,7 @@
 """Attrezzi condivisi dagli script di scarico (Python 3.7 sul Pi, requests vecchia: niente API recenti)."""
 import datetime
 import json
+import math
 import os
 import time
 
@@ -96,10 +97,24 @@ def civil_to_solar(dt):
     return dt.strftime('%Y%m%d%H%M')
 
 
+# L'ora solare è UTC+1 tutto l'anno: è il fuso in cui si salva tutto l'archivio
+SOLAR = datetime.timezone(datetime.timedelta(hours=1))
+
+
+def utc_to_solar(dt):
+    """Istante UTC (datetime senza fuso) -> AAAAMMGGhhmm in ora solare."""
+    return (dt + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
+
+
+def aware_to_solar(dt):
+    """Istante con fuso (datetime con tzinfo) -> AAAAMMGGhhmm in ora solare."""
+    return dt.astimezone(SOLAR).strftime('%Y%m%d%H%M')
+
+
 def to_float(v):
     try:
         f = float(v)
-        return None if f != f else f
+        return None if math.isnan(f) else f      # scarta NaN
     except (TypeError, ValueError):
         return None
 
@@ -152,20 +167,6 @@ def write_parsed(region_code, stations, readings, units, days=8):
 
 # ---------------------------------------------------------------------------------------------------------
 # File grezzi dei regionali: nomi AAAAMMGG-HHMMSS-<resto>
-
-def latest_stamp(download_dir, subdirs):
-    """L'ultimo AAAAMMGG-HHMMSS fra i file già scaricati, None se non c'è niente."""
-    stamps = []
-    for subdir in subdirs:
-        current_dir = os.path.join(download_dir, subdir)
-        if not os.path.isdir(current_dir):
-            continue
-        for name in os.listdir(current_dir):
-            parts = name.split('-')
-            if len(parts) >= 2:
-                stamps.append(parts[0] + '-' + parts[1])
-    return max(stamps) if stamps else None
-
 
 def delete_downloaded(download_dir, subdirs, stamp, stale_min=None, debug=False):
     """Toglie i file grezzi del lotto `stamp`, da chiamare solo dopo un parse riuscito. Con `stale_min`

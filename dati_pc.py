@@ -21,7 +21,6 @@ import requests
 
 import comune
 
-SOLAR = datetime.timezone(datetime.timedelta(hours=1))
 
 # codice della fonte -> sigla. FVG_MAP e TN_MAP sono a livello di modulo perché check_updates.py li legge per
 # segnalare le grandezze nuove non ancora mappate.
@@ -67,10 +66,6 @@ PIE_FIELDS = [('air_temperature',   'TEMP',      '°C',    1.0),
               ('snow_height',       'LIVNEVE',   'cm',    1.0),
               ('hydrometric_level', 'LIVIDRO',   'm',     1.0)]
 PIE_UNITS = {var: unit for _, var, unit, _ in PIE_FIELDS}
-
-
-def utc_epoch_to_solar(epoch):
-    return (datetime.datetime.utcfromtimestamp(epoch) + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
 
 
 def is_number(x):
@@ -159,7 +154,7 @@ def download_tn(debug=False):
         for t, v in zip(times, values):
             value = comune.to_float(v)
             if value is not None:
-                points.append((utc_epoch_to_solar(int(t)), value))
+                points.append((comune.utc_to_solar(datetime.datetime.utcfromtimestamp(int(t))), value))
         if points:
             readings.setdefault(var, {}).setdefault(sc, []).extend(points)
             units[var] = md.get('uom') or TN_UNITS.get(var)
@@ -216,7 +211,7 @@ def download_po(debug=False, days=7):
                 dt = datetime.datetime.fromisoformat(row[0])
             except (ValueError, TypeError):
                 continue
-            points.append((dt.astimezone(SOLAR).strftime('%Y%m%d%H%M'), value))
+            points.append((comune.aware_to_solar(dt), value))
         if points:
             sc = 'PO' + sid
             stations[sc] = {'NOME': loc.get('n') or sc, 'LAT': lat, 'LON': lon}
@@ -268,7 +263,7 @@ def download_pie(full=False, debug=False):
                 dt = datetime.datetime.fromisoformat(rec['date'])
             except (ValueError, TypeError, KeyError):
                 continue
-            moment = dt.astimezone(SOLAR).strftime('%Y%m%d%H%M')
+            moment = comune.aware_to_solar(dt)
             sc = station['sc']
             for field, var, _, factor in PIE_FIELDS:
                 value = comune.to_float(rec.get(field))

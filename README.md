@@ -14,7 +14,8 @@ check_updates.py     monitor: segnala nuove stazioni / variabili non mappate
 site/index.html      pagina web (Leaflet + uPlot)
 dati_radar.py        radar DPC (Protezione Civile): 23 prodotti, ultime 6 ore in PNG -> branch 'radar'
 site/radar.js        layer radar della mappa (pulsante "Radar", menu "Mappa"), legge il branch 'radar'
-tests/               test di dati_radar.py (python3 -m unittest tests.test_dati_radar)
+tests/               solo Mac: registratore di risposte vere (~45 MB) + prova byte per byte di ogni fonte (test_scarico.py),
+                     prove di comune.py e di dati_radar.py; tutto: /usr/bin/python3 -m unittest discover -s tests -t .
 publish.sh           rigenera i dati e li pubblica su GitHub Pages (branch gh-pages)
 crontab_regioni.txt  righe di cron
 legenda_variabili.txt  corrispondenza nomi variabili tra le regioni
@@ -25,7 +26,8 @@ dati_liguria.py      Liguria ARPAL/OMIRL (LIG): istantanee + serie (pioggia orar
 ```
 Gli script `dati_*.py` stanno tutti nella cartella principale, trovano da soli il progetto (percorsi relativi a
 `__file__`) e scrivono i dati delle stazioni nelle cartelle delle regioni: `data-parsed/` e, per i file scaricati,
-`data-downloaded/`; lì il cron tiene anche i `logs/` (tutti in `.gitignore`).
+`data-downloaded/`. I `logs/` stanno nella cartella della regione solo per i sei script regionali (VEN, FVG, TN, BZ,
+LOM, ER); tutti gli altri script e i lavori di cron scrivono in `logs/` della cartella principale (tutti in `.gitignore`).
 
 ## Come funziona
 - **dati_*.py**: scaricano il feed della regione, ne estraggono le misure e le **accodano** in file

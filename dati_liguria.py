@@ -41,10 +41,6 @@ UNITS = dict((var, unit) for _, var, unit, _ in CLASSES)
 UNITS.update({'PREC': 'mm', 'VVENTOMAX': 'm/s', 'DVENTO': 'gradi'})
 
 
-def utc_to_solar(dt_utc):
-    return (dt_utc + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
-
-
 def add(readings, var, scode, moment, value):
     readings.setdefault(var, {}).setdefault(scode, []).append((moment, round(value, 2)))
 
@@ -62,7 +58,7 @@ def snapshot(cls):
         except (ValueError, TypeError):
             dt = None
         out.append(('LIG' + str(code), str(code), s.get('name') or code, lat, lon,
-                    utc_to_solar(dt) if dt else None, value))
+                    comune.utc_to_solar(dt) if dt else None, value))
     return out
 
 
@@ -75,7 +71,7 @@ def series_csv(code, cls):
             dt = datetime.datetime.strptime(fields[0], '%d/%m/%Y %H:%M')
         except (ValueError, IndexError):
             continue
-        points.append((utc_to_solar(dt), [comune.to_float(x) for x in fields[1:]]))
+        points.append((comune.utc_to_solar(dt), [comune.to_float(x) for x in fields[1:]]))
     return points
 
 
@@ -94,7 +90,7 @@ def wind_direction_xml(code):
             if value is None:
                 continue
             dt = datetime.datetime.utcfromtimestamp(int(items[0].text) / 1000)
-            out.append((utc_to_solar(dt), value))
+            out.append((comune.utc_to_solar(dt), value))
     return out
 
 

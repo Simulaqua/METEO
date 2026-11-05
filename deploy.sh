@@ -22,12 +22,14 @@ echo "== Deploy verso $PI_HOST:$PI_BASE =="
 #   - i dati (data-parsed/downloaded, logs, .tracking, cache sensori) NON si toccano: restano quelli del Pi
 #   - site/<REGIONE>/ (export dati) NON si copia: lo rigenera export_web sul Pi; si copia SOLO site/index.html
 #   - tests/ (circa 45 MB di fixture) il Pi non li usa mai; .superpowers/ e .claude/worktrees/ dal checkout principale verrebbero copiati
+#   - stato che tiene il Pi (cache di PC_PO, log di check_updates, repository di radar e storico) e spazzatura del Mac: mai copiati
 #   - niente --update: per il CODICE vince sempre il Mac (deploy prevedibile)
 rsync -av \
   --exclude 'data-parsed'  --exclude 'data-downloaded' \
   --exclude 'logs'         --exclude '.git' \
   --exclude '.tracking'    --exclude '__pycache__' \
   --exclude 'sensors_map.json' \
+  --exclude 'elements_map.json' --exclude 'tracking.log' --exclude 'radar_out/' --exclude 'history_cache/' --exclude 'history_out/' --exclude '.DS_Store' \
   --exclude 'site/*/' \
   --exclude 'tests/' --exclude '.superpowers/' --exclude '.claude/' \
   "$SRC_DIR"/  "$PI_HOST:$PI_BASE/"

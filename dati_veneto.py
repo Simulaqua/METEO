@@ -52,7 +52,7 @@ def fetch(url, path):
 def download():
     """Gli elenchi e il file di ogni stazione in DOWNLOAD_DIR/<elenco>/, con il prefisso del giro AAAAMMGG-HHMMSS
     (restituito). Le stazioni nuove si aggiungono a stazioni.json; quelle sparite dagli elenchi restano."""
-    # tutte le cartelle subito, come lo script di prima: anche un giro che si ferma a metà le lascia tutte
+    # tutte le cartelle subito: un giro fermato a metà le lascia comunque tutte (recover.py cerca i buchi in data-parsed)
     for list_id in STATION_LISTS:
         os.makedirs(os.path.join(DOWNLOAD_DIR, list_id), exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
@@ -112,7 +112,7 @@ def read_station(root, var):
 def parse(stamp, date, debug=False):
     """Per ogni variabile, nel file del giorno: i dati di stazione e sensore del giro e, se la stazione si è
     aggiornata (ISTANTERUN), le sue misure del giorno successive all'ultima già salvata."""
-    for var in VARIABLES:                   # anche qui tutte le cartelle subito, come lo script di prima
+    for var in VARIABLES:                   # tutte le cartelle subito, anche per le variabili senza letture
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
     begin, end = day_window(date)
@@ -121,7 +121,7 @@ def parse(stamp, date, debug=False):
     # ORALEGALE nei file: 1 se il giro avviene con l'ora legale (solo un'informazione)
     dst = int(comune.is_dst_civil(datetime.datetime.now()))
     added = 0
-    # in ordine alfabetico come lo script di prima: se un file rotto ferma il giro, restano scritte le stesse variabili
+    # in ordine alfabetico: se un file rotto ferma il giro, restano scritte sempre le stesse variabili
     for var in sorted(VARIABLES):
         list_id = VARIABLES[var]
         path = os.path.join(PARSE_DIR, var, var + '-' + begin[:8] + '.json')

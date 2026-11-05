@@ -7,14 +7,14 @@ import tempfile
 import threading
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import requests
 
 import comune
-from comune import (USER_AGENT, civil_to_solar, delete_downloaded, get, get_json, get_text, is_dst_civil,
-                    latest_stamp, load_json, save_json, to_float, write_parsed)
+from comune import (USER_AGENT, aware_to_solar, civil_to_solar, delete_downloaded, get, get_json, get_text, is_dst_civil,
+                    load_json, save_json, to_float, utc_to_solar, write_parsed)
 
 RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,6 +66,13 @@ class TestOraLegale(unittest.TestCase):
     def test_da_civile_a_solare(self):
         self.assertEqual(civil_to_solar(datetime(2026, 7, 1, 12, 30)), '202607011130')
         self.assertEqual(civil_to_solar(datetime(2026, 12, 1, 12, 30)), '202612011230')
+
+    def test_da_utc_a_solare(self):
+        self.assertEqual(utc_to_solar(datetime(2026, 7, 1, 23, 30)), '202607020030')
+
+    def test_da_istante_con_fuso_a_solare(self):
+        self.assertEqual(aware_to_solar(datetime(2026, 7, 1, 12, 0, tzinfo=timezone(timedelta(hours=2)))), '202607011100')
+        self.assertEqual(aware_to_solar(datetime(2026, 1, 1, 23, 0, tzinfo=timezone.utc)), '202601020000')
 
 
 class TestPiccoli(unittest.TestCase):
@@ -196,13 +203,6 @@ class TestCartelleGrezze(unittest.TestCase):
         t = time.time() - eta_min * 60
         os.utime(p, (t, t))
         return p
-
-    def test_latest_stamp(self):
-        self.assertIsNone(latest_stamp(self.dir, ['a', 'b', 'manca']))
-        self.tocca('a', '20260101-100000-x.xml')
-        self.tocca('b', '20260102-090000-y.xml')
-        self.tocca('b', 'senzatrattino')
-        self.assertEqual(latest_stamp(self.dir, ['a', 'b', 'manca']), '20260102-090000')
 
     def test_delete_solo_il_lotto(self):
         mio = self.tocca('a', '20260102-090000-x.xml')

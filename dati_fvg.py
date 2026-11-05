@@ -64,7 +64,7 @@ def download():
     """La pagina principale e il file di ogni stazione in DOWNLOAD_DIR/dati/, con il prefisso del giro
     AAAAMMGG-HHMMSS (restituito)."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
-    # le cartelle subito, come lo script di prima: anche un giro che si ferma a metà le lascia
+    # le cartelle subito: un giro fermato a metà le lascia comunque tutte (recover.py cerca i buchi in data-parsed)
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -82,7 +82,7 @@ def solar_moment(text):
     """'GG/MM/AAAA hh.mm UTC' -> AAAAMMGGhhmm in ora solare (UTC+1), come tutto l'archivio; None se non si legge."""
     try:
         moment = datetime.datetime.strptime(text.strip().replace(' UTC', ''), '%d/%m/%Y %H.%M')
-        return (moment + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
+        return comune.utc_to_solar(moment)
     except (ValueError, TypeError, AttributeError):         # tag vuoto o mancante, formato diverso
         return None
 
@@ -113,7 +113,7 @@ def read_observation(path):
 def parse(stamp, debug=False):
     """Per ogni variabile, l'osservazione del giro di ogni stazione che la misura va nel file del suo giorno, se è più
     recente dell'ultima già salvata. I dati delle stazioni lette si aggiornano in stazioni.json."""
-    for var in sorted(VARIABLES):           # anche qui tutte le cartelle subito, come lo script di prima
+    for var in sorted(VARIABLES):           # tutte le cartelle subito, anche per le variabili senza letture
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
@@ -130,7 +130,7 @@ def parse(stamp, debug=False):
         observations[code] = obs
         stations[code] = obs['station']
     added = 0
-    # in ordine alfabetico come lo script di prima: se un file rotto ferma il giro, restano scritte le stesse variabili
+    # in ordine alfabetico: se un file rotto ferma il giro, restano scritte sempre le stesse variabili
     for var in sorted(VARIABLES):
         tag, extra = VARIABLES[var], EXTRA.get(var, {})
         day_files = {}                      # percorso -> contenuto, letto la prima volta che serve

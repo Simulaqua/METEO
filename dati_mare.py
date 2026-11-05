@@ -77,11 +77,6 @@ def first_number(text):
     return found[0] if found else None
 
 
-def utc_to_solar(dt_utc):
-    """Istante UTC (datetime senza fuso) -> AAAAMMGGhhmm in ora solare."""
-    return (dt_utc + datetime.timedelta(hours=1)).strftime('%Y%m%d%H%M')
-
-
 def download_ven(debug=False):
     # prima le coordinate e il nome di ogni stazione, da tutti i file che li hanno
     coords, names = {}, {}
@@ -161,7 +156,7 @@ def download_er(debug=False):
         except (KeyError, ValueError):
             continue
         sc = slug(name)
-        moment = utc_to_solar(dt)
+        moment = comune.utc_to_solar(dt)
         stations[sc] = {'NOME': name, 'LAT': lat, 'LON': lon}
         for var, v in vals.items():
             readings.setdefault(var, {}).setdefault(sc, []).append((moment, v))
@@ -217,7 +212,7 @@ def download_fvg(debug=False):
                 dt = datetime.datetime.strptime(row[0][:19], '%Y-%m-%dT%H:%M:%S')
             except (TypeError, ValueError):
                 continue
-            moment = utc_to_solar(dt)
+            moment = comune.utc_to_solar(dt)
             for i, (_, var) in enumerate(colmap):
                 v = comune.to_float(row[1 + i])
                 qc = row[1 + len(colmap) + i]

@@ -87,7 +87,7 @@ def parse(answer, in_cm):
     if not answer.get('success'):
         return []
     data = answer.get('return_data') or []
-    # i punti stanno in return_data[0][0]
+    # i punti stanno in return_data[0][0] (lista di liste) oppure direttamente in return_data[0]
     points = data[0][0] if (data and data[0] and isinstance(data[0][0], list)) else (data[0] if data else [])
     out = []
     for p in points:
