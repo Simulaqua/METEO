@@ -21,6 +21,7 @@ echo "== Deploy verso $PI_HOST:$PI_BASE =="
 # 1) sincronizza il codice (niente dati/log/git/cache): --update non sovrascrive file piu' recenti sul Pi
 #   - i dati (data-parsed/downloaded, logs, .tracking, cache sensori) NON si toccano: restano quelli del Pi
 #   - site/<REGIONE>/ (export dati) NON si copia: lo rigenera export_web sul Pi; si copia SOLO site/index.html
+#   - tests/ (circa 45 MB di fixture) il Pi non li usa mai; .superpowers/ e .claude/worktrees/ dal checkout principale verrebbero copiati
 #   - niente --update: per il CODICE vince sempre il Mac (deploy prevedibile)
 rsync -av \
   --exclude 'data-parsed'  --exclude 'data-downloaded' \
@@ -28,6 +29,7 @@ rsync -av \
   --exclude '.tracking'    --exclude '__pycache__' \
   --exclude 'sensors_map.json' \
   --exclude 'site/*/' \
+  --exclude 'tests/' --exclude '.superpowers/' --exclude '.claude/' \
   "$SRC_DIR"/  "$PI_HOST:$PI_BASE/"
 
 # 2) sul Pi: reinstalla il crontab + prime raccolte dei nuovi layer
