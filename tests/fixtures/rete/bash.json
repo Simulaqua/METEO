@@ -1,0 +1,1699 @@
+{
+ "backup": [
+  {
+   "codice": 0,
+   "giro": "versione nuova",
+   "righe": [
+    "inizio versione 2026-11-02 (file uguali collegati a 2026-11-01)",
+    "fatto in Ns: versione 2026-11-02, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+   ],
+   "stop": null,
+   "versioni": {
+    "2026-11-01": {
+     "condivisi": [],
+     "file": [
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ]
+    },
+    "2026-11-02": {
+     "condivisi": [
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  },
+  {
+   "codice": 0,
+   "giro": "stesso giorno",
+   "righe": [
+    "inizio versione 2026-11-02 (file uguali collegati a 2026-11-02)",
+    "fatto in Ns: versione 2026-11-02, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+   ],
+   "stop": null,
+   "versioni": {
+    "2026-11-01": {
+     "condivisi": [],
+     "file": [
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ]
+    },
+    "2026-11-02": {
+     "condivisi": [
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  },
+  {
+   "codice": 0,
+   "giro": "rotazione",
+   "righe": [
+    "inizio versione 2026-11-03 (file uguali collegati a 2026-11-02)",
+    "tolta la versione piu' vecchia: 2026-11-01",
+    "fatto in Ns: versione 2026-11-03, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+   ],
+   "stop": null,
+   "versioni": {
+    "2026-11-02": {
+     "condivisi": [],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-03": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  },
+  {
+   "codice": 0,
+   "giro": "archivio sceso",
+   "righe": [
+    "inizio versione 2026-11-04 (file uguali collegati a 2026-11-03)",
+    "ATTENZIONE: rotazione ferma -- 2026-11-04: archivio METEO sceso da        5 a        3 file, nessuna versione vecchia tolta. Se era voluto: rm <tmp>/usb/backup/.rotazione-ferma",
+    "fatto in Ns: versione 2026-11-04, N MB nuovi,        8 file,        3 versioni, liberi 50G"
+   ],
+   "stop": [
+    "2026-11-04: archivio METEO sceso da        5 a        3 file"
+   ],
+   "versioni": {
+    "2026-11-02": {
+     "condivisi": [],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-03": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-04": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  },
+  {
+   "codice": 1,
+   "giro": "chiavetta assente",
+   "righe": [
+    "ERRORE: chiavetta assente -- <tmp>/usb non montata, backup saltato"
+   ],
+   "stop": [
+    "2026-11-04: archivio METEO sceso da        5 a        3 file"
+   ],
+   "versioni": {
+    "2026-11-02": {
+     "condivisi": [],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-03": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-04": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  },
+  {
+   "codice": 1,
+   "giro": "data non valida",
+   "righe": [
+    "ERRORE: orologio -- data '1970-01-01' non valida (non ancora sincronizzata?), backup saltato"
+   ],
+   "stop": [
+    "2026-11-04: archivio METEO sceso da        5 a        3 file"
+   ],
+   "versioni": {
+    "2026-11-02": {
+     "condivisi": [],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-03": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261101.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261102.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    },
+    "2026-11-04": {
+     "condivisi": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
+     ],
+     "file": [
+      "METEO/.tracking/last_data_hash",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
+      "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
+      "METEO/history_cache/VEN.json",
+      "METEO/history_out/VEN/x.json",
+      "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
+      "crontab.txt"
+     ]
+    }
+   }
+  }
+ ],
+ "deploy": [
+  "FVG/stazioni_coords.csv",
+  "LOM/zero_idrometrici.json",
+  "PC_PIE/zero_idrometrici.json",
+  "PC_PO/zero_idrometrici.json",
+  "PIE/zero_idrometrici.json",
+  "VEN/zero_idrometrici.json",
+  "comune.py",
+  "crontab_regioni.txt",
+  "dati_veneto.py",
+  "docs/x.md",
+  "old/x.py",
+  "publish.sh",
+  "site/index.html",
+  "site/radar.js"
+ ],
+ "publish": [
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "assente",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "primo giro",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI aggiornati sul branch 'data' (inviati N).",
+    "PAGINA aggiornata su gh-pages (deploy Pages).",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "d05c4a5468ae829705f6ced050a143e478a1c5b8"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "assente",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "invariato",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI invariati: nessun push.",
+    "PAGINA invariata: nessun deploy Pages.",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "d05c4a5468ae829705f6ced050a143e478a1c5b8"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "genitore = data di prima",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "dato nuovo",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI aggiornati sul branch 'data' (2 file cambiati, inviati N).",
+    "PAGINA invariata: nessun deploy Pages.",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "d05c4a5468ae829705f6ced050a143e478a1c5b8"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "pagina cambiata",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI invariati: nessun push.",
+    "PAGINA aggiornata su gh-pages (deploy Pages).",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "lock occupato",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI: push precedente ancora in corso, riprovo al prossimo giro.",
+    "PAGINA invariata: nessun deploy Pages.",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": false,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": false
+  },
+  {
+   "codice": 1,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "remoto spostato 1",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "ERRORE: push dati fallito (1 di fila).",
+    "fatal: '<tmp>/remoto.git' does not appear to be a git repository",
+    "fatal: Could not read from remote repository."
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:40",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": "1",
+    "last_data_hash": false,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": false
+  },
+  {
+   "codice": 1,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "remoto spostato 2",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "ERRORE: push dati fallito (2 di fila).",
+    "fatal: '<tmp>/remoto.git' does not appear to be a git repository",
+    "fatal: Could not read from remote repository."
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:50",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": "2",
+    "last_data_hash": false,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": false
+  },
+  {
+   "codice": 1,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": null,
+   "giro": "remoto spostato 3",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": false,
+   "righe": [
+    "ERRORE: push dati fallito (3 di fila).",
+    "fatal: '<tmp>/remoto.git' does not appear to be a git repository",
+    "fatal: Could not read from remote repository."
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T23:00",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": "3",
+    "last_data_hash": false,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": false
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "remoto rimesso",
+   "pagina": [
+    "100644 blob 43ea3844aafef53d2dd1e4b60b7003d9e24ac6ad\t.github/workflows/watchdog.yml",
+    "100644 blob e44d2f29c8041f50f9d40df263537ebe6f0c7908\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI aggiornati sul branch 'data' (inviati N).",
+    "PAGINA invariata: nessun deploy Pages.",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T23:00",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "01b029dfd1b37412ad3b25b5f2e2ba42ed940a30"
+   },
+   "uguale_al_sito": true
+  }
+ ],
+ "publish_history": [
+  {
+   "codice": 0,
+   "giro": "primo giro",
+   "git_rimasto": false,
+   "hash_aggiornato": true,
+   "hash_salvato": true,
+   "history": [
+    "MAR_ER/Nausicaa_2.json",
+    "MAR_ER/Porto_Garibaldi.json",
+    "MAR_FVG/MAMBO1.json",
+    "index.json"
+   ],
+   "righe": [
+    "STORICO aggiornato sul branch 'history'."
+   ],
+   "uguale_all_uscita": true
+  },
+  {
+   "codice": 0,
+   "giro": "invariato",
+   "git_rimasto": false,
+   "hash_aggiornato": false,
+   "hash_salvato": true,
+   "history": [
+    "MAR_ER/Nausicaa_2.json",
+    "MAR_ER/Porto_Garibaldi.json",
+    "MAR_FVG/MAMBO1.json",
+    "index.json"
+   ],
+   "righe": [
+    "STORICO invariato: nessun push."
+   ],
+   "uguale_all_uscita": true
+  },
+  {
+   "codice": 128,
+   "giro": "dato nuovo, remoto spostato",
+   "git_rimasto": true,
+   "hash_aggiornato": false,
+   "hash_salvato": false,
+   "history": [
+    "MAR_ER/Nausicaa_2.json",
+    "MAR_ER/Porto_Garibaldi.json",
+    "MAR_FVG/MAMBO1.json",
+    "index.json"
+   ],
+   "righe": [
+    "fatal: '<tmp>/remoto.git' does not appear to be a git repository",
+    "fatal: Could not read from remote repository."
+   ],
+   "uguale_all_uscita": false
+  },
+  {
+   "codice": 0,
+   "giro": "remoto rimesso",
+   "git_rimasto": false,
+   "hash_aggiornato": true,
+   "hash_salvato": true,
+   "history": [
+    "MAR_ER/Nausicaa_2.json",
+    "MAR_ER/Porto_Garibaldi.json",
+    "MAR_FVG/MAMBO1.json",
+    "index.json"
+   ],
+   "righe": [
+    "STORICO aggiornato sul branch 'history'."
+   ],
+   "uguale_all_uscita": true
+  }
+ ]
+}

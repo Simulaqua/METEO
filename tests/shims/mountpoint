@@ -1,0 +1,3 @@
+#!/bin/sh
+# mountpoint di prova (tests/rete.py): sul Mac non c'è; MOUNTPOINT_EXIT=1 fa trovare la chiavetta assente
+exit "${MOUNTPOINT_EXIT:-0}"

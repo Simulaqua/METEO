@@ -1,0 +1,9 @@
+#!/bin/sh
+# crontab di prova (tests/rete.py): "crontab -l" legge un crontab finto; ogni altra forma ("crontab -",
+# "crontab FILE") sostituirebbe il crontab vero del Mac, quindi è un errore
+if [ "$#" -eq 1 ] && [ "$1" = -l ]; then
+    echo '# crontab di prova'
+    exit 0
+fi
+echo "crontab di prova: solo crontab -l" >&2
+exit 1

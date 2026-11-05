@@ -1,0 +1,11 @@
+#!/bin/sh
+# df di prova (tests/rete.py): la df del Mac non ha "--output" della GNU; per la chiavetta due righe fisse,
+# intestazione e valore. Le altre forme sono un errore: leggerebbero i dischi veri
+for arg in "$@"; do
+    case "$arg" in
+        --output=avail) printf ' Avail\n   50G\n'; exit 0 ;;
+        --output=pcent) printf 'Use%%\n 35%%\n'; exit 0 ;;
+    esac
+done
+echo "df di prova: solo --output=avail o --output=pcent" >&2
+exit 1

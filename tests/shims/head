@@ -1,0 +1,12 @@
+#!/bin/sh
+# head di prova (tests/rete.py): la head del Mac non ha "head -n -N" della GNU (tutto meno le ultime N righe);
+# le altre forme vanno a lei
+if [ "$1" = -n ]; then
+    case "$2" in
+        -[0-9]*)
+            n=${2#-}
+            shift 2
+            exec awk -v n="$n" '{ line[NR] = $0 } END { for (i = 1; i <= NR - n; i++) print line[i] }' "$@" ;;
+    esac
+fi
+exec /usr/bin/head "$@"

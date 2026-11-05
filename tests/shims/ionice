@@ -1,0 +1,10 @@
+#!/bin/sh
+# ionice di prova (tests/rete.py): sul Mac non c'è; toglie le sue opzioni e lancia il comando
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -c|-n|-p|-P|-u) shift 2 ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+exec "$@"
