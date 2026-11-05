@@ -1,7 +1,7 @@
 # Rete di sicurezza della pulizia, parte 3: export, climatologia e Storico girano su un campione dell'archivio con
 # l'orologio fermo e la rete vietata (tests/orologio/sitecustomize.py); le impronte (sha1) di ogni file che producono
 # stanno in tests/fixtures/rete/impronte.txt e tests/test_rete.py le confronta.
-# Il campione sono gli attesi delle prove di scarico, un giro per fonte, più quattro file costruiti: due .json.gz, uno
+# Il campione sono gli attesi delle prove di scarico, un giro per fonte, più cinque file costruiti: tre .json.gz, uno
 # vuoto, uno rotto.
 #   python3 tests/rete.py attesi export                 riscrive impronte.txt con l'uscita dei programmi di adesso
 #   python3 tests/rete.py uscita CARTELLA [--da COMMIT]  lascia l'uscita in CARTELLA, per un diff -r fra due commit;
@@ -22,9 +22,10 @@ RUNS = ['laghi/normale', 'invasi/normale', 'liguria/full', 'mare/reti', 'mare/ac
         'emilia_romagna/normale']
 # configurazione dei dati che sta nel progetto e non nell'archivio
 PROJECT_DATA = ['*/zero_idrometrici.json', 'FVG/stazioni_coords.csv']
-# il primo dentro la finestra di 7 giorni; il secondo lo leggono l'export a 30 giorni, la climatologia e lo Storico,
-# ma nella climatologia non si vede (1-2 letture per stazione, meno delle 6 di un giorno valido)
-GZIPPED =['PC_PO/data-parsed/LIVIDRO/LIVIDRO-20261030.json', 'LIG/data-parsed/TEMP/TEMP-20261027.json']
+# il primo dentro la finestra di 7 giorni; gli altri fuori: li leggono l'export a 30 giorni, la climatologia e lo
+# Storico. La climatologia vede solo il 28: il 27 ha 1-2 letture per stazione, meno delle 6 di un giorno valido.
+GZIPPED = ['PC_PO/data-parsed/LIVIDRO/LIVIDRO-20261030.json', 'LIG/data-parsed/TEMP/TEMP-20261027.json',
+           'LIG/data-parsed/TEMP/TEMP-20261028.json']
 BROKEN = {'LAGHI/data-parsed/LIVLAGO/LIVLAGO-20261101.json': b'',
           'INV_ER/data-parsed/LIVLAGO/LIVLAGO-20261102.json': b'{rotto'}
 PROGRAMS = ['*.py', '*.sh', 'site/index.html', 'site/radar.js', 'watchdog*.yml', 'favicon_site.ico',

@@ -16,7 +16,7 @@ if os.environ.get('OROLOGIO_FERMO'):
     # standard, che la chiede a time.time(), cioè all'orologio fermo. Va fatto prima di ogni import di datetime.
     sys.modules['_datetime'] = None
     # dal suo percorso, senza toccare sys.path: i programmi devono trovare i moduli come sul Pi
-    path =os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'registratore.py')
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'registratore.py')
     spec = importlib.util.spec_from_file_location('registratore', path)
     registratore = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(registratore)
