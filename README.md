@@ -7,7 +7,8 @@ la serie degli ultimi 7 giorni.
 
 ## Struttura
 ```
-VEN/ BZ/ TN/ FVG/    una cartella per regione, con lo script dati_<regione>.py
+dati_<regione>.py    uno script per regione (dati_veneto.py, dati_fvg.py, ...); comune.py ha gli attrezzi in comune
+VEN/ BZ/ TN/ FVG/    una cartella per regione, solo dati
 export_web.py        genera i file per il sito (CSV serie 7gg + stations.geojson + units.json)
 check_updates.py     monitor: segnala nuove stazioni / variabili non mappate
 site/index.html      pagina web (Leaflet + uPlot)
@@ -22,8 +23,9 @@ dati_pc.py           idrometria Protezione Civile (PC_FVG, PC_TN, PC_PO) e ARPA 
                      orario alimenta la regione PIE (meteo + livelli, voce "Piemonte") e PC_PIE (idrometri, voce Po)
 dati_liguria.py      Liguria ARPAL/OMIRL (LIG): istantanee + serie (pioggia oraria, raffiche); di notte serie complete
 ```
-Ogni script capisce da solo la propria cartella (percorsi relativi a `__file__`) e vi crea dentro
-`data-downloaded/`, `data-parsed/`, `logs/`, `web/` (tutti in `.gitignore`).
+Gli script `dati_*.py` stanno tutti nella cartella principale, trovano da soli il progetto (percorsi relativi a
+`__file__`) e scrivono i dati delle stazioni nelle cartelle delle regioni: `data-parsed/` e, per i file scaricati,
+`data-downloaded/`; lì il cron tiene anche i `logs/` (tutti in `.gitignore`).
 
 ## Come funziona
 - **dati_*.py**: scaricano il feed della regione, ne estraggono le misure e le **accodano** in file

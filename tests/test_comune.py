@@ -222,11 +222,7 @@ class TestCartelleGrezze(unittest.TestCase):
 
 
 def script_python():
-    files = [os.path.join(RADICE, 'comune.py')]
-    files += sorted(glob.glob(os.path.join(RADICE, 'dati_*.py')))
-    for reg in ('VEN', 'FVG', 'TN', 'BZ', 'LOM', 'ER'):
-        files += sorted(glob.glob(os.path.join(RADICE, reg, 'dati_*.py')))
-    return files
+    return [os.path.join(RADICE, 'comune.py')] + sorted(glob.glob(os.path.join(RADICE, 'dati_*.py')))
 
 
 class TestPython37(unittest.TestCase):

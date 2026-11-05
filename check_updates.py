@@ -3,7 +3,7 @@
 # check_updates.py - monitor: rileva NUOVE STAZIONI e NUOVE VARIABILI (non mappate) in tutte le regioni.
 #
 # Per ogni regione confronta il feed live con:
-#   - le variabili MAPPATE, lette direttamente dalla classe `variables` dello script della regione
+#   - le variabili MAPPATE, lette direttamente dalla tabella VARIABLES in testa allo script della regione
 #     (cosi' quando aggiungi una variabile allo script, qui smette automaticamente di segnalarla);
 #   - uno SNAPSHOT delle stazioni note (.tracking/<REGION>_stations.json): segnala solo quelle nuove.
 #
@@ -38,9 +38,9 @@ REGIONS = {
 
 #-----------------------------------------------------------------------------------------------------------
 def load_module(rel_path):
-    ''' Import a region script by file path (to read its `variables` class and endpoint constants). '''
+    ''' Import a region script by file path (to read its settings tables and endpoint constants). '''
     path = os.path.join(_BASE_DIR, rel_path)
-    name = 'reg_' + os.path.basename(os.path.dirname(path))
+    name = 'reg_' + os.path.splitext(os.path.basename(path))[0]
     spec = importlib.util.spec_from_file_location(name, path)
     mod  = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

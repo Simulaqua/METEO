@@ -16,7 +16,7 @@
 #   BZ   - endpoint /timeseries (serie a 10 min): una chiamata per coppia stazione-sensore.
 #   ER   - endpoint get-time-series (serie ~ ultimi 2-3 giorni): una chiamata per stazione-variabile.
 #   LOM  - Socrata storico: query a chunk temporali (<50000 righe/richiesta).
-#   TN   - la fonte espone solo il giorno corrente: si auto-ricuce nel giorno, niente recupero multi-giorno.
+#   TN   - la fonte espone solo ieri e oggi: dopo un buco il primo giro riprende da dove si era fermato (fino a ieri).
 #   FVG  - la fonte espone solo l'ultima osservazione oraria: NESSUNO storico, buchi non recuperabili.
 #
 # Uso:  python3 recover.py -r all                (tutte; salta dove non c'e' buco)

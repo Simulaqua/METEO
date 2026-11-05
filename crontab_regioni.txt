@@ -3,11 +3,11 @@
 # CRONTAB - download & parse dati idro-meteo regionali (Raspberry)
 # ===========================================================================================
 # I percorsi degli SCRIPT sono ricavati da un'unica variabile BASE: impostala sulla cartella
-# che contiene le sottocartelle VEN/BZ/TN/FVG e poi non serve toccare altro. Gli script Python
-# capiscono da soli la propria cartella (via __file__) e ci creano dentro data-downloaded/,
-# data-parsed/ e web/.
+# del progetto (quella con gli script dati_*.py e le sottocartelle VEN/BZ/TN/FVG/...) e poi non
+# serve toccare altro. Gli script stanno tutti in BASE, trovano da soli il progetto (via __file__)
+# e scrivono i dati nelle cartelle delle regioni (es. VEN/data-downloaded/, VEN/data-parsed/).
 # Le cartelle 'logs' si creano da sole (ogni riga fa 'mkdir -p <logs> && ...').
-# Ogni script fa download + parse e, a elaborazione riuscita, CANCELLA i file grezzi (-c yes).
+# Ogni script fa download + parse e, a elaborazione riuscita, CANCELLA i file grezzi.
 # NB: nel crontab il carattere '%' va sempre escapato come '\%'.
 #
 # CADENZE (24 ore, minuti sfalsati per non sovrapporre i run):

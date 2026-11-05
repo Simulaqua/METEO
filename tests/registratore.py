@@ -14,10 +14,7 @@ import base64, glob, gzip, hashlib, itertools, json, os, shutil, subprocess, sys
 
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ciò che serve a uno script di scarico per girare: gli script e la configurazione dei dati, niente dati
-PROJECT_FILES = ['comune.py', 'dati_*.py',
-                 'VEN/dati_veneto.py', 'FVG/dati_fvg.py', 'TN/dati_trentino.py', 'BZ/dati_altoadige.py',
-                 'LOM/dati_lombardia.py', 'ER/dati_emilia_romagna.py',
-                 '*/zero_idrometrici.json', 'FVG/stazioni_coords.csv']
+PROJECT_FILES = ['comune.py', 'dati_*.py', '*/zero_idrometrici.json', 'FVG/stazioni_coords.csv']
 MISSING = 'risposta non registrata'
 MISSING_EXIT = 3        # codice di uscita di un giro in cui è mancata una risposta
 
@@ -76,7 +73,7 @@ def replay_twice(run_dir, script, args):
 
 def folders(project, files):
     """Le cartelle dei file scritti o cambiati e quelle vuote, con le cartelle che le contengono, in ordine.
-    Non quelle che hanno solo i file copiati dal progetto: sparirebbero quando uno script lascia la sua regione."""
+    Non quelle che hanno solo i file copiati dal progetto: dipendono dalla copia, non dallo script."""
     found = {os.path.dirname(name) for name in files}
     for root, dirs, names in os.walk(project):
         if root != project and not dirs and not names:
