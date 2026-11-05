@@ -12,79 +12,51 @@
 #
 # Uso:  python3 climatology.py -r all | -r VEN   [--site-dir site]
 
-import os, sys, json, glob, gzip, argparse, datetime
+import argparse
+import os
+import sys
+
+import comune
 import quality                      # sentinelle (-999...) e valori impossibili: scartati in lettura
 
-_BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 
-def _f(v):
-    try:
-        x = float(v); return None if x != x else x
-    except (TypeError, ValueError):
-        return None
-
-def jload(fn):
-    try:
-        op = gzip.open if fn.endswith('.gz') else open
-        with op(fn, 'rt', encoding='utf-8') as fp:
-            text = fp.read()
-        return json.loads(text) if text.strip() else {}
-    except (ValueError, OSError):
-        return {}
-
-# ---- accumulo STREAMING per stazione/giorno (mai tutti i valori in RAM: solo min/max/somma/conteggio) ----
-def _scan_temp(parse_dir):
-    ''' {scode: {'YYYYMMDD': [tmin, tmax, tsum, tcnt]}} leggendo TEMP file per file. '''
-    vdir = os.path.join(parse_dir, 'TEMP'); agg = {}
-    if not os.path.isdir(vdir):
-        return agg
-    for fn in sorted(glob.glob(os.path.join(vdir, 'TEMP-*.json')) +
-                     glob.glob(os.path.join(vdir, 'TEMP-*.json.gz'))):
-        content = jload(fn)
-        for sc, rec in content.items():
-            m = rec.get('MISURE', {})
-            per = agg.setdefault(sc, {})
-            for ist, v in zip(m.get('ISTANTE', []), m.get('VALORE', m.get('VM', []))):
-                fv = _f(v)
-                if fv is None or not quality.valid('TEMP', fv):
+def scan(parse_dir, var, region):
+    ''' Legge un file al giorno di <parse_dir>/<var>, dal più vecchio, senza tenere in memoria i valori:
+    TEMP -> {scode: {giorno: [min, max, somma, conteggio]}}, PREC -> {scode: {giorno: somma}}. '''
+    key = comune.value_key(region)
+    agg = {}
+    for path in comune.day_files(os.path.join(parse_dir, var), var).values():
+        for scode, rec in comune.load_json(path).items():
+            misure = rec.get('MISURE', {})
+            per_day = agg.setdefault(scode, {})
+            for istante, v in zip(misure.get('ISTANTE', []), misure.get(key, [])):
+                value = comune.to_float(v)
+                if value is None or not quality.valid(var, value):
                     continue
-                day = str(ist)[:8]; a = per.get(day)
-                if a is None:
-                    per[day] = [fv, fv, fv, 1]
+                day = str(istante)[:8]
+                if var == 'PREC':
+                    per_day[day] = per_day.get(day, 0.0) + value
+                elif day not in per_day:
+                    per_day[day] = [value, value, value, 1]
                 else:
-                    if fv < a[0]: a[0] = fv
-                    if fv > a[1]: a[1] = fv
-                    a[2] += fv; a[3] += 1
+                    a = per_day[day]
+                    a[0] = min(a[0], value)
+                    a[1] = max(a[1], value)
+                    a[2] += value
+                    a[3] += 1
     return agg
 
-def _scan_prec(parse_dir):
-    ''' {scode: {'YYYYMMDD': somma pioggia}} leggendo PREC file per file. '''
-    vdir = os.path.join(parse_dir, 'PREC'); agg = {}
-    if not os.path.isdir(vdir):
-        return agg
-    for fn in sorted(glob.glob(os.path.join(vdir, 'PREC-*.json')) +
-                     glob.glob(os.path.join(vdir, 'PREC-*.json.gz'))):
-        content = jload(fn)
-        for sc, rec in content.items():
-            m = rec.get('MISURE', {})
-            per = agg.setdefault(sc, {})
-            for ist, v in zip(m.get('ISTANTE', []), m.get('VALORE', m.get('VM', []))):
-                fv = _f(v)
-                if fv is not None and quality.valid('PREC', fv):
-                    day = str(ist)[:8]; per[day] = per.get(day, 0.0) + fv
-    return agg
 
 def _month_mean(d):
     return round(sum(d) / len(d), 2) if d else None
 
 def climate_region(region, parse_dir, out_dir):
-    tday = _scan_temp(parse_dir)                  # {scode: {day: [tmin,tmax,tsum,tcnt]}}
-    pday = _scan_prec(parse_dir)                  # {scode: {day: somma pioggia}}
-    staz = jload(os.path.join(parse_dir, 'stazioni.json'))
-    scodes = set(tday) | set(pday)
+    tday = scan(parse_dir, 'TEMP', region)        # {scode: {day: [tmin,tmax,tsum,tcnt]}}
+    pday = scan(parse_dir, 'PREC', region)        # {scode: {day: somma pioggia}}
+    staz = comune.load_json(os.path.join(parse_dir, 'stazioni.json'))
     result = {}
-    for sc in scodes:
-        meta = stax = staz.get(sc, {})
+    for sc in set(tday) | set(pday):              # l'ordine delle stazioni in climate.json è quello di questo set
+        stax = staz.get(sc, {})
         tdays = tday.get(sc, {})                  # day -> [tmin,tmax,tsum,tcnt]
         pdays = pday.get(sc, {})                  # day -> somma
         # aggregati giornalieri
@@ -96,7 +68,7 @@ def climate_region(region, parse_dir, out_dir):
         if not dstats and not drain:
             continue
         alldays = sorted(set(dstats) | set(drain))
-        entry = {'nome': stax.get('NOME'), 'lat': _f(stax.get('LAT')), 'lon': _f(stax.get('LON')),
+        entry = {'nome': stax.get('NOME'), 'lat': comune.to_float(stax.get('LAT')), 'lon': comune.to_float(stax.get('LON')),
                  'period': {'from': alldays[0], 'to': alldays[-1], 'days': len(alldays)}}
         # --- climatologia mensile (media pluriennale) ---
         mon = {}                                  # '01'..'12' -> {tmin:[],tmax:[],tmean:[], prain: {anno: tot}}
@@ -148,16 +120,10 @@ def climate_region(region, parse_dir, out_dir):
             entry['indices'] = idx
         result[sc] = entry
     if result:
-        os.makedirs(out_dir, exist_ok=True)
-        tmp = os.path.join(out_dir, 'climate.json') + '.tmp'
-        with open(tmp, 'w', encoding='utf-8') as fp:
-            json.dump(result, fp, ensure_ascii=False, separators=(',', ':'))
-            fp.flush(); os.fsync(fp.fileno())
-        os.replace(tmp, os.path.join(out_dir, 'climate.json'))
+        comune.save_json(result, os.path.join(out_dir, 'climate.json'))
     print('[%s] climatologia: %d stazioni' % (region, len(result)))
     return len(result)
 
-REGIONS = None   # riempita dal main leggendo le cartelle presenti
 
 def main():
     ap = argparse.ArgumentParser(description='Statistiche/indici climatici dall\'archivio completo.')
@@ -165,18 +131,19 @@ def main():
     ap.add_argument('--site-dir', default='site')
     args = ap.parse_args()
     # regioni = sottocartelle con data-parsed
-    all_reg = sorted(d for d in os.listdir(_BASE_DIR)
-                     if os.path.isdir(os.path.join(_BASE_DIR, d, 'data-parsed')))
+    all_reg = sorted(d for d in os.listdir(comune.BASE)
+                     if os.path.isdir(os.path.join(comune.BASE, d, 'data-parsed')))
     regions = all_reg if args.region.lower() == 'all' else [r.strip() for r in args.region.split(',')]
     for reg in regions:
-        parse_dir = os.path.join(_BASE_DIR, reg, 'data-parsed')
+        parse_dir = os.path.join(comune.BASE, reg, 'data-parsed')
         if not os.path.isdir(parse_dir):
             print('SKIP ' + reg + ': niente data-parsed'); continue
-        out_dir = os.path.join(args.site_dir if os.path.isabs(args.site_dir) else os.path.join(_BASE_DIR, args.site_dir), reg)
+        out_dir = os.path.join(args.site_dir if os.path.isabs(args.site_dir) else os.path.join(comune.BASE, args.site_dir), reg)
         try:
             climate_region(reg, parse_dir, out_dir)
         except Exception as e:
             sys.stderr.write('[%s] ERRORE climatologia: %s\n' % (reg, e))
+
 
 if __name__ == '__main__':
     main()
