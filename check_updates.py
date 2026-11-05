@@ -25,7 +25,7 @@ LOG_FILE  = os.path.join(_BASE_DIR, 'tracking.log')
 
 REGIONS = {
     'VEN': 'dati_veneto.py',
-    'TN' : 'TN/dati_trentino.py',
+    'TN' : 'dati_trentino.py',
     'BZ' : 'BZ/dati_altoadige.py',
     'FVG': 'dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',
@@ -98,12 +98,11 @@ def scan_bz(m, sample):
 
 def scan_tn(m, sample):
     NS = m.NS
-    mapped = set()
-    for n in var_names(m):
-        c = getattr(m.variables, n)
-        mapped.add(c.value); mapped.update(getattr(c, 'extra', {}).values())
+    mapped = set(tag for section, item, tag, unit in m.VARIABLES.values())   # i tag dei valori letti dallo script
+    for extra in m.EXTRA.values():
+        mapped.update(extra.values())
     stations, codes = {}, []
-    raw = get(m.url_lista)
+    raw = get(m.LIST_URL)
     if raw:
         for a in ET.fromstring(raw).findall('mt:anagrafica', NS):
             code = a.find('mt:codice', NS); nome = a.find('mt:nome', NS)
@@ -113,7 +112,7 @@ def scan_tn(m, sample):
     smp = codes[:sample] if sample else codes
     nsuri = '{' + NS['mt'] + '}'
     def leaves(c):
-        raw = get(m.url_dati + c)
+        raw = get(m.STATION_URL + c)
         if not raw: return []
         try:
             out = []

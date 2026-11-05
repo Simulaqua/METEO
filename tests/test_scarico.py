@@ -9,11 +9,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
-# i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG recover.py ha solo il
-# percorso (la fonte non ha storico da recuperare): la prova controlla che lo script si carichi da lì
-READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': []}
+# i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG e TN recover.py ha solo
+# il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì
+READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': []}
 READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
-                         'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES']}
+                         'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES'],
+                         'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES']}
 
 
 def load_file(path):
@@ -97,6 +98,9 @@ class TestScarico(unittest.TestCase):
 
     def test_fvg(self):
         self.check_source('fvg', 'normale', 'dati_fvg.py', [])
+
+    def test_trentino(self):
+        self.check_source('trentino', 'normale', 'dati_trentino.py', [])
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si

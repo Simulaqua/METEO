@@ -28,7 +28,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 # TRENTINO - ogni 15 minuti, 24h
 # -------------------------------------------------------------------------------------------
-4,19,34,49 * * * * mkdir -p $BASE/TN/logs && $PYTHON $BASE/TN/dati_trentino.py >> $BASE/TN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+4,19,34,49 * * * * mkdir -p $BASE/TN/logs && $PYTHON $BASE/dati_trentino.py >> $BASE/TN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # VENETO (ARPAV) - ogni 30 minuti, 24h + run 'ieri' una volta (per i dati arrivati in ritardo)
