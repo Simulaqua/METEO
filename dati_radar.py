@@ -18,10 +18,12 @@
 # Uso:  python3 dati_radar.py [--out radar_out] [--no-push] [--remote URL]
 
 import argparse, glob, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time
-import urllib.request
 
 import numpy as np
+import requests
 from PIL import Image
+
+import comune
 
 _BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -323,15 +325,6 @@ def prune(out_dir, keep, key=PRODUCT):
     return removed
 
 
-def jsave(obj, fn):
-    ''' Scrittura JSON atomica (come gli altri script). '''
-    tmp = fn + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as fp:
-        json.dump(obj, fp, ensure_ascii=False, separators=(',', ':'))
-        fp.flush(); os.fsync(fp.fileno())
-    os.replace(tmp, fn)
-
-
 def write_manifest(out_dir, windows, grid, updated):
     ''' index.json letto dal sito: per ogni prodotto (nell'ordine del menu) metadati, palette e fotogrammi presenti.
         windows = {chiave: istanti della finestra}. products.SRI conserva i campi del rilascio 1. '''
@@ -345,37 +338,35 @@ def write_manifest(out_dir, windows, grid, updated):
                     'bounds': bounds, 'steps': p['steps'], 'colors': p['colors'], 'dots': p['dots'],
                     'frames': [t for t in windows[k] if os.path.exists(os.path.join(out_dir, frame_name(t, k)))]}
     m = {'v': 2, 'updated': int(updated), 'source': SOURCE, 'license': LICENSE, 'order': order, 'products': prods}
-    jsave(m, os.path.join(out_dir, 'index.json'))
+    comune.save_json(m, os.path.join(out_dir, 'index.json'))
     return m
 
 
 # --- rete -------------------------------------------------------------------------------------------------
+def post_json(url, body):
+    ''' POST JSON verso l'API DPC -> JSON. '''
+    headers = {'origin': ORIGIN, 'User-Agent': USER_AGENT}
+    r = requests.post(url, json=body, headers=headers, timeout=30)
+    r.raise_for_status()
+    return json.loads(r.content.decode('utf-8', 'replace'))
+
+
 def http_json(url, body=None):
     ''' GET (o POST JSON se body) verso l'API DPC -> JSON. '''
-    headers = {'origin': ORIGIN, 'User-Agent': USER_AGENT}
-    data = None
     if body is not None:
-        data = json.dumps(body).encode()
-        headers['content-type'] = 'application/json'
-    req = urllib.request.Request(url, data=data, headers=headers, method='POST' if data else 'GET')
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode('utf-8'))
+        return post_json(url, body)
+    r = comune.get(url, headers={'origin': ORIGIN, 'User-Agent': USER_AGENT}, timeout=30)
+    r.raise_for_status()
+    return json.loads(r.content.decode('utf-8', 'replace'))
 
 
 def http_bytes(url):
-    req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    r = comune.get(url, headers={'User-Agent': USER_AGENT}, timeout=60)
+    r.raise_for_status()
+    return r.content
 
 
 # --- un giro ------------------------------------------------------------------------------------------------
-def _close(e):
-    try:
-        e.close()                                   # HTTPError tiene aperta la risposta (socket)...
-    except Exception:                               # ...ma su Python 3.7 senza corpo non ha close()
-        pass
-
-
 def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, products=None):
     ''' Aggiorna out_dir alle ultime 6 ore di ogni prodotto. A turno fra i prodotti, prima il fotogramma mancante piu'
         recente di ciascuno; il primo si prova sempre, gli altri finche' resta budget (la cadenza e' 5 min). Un
@@ -389,7 +380,7 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
             if p['api'] not in lasts:                 # CUM48 usa l'ultimo istante di CUM24
                 lasts[p['api']] = fetch_json(API + '/findLastProductByType?type=' + p['api'])['lastProducts'][0]['time']
         except Exception as e:
-            errors.append('%s: ultimo istante non disponibile (%s)' % (p['key'], e)); _close(e)
+            errors.append('%s: ultimo istante non disponibile (%s)' % (p['key'], e))
             continue
         windows[p['key']] = window(p, lasts[p['api']])
         os.makedirs(os.path.join(out_dir, p['key']), exist_ok=True)
@@ -423,7 +414,7 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
                 vals = apply_bounds(combine_sum(vals, frame_values(tif(p['api'], t - p['combine']), luts[p['grid']], grid, p)), p)
             png = render_values(vals, p)
         except Exception as e:                        # rete, 404, GeoTIFF inatteso: si riprova al prossimo giro
-            errors.append('%s: %s' % (frame_name(t, p['key']), e)); _close(e)
+            errors.append('%s: %s' % (frame_name(t, p['key']), e))
             continue
         fn = os.path.join(out_dir, frame_name(t, p['key']))
         with open(fn + '.tmp', 'wb') as fp:
@@ -507,12 +498,12 @@ def publish_if_changed(out_dir, remote, branch=BRANCH):
     sent = publish(out_dir, remote, branch, squash=squash)
     if not sent:
         state['fails'] = state.get('fails', 0) + 1
-        jsave(state, state_fn)
+        comune.save_json(state, state_fn)
         return 'errore'
     state.update(pushed=digest, fails=0, sent=sent)
     if squash:
         state['squashed'] = today
-    jsave(state, state_fn)
+    comune.save_json(state, state_fn)
     return 'si'
 
 

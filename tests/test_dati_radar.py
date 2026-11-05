@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import comune
 import dati_radar as dr
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'SRI_202610220820.tif')
@@ -660,7 +661,7 @@ class TestPushIncrementale(unittest.TestCase):
         dr.publish_if_changed(self.out, self.remote)
         st = json.load(open(os.path.join(self.out, '.state.json')))
         st['squashed'] = '2000-01-01'                  # ultima compattazione "ieri"
-        dr.jsave(st, os.path.join(self.out, '.state.json'))
+        comune.save_json(st,os.path.join(self.out, '.state.json'))
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             self.assertEqual(dr.publish_if_changed(self.out, self.remote), 'si')
@@ -696,3 +697,44 @@ class TestInviati(unittest.TestCase):
             self.assertRegex(sent, r'^[\d.]+ (bytes|KiB|MiB|GiB)$')
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestChiamateRete(unittest.TestCase):
+    ''' Le chiamate verso il DPC: header (origin e User-Agent del progetto), corpo JSON, timeout, errori di stato. '''
+
+    @staticmethod
+    def risposta(status, content=b'{"url":"https://example.invalid/x"}'):
+        r = mock.Mock()
+        r.status_code, r.content = status, content
+        r.raise_for_status.side_effect = None if status < 400 else dr.requests.HTTPError('stato %d' % status)
+        return r
+
+    def test_post_manda_origin_user_agent_e_corpo_json(self):
+        with mock.patch('requests.post', return_value=self.risposta(200)) as post:
+            out = dr.post_json(dr.API + '/downloadProduct', {'productType': 'SRI', 'productDate': 1000})
+        self.assertEqual(out, {'url': 'https://example.invalid/x'})
+        args, kw = post.call_args
+        self.assertEqual(args[0], dr.API + '/downloadProduct')
+        self.assertEqual(kw['json'], {'productType': 'SRI', 'productDate': 1000})
+        self.assertEqual(kw['headers'], {'origin': dr.ORIGIN, 'User-Agent': dr.USER_AGENT})
+        self.assertEqual(kw['timeout'], 30)
+
+    def test_post_con_errore_di_stato_solleva(self):
+        with mock.patch('requests.post', return_value=self.risposta(404)):
+            with self.assertRaises(dr.requests.RequestException):
+                dr.post_json(dr.API + '/downloadProduct', {})
+
+    def test_get_json_e_bytes_usano_comune_get_con_i_loro_header(self):
+        with mock.patch('requests.get', return_value=self.risposta(200, b'{"lastProducts":[]}')) as get:
+            self.assertEqual(dr.http_json(dr.API + '/findLastProductByType?type=SRI'), {'lastProducts': []})
+        self.assertEqual(get.call_args[1]['headers'], {'origin': dr.ORIGIN, 'User-Agent': dr.USER_AGENT})
+        self.assertEqual(get.call_args[1]['timeout'], 30)
+        with mock.patch('requests.get', return_value=self.risposta(200, b'II*\x00')) as get:
+            self.assertEqual(dr.http_bytes('https://example.invalid/f.tif'), b'II*\x00')
+        self.assertEqual(get.call_args[1]['headers'], {'User-Agent': dr.USER_AGENT})
+        self.assertEqual(get.call_args[1]['timeout'], 60)
+
+    def test_get_con_errore_di_stato_solleva(self):
+        with mock.patch('requests.get', return_value=self.risposta(404)):
+            with self.assertRaises(dr.requests.RequestException):
+                dr.http_bytes('https://example.invalid/f.tif')
