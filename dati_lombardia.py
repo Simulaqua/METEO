@@ -77,7 +77,8 @@ def fetch_json(url, params, timeout, debug=False):
             print('   %s -> riprovo fra %d s' % (detail, wait), flush=True)
             time.sleep(wait)
         try:
-            r = comune.get(url, params=params, timeout=timeout)
+            # non comune.get: contro il portale che limita le chiamate i tentativi sono solo quelli di questo ciclo
+            r = requests.get(url, params=params, headers={'User-Agent': comune.USER_AGENT}, timeout=timeout)
         except requests.RequestException as error:
             detail = 'rete: ' + str(error)[:100]
             continue
