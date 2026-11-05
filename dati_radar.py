@@ -351,8 +351,8 @@ def post_json(url, body):
     return json.loads(r.content.decode('utf-8', 'replace'))
 
 
-def http_json(url, body=None):
-    ''' GET (o POST JSON se body) verso l'API DPC -> JSON. '''
+def dpc_json(url, body=None):
+    ''' La chiamata JSON all'API DPC: GET, o POST se c'e' body. '''
     if body is not None:
         return post_json(url, body)
     r = comune.get(url, headers={'origin': ORIGIN, 'User-Agent': USER_AGENT}, timeout=30)
@@ -507,7 +507,7 @@ def publish_if_changed(out_dir, remote, branch=BRANCH):
     return 'si'
 
 
-def main(argv=None, fetch_json=http_json, fetch_bytes=http_bytes, products=None):
+def main(argv=None, fetch_json=dpc_json, fetch_bytes=http_bytes, products=None):
     ap = argparse.ArgumentParser(description='Radar DPC: ultime 6 ore dei prodotti in PNG + pubblicazione sul branch radar')
     ap.add_argument('--out', default=os.path.join(_BASE_DIR, 'radar_out'), help='cartella di lavoro')
     ap.add_argument('--no-push', action='store_true', help='non pubblicare su GitHub (prove)')

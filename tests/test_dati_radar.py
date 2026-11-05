@@ -726,7 +726,7 @@ class TestChiamateRete(unittest.TestCase):
 
     def test_get_json_e_bytes_usano_comune_get_con_i_loro_header(self):
         with mock.patch('requests.get', return_value=self.risposta(200, b'{"lastProducts":[]}')) as get:
-            self.assertEqual(dr.http_json(dr.API + '/findLastProductByType?type=SRI'), {'lastProducts': []})
+            self.assertEqual(dr.dpc_json(dr.API + '/findLastProductByType?type=SRI'), {'lastProducts': []})
         self.assertEqual(get.call_args[1]['headers'], {'origin': dr.ORIGIN, 'User-Agent': dr.USER_AGENT})
         self.assertEqual(get.call_args[1]['timeout'], 30)
         with mock.patch('requests.get', return_value=self.risposta(200, b'II*\x00')) as get:
