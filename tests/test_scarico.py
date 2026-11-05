@@ -149,6 +149,16 @@ class TestScarico(unittest.TestCase):
     def test_emilia_romagna(self):
         self.check_source('emilia_romagna', 'normale', 'dati_emilia_romagna.py', [])
 
+    def test_emilia_romagna_quarto_d_ora(self):
+        # l'istante del giro è il campione di riferimento arrotondato per difetto al quarto d'ora: quasi tutte le
+        # stazioni misurano ogni 15 minuti e a un istante di 5 minuti ne rispondono pochissime
+        er = load_file(os.path.join(registratore.PROJECT, 'dati_emilia_romagna.py'))
+        base = 1762335000000          # 2025-11-05 09:30:00 UTC, su un quarto d'ora
+        minute = 60 * 1000
+        for offset, expected in [(0, 0), (5 * minute, 0), (14 * minute + 59999, 0), (15 * minute, 15 * minute),
+                                 (35 * minute, 30 * minute)]:
+            self.assertEqual(er.quarter_hour(base + offset), base + expected, offset)
+
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si
         # muove solo dopo un buco nei dati, quindi un nome sparito non si vedrebbe subito

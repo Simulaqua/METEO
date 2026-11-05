@@ -4,10 +4,10 @@
 #   API_URL + get-time-series             la serie di una stazione: [{'t': epoch in ms UTC, 'v': valore}, ...]
 #   API_URL + get-sensor-values-no-time   tutte le stazioni di una variabile con il valore a un istante, il nome e le
 #                                         coordinate (gradi WGS84 per 100000)
-# Ogni giro prende come istante l'ultimo campione del livello di REF_STATION, scarica in ER/data-downloaded/dati/ il
-# valore di ogni stazione a quell'istante per ogni variabile, lo aggiunge al file del giorno
-# (ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare, istante arrotondato ai 15 minuti) e poi cancella i file
-# scaricati: la serie cresce di un punto a giro, per questo il cron lo lancia ogni 15 minuti.
+# Ogni giro prende come istante l'ultimo campione del livello di REF_STATION arrotondato per difetto al quarto d'ora,
+# scarica in ER/data-downloaded/dati/ il valore di ogni stazione a quell'istante per ogni variabile, lo
+# aggiunge al file del giorno (ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) e poi cancella i file scaricati:
+# la serie cresce di un punto a giro, per questo il cron lo lancia ogni 15 minuti.
 # Uso: python3 dati_emilia_romagna.py [--debug]
 import argparse
 import datetime
@@ -51,9 +51,15 @@ def call(endpoint, params, timeout, debug=False):
     return r
 
 
+def quarter_hour(ms):
+    """Epoch in ms arrotondato per difetto al quarto d'ora: quasi tutte le stazioni misurano ogni 15 minuti, a un
+    istante di 5 minuti ne risponderebbero pochissime."""
+    return ms - ms % (15 * 60 * 1000)
+
+
 def reference_time(debug=False):
     """L'istante del giro (epoch in ms UTC): l'ultimo campione del livello di REF_STATION, o l'ora attuale se la serie è
-    vuota o non si legge. Un errore di rete o di HTTP ferma il giro."""
+    vuota o non si legge, arrotondato per difetto al quarto d'ora. Un errore di rete o di HTTP ferma il giro."""
     params = {'stazione': REF_STATION, 'variabile': VARIABLES['LIVIDRO'][0]}
     try:
         r = call('get-time-series', params, 60, debug)
@@ -62,10 +68,10 @@ def reference_time(debug=False):
     try:
         series = json.loads(r.content.decode('utf-8', 'replace'))
         if series:
-            return int(series[-1]['t'])
+            return quarter_hour(int(series[-1]['t']))
     except Exception:                       # non JSON, o una forma diversa da [{'t': ...}, ...]
         pass
-    return int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+    return quarter_hour(int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000))
 
 
 def download(debug=False):
