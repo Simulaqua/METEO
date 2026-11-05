@@ -7,6 +7,8 @@
 # pioggia (PREC24/PREC48 fino a -9990 mm), i grafici (asse y a -999) e i record climatologici.
 # Usato da export_web.py (prima delle derivate), climatology.py e dagli aggregati dello storico lungo.
 
+from comune import to_float
+
 SENTINEL_LOW  = -990.0       # nessuna grandezza ha valori legittimi <= -990 (sentinelle -999, -9999)
 SENTINEL_HIGH = 99990.0      # ne' >= 99990 (sentinelle 99999)
 
@@ -21,21 +23,22 @@ LIMITS = {
     'RADSOL': (-50.0, 10000.0),
 }
 
-def to_float(v):
-    try:
-        x = float(v)
-        return None if x != x else x
-    except (TypeError, ValueError):
-        return None
+def _limits(var):
+    lim = LIMITS.get(var)
+    return lim if lim else (SENTINEL_LOW, SENTINEL_HIGH)
 
-def valid(var, x):
-    ''' x (float) e' plausibile per la variabile? None/NaN/sentinella/fuori limiti -> False. '''
-    if x is None or x != x:
+def _plausible(x, lo, hi):
+    ''' x (float o None) fuori dalle sentinelle e dentro (lo, hi)? '''
+    if x is None:
         return False
     if x <= SENTINEL_LOW or x >= SENTINEL_HIGH:
         return False
-    lim = LIMITS.get(var)
-    return lim is None or (lim[0] <= x <= lim[1])
+    return lo <= x <= hi
+
+def valid(var, x):
+    ''' x e' plausibile per la variabile? Non numerico/NaN/sentinella/fuori limiti -> False. '''
+    lo, hi = _limits(var)
+    return _plausible(to_float(x), lo, hi)
 
 def drop_zero_glitches(per_var):
     ''' Guasto del datalogger: UMID=0% e' impossibile all'aperto; se allo stesso istante anche TEMP e' esattamente 0
@@ -54,21 +57,12 @@ def drop_zero_glitches(per_var):
     return len(zeros)
 
 def checker(var):
-    ''' Funzione veloce ok(valore_grezzo) per un'intera variabile (usata nei cicli caldi dell'export).
-        Un valore NON numerico (es. '>>' di ARPAV = "dato non disponibile": 32000 letture su 150 stazioni
-        venete) non e' un dato: viene scartato. Tutte le grandezze esportate sono numeriche. '''
-    lim = LIMITS.get(var)
-    lo, hi = (lim if lim else (SENTINEL_LOW, SENTINEL_HIGH))
+    ''' Funzione veloce ok(valore_grezzo) per un'intera variabile (usata nei cicli caldi dell'export): stessa
+        regola di valid(), con i limiti presi una volta. Un valore NON numerico (es. '>>' di ARPAV = "dato non
+        disponibile": 32000 letture su 150 stazioni venete) non e' un dato: viene scartato. '''
+    lo, hi = _limits(var)
     def ok(v):
         if v is None or v == '':
             return True                      # i vuoti li gestisce il chiamante
-        try:
-            x = float(v)
-        except (TypeError, ValueError):
-            return False
-        if x != x:
-            return False
-        if x <= SENTINEL_LOW or x >= SENTINEL_HIGH:
-            return False
-        return lo <= x <= hi
+        return _plausible(to_float(v), lo, hi)
     return ok

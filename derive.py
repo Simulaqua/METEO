@@ -15,9 +15,12 @@
 #           FAO-56 dove ci sono tutti gli input T/umidita'/radiazione/vento, altrimenti Hargreaves).
 # derive_station(per_var, meta) -> dict {sigla_derivata: {istante: valore}} da unire a per_var.
 
+import datetime
 import math
 
-# --- unita' e categoria delle grandezze derivate/indici (per il front-end) -----------------------
+from comune import to_float
+
+# --- unita' delle grandezze derivate/indici (per il front-end) ------------------------------------
 DERIVED_UM = {
     'TDEW': '°C', 'TAPP': '°C', 'VPD': 'kPa', 'QSPEC': 'g/kg', 'PSLM': 'hPa',
     'UWND': 'm/s', 'VWND': 'm/s',
@@ -25,34 +28,30 @@ DERIVED_UM = {
     'PREC1': 'mm', 'PREC3': 'mm', 'PREC6': 'mm', 'PREC12': 'mm', 'PREC24': 'mm', 'PREC48': 'mm',
     'GDD': '°C·g', 'HDD': '°C·g', 'CDD': '°C·g', 'ET0': 'mm',
 }
-# categoria: 'derivate' (fase 1) | 'indici' (fasi 4 e 2)
-DERIVED_CAT = {
-    'TDEW': 'derivate', 'TAPP': 'derivate', 'VPD': 'derivate', 'QSPEC': 'derivate',
-    'PSLM': 'derivate', 'UWND': 'derivate', 'VWND': 'derivate',
-    'EAQI': 'indici', 'O3_8H': 'indici',
-    'PREC1': 'indici', 'PREC3': 'indici', 'PREC6': 'indici', 'PREC12': 'indici', 'PREC24': 'indici', 'PREC48': 'indici',
-    'GDD': 'indici', 'HDD': 'indici', 'CDD': 'indici', 'ET0': 'indici',
-}
 # finestre (ore) delle cumulate di pioggia -> sigla
 ACC_WINDOWS = ((1, 'PREC1'), (3, 'PREC3'), (6, 'PREC6'), (12, 'PREC12'), (24, 'PREC24'), (48, 'PREC48'))
 ACC_MIN_COVER = 0.7        # frazione minima di letture attese nella finestra perche' l'accumulo sia valido
-
-def _f(v):
-    try:
-        x = float(v); return None if x != x else x
-    except (TypeError, ValueError):
-        return None
 
 def _es(T):
     ''' pressione di vapore saturo (kPa), T in gradi C (Tetens/FAO-56). '''
     return 0.6108 * math.exp(17.27 * T / (T + 237.3))
 
-def _station_alt(meta):
-    for k in ('QUOTA', 'ALT', 'quota', 'quote', 'ALTITUDE', 'altitudine'):
-        a = _f(meta.get(k)) if isinstance(meta, dict) else None
+def _first_number(meta, keys):
+    ''' Primo valore numerico di meta sotto una delle chiavi (None se meta non e' un dict o non c'e'). '''
+    if not isinstance(meta, dict):
+        return None
+    for k in keys:
+        a = to_float(meta.get(k))
         if a is not None:
             return a
     return None
+
+ALT_KEYS = ('QUOTA', 'ALT', 'quota', 'quote', 'ALTITUDE', 'altitudine')
+LAT_KEYS = ('LAT', 'Y', 'lat', 'latitude', 'Latitude')
+
+def put(out, name, ist, val):
+    if val is not None:
+        out.setdefault(name, {})[ist] = val
 
 #===========================================================================================================
 # FASE 1 - grandezze derivate istantanee (per istante, dove esistono gli input concomitanti)
@@ -61,51 +60,48 @@ def _derive_instant(per_var, meta):
     out = {}
     T  = per_var.get('TEMP', {}); RH = per_var.get('UMID', {})
     WS = per_var.get('VVENTO', {}); WD = per_var.get('DVENTO', {}); P = per_var.get('PRESS', {})
-    alt = _station_alt(meta)
+    alt = _first_number(meta, ALT_KEYS)
 
-    def put(name, ist, val):
-        if val is not None:
-            out.setdefault(name, {})[ist] = val
 
     # punto di rugiada (Magnus) e VPD: servono T + RH
     for ist in T:
-        t = _f(T[ist]); rh = _f(RH.get(ist))
+        t = to_float(T[ist]); rh = to_float(RH.get(ist))
         if t is None or rh is None or rh <= 0:
             continue
         rh = min(rh, 100.0)
         g = math.log(rh / 100.0) + 17.62 * t / (243.12 + t)
-        put('TDEW', ist, round(243.12 * g / (17.62 - g), 1))
+        put(out, 'TDEW', ist, round(243.12 * g / (17.62 - g), 1))
         es = _es(t)
-        put('VPD', ist, round(es * (1 - rh / 100.0), 3))
+        put(out, 'VPD', ist, round(es * (1 - rh / 100.0), 3))
         # temperatura percepita (Australian BOM apparent temperature): T + RH + vento
-        ws = _f(WS.get(ist))
+        ws = to_float(WS.get(ist))
         if ws is not None:
             e = (rh / 100.0) * 6.105 * math.exp(17.27 * t / (237.7 + t))   # hPa
-            put('TAPP', ist, round(t + 0.33 * e - 0.70 * ws - 4.00, 1))
+            put(out, 'TAPP', ist, round(t + 0.33 * e - 0.70 * ws - 4.00, 1))
         # umidita' specifica: T + RH + P
-        p = _f(P.get(ist))
+        p = to_float(P.get(ist))
         if p is not None:
             e_hpa = (rh / 100.0) * 6.112 * math.exp(17.62 * t / (243.12 + t))
-            put('QSPEC', ist, round(622.0 * e_hpa / (p - 0.378 * e_hpa), 2))
+            put(out, 'QSPEC', ist, round(622.0 * e_hpa / (p - 0.378 * e_hpa), 2))
 
     # pressione ridotta al livello del mare: P + quota (+ T per la riduzione)
     if alt is not None:
         for ist in P:
-            p = _f(P[ist]); t = _f(T.get(ist))
+            p = to_float(P[ist]); t = to_float(T.get(ist))
             if p is None:
                 continue
             tk = (t if t is not None else 15.0) + 273.15
             p0 = p * math.pow(1 - 0.0065 * alt / (tk + 0.0065 * alt), -5.257)
-            put('PSLM', ist, round(p0, 1))
+            put(out, 'PSLM', ist, round(p0, 1))
 
     # componenti del vento (convenzione meteo: direzione = provenienza)
     for ist in WS:
-        ws = _f(WS[ist]); wd = _f(WD.get(ist))
+        ws = to_float(WS[ist]); wd = to_float(WD.get(ist))
         if ws is None or wd is None:
             continue
         th = math.radians(wd)
-        put('UWND', ist, round(-ws * math.sin(th), 2))
-        put('VWND', ist, round(-ws * math.cos(th), 2))
+        put(out, 'UWND', ist, round(-ws * math.sin(th), 2))
+        put(out, 'VWND', ist, round(-ws * math.cos(th), 2))
     return out
 
 #===========================================================================================================
@@ -129,9 +125,6 @@ def _eaqi_subindex(poll, val):
 
 def _derive_airquality(per_var):
     out = {}
-    def put(name, ist, val):
-        if val is not None:
-            out.setdefault(name, {})[ist] = val
     # EAQI = peggior sotto-indice fra gli inquinanti disponibili, per istante.
     # NB: l'EAQI ufficiale usa medie specifiche (PM su 24h, gas orari); qui e' applicato ai valori
     #     riportati -> indice "near-real-time" indicativo (vedi report).
@@ -141,36 +134,25 @@ def _derive_airquality(per_var):
     for ist in ists:
         worst = None
         for p in _EAQI_BANDS:
-            si = _eaqi_subindex(p, _f(per_var.get(p, {}).get(ist)))
+            si = _eaqi_subindex(p, to_float(per_var.get(p, {}).get(ist)))
             if si is not None:
                 worst = si if worst is None else max(worst, si)
-        put('EAQI', ist, worst)
+        put(out, 'EAQI', ist, worst)
     # O3 media mobile 8 ore (indice classico per l'ozono)
     o3 = per_var.get('O3', {})
     if o3:
         keys = sorted(o3.keys())
-        vals = [(_f(o3[k]), k) for k in keys]
         # finestra 8h = 480 min; gli istanti sono 'YYYYMMDDHHMM'
-        import datetime
-        def toepoch(s):
-            return datetime.datetime.strptime(s, '%Y%m%d%H%M')
-        ep = [(toepoch(k), _f(o3[k]), k) for k in keys]
+        ep = [(datetime.datetime.strptime(k, '%Y%m%d%H%M'), to_float(o3[k]), k) for k in keys]
         for i in range(len(ep)):
             t_i = ep[i][0]; window = [v for (t, v, k) in ep if v is not None and 0 <= (t_i - t).total_seconds() <= 8*3600]
             if len(window) >= 4:                                  # almeno 4 valori nelle 8h
-                put('O3_8H', ep[i][2], round(sum(window) / len(window), 1))
+                put(out, 'O3_8H', ep[i][2], round(sum(window) / len(window), 1))
     return out
 
 #===========================================================================================================
 # FASE 2 - accumuli e indici cumulati (pioggia 24/48h, gradi-giorno, ET0 giornaliera)
 #===========================================================================================================
-def _lat_of(meta):
-    for k in ('LAT', 'Y', 'lat', 'latitude', 'Latitude'):
-        a = _f(meta.get(k)) if isinstance(meta, dict) else None
-        if a is not None:
-            return a
-    return None
-
 def _Ra(lat_deg, doy):
     ''' radiazione extraterrestre giornaliera Ra (MJ/m2/giorno), FAO-56. '''
     phi = math.radians(lat_deg)
@@ -203,7 +185,7 @@ def _daily_agg(per_var, varname):
     ''' {day: [min, max, sum, cnt]} per una variabile. '''
     agg = {}
     for ist, v in per_var.get(varname, {}).items():
-        fv = _f(v)
+        fv = to_float(v)
         if fv is None:
             continue
         d = ist[:8]; a = agg.get(d)
@@ -216,17 +198,13 @@ def _daily_agg(per_var, varname):
     return agg
 
 def _derive_accumulations(per_var, meta):
-    import datetime
     out = {}
-    def put(name, ist, val):
-        if val is not None:
-            out.setdefault(name, {})[ist] = val
 
     # PREC1/3/6/12/24/48: pioggia cumulata mobile (PREC assunta = mm per intervallo di misura che TERMINA
     # all'istante). Finestra (t-W, t]: la lettura esattamente a t-W NON conta (prima contava: con dati a
     # 10 min la PREC1 sarebbe stata la somma di 7 letture invece di 6).
     PR = per_var.get('PREC', {})
-    items = sorted((ist, _f(v)) for ist, v in PR.items() if _f(v) is not None)  # ordine cronologico
+    items = sorted((ist, to_float(v)) for ist, v in PR.items() if to_float(v) is not None)  # ordine cronologico
     if items:
         ep = [(datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, v) for ist, v in items]
         # cadenza tipica della stazione (mediana dei passi): una finestra e' valida solo se e' quasi piena (ACC_MIN_COVER)
@@ -246,7 +224,7 @@ def _derive_accumulations(per_var, meta):
                 if right - left + 1 < need:
                     continue
                 v = round(run, 1)
-                put(name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0": la somma scorrevole lascia residui ~1e-16
+                put(out, name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0": la somma scorrevole lascia residui ~1e-16
 
     # gradi-giorno (GDD base 10, HDD base 18, CDD base 21) + ET0: valori GIORNALIERI, marcati alle
     # 12:00 del giorno. ET0 con Penman-Monteith FAO-56 dove ci sono TUTTI gli input concomitanti
@@ -256,16 +234,16 @@ def _derive_accumulations(per_var, meta):
     RAd = _daily_agg(per_var, 'RADSOL')
     Wd = _daily_agg(per_var, 'VVENTO')
     Pd = _daily_agg(per_var, 'PRESS')
-    lat = _lat_of(meta)
-    z = _station_alt(meta)
+    lat = _first_number(meta, LAT_KEYS)
+    z = _first_number(meta, ALT_KEYS)
     for day, a in Td.items():
         if a[3] < 6:
             continue
         tmin, tmax, tmean = a[0], a[1], a[2] / a[3]
         stamp = day + '1200'
-        put('GDD', stamp, round(max(0.0, (tmax + tmin) / 2 - 10.0), 1))
-        put('HDD', stamp, round(max(0.0, 18.0 - tmean), 1))
-        put('CDD', stamp, round(max(0.0, tmean - 21.0), 1))
+        put(out, 'GDD', stamp, round(max(0.0, (tmax + tmin) / 2 - 10.0), 1))
+        put(out, 'HDD', stamp, round(max(0.0, 18.0 - tmean), 1))
+        put(out, 'CDD', stamp, round(max(0.0, tmean - 21.0), 1))
         if lat is None:
             continue
         doy = datetime.datetime.strptime(day, '%Y%m%d').timetuple().tm_yday
@@ -283,7 +261,7 @@ def _derive_accumulations(per_var, meta):
         if et0 is None and tmax > tmin:
             et0 = 0.0023 * (tmean + 17.8) * math.sqrt(tmax - tmin) * _Ra(lat, doy) * 0.408
         if et0 is not None:
-            put('ET0', stamp, round(max(0.0, et0), 2))
+            put(out, 'ET0', stamp, round(max(0.0, et0), 2))
     return out
 
 #===========================================================================================================
