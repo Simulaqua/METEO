@@ -72,3 +72,29 @@ at the quarter hour).
   (report the number), the file instant is on the quarter hour, the station list is plausible (~500+).
 - [ ] **Step 5: run** the whole suite; commit "ER: l'istante del giro è il quarto d'ora già misurato (prima solo le poche
   stazioni a 5 minuti)".
+
+### Task 3 (from the final review): ER instant from the answer, no stale repeats, skips leave a WARN line
+
+**Files:** Modify `dati_emilia_romagna.py` (parse; header comment and :36 comment), `dati_aria.py` and `dati_mare.py` (the
+three skips of Task 1). Test: `tests/test_scarico.py`; re-recorded `emilia_romagna/normale`, new live run
+`emilia_romagna/quarto_dispari`.
+
+Found by the final review: `get-sensor-values-no-time?time=X` answers with a header `{"time": X - 1 h}` and the values
+measured then; the script files them under X, one hour late (Nausicaa 2 TEMP 10.5 °C at 08:30 in MAR_ER, 09:30 in ER).
+Entries flagged `precedente: 'S'` repeat an older value. PREC (30-minute totals at :00/:30) asked at :15/:45 may come
+back as such a repeat and would be counted twice by derive.py's PREC1-48. Task 1 made three skips silent without --debug.
+
+- [ ] **Step 1: live probe (read-only GETs, as the cron does):** at the current quarter Q ask `time=Q` and `time=Q+1h`;
+  write down the header `time` and the station count of each. Decision rule: if `time=Q+1h` answers with header Q and a
+  similar count, ask `time=Q+1h` (one hour fresher); otherwise keep `time=Q`. Also look at PREC and `precedente` at a
+  :15/:45 quarter.
+- [ ] **Step 2: tests first:** the stored instant is `solar_moment(<header time of that answer>)`; entries with
+  `precedente == 'S'` are not stored; each skip prints one WARN line also without --debug (`WARN: [VEN] file <name>
+  saltato (...)`, `WARN: [BZ] stazione <sc> saltata (...)`, `WARN: [TN] stazione senza coordinate: <name>`) — assert
+  them in test_aria_bz_errore, test_aria_tn_senza_coordinate, test_mare_ven_file_mancanti. See them fail.
+- [ ] **Step 3: implement**; an answer without a readable header skips that variable with a WARN line.
+- [ ] **Step 4: re-record** `emilia_romagna/normale` live (a :00/:30 quarter) and record `emilia_romagna/quarto_dispari`
+  (a :15/:45 quarter); expected files from the fixed script; check by hand: instants = the headers' times, no PREC at
+  :15/:45 from a repeat, station counts.
+- [ ] **Step 5: run** the whole suite; commit "ER: istante preso dalla risposta (prima un'ora avanti), niente valori
+  ripetuti; avviso nel log per ogni file o stazione saltati".
