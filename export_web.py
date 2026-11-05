@@ -14,6 +14,7 @@ import bisect
 import calendar
 import csv
 import datetime
+import math
 import os
 import sys
 
@@ -39,7 +40,7 @@ SNAP_VARS = ['TEMP', 'UMID', 'PRESS', 'VVENTO', 'VVENTOMAX', 'PREC1', 'PREC3', '
 SNAP_FRAMES = 168
 SNAP_TOL_MIN = {'PREC1': 30, 'PREC3': 45, 'VVENTO': 60, 'VVENTOMAX': 60}
 SNAP_TOL_DEF = 90
-SNAP_DEC = {'UMID': 0}                          # decimali; 1 per le altre
+SNAP_DEC = {'UMID': 0}
 
 
 def main():
@@ -82,10 +83,16 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
     data, units, station_meta = read_window(parse_dir, region, cutoff, prec_cutoff)
     print('Stations with data in window: ' + str(len(data)))
 
-    # letture "azzerate" del datalogger (UMID=0 e TEMP=0 allo stesso istante): via prima delle derivate
+    # letture "azzerate" del datalogger (UMID=0 e TEMP=0 allo stesso istante): via prima delle derivate. Una serie
+    # rimasta vuota (l'umidità sempre a zero) esce, e così una stazione rimasta senza serie: la mappa cerca l'ultimo
+    # istante di ogni serie
     glitches = sum(quality.drop_zero_glitches(per_var) for per_var in data.values())
     if glitches:
         print('Scartati ' + str(glitches) + ' istanti con letture azzerate (UMID=0)')
+        for scode in list(data):
+            data[scode] = {var: series for var, series in data[scode].items() if series}
+            if not data[scode]:
+                del data[scode]
 
     if not series_only:
         add_derived(data, units, station_meta)
@@ -124,7 +131,7 @@ def read_window(parse_dir, region, cutoff, prec_cutoff):
             if day < var_cutoff[:8]:
                 continue
             for scode, record in comune.load_json(path).items():
-                # l'unità sta in UM, o per ARPAV in SENSORE
+                # i file di ARPAV (VEN) non hanno UM: l'unità sta nel blocco SENSORE
                 unit = record.get('UM')
                 if unit is None:
                     sensor = record.get('SENSORE') or {}
@@ -195,8 +202,8 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
     for scode, per_var in data.items():
         meta = station_meta.get(scode, {})
         name = meta.get(name_field) or scode
-        lat = comune.to_float(meta.get(lat_field))
-        lon = comune.to_float(meta.get(lon_field))
+        lat = coordinate(meta.get(lat_field))
+        lon = coordinate(meta.get(lon_field))
         if lat is not None and lon is not None and abs(lat) < 0.01 and abs(lon) < 0.01:
             lat = lon = None                    # 0,0 vuol dire "mancanti": la stazione finirebbe nell'oceano
         if (lat is None or lon is None) and scode in coords:
@@ -229,7 +236,7 @@ def station_properties(scode, name, per_var, zero):
         # solari, al mattino sarebbero "nel futuro" e falserebbero lo stato delle fonti e le stazioni in ritardo
         if var not in derive.DERIVED_UM and (latest_moment is None or moment > latest_moment):
             latest_moment = moment
-    if latest_moment is None:                   # solo derivate
+    if latest_moment is None:
         latest_moment = max(max(series) for series in per_var.values())
     properties = {'scode': scode, 'name': name, 'variables': sorted(per_var), 'latest': latest,
                   'latest_time': iso_datetime(latest_moment), 'series': 'series/' + scode + '.csv'}
@@ -277,7 +284,7 @@ def write_snapshots(data, scodes, units, out_dir):
         if series:
             comune.save_json({'t': epochs, 'u': units.get(var, ''), 's': series}, os.path.join(snap_dir, var + '.json'))
             written.add(var + '.json')
-    # via i file di variabili sparite dalla regione
+    # il file di una variabile che la regione non ha più non si riscriverebbe: il cursore mostrerebbe dati vecchi
     if os.path.isdir(snap_dir):
         for name in os.listdir(snap_dir):
             if name not in written:
@@ -322,11 +329,20 @@ def load_coords(path):
             parts = line.split(',')
             if parts[0] == 'scode' or len(parts) < 3:
                 continue
-            lat = comune.to_float(parts[1])
-            lon = comune.to_float(parts[2])
+            lat = coordinate(parts[1])
+            lon = coordinate(parts[2])
             if lat is not None and lon is not None:
                 coords[parts[0]] = (lat, lon)
     return coords
+
+
+def coordinate(value):
+    """Il numero di una coordinata, o None: NaN e infinito non sono JSON, e nel geojson toglierebbero dalla mappa tutta
+    la regione."""
+    number = comune.to_float(value)
+    if number is None or not math.isfinite(number):
+        return None
+    return number
 
 
 if __name__ == '__main__':
