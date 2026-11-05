@@ -3797,7 +3797,8 @@ el('cmpMenu').addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => { if(!e.target.closest('#cmpMenu, #cmpBtn')) cmpClose(); });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') cmpClose(el('cmpMenu').contains(document.activeElement)); });
-el('panel').addEventListener('scroll', () => cmpClose(), { passive:true });      // il menu e' fisso: non seguirebbe il pulsante
+// il menu e' fisso: non seguirebbe il pulsante se scorre il pannello o (telefono) la riga 2; 'scroll' non risale ai genitori
+['panel', 'pbar'].forEach(id => el(id).addEventListener('scroll', () => cmpClose(), { passive:true }));
 window.addEventListener('resize', () => { if(!el('cmpMenu').hidden) placeMenu(el('cmpMenu'), el('cmpBtn')); });
 
 el('stackbtn').addEventListener('click', () => setStackMode(!stackMode));

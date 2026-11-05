@@ -1053,6 +1053,18 @@
       await openCmp();
       name.click(); await sleep(60);
       log(!vis(cm), 'Confronti: clic fuori chiude', '');
+      if(phone){                                                   // il menu e' fisso: se la riga 2 scorre di lato si chiude
+        const sc = scroller(); await openCmp();
+        const open0 = vis(cm), s0 = sc.scrollLeft;
+        sc.scrollLeft = s0 > 60 ? s0 - 60 : s0 + 60;
+        // il browser manda 'scroll' (che non risale ai genitori) al fotogramma dopo; il Chrome headless di run.sh, col tempo
+        // virtuale, non disegna altri fotogrammi e non lo manda mai: lo si manda qui, uguale
+        sc.dispatchEvent(new Event('scroll')); await sleep(50);
+        log(open0 && sc.scrollLeft !== s0 && !vis(cm) && cb.getAttribute('aria-expanded') === 'false', 'telefono: scorrendo la riga 2 il menu si chiude',
+            JSON.stringify([open0, s0, sc.scrollLeft, vis(cm)]));
+        if(vis(cm)) esc();
+        sc.scrollLeft = 0; await sleep(150);
+      }
       for(const [m, lab] of [['compare', 'Confronto 7 g'], ['compare30', 'Confronto 30 g']]){
         await openCmp(); item(m).click();
         await until(() => chartMode === m && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
@@ -1123,8 +1135,9 @@
       actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'download', 'exportpng', 'copylink']);
       noOverflow('telefono, nome lungo');
       log(stacked(ctl2(), 'chart'), 'telefono, nome lungo: riga 2 fra la prima e il grafico', '');
-      log(name.scrollWidth <= name.clientWidth + 1 && meta.scrollWidth <= meta.clientWidth + 1 || getComputedStyle(meta).textOverflow === 'ellipsis',
-          'telefono, nome lungo: nome intero (va a capo), dati interi o coi puntini', JSON.stringify([name.scrollWidth, name.clientWidth, meta.scrollWidth, meta.clientWidth]));
+      log(name.scrollWidth <= name.clientWidth + 1, 'telefono, nome lungo: nome intero (va a capo, non tagliato)', JSON.stringify([name.scrollWidth, name.clientWidth]));
+      log(vis(meta) && R(meta).left >= -0.5 && R(meta).right <= innerWidth + 0.5, 'telefono, nome lungo: codice e ultimo dato dentro lo schermo',
+          JSON.stringify([R(meta).left, R(meta).right, innerWidth]));
     }
     showMapView();
     eq('errori JS', window.__errs, []);
