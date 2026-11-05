@@ -222,12 +222,12 @@ class TestCartelleGrezze(unittest.TestCase):
 
 
 def script_python():
-    return [os.path.join(RADICE, 'comune.py')] + sorted(glob.glob(os.path.join(RADICE, 'dati_*.py')))
+    return sorted(glob.glob(os.path.join(RADICE, '*.py')))
 
 
 class TestPython37(unittest.TestCase):
     def test_python37(self):
-        vietate = [('math', 'prod'), ('math', 'dist'), ('functools', 'cache')]
+        vietate = [('math', 'prod'), ('math', 'dist'), ('functools', 'cache'), ('gzip', 'BadGzipFile')]
         for f in script_python():
             with open(f, encoding='utf-8') as fp:
                 tree = ast.parse(fp.read(), feature_version=(3, 7))
