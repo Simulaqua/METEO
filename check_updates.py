@@ -24,7 +24,7 @@ TRACK_DIR = os.path.join(_BASE_DIR, '.tracking')
 LOG_FILE  = os.path.join(_BASE_DIR, 'tracking.log')
 
 REGIONS = {
-    'VEN': 'VEN/dati_veneto.py',
+    'VEN': 'dati_veneto.py',
     'TN' : 'TN/dati_trentino.py',
     'BZ' : 'BZ/dati_altoadige.py',
     'FVG': 'FVG/dati_fvg.py',
@@ -59,14 +59,10 @@ def var_names(m):
 # SCANNER PER REGIONE  ->  (mapped:set, live:dict{code:n_staz}, stations:dict{code:name})
 #-----------------------------------------------------------------------------------------------------------
 def scan_ven(m, sample):
-    mapped = set(var_names(m))                                   # per ARPAV il TYPE == nome variabile
-    lists  = []
-    for n in var_names(m):
-        u = getattr(m.variables, n).url_stazioni
-        if u not in lists: lists.append(u)
+    mapped = set(m.VARIABLES)                                    # per ARPAV il TYPE == nome variabile
     stations, links = {}, []
-    for u in lists:
-        raw = get(m.base_URL + '/' + u)
+    for u in m.STATION_LISTS.values():
+        raw = get(m.BASE_URL + '/' + u)
         if not raw: continue
         for s in ET.fromstring(raw).iter('STAZIONE'):
             ids = s.findtext('IDSTAZ'); nm = s.findtext('NOME'); ln = s.findtext('LINKSTAZ')
@@ -74,7 +70,7 @@ def scan_ven(m, sample):
             if ln:  links.append(ln)
     if sample: links = links[:sample]
     def types(ln):
-        raw = get(m.base_URL + '/' + ln)
+        raw = get(m.BASE_URL + '/' + ln)
         if not raw: return []
         try: return [t.text for t in ET.fromstring(raw).findall('STAZIONE/SENSORE/TYPE')]
         except Exception: return []

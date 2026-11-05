@@ -3,12 +3,22 @@
 # script di prima (tests/fixtures/scarico/<fonte>/<giro>/: codici.json, attesi/, cartelle.json). Solo sul Mac.
 # Una fonte nuova: tests/registratore.py registra, poi attesi, con lo script di prima; poi la sua prova qui.
 #   /usr/bin/python3 -m unittest tests.test_scarico -v
-import json, os, sys, unittest
+import importlib.util, json, os, sys, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
+# i nomi che recover.py e check_updates.py leggono negli script regionali, per regione
+READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES']}
+READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES']}
+
+
+def load_file(path):
+    spec = importlib.util.spec_from_file_location(os.path.splitext(os.path.basename(path))[0], path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def read_json(path):
@@ -16,9 +26,15 @@ def read_json(path):
         return json.load(fp)
 
 
+def canonical_json(content):
+    """Un JSON riscritto in un modo solo. Non si confrontano gli oggetti decodificati: per Python 1, 1.0 e true
+    sono uguali."""
+    return json.dumps(json.loads(content.decode('utf-8')), sort_keys=True, ensure_ascii=False)
+
+
 def same(name, content, expected, json_equal):
     if json_equal and name.endswith('.json'):
-        return json.loads(content.decode('utf-8')) == json.loads(expected.decode('utf-8'))
+        return canonical_json(content) == canonical_json(expected)
     return content == expected
 
 
@@ -70,6 +86,26 @@ class TestScarico(unittest.TestCase):
 
     def test_pc_pie_full(self):
         self.check_source('pc', 'pie_full', 'dati_pc.py', ['-r', 'PIE', '--full'])
+
+    # lo script di prima scriveva gli accenti come \u00e0, comune.save_json li scrive in UTF-8: stesso contenuto,
+    # byte diversi, quindi i JSON del Veneto si confrontano decodificati
+    def test_veneto_oggi(self):
+        self.check_source('veneto', 'oggi', 'dati_veneto.py', ['-date', 't'], json_equal=True)
+
+    def test_veneto_ieri(self):
+        self.check_source('veneto', 'ieri', 'dati_veneto.py', ['-date', 'y'], json_equal=True)
+
+    def test_moduli_letti_da_recover_e_check_updates(self):
+        # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si
+        # muove solo dopo un buco nei dati, quindi un nome sparito non si vedrebbe subito
+        recover = load_file(os.path.join(registratore.PROJECT, 'recover.py'))
+        check_updates = load_file(os.path.join(registratore.PROJECT, 'check_updates.py'))
+        loaded = [(recover.load_module(region), names) for region, names in READ_BY_RECOVER.items()]
+        loaded += [(check_updates.load_module(check_updates.REGIONS[region]), names)
+                   for region, names in READ_BY_CHECK_UPDATES.items()]
+        for module, names in loaded:
+            for name in names:
+                self.assertTrue(hasattr(module, name), '%s non ha %s' % (module.__file__, name))
 
 
 if __name__ == '__main__':

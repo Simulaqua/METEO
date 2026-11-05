@@ -1,0 +1,19 @@
+[
+ "VEN",
+ "VEN/data-downloaded",
+ "VEN/data-downloaded/idro",
+ "VEN/data-downloaded/meteo",
+ "VEN/data-downloaded/neve",
+ "VEN/data-parsed",
+ "VEN/data-parsed/DVENTO",
+ "VEN/data-parsed/LIVIDRO",
+ "VEN/data-parsed/LIVNEVE",
+ "VEN/data-parsed/PORTATA",
+ "VEN/data-parsed/PREC",
+ "VEN/data-parsed/PRESS",
+ "VEN/data-parsed/RADSOL",
+ "VEN/data-parsed/TEMP",
+ "VEN/data-parsed/UMID",
+ "VEN/data-parsed/VISIB",
+ "VEN/data-parsed/VVENTO"
+]

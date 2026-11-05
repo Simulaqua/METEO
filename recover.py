@@ -36,7 +36,7 @@ CADENCE = {'VEN': 30, 'TN': 15, 'BZ': 10, 'FVG': 60, 'LOM': 10, 'ER': 15}
 SOURCE_MAX_DAYS = {'ER': 3}
 
 REGION_FILE = {
-    'VEN': 'VEN/dati_veneto.py',      'TN' : 'TN/dati_trentino.py',
+    'VEN': 'dati_veneto.py',          'TN' : 'TN/dati_trentino.py',
     'BZ' : 'BZ/dati_altoadige.py',    'FVG': 'FVG/dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',   'ER' : 'ER/dati_emilia_romagna.py',
 }
@@ -355,8 +355,8 @@ def recover_snapshot_region(region, mod, fetcher, days, force, debug):
 def recover_ven(region, days, force, debug):
     ''' Veneto: dump giornaliero completo -> richiama lo script con -date per ogni giorno della finestra. '''
     mod = load_module('VEN')
-    variables = var_list(mod)
-    hole, why = has_hole(mod.directory.parse, variables, days, CADENCE['VEN'])
+    variables = list(mod.VARIABLES)
+    hole, why = has_hole(mod.PARSE_DIR, variables, days, CADENCE['VEN'])
     print(f'[VEN] gate: {why}')
     if not hole and not force:
         print('[VEN] nessun buco: salto.')

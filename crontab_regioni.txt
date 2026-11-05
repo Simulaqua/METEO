@@ -36,8 +36,8 @@ PYTHON=/usr/bin/python3
 # flock -n evita che un run parta se il precedente non ha ancora finito (VEN scarica centinaia di
 # stazioni una a una e puo' sforare i 30 min: senza lock il cron lo ammazzerebbe a meta', lasciando
 # grezzi orfani). Se il lock e' occupato il run viene semplicemente saltato.
-6,36 * * * * mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/VEN/dati_veneto.py -date t >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
-5 6  * * *   mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/VEN/dati_veneto.py -date y >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+6,36 * * * * mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/dati_veneto.py -date t >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+5 6  * * *   mkdir -p $BASE/VEN/logs && flock -n $BASE/VEN/.lock $PYTHON $BASE/dati_veneto.py -date y >> $BASE/VEN/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # FRIULI VENEZIA GIULIA - ogni 60 minuti, 24h
@@ -161,7 +161,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 30 3 * * * find $BASE/*/data-parsed -name '*-*.json' -mtime +8 -exec gzip -q {} \; 2>/dev/null
 # comprime anche i LOG piu' vecchi di 1 giorno (testo -> ~15x): tiene 14 giorni di storico ma occupa poco.
-# VEN e' molto verboso (una riga per stazione scaricata) -> i suoi log dominavano lo spazio.
+# VEN scriveva una riga per stazione scaricata (fino al 2026-11): i suoi log dominavano lo spazio.
 35 3 * * * find $BASE/logs $BASE/*/logs -name '*.log' -mtime +1 -exec gzip -q {} \; 2>/dev/null
 
 # -------------------------------------------------------------------------------------------

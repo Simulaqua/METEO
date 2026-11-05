@@ -54,7 +54,7 @@ python3 -m pip install -r requirements.txt   # requests
 
 ## Esecuzione manuale
 ```
-python3 VEN/dati_veneto.py            # scarica + parsa (una regione)
+python3 dati_veneto.py                # scarica + parsa (una regione)
 python3 export_web.py -r all --site-dir site
 cd site && python3 -m http.server 8770   # apri http://localhost:8770
 ```
