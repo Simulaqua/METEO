@@ -20,9 +20,11 @@ history_cache/
 .superpowers/
 .worktrees/
 
-# --- stato di tracking (check_updates.py) ---
+# --- stato di tracking (check_updates.py); nei giri registrati delle prove è un file di partenza o atteso ---
 .tracking/
 tracking.log
+!tests/fixtures/**/.tracking/
+!tests/fixtures/**/tracking.log
 
 # --- log ---
 logs/

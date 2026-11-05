@@ -7,14 +7,20 @@
 #             scrive o cambia vanno in CARTELLA_GIRO/attesi/, i codici di uscita dei due giri in codici.json e le
 #             cartelle che lasciano in cartelle.json (git non tiene le cartelle vuote)
 # In ogni giro l'orologio parte da ora.json e avanza solo con time.sleep, che aspetta davvero solo dal vivo.
+# I file di CARTELLA_GIRO/iniziali/, se ci sono, si copiano nel progetto prima del giro (un archivio o uno stato di
+# partenza: non sono file prodotti, se il giro non li cambia). Nessun sottoprocesso parte davvero: subprocess.run
+# annota il comando in sottoprocessi.txt del progetto e "riesce", subprocess.Popen solleva.
 #   python3 tests/registratore.py registra tests/fixtures/scarico/laghi/normale -- dati_laghi.py
 #   python3 tests/registratore.py attesi tests/fixtures/scarico/laghi/normale -- dati_laghi.py
-# Gira solo sul Mac. Per le prove: record(), replay(), replay_twice() (quello che fa "attesi"), copy_project(), tree().
+# Gira solo sul Mac. Per le prove: record(), replay(), replay_twice() (quello che fa "attesi"), copy_project(),
+# copy_seeds(), tree(), read_response() (anche per ridurre una registrazione, poi save_response()).
 import base64, glob, gzip, hashlib, itertools, json, os, shutil, subprocess, sys, tempfile, time, urllib.parse
 
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# ciò che serve a uno script di scarico per girare: gli script e la configurazione dei dati, niente dati
-PROJECT_FILES = ['comune.py', 'dati_*.py', '*/zero_idrometrici.json', 'FVG/stazioni_coords.csv']
+# ciò che serve a uno script di scarico per girare: gli script e la configurazione dei dati, niente dati; recover.py e
+# check_updates.py caricano gli script di scarico dai loro percorsi
+PROJECT_FILES = ['comune.py', 'dati_*.py', 'recover.py', 'check_updates.py', '*/zero_idrometrici.json',
+                 'FVG/stazioni_coords.csv']
 MISSING = 'risposta non registrata'
 MISSING_EXIT = 3        # codice di uscita di un giro in cui è mancata una risposta
 
@@ -27,6 +33,17 @@ def copy_project(dest):
     for pattern in PROJECT_FILES:
         for source in glob.glob(os.path.join(PROJECT, pattern)):
             target = os.path.join(dest, os.path.relpath(source, PROJECT))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.copyfile(source, target)
+
+
+def copy_seeds(run_dir, project):
+    """Copia in project i file di partenza del giro, run_dir/iniziali/ (se c'è)."""
+    seeds = os.path.join(run_dir, 'iniziali')
+    for root, _, names in os.walk(seeds):
+        for name in names:
+            source = os.path.join(root, name)
+            target = os.path.join(project, os.path.relpath(source, seeds))
             os.makedirs(os.path.dirname(target), exist_ok=True)
             shutil.copyfile(source, target)
 
@@ -60,10 +77,11 @@ def replay(run_dir, script, args, project):
 
 
 def replay_twice(run_dir, script, args):
-    """Due giri di fila in riproduzione in una copia nuova del progetto: i file scritti o cambiati, i due giri e le
-    cartelle lasciate dai giri."""
+    """Due giri di fila in riproduzione in una copia nuova del progetto, con i file di partenza del giro: i file
+    scritti o cambiati, i due giri e le cartelle lasciate dai giri."""
     with tempfile.TemporaryDirectory() as project:
         copy_project(project)
+        copy_seeds(run_dir, project)
         before = tree(project)
         runs = [replay(run_dir, script, args, project) for _ in range(2)]
         after = tree(project)
@@ -113,6 +131,7 @@ def run_script(mode, run_dir, script, args):
     responses = Responses(mode, os.path.join(run_dir, 'risposte'))
     intercept_requests(responses)
     intercept_urllib(responses)
+    intercept_subprocess(os.getcwd())          # run() lancia il giro nella cartella del progetto
 
     path = os.path.abspath(script)
     sys.argv = [path] + args
@@ -202,10 +221,17 @@ def save_response(path, method, url, status, content_type, content):
         json.dump(response, fp, indent=1)
 
 
-def load_response(path):
+def read_response(path):
+    """La risposta registrata in path: method, url, status, content_type e body (in bytes)."""
     with gzip.open(path, 'rt', encoding='utf-8') as fp:
         response = json.load(fp)
-    return response['status'], response['content_type'], base64.b64decode(response['body'])
+    response['body'] = base64.b64decode(response['body'])
+    return response
+
+
+def load_response(path):
+    response = read_response(path)
+    return response['status'], response['content_type'], response['body']
 
 
 def intercept_requests(responses):
@@ -273,6 +299,31 @@ def intercept_urllib(responses):
     urllib.request.OpenerDirector.open = open_url
 
 
+def intercept_subprocess(project):
+    """subprocess.run annota il comando in project/sottoprocessi.txt (python3 al posto di sys.executable, i percorsi
+    dentro project relativi) e restituisce il codice 0 senza lanciarlo; subprocess.Popen, che sta dietro a tutti gli
+    altri modi di lanciare un comando, solleva."""
+    root = os.path.realpath(project)       # la cartella di lavoro è /private/var/..., un percorso dal padre /var/...
+    log = os.path.join(project, 'sottoprocessi.txt')
+
+    def word(arg):
+        if arg == sys.executable:
+            return 'python3'
+        if os.path.isabs(arg) and os.path.commonpath([root, os.path.realpath(arg)]) == root:
+            return os.path.relpath(os.path.realpath(arg), root)
+        return arg
+
+    def run(args, *rest, **kwargs):
+        with open(log, 'a', encoding='utf-8') as fp:
+            fp.write(' '.join(word(str(arg)) for arg in args) + '\n')
+        return subprocess.CompletedProcess(args, 0)
+
+    def popen(*args, **kwargs):
+        raise RuntimeError('sottoprocesso vietato in un giro')
+
+    subprocess.run, subprocess.Popen = run, popen
+
+
 # ---------------------------------------------------------------------------------------------------------------
 
 def main(argv):
@@ -285,6 +336,7 @@ def main(argv):
     if command == 'registra':
         with tempfile.TemporaryDirectory() as project:
             copy_project(project)
+            copy_seeds(run_dir, project)
             proc = record(run_dir, script, args, project)
         answers = os.path.join(run_dir, 'risposte')
         print('%d risposte in %s, codice di uscita %d' % (len(os.listdir(answers)), answers, proc.returncode))

@@ -50,6 +50,35 @@ with open('dati/a/x.txt', 'w', encoding='utf-8') as fp:
 sys.exit(2)
 '''
 
+# lancia figlio.py (nella cartella passata dal padre) con il proprio Python, come recover.py lancia dati_veneto.py,
+# poi prova a lanciarlo per un'altra via
+LAUNCH_SCRIPT = '''
+import os, subprocess, sys
+
+child = os.path.join(sys.argv[1], 'figlio.py')
+subprocess.run([sys.executable, child, '-r', 'X'], check=False)
+try:
+    subprocess.check_call([sys.executable, child, '-r', 'Y'])
+except RuntimeError as error:
+    print(error)
+'''
+
+# se lanciato davvero, lascia figlio.txt
+CHILD_SCRIPT = '''
+with open('figlio.txt', 'w', encoding='utf-8') as fp:
+    fp.write('lanciato')
+'''
+
+# legge il file di partenza a/b.json e ne riscrive il contenuto in letto.json
+SEED_SCRIPT = '''
+import json
+
+with open('a/b.json', encoding='utf-8') as fp:
+    seed = json.load(fp)
+with open('letto.json', 'w', encoding='utf-8') as fp:
+    json.dump(seed, fp)
+'''
+
 
 class Pages(http.server.BaseHTTPRequestHandler):
 
@@ -186,6 +215,37 @@ class TestAttesi(unittest.TestCase):
                     self.assertEqual(listing(self.run_dir), before)
                 finally:
                     os.rename(aside, path)
+
+
+class TestGiro(unittest.TestCase):
+    """Dentro un giro, senza rete: i sottoprocessi annotati e mai lanciati, i file di partenza del giro nel progetto."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.source = os.path.join(self.tmp, 'progetto')
+        for name, text in (('lancia.py', LAUNCH_SCRIPT), ('figlio.py', CHILD_SCRIPT), ('semi.py', SEED_SCRIPT)):
+            write(os.path.join(self.source, name), text)
+        self.run_dir = os.path.join(self.tmp, 'giro')
+        write(os.path.join(self.run_dir, 'ora.json'), json.dumps({'epoch': 1793000000.0}))
+        os.makedirs(os.path.join(self.run_dir, 'risposte'))
+
+    def test_sottoprocessi_annotati_non_lanciati(self):
+        # la cartella arriva dal padre come /var/...; nel giro la stessa cartella è /private/var/...
+        proc = registratore.replay(self.run_dir, 'lancia.py', [self.source], self.source)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        files = registratore.tree(self.source)
+        self.assertEqual(files.get('sottoprocessi.txt'), b'python3 figlio.py -r X\n')
+        self.assertNotIn('figlio.txt', files)
+        self.assertIn('sottoprocesso vietato in un giro', proc.stdout)
+
+    def test_file_iniziali(self):
+        write(os.path.join(self.run_dir, 'iniziali', 'a', 'b.json'), '{"x": 1}')
+        with mock.patch.object(registratore, 'PROJECT', self.source), \
+                mock.patch.object(registratore, 'PROJECT_FILES', ['semi.py']):
+            files, runs, _ = registratore.replay_twice(self.run_dir, 'semi.py', [])
+        self.assertEqual([proc.returncode for proc in runs], [0, 0], runs[0].stderr)
+        self.assertEqual(files, {'letto.json': b'{"x": 1}'})        # letto il seme, che non è un file prodotto
 
 
 if __name__ == '__main__':

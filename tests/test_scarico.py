@@ -9,8 +9,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
-# i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG e TN recover.py ha solo
-# il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì.
+# i nomi che recover.py e check_updates.py leggono negli script regionali, per regione (per i livelli AQ_* e PC_* di
+# check_updates.py in dati_aria.py e dati_pc.py); di FVG e TN recover.py ha solo il percorso (le fonti non hanno
+# storico da recuperare): la prova controlla che lo script si carichi da lì.
 # recover.py legge solar_moment di BZ ed ER, OPERATORS, SKIP_VALUES e SKIP_DIR_VALUES di LOM e VALUE_CONV di ER con
 # getattr, con dei valori di riserva suoi: se un nome sparisse, userebbe quelli senza dirlo (il suo SKIP_VALUES non
 # scarta -999, senza VALUE_CONV salverebbe kelvin e pascal)
@@ -24,7 +25,9 @@ READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES'],
                          'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES'],
                          'LOM': ['REGISTRY_URL', 'VARIABLES'],
-                         'ER': ['API_URL', 'VARIABLES']}
+                         'ER': ['API_URL', 'VARIABLES'],
+                         'AQ_VEN': ['VEN_POLLMAP'], 'AQ_LOM': ['LOM_TYPEMAP'], 'AQ_BZ': ['BZ_MCODEMAP'],
+                         'AQ_TN': ['TN_POLLMAP'], 'PC_FVG': ['FVG_MAP'], 'PC_TN': ['TN_MAP']}
 
 
 def load_file(path):
@@ -39,7 +42,22 @@ def read_json(path):
         return json.load(fp)
 
 
-def same(name, content, expected, json_equal):
+def decode(content):
+    return json.loads(content.decode('utf-8'))
+
+
+def same_as_seed(run_dir, name, content):
+    """True se il giro ha un file di partenza name (in iniziali/) con lo stesso contenuto JSON di content."""
+    seed = os.path.join(run_dir, 'iniziali', name)
+    if not os.path.isfile(seed):
+        return False
+    with open(seed, 'rb') as fp:
+        return decode(fp.read()) == decode(content)
+
+
+def same(name, content, expected, json_equal, decoded):
+    if name.startswith(decoded):
+        return decode(content) == decode(expected)
     if json_equal and name.endswith('.json'):
         # il JSON prodotto si riscrive come lo scriveva lo script di prima (accenti in sequenze di escape, separatori
         # compatti, chiavi nel suo ordine) e poi si confronta byte per byte: si perdona solo la codifica degli accenti,
@@ -50,19 +68,24 @@ def same(name, content, expected, json_equal):
 
 class TestScarico(unittest.TestCase):
 
-    def check_source(self, fonte, giro, script, args, json_equal=False):
-        """Due giri di script sulle risposte di fonte/giro: stessi codici di uscita, stessi file (byte per byte; con
-        json_equal i .json prodotti dopo averli riscritti con il codificatore di prima) e stesse cartelle degli
-        attesi. Restituisce i due giri."""
+    def check_source(self, fonte, giro, script, args, json_equal=False, decoded=()):
+        """Due giri di script sulle risposte di fonte/giro, con i suoi file di partenza: stessi codici di uscita, stessi
+        file (byte per byte; con json_equal i .json prodotti dopo averli riscritti con il codificatore di prima) e
+        stesse cartelle degli attesi. I file che cominciano con un prefisso di decoded si confrontano dopo json.loads e
+        sono prodotti solo se il loro contenuto è cambiato rispetto al file di partenza, o se questo manca: un cambio
+        di formato non fa comparire tra i prodotti quelli rimasti uguali. Restituisce i due giri."""
         run_dir = os.path.join(FIXTURES, fonte, giro)
         files, runs, folders = registratore.replay_twice(run_dir, script, args)
+        files = {name: content for name, content in files.items()
+                 if not (name.startswith(decoded) and same_as_seed(run_dir, name, content))}
         output = ''.join(proc.stdout + proc.stderr for proc in runs)
         self.assertEqual([proc.returncode for proc in runs], read_json(os.path.join(run_dir, 'codici.json')),
                          'codici di uscita diversi; uscita dei due giri:\n' + output[-3000:])
         expected = {name: content for name, content in registratore.tree(os.path.join(run_dir, 'attesi')).items()
                     if os.path.basename(name) != '.DS_Store'}          # lasciato dal Finder, non dallo script
         self.assertEqual(sorted(files), sorted(expected), 'file prodotti diversi dagli attesi')
-        different = [name for name in sorted(files) if not same(name, files[name], expected[name], json_equal)]
+        different = [name for name in sorted(files)
+                     if not same(name, files[name], expected[name], json_equal, decoded)]
         self.assertEqual(different, [], 'file con un contenuto diverso dagli attesi')
         self.assertEqual(folders, read_json(os.path.join(run_dir, 'cartelle.json')), 'cartelle diverse dalle attese')
         return runs
@@ -230,6 +253,52 @@ class TestScarico(unittest.TestCase):
         for offset, expected in [(0, 0), (5 * minute, 0), (14 * minute + 59999, 0), (15 * minute, 15 * minute),
                                  (35 * minute, 30 * minute)]:
             self.assertEqual(er.quarter_hour(base + offset), base + expected, offset)
+
+    def test_recover_er(self):
+        # registrato dal vivo; file di partenza: ER/data-parsed/stazioni.json con le prime 3 stazioni di
+        # emilia_romagna/normale (la fonte storica di ER non ha un elenco: recover.py chiede le stazioni dell'archivio)
+        self.check_source('recover', 'er', 'recover.py', ['-r', 'ER', '--force', '--days', '1'])
+
+    def test_recover_bz(self):
+        # registrato dal vivo, poi ridotto: nella risposta dei sensori restano i primi 10 SCODE (nell'ordine della
+        # risposta), le risposte /timeseries delle altre stazioni sono tolte e quelle della prima coppia rimasta
+        # (66500MS/SD, chiesta due volte: il sensore compare due volte nella risposta) rispondono 500 con il loro
+        # corpo: la coppia salta (niente SOLEGG di 66500MS), le altre si scrivono
+        self.check_source('recover', 'bz', 'recover.py', ['-r', 'BZ', '--force', '--days', '1'])
+
+    def test_recover_tutte(self):
+        # senza rete, con l'orologio fermo al 2026-11-05 13:00 UTC (14:00 solari), su un archivio di partenza scritto
+        # una volta da uno script (iniziali/): una stazione S1, un file del giorno <VAR>-AAAAMMGG.json per ogni giorno
+        # della serie con MISURE.ISTANTE (ora solare) e VALORE (sempre 1.0):
+        #   BZ e LOM  TEMP  ogni 10 minuti dal 2026-10-29 00:00 al 2026-11-05 13:50
+        #   ER        TEMP  ogni 15 minuti dal 2026-11-02 00:00 al 2026-11-05 13:45
+        #   VEN       TEMP  ogni 30 minuti dal 2026-10-29 00:00 al 2026-11-05 13:30, senza il 2026-11-02 dalle 10:00
+        #                   alle 12:30
+        #   AQ_VEN    PM10  ogni ora dal 2026-10-29 00:00 al 2026-11-05 13:00
+        #   AQ_LOM    PM10  ogni ora dal 2026-10-29 00:00 al 2026-11-05 03:00
+        # Scattano solo VEN (buco interno) e AQ_LOM (buco in coda): i loro recuperi sono sottoprocessi, annotati in
+        # sottoprocessi.txt (l'unico file prodotto) e mai lanciati; le altre regioni saltano
+        runs = self.check_source('recover', 'tutte', 'recover.py', ['-r', 'all'])
+        for proc in runs:
+            lines = proc.stdout.splitlines()
+            for line in ['[VEN] gate: buco massimo 210 min (> 90)', '[BZ] gate (7gg): continuo (buco max 10 min)',
+                         '[ER] gate (3gg): continuo (buco max 15 min)', '[LOM] gate (7gg): continuo (buco max 10 min)',
+                         '[AQ_VEN] gate: continuo (buco max 60 min)',
+                         '[AQ_LOM] gate: buco in coda 660 min (ultimo campione vecchio)',
+                         '[PC_TN] nessun archivio: salto.']:
+                self.assertIn(line, lines)
+
+    def test_check_updates(self):
+        # registrato dal vivo. Stato di partenza (iniziali/.tracking/): gli stati di un primo giro sulle stesse
+        # risposte, senza gli ultimi 2 codici di VEN, BZ e LOM e senza quello di PC_TN; poi la risposta di AQ_TN è
+        # diventata 404 (con il suo corpo). Nel primo giro 6 stazioni nuove e lo stato di PC_TN fatto da capo, nel
+        # secondo nessuna novità. Lo stato si confronta decodificato: conta il contenuto, non il formato
+        runs = self.check_source('check_updates', 'campione', 'check_updates.py', ['-r', 'all', '--sample', '3'],
+                                 decoded=('.tracking/',))
+        self.assertEqual([proc.stdout.count('NUOVA STAZIONE') for proc in runs], [6, 0])
+        # la 404 non cambia i file (lo stato di AQ_TN resta quello di partenza, anche leggendo il corpo): si vede qui
+        for proc in runs:
+            self.assertIn('=== AQ_TN ===\n  stazioni: 0 nel feed | nuove: 0\n', proc.stdout)
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si
