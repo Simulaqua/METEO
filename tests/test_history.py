@@ -167,6 +167,12 @@ class VenetoOverlapTest(HistoryBase):
         days, _ = self.run_region('VEN')
         self.assertEqual(days['20200101']['A'][:2], [4.0, 2])
 
+    def test_temp_tie_goes_to_newer_source(self):
+        write_day(self.old, 'TEMP', '20200101', {'A': (ts_list('20200101', range(3)), [10.0] * 3)}, 'VM')
+        write_day(self.parse('VEN'), 'TEMP', '20200101', {'A': (ts_list('20200101', range(3)), [20.0] * 3)}, 'VM')
+        days, _ = self.run_region('VEN')
+        self.assertEqual(days['20200101']['A'][2:], [20.0, 20.0, 20.0, 3])
+
     def test_temp_overlap_is_per_variable(self):
         write_day(self.old, 'TEMP', '20200101', {'A': (ts_list('20200101', range(6)), [10.0] * 6)}, 'VM')
         write_day(self.parse('VEN'), 'TEMP', '20200101', {'A': (ts_list('20200101', range(2)), [20.0] * 2)}, 'VM')
@@ -235,6 +241,21 @@ class CacheAndOutputTest(HistoryBase):
         self.assertEqual(n, 1)
         self.assertEqual(days['20200101']['A'][0], 1.0)         # vecchio: dalla cache
         self.assertEqual(days[today]['A'][0], 7.0)              # recente: rielaborato
+
+    def test_recent_window_is_three_days(self):
+        p = self.parse('LOM')
+        now = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+        d2 = (now - datetime.timedelta(days=2)).strftime('%Y%m%d')
+        d5 = (now - datetime.timedelta(days=5)).strftime('%Y%m%d')
+        for d in (d2, d5):
+            write_day(p, 'PREC', d, {'A': (ts_list(d, [0]), [1.0])}, 'VALORE')
+        self.run_region('LOM')
+        for d in (d2, d5):
+            write_day(p, 'PREC', d, {'A': (ts_list(d, [0]), [7.0])}, 'VALORE')
+        days, n = self.run_region('LOM')
+        self.assertEqual(n, 1)
+        self.assertEqual(days[d2]['A'][0], 7.0)                 # dentro i 3 giorni: rielaborato
+        self.assertEqual(days[d5]['A'][0], 1.0)                 # fuori: dalla cache
 
     def test_bad_cache_version_is_ignored(self):
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
