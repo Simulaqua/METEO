@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 DST = os.path.join(ROOT, 'site', '_radar_test')
 if '--clean' in sys.argv:
     shutil.rmtree(DST, ignore_errors=True); print('tolto', DST); sys.exit(0)
+shutil.rmtree(os.path.join(DST, '_HIST'), ignore_errors=True)
 os.makedirs(os.path.join(DST, 'data', 'SRI'), exist_ok=True)
 for f in ('test.html', 'it_tests.js', 'w.html'):
     shutil.copy(os.path.join(ROOT, 'tests', 'web', f), DST)
@@ -36,6 +37,9 @@ for key, fx, src, times in (('VMI', 'VMI_202610221240.tif', 'tm', [T - i * 300 f
 dr.write_manifest(os.path.join(DST, 'data'), {'SRI': [T - i * 300 for i in range(71, -1, -1)],
                                               'VMI': [T - i * 300 for i in range(71, -1, -1)],
                                               'TEMP': [T - 2700 - i * 3600 for i in range(5, -1, -1)]}, g, updated=T)
+# Storico: campione vero di history.py (tests/web/storico/) in _radar_test/_HIST; le pagine locali lo leggono da li'
+# (HIST_BASE riscritto), cosi' non serve site/_HIST e non si tocca quello vero
+shutil.copytree(os.path.join(ROOT, 'tests', 'web', 'storico'), os.path.join(DST, '_HIST'))
 src = open(os.path.join(ROOT, 'site', 'index.html'), encoding='utf-8').read()
 head = ('<head>\n<base href="../">\n<script>window.__errs=[];addEventListener("error",e=>__errs.push(String(e.message)));'
         'addEventListener("unhandledrejection",e=>__errs.push("promise: "+String(e.reason)));</script>')
@@ -45,6 +49,10 @@ for name, base in (('it_local', None), ('it_live', 'https://raw.githubuserconten
     if base:
         s, n = re.subn(r"const DATA_BASE = .*?;", "const DATA_BASE = '%s';" % base, s, count=1)
         assert n == 1, 'DATA_BASE non trovato'
+    if not base:
+        s, n = re.subn(r"const HIST_BASE = DATA_BASE\.startsWith\('http'\) \? (.*?) : '\./_HIST';",
+                       r"const HIST_BASE = DATA_BASE.startsWith('http') ? \1 : './_radar_test/_HIST';", s, count=1)
+        assert n == 1, 'HIST_BASE non trovato'
     if name == 'it_prod':                         # radar locale (data/index.json con SRI, VMI, TEMP)
         s = s.replace('<script src="radar.js">', '<script>window.RADAR_BASE_OVERRIDE="/_radar_test/data";'
                       'window.RADAR_FALLBACK_OVERRIDE="/_radar_test/data_fb";</script>\n<script src="radar.js">', 1)

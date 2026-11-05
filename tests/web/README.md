@@ -18,7 +18,14 @@
     tests/web/run.sh "it_prod.html?suite=hoverradar"  # scheda col radar locale (SRI coi puntini, VMI senza)
     tests/web/run.sh "it_local.html?suite=stazione"   # variabile con cui si apre una stazione
     tests/web/run.sh "w.html?w=375&h=812&src=it_live.html%3Fsuite%3Dlayout"   # ingombri a 375 px
+    tests/web/run.sh "it_local.html?suite=storico"    # Storico: pulsante, Mesi/Anni/Giorni, CSV, link H:VAR:VIEW
+    tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dstorico"   # lo stesso a 375 px
     python3 tests/web/setup.py --clean    # toglie site/_radar_test/
 
 Serve Chrome (headless). Le suite sono in it_tests.js; ogni pagina stampa "RISULTATO: n/n".
 setup.py importa dati_radar (numpy + Pillow): sul Mac usare /usr/bin/python3.
+
+Storico: i file di tests/web/storico/ sono VERI, usciti da history.py sull'archivio vero il 2026-11-05 (index.json ridotto
+alla sola regione VEN, cosi' una stazione di un'altra regione prova "regione non elencata"; VEN/79.json = Valdagno, pioggia e
+temperatura dal 2024-10-23). setup.py li copia in site/_radar_test/_HIST e riscrive HIST_BASE delle pagine locali verso
+quella cartella: site/_HIST (se c'e') non viene letta ne' toccata. Le stazioni vengono dai dati locali di site/<REG>/.

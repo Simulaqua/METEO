@@ -803,9 +803,102 @@
     finish();
   }
 
+  async function suiteStorico(){                      // Storico: pulsante, viste Mesi/Anni/Giorni, CSV, link H:VAR:VIEW (campione vero in tests/web/storico)
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const st = (reg, test) => (allFeatures.find(f => f.properties._region === reg && test(f.properties)) || {}).properties;
+    const has = (p, v) => (p.variables || []).includes(v);
+    const V = st('VEN', p => p.scode === '79');                                    // Valdagno: PREC+TEMP, nel campione
+    const L = st('LOM', p => has(p, 'PREC'));                                      // regione non in index.json
+    const N = st('VEN', p => !has(p, 'PREC') && !has(p, 'TEMP'));                  // regione presente ma niente PREC/TEMP
+    log(V && L && N, 'stazioni di prova trovate', JSON.stringify([!!V, !!L, !!N]));
+    if(!(V && L && N)) return finish();
+    const open = async p => { await selectStation(p); await until(() => currentStation === p); await sleep(400); };
+    const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();      // il file vero, per i conteggi attesi
+    const nrow = raw.p.filter((x, i) => x != null || (raw.tm || [])[i] != null || (raw.tn || [])[i] != null).length;
+    const inside = e => { const r = e.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1; };
+    const okView = (name, noTable) => {
+      const c = el('hvChart');
+      log(!!c.querySelector('canvas') && !c.querySelector('.hint'), name + ': grafico disegnato', c.innerHTML.slice(0, 120));
+      log(histU && histU.width > 0 && histU.width <= innerWidth + 1, name + ': grafico largo quanto la pagina', histU && histU.width + ' / ' + innerWidth);
+      log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
+      log(!/undefined|NaN|null/.test(el('hvTable').textContent + el('hvNote').textContent), name + ': niente undefined/NaN', el('hvTable').textContent.slice(0, 120));
+      if(!noTable) log(el('hvTable').textContent.trim().length > 20, name + ': tabella', '');
+    };
+
+    // pulsante
+    setMapVar(''); await until(() => filterVar === '');
+    await open(L);
+    log(!vis(el('histbtn')), 'regione non in index.json: pulsante nascosto', '');
+    await open(N);
+    log(!vis(el('histbtn')), 'senza pioggia ne temperatura: pulsante nascosto', JSON.stringify(N.variables));
+    await open(V);
+    log(vis(el('histbtn')), 'Valdagno (PREC+TEMP): pulsante visibile', '');
+    for(const v of ['UMID', 'PREC24', 'TEMP']){                                    // il pulsante non dipende dalla variabile aperta
+      if(has(V, v) && el('vars').querySelector('[data-var="' + v + '"]')){ drawVar(v); await sleep(100);
+        log(vis(el('histbtn')), 'pulsante visibile con ' + v + ' aperta', ''); }
+    }
+    // chi non ha storico: aprire lo Storico e passare a una stazione senza lo chiude
+    // viste
+    await setHistMode(true, 'PREC', 'mesi');
+    log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
+    eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
+    okView('Pioggia/Mesi');
+    log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
+    histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
+    histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni', true);
+    log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
+    for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
+      el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(150);
+      const sx = histU.scales.x, span = Math.round((sx.max - sx.min) / 86400);
+      log(Math.abs(span - days) <= 1 && el('hvRange').querySelector('.on').dataset.r === String(r), 'Giorni ' + (r || 'Tutto'), 'span ' + span + ' giorni, atteso ' + days);
+    }
+    histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
+    histView = 'anni'; await renderHist(); okView('Temperatura/Anni');
+    histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni', true);
+    for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
+    log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'Temperatura/Giorni: tutti i periodi senza errori', '');
+    // i pulsanti veri (clic DOM) cambiano vista e variabile
+    el('hvView').querySelector('[data-w="mesi"]').click(); await sleep(300);
+    el('hvVar').querySelector('[data-v="PREC"]').click(); await sleep(300);
+    eq('clic su Mesi e Pioggia', [histView, histVar, currentVar], ['mesi', 'PREC', 'PREC']);
+
+    // CSV: una riga per giorno
+    let csv = null; const oc = URL.createObjectURL, oclick = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = b => { csv = b; return 'blob:test'; };
+    HTMLAnchorElement.prototype.click = function(){ if(this.download) csv = csv || true; else oclick.call(this); };
+    el('hvCsv').click(); await sleep(200);
+    URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = oclick;
+    const lines = csv && csv.text ? (await csv.text()).trim().split('\n') : [];
+    const days = lines.slice(1).map(l => l.split(';')[0]);
+    eq('CSV: intestazione', lines[0], 'data;pioggia_mm;ore_pioggia;tmin;tmax;tmedia;ore_temp');
+    eq('CSV: una riga per giorno con dati', lines.length - 1, nrow);
+    log(new Set(days).size === days.length && days.every((d, i) => i === 0 || d > days[i - 1]) && days[0] === '2024-10-23', 'CSV: giorni distinti e in ordine', days.slice(0, 3).join(','));
+    log(lines.slice(1).every(l => l.split(';').length === 7), 'CSV: sette colonne', '');
+    const k = 29, ds = new Date((Date.UTC(2024, 9, 23) / 1000 + 86400 * k) * 1000).toISOString().slice(0, 10);
+    log(lines.some(l => l.startsWith(ds + ';' + raw.p[k].toFixed(1))) || lines.some(l => l.startsWith(ds + ';' + raw.p[k] + ';')), 'CSV: un giorno a caso uguale al file', ds + ' ' + raw.p[k]);
+
+    // link H:VAR:VIEW
+    for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni']]){
+      await setHistMode(false); await open(L);                                       // parte da un'altra stazione, senza Storico
+      history.replaceState(null, '', '#VEN/79/' + v + '/H:' + v + ':' + w);
+      await applyHash(); await until(() => histMode && !!histU, 8000); await sleep(300);
+      eq('link H:' + v + ':' + w + ' apre la stessa vista', [currentStation && currentStation.scode, histMode, histVar, histView], ['79', true, v, w]);
+      log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'link H:' + v + ':' + w + ': grafico disegnato', '');
+      eq('link H:' + v + ':' + w + ' riscritto uguale', decodeURIComponent(location.hash), '#VEN/79/' + v + '/H:' + v + ':' + w);
+    }
+    await setHistMode(false); await open(L);                                          // vista sconosciuta: resta quella di prima, niente errori
+    history.replaceState(null, '', '#VEN/79/PREC/H:PREC:zzz'); await applyHash(); await until(() => histMode, 8000); await sleep(300);
+    log(histMode && ['mesi', 'anni', 'giorni'].includes(histView) && !!el('hvChart').querySelector('canvas'), 'link con vista sconosciuta', histView);
+    // uscita
+    await setHistMode(false);
+    log(!histMode && !vis(el('histview')) && !!el('chart').querySelector('canvas'), 'uscendo dallo Storico torna il grafico', '');
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
-            hoverradar:suiteHoverRadar, stazione:suiteStazione })[suite]())
+            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();
