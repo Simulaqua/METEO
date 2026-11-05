@@ -825,6 +825,43 @@
       if(!noTable) log(el('hvTable').textContent.trim().length > 20, name + ': tabella', '');
     };
 
+    // valori attesi ricalcolati dal file vero, con la regola del piano (giorno completo >= 20 ore; mese completo = intero e >= 90% di giorni completi)
+    const r1 = x => Math.round(x * 10) / 10, f1 = x => r1(x).toFixed(1);
+    const d0 = Date.UTC(+raw.d0.slice(0, 4), +raw.d0.slice(4, 6) - 1, +raw.d0.slice(6, 8)), nraw = raw.p.length;
+    const dayOf = i => new Date(d0 + 86400000 * i);
+    const expMonths = isP => {                                       // anno-mese -> { y, m, val, full, span, have }
+      const val = isP ? raw.p : raw.tm, hrs = isP ? raw.hp : raw.ht, out = {};
+      const i0 = val.findIndex(x => x != null);
+      for(let i = i0; i < nraw; i++){
+        const d = dayOf(i), y = d.getUTCFullYear(), m = d.getUTCMonth(), c = out[y + '-' + m] || (out[y + '-' + m] = { y, m, sum:0, any:0, tsum:0, have:0, span:0 });
+        c.span++;
+        if(isP && raw.p[i] != null){ c.sum += raw.p[i]; c.any++; }
+        if(val[i] != null && hrs[i] >= 20){ c.have++; if(!isP) c.tsum += raw.tm[i]; }
+      }
+      Object.values(out).forEach(c => { c.dim = new Date(Date.UTC(c.y, c.m + 1, 0)).getUTCDate(); c.full = c.span === c.dim && c.have >= 0.9 * c.dim;
+        c.val = isP ? (c.any ? r1(c.sum) : null) : (c.have ? r1(c.tsum / c.have) : null); });
+      return out;
+    };
+    const cell = (y, col) => { const tr = [...el('hvTable').querySelectorAll('tbody tr')].find(t => t.cells[0].textContent === String(y)); return tr && tr.cells[col]; };
+    const checkMonths = (isP, name) => {
+      const E = expMonths(isP), L = Object.values(E).filter(c => c.val != null);
+      const full = L.find(c => c.full), partial = L.find(c => !c.full && c.span === c.dim), edge = L[0];     // incompleto "per giorni mancanti" e primo mese (parziale)
+      log(!!full, name + ': nei dati c\'e\' un mese completo', '');
+      for(const [tag, c] of [['completo', full], ['incompleto (giorni mancanti)', partial], ['primo (parziale)', edge], ['ultimo', L[L.length - 1]]]){
+        if(!c){ log(tag !== 'completo', name + ': mese ' + tag + ' (assente nei dati: saltato)', ''); continue; }
+        const td = cell(c.y, c.m + 1), want = f1(c.val) + (c.full ? '' : '*');
+        log(!!td && td.textContent === want && td.classList.contains('part') === !c.full, name + ': mese ' + tag + ' ' + (c.m + 1) + '/' + c.y,
+            'cella ' + (td && td.textContent + (td.classList.contains('part') ? ' [part]' : '')) + ', atteso ' + want + (c.full ? '' : ' [part]'));
+      }
+    };
+    const checkYears = (isP, name) => {
+      const E = expMonths(isP), L = Object.values(E);
+      for(const y of [...new Set(L.map(c => c.y))]){
+        const ms = L.filter(c => c.y === y && c.val != null), tot = ms.reduce((a, c) => a + c.val, 0), all = ms.length === 12 && ms.every(c => c.full);
+        const v = isP ? tot : tot / ms.length, td = cell(y, 13), want = f1(v) + (all ? '' : '*');
+        log(!!td && td.textContent === want && td.classList.contains('part') === !all, name + ': colonna ' + (isP ? 'Anno' : 'Media') + ' ' + y, 'cella ' + (td && td.textContent) + ', atteso ' + want);
+      }
+    };
     // pulsante
     setMapVar(''); await until(() => filterVar === '');
     await open(L);
@@ -837,14 +874,25 @@
       if(has(V, v) && el('vars').querySelector('[data-var="' + v + '"]')){ drawVar(v); await sleep(100);
         log(vis(el('histbtn')), 'pulsante visibile con ' + v + ' aperta', ''); }
     }
-    // chi non ha storico: aprire lo Storico e passare a una stazione senza lo chiude
+    await setHistMode(true, 'PREC', 'mesi');                                        // con lo Storico aperto, una stazione senza pioggia/temperatura lo chiude
+    await open(N);
+    log(!histMode && !vis(el('histview')) && !vis(el('histbtn')), 'stazione senza PREC/TEMP: Storico chiuso', histMode);
+    await open(V);
     // viste
     await setHistMode(true, 'PREC', 'mesi');
     log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');
+    checkMonths(true, 'Pioggia/Mesi');
     log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
+    checkYears(true, 'Pioggia/Anni');
+    {                                                                // cumulata: a fine 2025 il totale dell'anno, tratteggio/asterisco nell'etichetta
+      const yrs = [...new Set(Object.values(expMonths(true)).map(c => c.y))], k = yrs.indexOf(2025) + 1;
+      const tot = r1(raw.p.reduce((a, x, i) => a + (dayOf(i).getUTCFullYear() === 2025 && x != null ? x : 0), 0));
+      eq('Pioggia/Anni: cumulata del 2025 al 31/12', [histU.data[k][364], histU.series[k].label], [tot, '2025']);
+      eq('Pioggia/Anni: 2024 incompleto segnato con *', histU.series[yrs.indexOf(2024) + 1].label, '2024*');
+    }
     histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni', true);
     log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
     for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
@@ -853,7 +901,15 @@
       log(Math.abs(span - days) <= 1 && el('hvRange').querySelector('.on').dataset.r === String(r), 'Giorni ' + (r || 'Tutto'), 'span ' + span + ' giorni, atteso ' + days);
     }
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
+    checkMonths(false, 'Temperatura/Mesi');
     histView = 'anni'; await renderHist(); okView('Temperatura/Anni');
+    checkYears(false, 'Temperatura/Anni');
+    {                                                                // media mensile nel grafico (almeno 10 giorni completi nel mese)
+      const yrs = [...new Set(Object.values(expMonths(false)).map(c => c.y))], k = yrs.indexOf(2025) + 1, want = [];
+      for(let m = 0; m < 12; m++){ let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === 2025 && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
+        want.push(n >= 10 ? r1(t / n) : null); }
+      eq('Temperatura/Anni: medie mensili 2025 nel grafico', histU.data[k], want);
+    }
     histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni', true);
     for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
     log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'Temperatura/Giorni: tutti i periodi senza errori', '');
@@ -874,8 +930,10 @@
     eq('CSV: una riga per giorno con dati', lines.length - 1, nrow);
     log(new Set(days).size === days.length && days.every((d, i) => i === 0 || d > days[i - 1]) && days[0] === '2024-10-23', 'CSV: giorni distinti e in ordine', days.slice(0, 3).join(','));
     log(lines.slice(1).every(l => l.split(';').length === 7), 'CSV: sette colonne', '');
-    const k = 29, ds = new Date((Date.UTC(2024, 9, 23) / 1000 + 86400 * k) * 1000).toISOString().slice(0, 10);
-    log(lines.some(l => l.startsWith(ds + ';' + raw.p[k].toFixed(1))) || lines.some(l => l.startsWith(ds + ';' + raw.p[k] + ';')), 'CSV: un giorno a caso uguale al file', ds + ' ' + raw.p[k]);
+    const k = raw.p.findIndex((x, i) => x != null && raw.hp[i] != null && raw.tn[i] != null && raw.tx[i] != null && raw.tn[i] !== raw.tx[i] && raw.tm[i] != null && raw.ht[i] != null);
+    const ds = dayOf(k).toISOString().slice(0, 10), row = (lines.find(l => l.startsWith(ds + ';')) || '').split(';');
+    eq('CSV: ' + ds + ' uguale al file (pioggia, ore, tmin, tmax, tmedia, ore)', row.slice(1).map(Number), [raw.p[k], raw.hp[k], raw.tn[k], raw.tx[k], raw.tm[k], raw.ht[k]]);
+    log(+row[3] < +row[4], 'CSV: tmin < tmax', row.join(';'));
 
     // link H:VAR:VIEW
     for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni']]){
