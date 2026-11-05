@@ -803,7 +803,7 @@
     finish();
   }
 
-  async function suiteStorico(){                      // Storico: pulsante, viste Mesi/Anni/Giorni, CSV, link H:VAR:VIEW (campione vero in tests/web/storico)
+  async function suiteStorico(){                      // Storico: pulsante, viste Mesi/Anni/Giorni/Tabella, CSV, link H:VAR:VIEW (campione vero in tests/web/storico)
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const st = (reg, test) => (allFeatures.find(f => f.properties._region === reg && test(f.properties)) || {}).properties;
     const has = (p, v) => (p.variables || []).includes(v);
@@ -816,13 +816,20 @@
     const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();      // il file vero, per i conteggi attesi
     const nrow = raw.p.filter((x, i) => x != null || (raw.tm || [])[i] != null || (raw.tn || [])[i] != null).length;
     const inside = e => { const r = e.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1; };
-    const okView = (name, noTable) => {
+    const okView = (name) => {
       const c = el('hvChart');
       log(!!c.querySelector('canvas') && !c.querySelector('.hint'), name + ': grafico disegnato', c.innerHTML.slice(0, 120));
       log(histU && histU.width > 0 && histU.width <= innerWidth + 1, name + ': grafico largo quanto la pagina', histU && histU.width + ' / ' + innerWidth);
       log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
       log(!/undefined|NaN|null/.test(el('hvTable').textContent + el('hvNote').textContent), name + ': niente undefined/NaN', el('hvTable').textContent.slice(0, 120));
-      if(!noTable) log(el('hvTable').textContent.trim().length > 20, name + ': tabella', '');
+      log(el('hvTable').textContent.trim() === '', name + ': niente tabella sotto il grafico', el('hvTable').textContent.slice(0, 60));
+    };
+    const okTable = name => {                                        // la voce Tabella: solo la tabella anni x mesi, nessun grafico
+      log(!histU && !vis(el('hvChart')) && !el('hvChart').querySelector('canvas'), name + ': nessun grafico', '');
+      log(!!el('hvTable').querySelector('table') && el('hvTable').textContent.trim().length > 20 && vis(el('hvTable')), name + ': tabella', '');
+      log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent) && /elaborazioni non ufficiali/.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
+      log(!/undefined|NaN|null/.test(el('hvTable').textContent + el('hvNote').textContent), name + ': niente undefined/NaN', '');
+      log(inside(el('hvView')) && el('hvView').querySelector('.on').dataset.w === 'tabella', name + ': voce Tabella accesa', '');
     };
 
     // valori attesi ricalcolati dal file vero, con la regola del piano (giorno completo >= 20 ore; mese completo = intero e >= 90% di giorni completi)
@@ -883,17 +890,18 @@
     log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');
-    checkMonths(true, 'Pioggia/Mesi');
+    histView = 'tabella'; await renderHist(); okTable('Pioggia/Tabella');
+    checkMonths(true, 'Pioggia/Tabella'); checkYears(true, 'Pioggia/Tabella');
+    histView = 'mesi'; await renderHist();
     log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
-    checkYears(true, 'Pioggia/Anni');
     {                                                                // cumulata: a fine 2025 il totale dell'anno, tratteggio/asterisco nell'etichetta
       const yrs = [...new Set(Object.values(expMonths(true)).map(c => c.y))], k = yrs.indexOf(2025) + 1;
       const tot = r1(raw.p.reduce((a, x, i) => a + (dayOf(i).getUTCFullYear() === 2025 && x != null ? x : 0), 0));
       eq('Pioggia/Anni: cumulata del 2025 al 31/12', [histU.data[k][364], histU.series[k].label], [tot, '2025']);
       eq('Pioggia/Anni: 2024 incompleto segnato con *', histU.series[yrs.indexOf(2024) + 1].label, '2024*');
     }
-    histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni', true);
+    histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni');
     log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
     for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
       el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(150);
@@ -901,16 +909,17 @@
       log(Math.abs(span - days) <= 1 && el('hvRange').querySelector('.on').dataset.r === String(r), 'Giorni ' + (r || 'Tutto'), 'span ' + span + ' giorni, atteso ' + days);
     }
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
-    checkMonths(false, 'Temperatura/Mesi');
+    histView = 'tabella'; await renderHist(); okTable('Temperatura/Tabella');
+    checkMonths(false, 'Temperatura/Tabella'); checkYears(false, 'Temperatura/Tabella');
+    histView = 'mesi'; await renderHist();
     histView = 'anni'; await renderHist(); okView('Temperatura/Anni');
-    checkYears(false, 'Temperatura/Anni');
     {                                                                // media mensile nel grafico (almeno 10 giorni completi nel mese)
       const yrs = [...new Set(Object.values(expMonths(false)).map(c => c.y))], k = yrs.indexOf(2025) + 1, want = [];
       for(let m = 0; m < 12; m++){ let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === 2025 && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
         want.push(n >= 10 ? r1(t / n) : null); }
       eq('Temperatura/Anni: medie mensili 2025 nel grafico', histU.data[k], want);
     }
-    histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni', true);
+    histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni');
     for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
     log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'Temperatura/Giorni: tutti i periodi senza errori', '');
     // i pulsanti veri (clic DOM) cambiano vista e variabile
@@ -936,17 +945,18 @@
     log(+row[3] < +row[4], 'CSV: tmin < tmax', row.join(';'));
 
     // link H:VAR:VIEW
-    for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni']]){
+    for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['PREC', 'tabella'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni'], ['TEMP', 'tabella']]){
       await setHistMode(false); await open(L);                                       // parte da un'altra stazione, senza Storico
       history.replaceState(null, '', '#VEN/79/' + v + '/H:' + v + ':' + w);
-      await applyHash(); await until(() => histMode && !!histU, 8000); await sleep(300);
+      await applyHash(); await until(() => histMode && (w === 'tabella' ? !!el('hvTable').querySelector('table') : !!histU), 8000); await sleep(300);
       eq('link H:' + v + ':' + w + ' apre la stessa vista', [currentStation && currentStation.scode, histMode, histVar, histView], ['79', true, v, w]);
-      log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'link H:' + v + ':' + w + ': grafico disegnato', '');
+      if(w === 'tabella') log(!histU && !!el('hvTable').querySelector('table'), 'link H:' + v + ':' + w + ': tabella senza grafico', '');
+      else log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'link H:' + v + ':' + w + ': grafico disegnato', '');
       eq('link H:' + v + ':' + w + ' riscritto uguale', decodeURIComponent(location.hash), '#VEN/79/' + v + '/H:' + v + ':' + w);
     }
     await setHistMode(false); await open(L);                                          // vista sconosciuta: resta quella di prima, niente errori
     history.replaceState(null, '', '#VEN/79/PREC/H:PREC:zzz'); await applyHash(); await until(() => histMode, 8000); await sleep(300);
-    log(histMode && ['mesi', 'anni', 'giorni'].includes(histView) && !!el('hvChart').querySelector('canvas'), 'link con vista sconosciuta', histView);
+    log(histMode && histView === 'tabella' && !!el('hvTable').querySelector('table'), 'link con vista sconosciuta', histView);
     // uscita
     await setHistMode(false);
     log(!histMode && !vis(el('histview')) && !!el('chart').querySelector('canvas'), 'uscendo dallo Storico torna il grafico', '');

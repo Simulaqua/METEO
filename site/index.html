@@ -644,7 +644,7 @@
       <div id="histview">
         <div class="hv-bar">
           <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
-          <div class="hv-seg" id="hvView"><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="giorni">Giorni</button></div>
+          <div class="hv-seg" id="hvView"><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="giorni">Giorni</button><button data-w="tabella">Tabella</button></div>
           <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
           <button id="hvCsv" class="act" title="Scarica i dati giornalieri (CSV)">CSV</button>
         </div>
@@ -3334,7 +3334,7 @@ function hvMonthsView(h, v){
       axes:hvAxes('°C')
     });
   }
-  return { opts, data, table:hvTableHtml(months, v) };
+  return { opts, data };
 }
 
 // ---- vista "Anni": un tracciato per anno (pioggia: cumulata dal 1 gennaio; temperatura: media mensile) ----
@@ -3379,7 +3379,7 @@ function hvYearsView(h, v){
     axes:[ { grid:{ stroke:GRID() }, stroke:AXTX(), splits:() => isP ? MS : x, values:(u, sp) => sp.map(i => MESI_BR[isP ? MS.indexOf(i) : i]) },
            { grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label:isP ? 'mm da inizio anno' : '°C (media mensile)', labelSize:22 } ]
   });
-  return { opts, data, table:hvTableHtml(histMonths(h, v), v) };
+  return { opts, data };
 }
 
 // ---- vista "Giorni": serie giornaliera (pioggia: istogramma; temperatura: banda min-max + media), intervallo scelto ----
@@ -3424,6 +3424,7 @@ function hvSync(h){
   });
   [...el('hvView').children].forEach(b => b.classList.toggle('on', b.dataset.w === histView));
   el('hvRange').style.display = histView === 'giorni' ? '' : 'none';
+  el('hvChart').style.display = histView === 'tabella' ? 'none' : '';
   [...el('hvRange').children].forEach(b => b.classList.toggle('on', +b.dataset.r === histRange));
 }
 async function renderHist(){
@@ -3440,15 +3441,24 @@ async function renderHist(){
   if(histVar === 'PREC' && !h.hasP && h.hasT) histVar = 'TEMP';
   if(histVar === 'TEMP' && !h.hasT && h.hasP) histVar = 'PREC';
   hvSync(h);
+  if(histView === 'tabella'){
+    el('hvTable').innerHTML = hvTableHtml(histMonths(h, histVar), histVar);
+    hvNoteSet(h);
+    updateHash();
+    return;
+  }
   const r = histView === 'anni' ? hvYearsView(h, histVar) : (histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar));
   if(!r.opts){ el('hvChart').innerHTML = '<div class="hint">' + (r.msg || 'Nessun dato') + '</div>'; note.textContent = ''; return; }
   histU = new uPlot(r.opts, r.data, el('hvChart'));
-  el('hvTable').innerHTML = r.table || '';
   if(r.days) hvApplyRange();
+  hvNoteSet(h);
+  updateHash();
+}
+function hvNoteSet(h){
+  const note = el('hvNote');
   const d = ts => { const t = new Date(ts * 1000); return String(t.getUTCDate()).padStart(2, '0') + '/' + String(t.getUTCMonth() + 1).padStart(2, '0') + '/' + t.getUTCFullYear(); };
   note.innerHTML = 'Dati dal ' + d(h.x[0]) + ' al ' + d(h.x[h.n - 1]) + ' · giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato · * = incompleto' +
-    (histView === 'mesi' || histView === 'anni' ? ' · elaborazioni non ufficiali dei dati grezzi delle fonti' : '');
-  updateHash();
+    (histView !== 'giorni' ? ' · elaborazioni non ufficiali dei dati grezzi delle fonti' : '');
 }
 function exitHist(){
   if(!histMode) return;
@@ -4391,7 +4401,7 @@ async function applyHash(){
   if(sp && sp.startsWith('S:')) setStackMode(true, sp.slice(2).split(',').filter(Boolean));
   else if(sp && sp.startsWith('H:')){                              // "H:PREC:anni" -> storico lungo
     const [, hv, hw] = sp.split(':');
-    await setHistMode(true, hv, ['mesi', 'anni', 'giorni'].includes(hw) ? hw : undefined);
+    await setHistMode(true, hv, ['mesi', 'anni', 'giorni', 'tabella'].includes(hw) ? hw : undefined);
   }
   syncPills();                                                   // il link puo' aver cambiato pagina
 }
