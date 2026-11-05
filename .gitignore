@@ -11,8 +11,9 @@ site/*/
 radar_out/
 .radar.lock
 
-# --- spazio di lavoro dei piani (superpowers) ---
+# --- spazio di lavoro dei piani (superpowers) e copie di lavoro separate ---
 .superpowers/
+.worktrees/
 
 # --- stato di tracking (check_updates.py) ---
 .tracking/
