@@ -23,6 +23,16 @@
     ['mousedown', 'mouseup', 'click'].forEach(type =>
       t.dispatchEvent(new MouseEvent(type, { clientX:x, clientY:y, bubbles:true, cancelable:true, view:window })));
   }
+  // niente esce dalla pagina: ne' la pagina ne' la scheda scorrono di lato e nessun elemento visibile sporge dallo schermo
+  // (tranne dentro le zone che scorrono da se', come la riga 2 sul telefono o una tabella larga)
+  function noOverflow(tag){
+    const pn = el('panel'), de = document.documentElement, R = e => e.getBoundingClientRect();
+    const clipped = e => { for(let a = e.parentElement; a && a !== pn; a = a.parentElement) if(getComputedStyle(a).overflowX !== 'visible') return true; return false; };
+    const out = [...pn.querySelectorAll('*')].filter(e => e.getClientRects().length > 0 && R(e).width > 0 && !clipped(e) && (R(e).left < -0.5 || R(e).right > innerWidth + 0.5))
+                                              .map(e => e.id || e.className || e.tagName);
+    log(de.scrollWidth <= innerWidth && pn.scrollWidth <= pn.clientWidth && !out.length, tag + ': niente esce dalla pagina a ' + innerWidth + ' px',
+        JSON.stringify([de.scrollWidth, pn.scrollWidth, pn.clientWidth, out.slice(0, 6)]));
+  }
 
   async function suiteCursor(){                       // registrazione del Cursore delle stazioni (FVG, PREC24)
     el('region').value = 'FVG';
@@ -805,6 +815,7 @@
 
   async function suiteStorico(){                      // Storico: pulsante, viste Mesi/Anni/Giorni/Tabella, CSV, link H:VAR:VIEW (campione vero in tests/web/storico)
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const R = e => e.getBoundingClientRect();
     const st = (reg, test) => (allFeatures.find(f => f.properties._region === reg && test(f.properties)) || {}).properties;
     const has = (p, v) => (p.variables || []).includes(v);
     const V = st('VEN', p => p.scode === '79');                                    // Valdagno: PREC+TEMP, nel campione
@@ -815,8 +826,16 @@
     const open = async p => { await selectStation(p); await until(() => currentStation === p); await sleep(400); };
     const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();      // il file vero, per i conteggi attesi
     const nrow = raw.p.filter((x, i) => x != null || (raw.tm || [])[i] != null || (raw.tn || [])[i] != null).length;
+    const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
     // dentro lo schermo; sul telefono la riga dei comandi scorre di lato: prima la si porta al comando (come col dito)
     const inside = e => { e.scrollIntoView({ block:'nearest', inline:'nearest' }); const r = e.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1; };
+    // niente legenda di uPlot ("Mese: --"), niente "*", trattini al posto dei mesi mancanti o corsivo
+    const clean = name => {
+      const hv = el('histview'), txt = hv.innerText, it = [...hv.querySelectorAll('*')].filter(e => vis(e) && getComputedStyle(e).fontStyle !== 'normal');
+      log(![...hv.querySelectorAll('.u-legend')].some(vis) && !/--/.test(txt), name + ': niente legenda sotto il grafico ("--")', txt.slice(0, 100));
+      log(!/\*/.test(txt) && !/–/.test(el('hvTable').innerText) && !it.length, name + ': niente "*", "–" o corsivo',
+          JSON.stringify([txt.match(/\S*\*\S*/g), it.slice(0, 3).map(e => e.tagName + '.' + e.className)]));
+    };
     const okView = (name) => {
       const c = el('hvChart');
       log(!!c.querySelector('canvas') && !c.querySelector('.hint'), name + ': grafico disegnato', c.innerHTML.slice(0, 120));
@@ -824,52 +843,191 @@
       log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
       log(!/undefined|NaN|null/.test(el('hvTable').textContent + el('hvNote').textContent), name + ': niente undefined/NaN', el('hvTable').textContent.slice(0, 120));
       log(el('hvTable').textContent.trim() === '', name + ': niente tabella sotto il grafico', el('hvTable').textContent.slice(0, 60));
+      clean(name);
     };
-    const okTable = name => {                                        // la voce Tabella: solo la tabella anni x mesi, nessun grafico
+    const okTable = name => {                                        // la voce Tabella: solo la tabella, nessun grafico
       log(!histU && !vis(el('hvChart')) && !el('hvChart').querySelector('canvas'), name + ': nessun grafico', '');
       log(!!el('hvTable').querySelector('table') && el('hvTable').textContent.trim().length > 20 && vis(el('hvTable')), name + ': tabella', '');
-      log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent) && /elaborazioni non ufficiali/.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
+      log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent), name + ': nota', el('hvNote').textContent.slice(0, 80));
       log(!/undefined|NaN|null/.test(el('hvTable').textContent + el('hvNote').textContent), name + ': niente undefined/NaN', '');
       log(inside(el('hvView')) && el('hvView').querySelector('.on').dataset.w === 'tabella', name + ': voce Tabella accesa', '');
+      clean(name);
     };
 
     // valori attesi ricalcolati dal file vero, con la regola del piano (giorno completo >= 20 ore; mese completo = intero e >= 90% di giorni completi)
     const r1 = x => Math.round(x * 10) / 10, f1 = x => r1(x).toFixed(1);
     const d0 = Date.UTC(+raw.d0.slice(0, 4), +raw.d0.slice(4, 6) - 1, +raw.d0.slice(6, 8)), nraw = raw.p.length;
     const dayOf = i => new Date(d0 + 86400000 * i);
-    const expMonths = isP => {                                       // anno-mese -> { y, m, val, full, span, have }
+    const doyOf = d => Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000);
+    const expMonths = isP => {                                       // anno-mese -> { y, m, val, full, span, have, dim, mn, mx }
       const val = isP ? raw.p : raw.tm, hrs = isP ? raw.hp : raw.ht, out = {};
       const i0 = val.findIndex(x => x != null);
       for(let i = i0; i < nraw; i++){
-        const d = dayOf(i), y = d.getUTCFullYear(), m = d.getUTCMonth(), c = out[y + '-' + m] || (out[y + '-' + m] = { y, m, sum:0, any:0, tsum:0, have:0, span:0 });
+        const d = dayOf(i), y = d.getUTCFullYear(), m = d.getUTCMonth(), c = out[y + '-' + m] || (out[y + '-' + m] = { y, m, sum:0, any:0, tsum:0, have:0, span:0, mn:null, mx:null });
         c.span++;
         if(isP && raw.p[i] != null){ c.sum += raw.p[i]; c.any++; }
+        if(!isP && raw.tn[i] != null) c.mn = c.mn == null ? raw.tn[i] : Math.min(c.mn, raw.tn[i]);
+        if(!isP && raw.tx[i] != null) c.mx = c.mx == null ? raw.tx[i] : Math.max(c.mx, raw.tx[i]);
         if(val[i] != null && hrs[i] >= 20){ c.have++; if(!isP) c.tsum += raw.tm[i]; }
       }
       Object.values(out).forEach(c => { c.dim = new Date(Date.UTC(c.y, c.m + 1, 0)).getUTCDate(); c.full = c.span === c.dim && c.have >= 0.9 * c.dim;
         c.val = isP ? (c.any ? r1(c.sum) : null) : (c.have ? r1(c.tsum / c.have) : null); });
       return out;
     };
-    const cell = (y, col) => { const tr = [...el('hvTable').querySelectorAll('tbody tr')].find(t => t.cells[0].textContent === String(y)); return tr && tr.cells[col]; };
-    const checkMonths = (isP, name) => {
-      const E = expMonths(isP), L = Object.values(E).filter(c => c.val != null);
-      const full = L.find(c => c.full), partial = L.find(c => !c.full && c.span === c.dim), edge = L[0];     // incompleto "per giorni mancanti" e primo mese (parziale)
+    // anni tratteggiati (incompleti): dati da dopo il 10 gennaio o meno del 90% di giorni completi fra il primo e l'ultimo dato
+    const partYears = isP => {
+      const val = isP ? raw.p : raw.tm, hrs = isP ? raw.hp : raw.ht, Y = {};
+      val.forEach((x, i) => { if(x == null) return; const d = dayOf(i), y = d.getUTCFullYear(), doy = doyOf(d);
+        const o = Y[y] || (Y[y] = { first:doy, last:doy, have:0 }); o.last = doy; if(hrs[i] >= 20) o.have++; });
+      return Object.keys(Y).map(Number).filter(y => Y[y].first > 10 || Y[y].have < 0.9 * (Y[y].last - Y[y].first + 1));
+    };
+    // righe del riquadro al passaggio: mese o giorno, i valori ("162 mm"; "media 23.0 °C", "min 13.3 · max 35.9"), "incompleto"
+    const vals = (isP, rain, m, mn, mx) => isP ? [rain + ' mm'] : ['media ' + f1(m) + ' °C', 'min ' + f1(mn) + ' · max ' + f1(mx)];
+    const monTxt = (isP, c) => [MESI[c.m] + ' ' + c.y, ...vals(isP, Math.round(c.val), c.val, c.mn, c.mx), ...(c.full ? [] : ['incompleto'])].join(' | ');
+    const dayTxt = (isP, i) => { const d = dayOf(i);
+      return [d.getUTCDate() + ' ' + MESI[d.getUTCMonth()] + ' ' + d.getUTCFullYear(), ...vals(isP, f1(raw.p[i]), raw.tm[i], raw.tn[i], raw.tx[i]),
+              ...((isP ? raw.hp[i] : raw.ht[i]) < 20 ? ['incompleto'] : [])].join(' | '); };
+    const dayWith = isP => { for(let i = nraw - 15; i > nraw - 30; i--) if(isP ? raw.p[i] != null : raw.tm[i] != null && raw.tn[i] != null && raw.tx[i] != null) return i; return -1; };
+    const colorOf = css => { const s = document.createElement('span'); s.style.color = css; el('histview').appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; };
+
+    // Tabella: una riga per mese (gen..dic) e in fondo tot/media, una colonna per anno (dal piu' vecchio); pioggia in mm
+    // interi, temperatura con un decimale; mese mancante = cella vuota; incompleto = piu' chiaro col perche' (title);
+    // dietro ogni numero una barra (pioggia: valore / mese piu' piovoso; temperatura: dal mese piu' freddo al piu' caldo)
+    const tbl = () => el('hvTable').querySelector('table');
+    const cell = (y, m) => {                                         // m = 0..11 i mesi, 12 la riga del totale/media
+      const t = tbl(), k = t ? [...t.rows[0].cells].findIndex(c => c.textContent.trim() === String(y)) : -1, tr = t && t.tBodies[0] && t.tBodies[0].rows[m];
+      return k > 0 && tr ? tr.cells[k] : null;
+    };
+    const barW = td => { const s = getComputedStyle(td); return s.backgroundImage === 'none' ? null : parseFloat(s.backgroundSize); };
+    const barColor = {};
+    const checkTable = (isP, name) => {
+      const E = expMonths(isP), ok = Object.values(E).filter(c => c.val != null), t = tbl();
+      const years = [...new Set(Object.values(E).map(c => c.y))].sort((a, b) => a - b);
+      const num = x => isP ? String(Math.round(x)) : f1(x), why = c => 'incompleto: ' + c.have + ' giorni completi su ' + c.dim;
+      const hi = Math.max(...ok.map(c => c.val)), lo = Math.min(...ok.map(c => c.val)), wantW = x => 100 * (isP ? x / hi : (x - lo) / (hi - lo));
+      eq(name + ': in alto l\'unità e gli anni, dal più vecchio', t ? [...t.rows[0].cells].map(c => c.textContent.trim()) : null, [isP ? 'mm' : '°C', ...years.map(String)]);
+      eq(name + ': una riga per mese e in fondo ' + (isP ? 'tot' : 'media'), t && t.tBodies[0] ? [...t.tBodies[0].rows].map(r => r.cells[0].textContent.trim()) : null,
+         [...MESI, isP ? 'tot' : 'media']);
+      const full = ok.find(c => c.full), partial = ok.find(c => !c.full && c.span === c.dim), edge = ok[0];     // incompleto "per giorni mancanti" e primo mese (parziale)
       log(!!full, name + ': nei dati c\'e\' un mese completo', '');
-      for(const [tag, c] of [['completo', full], ['incompleto (giorni mancanti)', partial], ['primo (parziale)', edge], ['ultimo', L[L.length - 1]]]){
+      for(const [tag, c] of [['completo', full], ['incompleto (giorni mancanti)', partial], ['primo (parziale)', edge], ['ultimo', ok[ok.length - 1]]]){
         if(!c){ log(tag !== 'completo', name + ': mese ' + tag + ' (assente nei dati: saltato)', ''); continue; }
-        const td = cell(c.y, c.m + 1), want = f1(c.val) + (c.full ? '' : '*');
-        log(!!td && td.textContent === want && td.classList.contains('part') === !c.full, name + ': mese ' + tag + ' ' + (c.m + 1) + '/' + c.y,
-            'cella ' + (td && td.textContent + (td.classList.contains('part') ? ' [part]' : '')) + ', atteso ' + want + (c.full ? '' : ' [part]'));
+        const td = cell(c.y, c.m);
+        eq(name + ': mese ' + tag + ' ' + (c.m + 1) + '/' + c.y + ' (valore, più chiaro, perché)', td && [td.textContent, td.classList.contains('part'), td.title],
+           [num(c.val), !c.full, c.full ? '' : why(c)]);
       }
-    };
-    const checkYears = (isP, name) => {
-      const E = expMonths(isP), L = Object.values(E);
-      for(const y of [...new Set(L.map(c => c.y))]){
-        const ms = L.filter(c => c.y === y && c.val != null), tot = ms.reduce((a, c) => a + c.val, 0), all = ms.length === 12 && ms.every(c => c.full);
-        const v = isP ? tot : tot / ms.length, td = cell(y, 13), want = f1(v) + (all ? '' : '*');
-        log(!!td && td.textContent === want && td.classList.contains('part') === !all, name + ': colonna ' + (isP ? 'Anno' : 'Media') + ' ' + y, 'cella ' + (td && td.textContent) + ', atteso ' + want);
+      const bad = [];
+      for(const y of years) for(let m = 0; m < 12; m++){
+        const c = E[y + '-' + m], td = cell(y, m), tag = (m + 1) + '/' + y;
+        if(!td){ bad.push(tag + ' assente'); continue; }
+        if(!c || c.val == null){ if(td.textContent !== '' || barW(td) != null) bad.push(tag + ' non vuota: "' + td.textContent + '"'); continue; }
+        const w = barW(td);
+        if(td.textContent !== num(c.val) || td.classList.contains('part') === c.full || td.title !== (c.full ? '' : why(c)) || !(Math.abs(w - wantW(c.val)) <= 0.6))
+          bad.push(tag + ' ' + td.textContent + (td.classList.contains('part') ? ' [part]' : '') + ' barra ' + w + ' (atteso ' + num(c.val) + ' barra ' + wantW(c.val).toFixed(1) + ')');
       }
+      eq(name + ': ogni mese (valore, più chiaro col perché, barra; vuoto se manca)', bad.slice(0, 6), []);
+      for(const y of years){                                         // riga in fondo: totale (pioggia) o media delle medie (temperatura), in grassetto
+        const ms = ok.filter(c => c.y === y), s = ms.reduce((a, c) => a + c.val, 0), nf = ms.filter(c => c.full).length, td = cell(y, 12);
+        eq(name + ': ' + (isP ? 'tot ' : 'media ') + y + ' (valore, più chiaro, perché, grassetto)',
+           td && [td.textContent, td.classList.contains('part'), td.title, +getComputedStyle(td).fontWeight >= 600],
+           [num(isP ? s : s / ms.length), nf < 12, nf < 12 ? 'incompleto: ' + nf + ' mesi completi su 12' : '', true]);
+      }
+      if(!t || !t.tBodies[0]) return;
+      const months = [...t.tBodies[0].rows].slice(0, 12).flatMap(r => [...r.cells].slice(1)).filter(td => td.textContent !== '');
+      const part = months.filter(td => td.classList.contains('part')), fullc = months.filter(td => !td.classList.contains('part'));
+      const MUTED = colorOf('var(--muted)'), bg = td => getComputedStyle(td).backgroundImage;
+      log(part.length > 0 && fullc.length > 0 && part.every(td => getComputedStyle(td).color === MUTED) && fullc.every(td => getComputedStyle(td).color !== MUTED),
+          name + ': incompleti in grigio, completi no', JSON.stringify([MUTED, part.length && getComputedStyle(part[0]).color, fullc.length && getComputedStyle(fullc[0]).color]));
+      const fb = [...new Set(fullc.map(bg))], pb = [...new Set(part.map(bg))];
+      log(fb.length === 1 && pb.length === 1 && fb[0] !== 'none' && pb[0] !== 'none' && fb[0] !== pb[0], name + ': barra colorata se completo, grigia se incompleto', JSON.stringify([fb, pb]));
+      barColor[isP ? 'P' : 'T'] = fb[0];
+      if(fullc.length){
+        document.body.classList.add('dark'); const dark = bg(fullc[0]); document.body.classList.remove('dark');
+        log(dark !== 'none' && dark !== fb[0], name + ': barre col tema scuro', JSON.stringify([fb[0], dark]));
+      }
+      const c1 = t.tBodies[0].rows[0].cells;
+      log(c1.length > 1 && getComputedStyle(c1[1]).textAlign === 'right' && getComputedStyle(t.rows[0].cells[1]).textAlign === 'right' &&
+          /tabular-nums/.test(getComputedStyle(c1[1]).fontVariantNumeric), name + ': numeri a destra, cifre della stessa larghezza', '');
+      log(getComputedStyle(c1[0]).position === 'sticky' && getComputedStyle(t.rows[0].cells[0]).position === 'sticky', name + ': colonna dei mesi ferma se la tabella scorre', getComputedStyle(c1[0]).position);
+      const pn = el('panel'), ps = getComputedStyle(pn), x0 = R(pn).left + parseFloat(ps.paddingLeft),
+            avail = pn.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight), tw = R(t).width;
+      if(avail > 520) log(tw <= 520.5 && Math.abs(R(t).left - x0) <= 1, name + ': tabella stretta (al massimo 520 px), a sinistra', JSON.stringify([R(t).left, tw, x0, avail]));
+      else log(Math.abs(tw - avail) <= 1 && Math.abs(R(t).left - x0) <= 1, name + ': tabella larga quanto lo schermo', JSON.stringify([R(t).left, tw, x0, avail]));
     };
+
+    // grafici: chiave fissa in alto a destra (sopra i dati) ed etichetta dove sta il puntatore (mouse; al tocco sul telefono)
+    const okKey = (name, want) => {
+      const k = el('hvChart').querySelector('.hv-key'), w = histU && histU.over.parentNode;
+      eq(name + ': chiave', k ? [...k.children].map(e => e.textContent.trim()) : null, want);
+      log(vis(k) && R(k).right <= R(w).right + 0.5 && R(k).right >= R(w).right - 60 && R(k).top >= R(w).top - 0.5 && R(k).bottom <= R(histU.over).top + 1,
+          name + ': chiave in alto a destra, sopra i dati', k && JSON.stringify([R(k).left, R(k).top, R(k).right, R(k).bottom, R(histU.over).top, R(w).right]));
+    };
+    const tipAt = async (xv, yv) => {                                // mousemove vero sul grafico nel punto (xv, yv) dei suoi assi (yv null = a meta' altezza)
+      const o = histU.over, r = R(o), x = r.left + histU.valToPos(xv, 'x'), y = r.top + (yv == null ? r.height / 2 : histU.valToPos(yv, 'y'));
+      o.dispatchEvent(new MouseEvent('mouseenter', { clientX:x, clientY:y }));
+      o.dispatchEvent(new MouseEvent('mousemove', { clientX:x, clientY:y, bubbles:true }));
+      await sleep(60);
+      return o.querySelector('.ctip');
+    };
+    const tipText = t => vis(t) ? t.innerText.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' | ') : null;
+    const tipIn = t => { if(!vis(t)) return false; const a = R(t), o = R(histU.over);
+      return a.left >= o.left - 0.5 && a.right <= o.right + 0.5 && a.top >= o.top - 0.5 && a.bottom <= o.bottom + 0.5 && a.left >= -0.5 && a.right <= innerWidth + 0.5; };
+    const okTip = async (name, xv, want) => {
+      const t = await tipAt(xv, null);
+      eq(name + ': etichetta al passaggio', tipText(t), want);
+      log(tipIn(t), name + ': etichetta dentro il grafico e lo schermo', t && JSON.stringify([R(t).left, R(t).right, R(histU.over).left, R(histU.over).right]));
+    };
+    const tipEdges = async name => {                                 // vicino ai bordi resta dentro: in alto a destra, in basso a sinistra
+      const sx = histU.scales.x, sy = histU.scales.y, dx = (sx.max - sx.min) / 100, dy = (sy.max - sy.min) / 50;
+      const a = tipIn(await tipAt(sx.max - dx, sy.max - dy)), b = tipIn(await tipAt(sx.min + dx, sy.min + dy));
+      log(a && b, name + ': vicino ai bordi l\'etichetta resta dentro', JSON.stringify([a, b]));
+    };
+    // Anni: nessuna legenda, il nome dell'anno in fondo alla sua linea; ultimo anno blu e piu' spesso, gli altri grigi, incompleti tratteggiati
+    const okYears = (name, isP) => {
+      const S = histU.series.slice(1), n = S.length, yrs = S.map(s => String(s.label));
+      const col = k => { const s = histU.series[k]; return typeof s.stroke === 'function' ? s.stroke(histU, k) : s.stroke; };
+      const rgb = c => (/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(c || '') || []).slice(1).map(h => parseInt(h, 16));
+      const grey = c => { const v = rgb(c); return v.length === 3 && Math.max(...v) - Math.min(...v) <= 40; };
+      const lv = rgb(col(n));
+      log(lv.length === 3 && lv[2] - lv[0] >= 60 && S.every((s, k) => k === n - 1 || (s.width < S[n - 1].width && grey(col(k + 1)))),
+          name + ': ultimo anno blu e più spesso, gli altri grigi', JSON.stringify(S.map((s, k) => [s.label, col(k + 1), s.width])));
+      eq(name + ': anni incompleti tratteggiati', S.filter(s => s.dash && s.dash.length).map(s => s.label), partYears(isP).map(String));
+      const o = histU.over, w = o.parentNode, labs = [...w.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
+      eq(name + ': il nome di ogni anno sul grafico', labs.map(l => l.textContent.trim()).sort(), yrs.slice().sort());
+      const bad = [];
+      S.forEach((s, k) => {
+        const d = histU.data[k + 1], lab = labs.find(l => l.textContent.trim() === yrs[k]); let j = d.length - 1;
+        while(j >= 0 && d[j] == null) j--;
+        if(!lab || j < 0){ bad.push(yrs[k] + ' senza nome'); return; }
+        const px = R(o).left + histU.valToPos(histU.data[0][j], 'x'), py = R(o).top + histU.valToPos(d[j], 'y'), r = R(lab);
+        if(r.left < px || r.left > px + 12 || Math.abs((r.top + r.bottom) / 2 - py) > 20 || r.right > R(w).right + 0.5 || r.top < R(w).top - 0.5 || r.bottom > R(w).bottom + 0.5)
+          bad.push(yrs[k] + ' ' + JSON.stringify([Math.round(r.left), Math.round((r.top + r.bottom) / 2), Math.round(px), Math.round(py)]));
+      });
+      eq(name + ': nome in fondo alla propria linea, dentro il grafico', bad, []);
+      const ov = []; labs.forEach((a, i) => labs.slice(i + 1).forEach(b => { const p = R(a), q = R(b);
+        if(p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom) ov.push(a.textContent + '/' + b.textContent); }));
+      log(labs.length === n && !ov.length, name + ': nomi degli anni non sovrapposti', JSON.stringify(ov));
+      let ml = []; try { const a = histU.axes[0]; ml = a.values(histU, a.splits(histU, 0, 0, 365, 1, 1), 0, 30, 1).filter(Boolean); } catch(e){ ml = [String(e)]; }
+      log(ml.length >= 6 && R(o).width / ml.length >= 26, name + ': nomi dei mesi sull\'asse non sovrapposti (almeno 26 px l\'uno)', JSON.stringify([ml, R(o).width]));
+    };
+    // la "i" accanto a "Dati dal ... al ...": chiusa all'inizio, mostra il metodo, si usa da tastiera
+    const okInfo = async name => {
+      const b = el('hvInfoBtn'), box = el('hvInfo'), last = dayOf(nraw - 1), dd = n => String(n).padStart(2, '0');
+      eq(name + ': riga della nota', el('hvDates') && el('hvDates').textContent, 'Dati dal 23/10/2024 al ' + dd(last.getUTCDate()) + '/' + dd(last.getUTCMonth() + 1) + '/' + last.getUTCFullYear());
+      if(!b || !box){ log(false, name + ': "i" del metodo', 'assente'); return; }
+      log(b.tagName === 'BUTTON' && vis(b) && b.getAttribute('aria-expanded') === 'false' && !vis(box), name + ': "i" chiusa all\'inizio', b.outerHTML.slice(0, 160));
+      b.click(); await sleep(50);
+      log(vis(box) && b.getAttribute('aria-expanded') === 'true' && ['giorno solare (UTC+1)', 'giorno completo = almeno 20 ore con dato', 'più chiaro o tratteggiato = incompleto',
+          'elaborazioni non ufficiali dei dati grezzi delle fonti'].every(s => box.innerText.includes(s)), name + ': "i" mostra il metodo', box.innerText);
+      noOverflow(name + ', metodo aperto');
+      b.click(); await sleep(50);
+      log(!vis(box) && b.getAttribute('aria-expanded') === 'false', name + ': "i" si richiude', '');
+      b.focus(); b.click(); await sleep(30);                         // tastiera: e' un pulsante (Invio e spazio lo premono); Esc chiude
+      b.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true })); await sleep(30);
+      log(document.activeElement === b && b.tabIndex >= 0 && !vis(box) && b.getAttribute('aria-expanded') === 'false', name + ': "i" da tastiera (fuoco, Esc chiude)',
+          document.activeElement && (document.activeElement.id || document.activeElement.tagName));
+    };
+
     // pulsante
     setMapVar(''); await until(() => filterVar === '');
     await open(L);
@@ -887,42 +1045,98 @@
     log(!histMode && !vis(el('histview')) && !vis(el('histbtn')), 'stazione senza PREC/TEMP: Storico chiuso', histMode);
     await open(V);
     // viste
+    const EP = expMonths(true), ET = expMonths(false);
     await setHistMode(true, 'PREC', 'mesi');
     log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');
+    okKey('Pioggia/Mesi', ['mm', 'incompleto']);
+    await okTip('Pioggia/Mesi, agosto 2025', Date.UTC(2025, 7, 1) / 1000, monTxt(true, EP['2025-7']));
+    await okTip('Pioggia/Mesi, settembre 2025 (incompleto)', Date.UTC(2025, 8, 1) / 1000, monTxt(true, EP['2025-8']));
+    {                                                                // telefono: al tocco il riquadro compare, trascinando il dito lo segue
+      const o = histU.over, r = R(o), y = r.top + r.height / 2, at = (yy, mm) => r.left + histU.valToPos(Date.UTC(yy, mm, 1) / 1000, 'x');
+      const touch = (type, x) => o.dispatchEvent(new PointerEvent(type, { pointerType:'touch', isPrimary:true, clientX:x, clientY:y, bubbles:true }));
+      let got = null;
+      try { touch('pointerdown', at(2025, 2)); await sleep(40); got = [tipText(o.querySelector('.ctip'))];
+            touch('pointermove', at(2025, 3)); await sleep(40); got.push(tipText(o.querySelector('.ctip'))); } catch(e){ got = String(e); }
+      eq('Pioggia/Mesi: al tocco e trascinando il dito (marzo, poi aprile 2025)', got, [monTxt(true, EP['2025-2']), monTxt(true, EP['2025-3'])]);
+    }
+    noOverflow('Pioggia/Mesi, etichetta');
+    await tipEdges('Pioggia/Mesi');
+    await okInfo('Pioggia/Mesi');
     histView = 'tabella'; await renderHist(); okTable('Pioggia/Tabella');
-    checkMonths(true, 'Pioggia/Tabella'); checkYears(true, 'Pioggia/Tabella');
+    checkTable(true, 'Pioggia/Tabella');
+    noOverflow('Pioggia/Tabella');
     histView = 'mesi'; await renderHist();
     log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
-    {                                                                // cumulata: a fine 2025 il totale dell'anno, tratteggio/asterisco nell'etichetta
-      const yrs = [...new Set(Object.values(expMonths(true)).map(c => c.y))], k = yrs.indexOf(2025) + 1;
+    {                                                                // cumulata: a fine 2025 il totale dell'anno; al passaggio la cumulata di ogni anno
+      const yrs = [...new Set(Object.values(EP).map(c => c.y))], k = yrs.indexOf(2025) + 1;
       const tot = r1(raw.p.reduce((a, x, i) => a + (dayOf(i).getUTCFullYear() === 2025 && x != null ? x : 0), 0));
       eq('Pioggia/Anni: cumulata del 2025 al 31/12', [histU.data[k][364], histU.series[k].label], [tot, '2025']);
-      eq('Pioggia/Anni: 2024 incompleto segnato con *', histU.series[yrs.indexOf(2024) + 1].label, '2024*');
+      let ax = null; try { ax = histU.axes[1].values(histU, [1000, 2.5, -10], 1, 50, 100); } catch(e){ ax = String(e); }
+      eq('Pioggia/Anni: asse col punto decimale e senza separatore delle migliaia', ax, ['1000', '2.5', '-10']);
+      okYears('Pioggia/Anni', true);
+      okKey('Pioggia/Anni', ['incompleto']);
+      const t = await tipAt(300, null), i = histU.cursor.idx, lab = new Date(Date.UTC(2023, 0, 1 + i));
+      const cum = y => { let run = 0, first = -1, lastd = -1;                 // come il grafico: cumulata dal 1 gennaio, null fuori dai dati dell'anno
+        raw.p.forEach((x, j) => { const d = dayOf(j); if(x == null || d.getUTCFullYear() !== y) return; const doy = doyOf(d);
+          if(first < 0) first = doy; lastd = doy; if(doy <= i) run += x; });
+        return first < 0 || i < first || i > lastd ? null : r1(run); };
+      const want = [lab.getUTCDate() + ' ' + MESI[lab.getUTCMonth()], ...yrs.slice().reverse().filter(y => cum(y) != null).map(y => y + ' ' + Math.round(cum(y)) + ' mm')];
+      log(Math.abs(i - 300) <= 3, 'Pioggia/Anni: puntatore sul giorno 300', i);
+      eq('Pioggia/Anni: etichetta al passaggio (ogni anno)', tipText(t), want.join(' | '));
+      log(tipIn(t), 'Pioggia/Anni: etichetta dentro il grafico e lo schermo', '');
+      noOverflow('Pioggia/Anni');
     }
     histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni');
+    okKey('Pioggia/Giorni', ['mm', 'incompleto']);
     log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
     for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
       el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(150);
       const sx = histU.scales.x, span = Math.round((sx.max - sx.min) / 86400);
       log(Math.abs(span - days) <= 1 && el('hvRange').querySelector('.on').dataset.r === String(r), 'Giorni ' + (r || 'Tutto'), 'span ' + span + ' giorni, atteso ' + days);
     }
+    el('hvRange').querySelector('[data-r="30"]').click(); await sleep(150);
+    { const i = dayWith(true); await okTip('Pioggia/Giorni, ' + dayOf(i).toISOString().slice(0, 10), d0 / 1000 + 86400 * i, dayTxt(true, i)); }
+    await tipEdges('Pioggia/Giorni');
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
+    okKey('Temperatura/Mesi', ['min–max', 'media']);
+    {
+      const S = histU.series, big = k => { try { return !!S[k].points.show(histU, k, 0, histU.data[0].length - 1) && S[k].points.size > 3; } catch(e){ return true; } };
+      log(S.length === 4 && histU.bands.length === 1 && S[3].width > Math.max(S[1].width, S[2].width) && ![1, 2, 3].some(big),
+          'Temperatura/Mesi: banda min-max e linea della media, senza puntini grandi', JSON.stringify([S.map(s => [s.label, s.width]), histU.bands.length]));
+    }
+    await okTip('Temperatura/Mesi, agosto 2025', Date.UTC(2025, 7, 1) / 1000, monTxt(false, ET['2025-7']));
+    await okTip('Temperatura/Mesi, settembre 2025 (incompleto)', Date.UTC(2025, 8, 1) / 1000, monTxt(false, ET['2025-8']));
+    noOverflow('Temperatura/Mesi, etichetta');
+    await tipEdges('Temperatura/Mesi');
     histView = 'tabella'; await renderHist(); okTable('Temperatura/Tabella');
-    checkMonths(false, 'Temperatura/Tabella'); checkYears(false, 'Temperatura/Tabella');
+    checkTable(false, 'Temperatura/Tabella');
+    log(!!barColor.P && !!barColor.T && barColor.P !== barColor.T, 'Tabella: barre della temperatura di un altro colore (calde)', JSON.stringify(barColor));
+    noOverflow('Temperatura/Tabella');
     histView = 'mesi'; await renderHist();
     histView = 'anni'; await renderHist(); okView('Temperatura/Anni');
-    {                                                                // media mensile nel grafico (almeno 10 giorni completi nel mese)
-      const yrs = [...new Set(Object.values(expMonths(false)).map(c => c.y))], k = yrs.indexOf(2025) + 1, want = [];
-      for(let m = 0; m < 12; m++){ let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === 2025 && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
-        want.push(n >= 10 ? r1(t / n) : null); }
-      eq('Temperatura/Anni: medie mensili 2025 nel grafico', histU.data[k], want);
+    {                                                                // media mensile nel grafico (almeno 10 giorni completi nel mese); al passaggio ogni anno
+      const yrs = [...new Set(Object.values(ET).map(c => c.y))], k = yrs.indexOf(2025) + 1;
+      const mean = (y, m) => { let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === y && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
+        return n >= 10 ? r1(t / n) : null; };
+      eq('Temperatura/Anni: medie mensili 2025 nel grafico', histU.data[k], MESI.map((_, m) => mean(2025, m)));
+      okYears('Temperatura/Anni', false);
+      okKey('Temperatura/Anni', ['incompleto']);
+      const t = await tipAt(7, null);
+      eq('Temperatura/Anni: etichetta al passaggio (ogni anno)', tipText(t),
+         ['ago', ...yrs.slice().reverse().filter(y => mean(y, 7) != null).map(y => y + ' ' + f1(mean(y, 7)) + ' °C')].join(' | '));
+      log(tipIn(t), 'Temperatura/Anni: etichetta dentro il grafico e lo schermo', '');
+      await tipEdges('Temperatura/Anni');
+      noOverflow('Temperatura/Anni');
     }
     histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni');
+    okKey('Temperatura/Giorni', ['min–max', 'media']);
     for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
     log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'Temperatura/Giorni: tutti i periodi senza errori', '');
+    el('hvRange').querySelector('[data-r="30"]').click(); await sleep(150);
+    { const i = dayWith(false); await okTip('Temperatura/Giorni, ' + dayOf(i).toISOString().slice(0, 10), d0 / 1000 + 86400 * i, dayTxt(false, i)); }
     // i pulsanti veri (clic DOM) cambiano vista e variabile
     el('hvView').querySelector('[data-w="mesi"]').click(); await sleep(300);
     el('hvVar').querySelector('[data-v="PREC"]').click(); await sleep(300);
@@ -988,13 +1202,6 @@
     const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvRange')].filter(vis);
     const tag2 = e => e.id || (e.dataset.mode ? 'mode:' + e.dataset.mode : 'var');
     const scroller = () => { for(let e = el('vars'); e && e !== el('panel'); e = e.parentElement) if(/auto|scroll/.test(getComputedStyle(e).overflowX)) return e; return null; };
-    const clipped = e => { for(let a = e.parentElement; a && a !== el('panel'); a = a.parentElement) if(getComputedStyle(a).overflowX !== 'visible') return true; return false; };
-    const noOverflow = tag => {
-      const pn = el('panel'), de = document.documentElement;
-      const out = [...pn.querySelectorAll('*')].filter(e => vis(e) && !clipped(e) && (R(e).left < -0.5 || R(e).right > innerWidth + 0.5)).map(e => e.id || e.className || e.tagName);
-      log(de.scrollWidth <= innerWidth && pn.scrollWidth <= pn.clientWidth && !out.length, tag + ': niente esce dalla pagina a ' + innerWidth + ' px',
-          JSON.stringify([de.scrollWidth, pn.scrollWidth, pn.clientWidth, out.slice(0, 6)]));
-    };
     const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte
       const bad = want.filter(id => { const e = el(id); if(!vis(e)) return true;
         const r = R(e), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);

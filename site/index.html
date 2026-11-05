@@ -348,16 +348,42 @@
                    font-size:12px; cursor:pointer; white-space:nowrap; }
   .hv-seg button:last-child { border-right:none; }
   .hv-seg button.on { background:var(--accent); color:#fff; }
+  /* barre della tabella: pioggia, temperatura (calda), incompleto */
+  #histview { --hv-rain:#b5d4f4; --hv-warm:#f5c4b3; --hv-part:var(--line); }
+  body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,.36); }
   #hvChart { width:100%; min-height:120px; }
-  #hvChart .u-legend { font-size:12px; text-align:left; }
-  #hvChart .u-legend .u-series { padding:1px 6px; }
-  #hvTable { overflow-x:auto; }
-  #hvTable table { border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; width:100%; }
-  #hvTable th, #hvTable td { padding:3px 7px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
-  #hvTable th:first-child, #hvTable td:first-child { text-align:left; position:sticky; left:0; background:var(--bg); font-weight:600; }
-  #hvTable td.part { color:var(--muted); font-style:italic; }
-  #hvTable .tot { font-weight:600; border-left:1px solid var(--line); }
-  #hvNote { color:var(--muted); font-size:12px; line-height:1.5; }
+  /* grafici: chiave fissa in alto a destra (nella fascia sopra i dati), nomi degli anni in fondo alle linee, riquadro al passaggio */
+  .hv-key { position:absolute; top:2px; right:12px; display:flex; gap:12px; font-size:11px; line-height:16px; color:var(--muted);
+            white-space:nowrap; pointer-events:none; }
+  .hv-key .sw, .hv-tip .sw { display:inline-block; width:12px; height:8px; margin-right:5px; border-radius:2px; vertical-align:-1px; }
+  .hv-key .sw.ln, .hv-tip .sw.ln { height:0; border-top:2px solid; border-radius:0; vertical-align:3px; }
+  .hv-yl { position:absolute; left:0; top:0; font-size:11px; font-weight:600; line-height:13px; white-space:nowrap; pointer-events:none;
+           text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
+  .hv-tip { white-space:normal; max-width:calc(100% - 4px); }
+  .hv-tip .part { color:var(--muted); }
+  /* tabella: mesi in riga, anni in colonna (--ny anni: ~96 px l'uno, al massimo 520 px; sul telefono larga quanto lo
+     schermo; se non ci sta scorre e i mesi restano fermi). Dietro ogni numero una barra lunga --w, staccata dai bordi */
+  #hvTable { overflow-x:auto; max-width:520px; }
+  #hvTable table { width:min(100%, calc(48px + var(--ny) * 96px)); border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  @media (max-width:720px){ #hvTable table { width:100%; } }
+  #hvTable th, #hvTable td { padding:4px 8px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  #hvTable th { color:var(--muted); font-weight:400; }
+  #hvTable td { min-width:56px; padding-left:4px; }
+  #hvTable tr > :first-child { position:sticky; left:0; z-index:1; background:var(--bg); text-align:left; }
+  #hvTable .rain { --hvc:var(--hv-rain); }
+  #hvTable .warm { --hvc:var(--hv-warm); }
+  #hvTable td.b { background-image:linear-gradient(var(--hvc), var(--hvc)); background-repeat:no-repeat; background-origin:content-box;
+                  background-position:left center; background-size:var(--w) 100%; }
+  #hvTable td.part { color:var(--muted); --hvc:var(--hv-part); }
+  #hvTable tr.tot > * { font-weight:600; border-top:1px solid var(--muted); border-bottom:none; }
+  #hvTable tr.tot th { color:var(--fg); }
+  /* nota: "Dati dal ... al ..." e la "i" che apre il metodo */
+  #hvNote { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; color:var(--muted); font-size:12px; line-height:1.5; }
+  .hv-i { width:18px; height:18px; padding:0; border:1px solid var(--line); border-radius:50%; background:none; color:var(--muted); cursor:pointer;
+          font:600 11px/16px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .hv-i[aria-expanded="true"] { background:var(--soft2); color:var(--fg); }
+  @media (max-width:720px){ .hv-i { width:24px; height:24px; font-size:12px; line-height:22px; } }   /* da toccare col dito */
+  #hvInfo { flex:1 0 100%; }
   /* modo "Impilato": un pannello per variabile, asse del tempo condiviso, cursore e zoom sincronizzati */
   body.dark #pbar button.tog { background:var(--soft); color:var(--fg); border-color:var(--line); }
   body.dark #pbar button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -687,7 +713,9 @@
       <div id="histview">
         <div id="hvChart"></div>
         <div id="hvTable"></div>
-        <div id="hvNote"></div>
+        <div id="hvNote"><span id="hvDates"></span><button id="hvInfoBtn" class="hv-i" type="button" aria-expanded="false" aria-controls="hvInfo"
+             aria-label="Metodo" title="Metodo" hidden>i</button><div id="hvInfo" hidden>giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato
+             · più chiaro o tratteggiato = incompleto · elaborazioni non ufficiali dei dati grezzi delle fonti</div></div>
       </div>
       <div id="chartstats" class="hint"></div>
       <div id="windrose"></div>
@@ -3232,7 +3260,7 @@ async function exportChartPNG(){
 // l'archivio, scritti una volta al giorno da history.py sul ramo 'history' del repository:
 //   <REGIONE>/<STAZIONE>.json = {d0:'YYYYMMDD', p:[mm], hp:[ore], tn:[], tx:[], tm:[], ht:[ore]}  (un elemento per
 //   giorno SOLARE da d0; null = nessun dato). "ore" = ore del giorno con almeno una misura: un giorno e' completo
-//   con >= 20 ore, un mese e' completo se e' intero e il 90% dei giorni e' completo (il resto e' segnato "*").
+//   con >= 20 ore, un mese e' completo se e' intero e il 90% dei giorni e' completo (il resto e' piu' chiaro o tratteggiato).
 // ------------------------------------------------------------------------------------------------
 const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/history') : './_HIST';
 const HIST_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@history';
@@ -3244,8 +3272,6 @@ async function fhist(path){
   return fetch(HIST_FALLBACK + '/' + path);
 }
 const MESI_BR = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
-const HV_NAME = { PREC:'Pioggia', TEMP:'Temperatura' };
-const HV_COLORS = ['#8a9bb0', '#d08c3a', '#5aa469', '#a05ab8', '#2aa3b8', '#c4545b'];     // anni passati (l'ultimo e' blu pieno)
 let histMode = false, histVar = 'PREC', histView = 'mesi', histRange = 90, histU = null, histData = null;
 const histCache = {};
 let _histIndexP = null;                    // index.json del ramo 'history' (una richiesta per sessione; null = assente)
@@ -3304,40 +3330,45 @@ function histMonths(h, v){
   return out;
 }
 
-// tabella anni x mesi (totali per la pioggia, medie per la temperatura); "*" = incompleto
+// tabella mesi x anni: una riga per mese e in fondo il totale (pioggia, mm interi) o la media delle medie (temperatura), una
+// colonna per anno dal piu' vecchio; mese mancante = cella vuota. Dietro ogni numero una barra: pioggia lunga quanto il
+// valore sul mese piu' piovoso della tabella, temperatura dal mese piu' freddo al piu' caldo. Incompleto = piu' chiaro,
+// il perche' al passaggio (title)
 function hvTableHtml(months, v){
-  const isP = v === 'PREC', by = {};
-  months.forEach(c => { by[c.y + '-' + c.m] = c; });
-  const years = [...new Set(months.map(c => c.y))];
-  let html = '<table><thead><tr><th>' + (isP ? 'mm' : '°C') + '</th>' + MESI_BR.map(m => '<th>' + m + '</th>').join('') +
-             '<th class="tot">' + (isP ? 'Anno' : 'Media') + '</th></tr></thead><tbody>';
-  years.forEach(y => {
-    let tot = 0, cnt = 0, allFull = true, row = '<tr><td>' + y + '</td>';
-    for(let m = 0; m < 12; m++){
-      const c = by[y + '-' + m];
-      if(!c || c.val == null){ row += '<td>–</td>'; allFull = false; continue; }
-      tot += c.val; cnt++;
-      if(!c.full) allFull = false;
-      row += '<td' + (c.full ? '' : ' class="part" title="' + c.have + ' giorni completi su ' + c.dim + '"') + '>' + fmt1(c.val) + (c.full ? '' : '*') + '</td>';
-    }
-    const yv = isP ? tot : (cnt ? tot / cnt : null);
-    row += '<td class="tot' + (allFull ? '' : ' part') + '">' + (cnt ? fmt1(yv) + (allFull ? '' : '*') : '–') + '</td></tr>';
-    html += row;
+  const isP = v === 'PREC', by = {}, vals = [];
+  months.forEach(c => { if(c.val != null){ by[c.y + '-' + c.m] = c; vals.push(c.val); } });
+  const years = [...new Set(months.map(c => c.y))], lo = Math.min(...vals), hi = Math.max(...vals);
+  const bar = x => isP ? (hi > 0 ? x / hi : 0) : (hi > lo ? (x - lo) / (hi - lo) : 1);
+  const cell = (x, why, w) => {
+    const cls = [w != null && 'b', why && 'part'].filter(Boolean).join(' ');
+    return '<td' + (cls ? ' class="' + cls + '"' : '') + (why ? ' title="incompleto: ' + why + '"' : '') +
+           (w != null ? ' style="--w:' + (100 * w).toFixed(1) + '%"' : '') + '>' + (isP ? Math.round(x) : fmt1(x)) + '</td>';
+  };
+  const row = (head, cells, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + head + '</th>' + cells.join('') + '</tr>';
+  let html = '<table class="' + (isP ? 'rain' : 'warm') + '" style="--ny:' + years.length + '"><thead>' +
+             row(isP ? 'mm' : '°C', years.map(y => '<th>' + y + '</th>')) + '</thead><tbody>';
+  MESI_BR.forEach((name, m) => {
+    html += row(name, years.map(y => { const c = by[y + '-' + m];
+      return c ? cell(c.val, c.full ? '' : c.have + ' giorni completi su ' + c.dim, bar(c.val)) : '<td></td>'; }));
   });
+  html += row(isP ? 'tot' : 'media', years.map(y => {
+    const ms = MESI_BR.map((_, m) => by[y + '-' + m]).filter(Boolean), nf = ms.filter(c => c.full).length, s = ms.reduce((a, c) => a + c.val, 0);
+    return ms.length ? cell(isP ? s : s / ms.length, nf < 12 ? nf + ' mesi completi su 12' : '') : '<td></td>';
+  }), 'tot');
   return html + '</tbody></table>';
 }
 
 function hvW(){ return Math.max(260, el('hvChart').clientWidth || (el('panel').clientWidth - 32)); }
 function hvH(){ return (window.matchMedia && matchMedia('(max-width:720px)').matches) ? 250 : 330; }
 const hvBars = () => uPlot.paths.bars({ size:[0.75, 60] });
-const hvMonLabel = ts => ts == null ? '--' : MESI_BR[new Date(ts * 1000).getUTCMonth()] + ' ' + new Date(ts * 1000).getUTCFullYear();
-const hvDayLabel = ts => { if(ts == null) return '--'; const d = new Date(ts * 1000);
-  return d.getUTCDate() + ' ' + MESI_BR[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+const hvMonLabel = ts => MESI_BR[new Date(ts * 1000).getUTCMonth()] + ' ' + new Date(ts * 1000).getUTCFullYear();
+const hvDayLabel = ts => { const d = new Date(ts * 1000); return d.getUTCDate() + ' ' + MESI_BR[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
 
+// niente legenda di uPlot: chiave, riquadro al passaggio e nomi degli anni li aggiunge hvDecorate (in alto 20 px per la chiave)
 function hvBase(extra){
   return Object.assign({
-    width:hvW(), height:hvH(), tzDate:TZ_UTC, legend:{ show:true }, padding:[8, 12, 0, 0],
-    cursor:{ drag:{ x:true, y:false } }
+    width:hvW(), height:hvH(), tzDate:TZ_UTC, legend:{ show:false }, padding:[20, 12, 0, 0],
+    cursor:{ y:false, drag:{ x:true, y:false } }, hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears] }
   }, extra);
 }
 // etichette dell'asse del tempo in italiano: mesi (gen, feb...) o giorni (5 mar), con l'anno sotto quando cambia
@@ -3352,39 +3383,45 @@ function hvTimeVals(u, ticks){
     return out;
   });
 }
-const hvAxes = unit => [ { grid:{ stroke:GRID() }, stroke:AXTX(), values:hvTimeVals },
-                         { grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label:unit, labelSize:22 } ];
+// asse dei valori col punto decimale e senza separatore delle migliaia (uPlot seguirebbe la lingua del browser: "1.000", "2,5")
+const hvYAxis = label => ({ grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label, labelSize:22,
+                            values:(u, sp) => sp.map(v => String(Math.round(v * 1000) / 1000)) });
+const hvAxes = unit => [ { grid:{ stroke:GRID() }, stroke:AXTX(), values:hvTimeVals }, hvYAxis(unit) ];
+// Mesi e Giorni. Pioggia: barre, le incomplete piu' chiare. Temperatura: banda chiara fra minima e massima, media in linea
+const hvRainOpts = () => hvBase({
+  scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] } }, axes:hvAxes('mm'),
+  series:[ {}, { stroke:'#2b6cb0', fill:'#2b6cb0cc', width:1, paths:hvBars(), points:{ show:false } },
+               { stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } } ] });
+const hvTempOpts = w => hvBase({
+  scales:{ x:{ time:true } }, axes:hvAxes('°C'), bands:[ { series:[1, 2], fill:'rgba(229,62,62,.12)' } ],
+  series:[ {}, { stroke:'#e53e3e', width:1, points:{ show:false } }, { stroke:'#2b6cb0', width:1, points:{ show:false } },
+               { stroke:AXTX(), width:w, points:{ show:false } } ] });
+// segno della chiave e dell'etichetta: rettangolino (barre, banda) o trattino (linee; tratteggiato = incompleto)
+const hvSw = (c, line, dash) => '<span class="sw' + (line ? ' ln' : '') + '" style="' +
+                                (line ? 'border-color:' + c + (dash ? ';border-top-style:dashed' : '') : 'background:' + c) + '"></span>';
+const hvRainKey = () => [hvSw('#2b6cb0cc') + 'mm', hvSw('#8fb3da88') + 'incompleto'];
+const hvTempKey = () => [hvSw('rgba(229,62,62,.25)') + 'min–max', hvSw(AXTX(), true) + 'media'];
+// riquadro al passaggio: in alto il mese o il giorno, sotto i valori ("291 mm"; "media 23.8 °C" e "min 15.8 · max 35.6"),
+// in fondo "incompleto" se lo e'
+const hvTempLines = (m, mn, mx) => { const r = [mn, mx].map((v, k) => v == null ? '' : (k ? 'max ' : 'min ') + fmt1(v)).filter(Boolean).join(' · ');
+  return [m == null ? '' : 'media ' + fmt1(m) + ' °C', r && m == null ? r + ' °C' : r].filter(Boolean); };
+const hvTip = (lab, lines, part) => '<b>' + lab + '</b>' + (lines.length ? lines : ['nessun dato']).map(s => '<div>' + s + '</div>').join('') +
+                                    (part && lines.length ? '<div class="part">incompleto</div>' : '');
 
-// ---- vista "Mesi": totali mensili (pioggia: istogramma; temperatura: media/min/max) + tabella anni x mesi ----
+// ---- vista "Mesi": totali mensili (pioggia) o banda min-max e media mensile (temperatura) ----
 function hvMonthsView(h, v){
-  const months = histMonths(h, v);
-  if(!months.length) return { u:null, table:'', msg:'Nessun dato' };
+  const months = histMonths(h, v), isP = v === 'PREC';
+  if(!months.length) return { msg:'Nessun dato' };
   const x = months.map(c => c.x);
-  let opts, data;
-  if(v === 'PREC'){
-    data = [x, months.map(c => c.full ? c.val : null), months.map(c => c.full ? null : c.val)];
-    opts = hvBase({
-      scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] } },
-      series:[ { label:'Mese', value:(u, ts) => hvMonLabel(ts) },
-               { label:'Totale mm', stroke:'#2b6cb0', fill:'#2b6cb0cc', width:1, paths:hvBars(), points:{ show:false } },
-               { label:'Incompleto mm', stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } } ],
-      axes:hvAxes('mm')
-    });
-  } else {
-    data = [x, months.map(c => c.mx), months.map(c => c.val), months.map(c => c.mn)];
-    opts = hvBase({
-      scales:{ x:{ time:true } },
-      series:[ { label:'Mese', value:(u, ts) => hvMonLabel(ts) },
-               { label:'Max °C', stroke:'#e53e3e', width:1.2, points:{ size:4 } },
-               { label:'Media °C', stroke:AXTX(), width:2, points:{ size:5 } },
-               { label:'Min °C', stroke:'#2b6cb0', width:1.2, points:{ size:4 } } ],
-      axes:hvAxes('°C')
-    });
-  }
-  return { opts, data };
+  const read = i => { const c = months[i];
+    return hvTip(hvMonLabel(c.x), isP ? (c.val == null ? [] : [Math.round(c.val) + ' mm']) : hvTempLines(c.val, c.mn, c.mx), !c.full); };
+  if(isP) return { opts:hvRainOpts(), data:[x, months.map(c => c.full ? c.val : null), months.map(c => c.full ? null : c.val)], read, key:hvRainKey() };
+  return { opts:hvTempOpts(2), data:[x, months.map(c => c.mx), months.map(c => c.mn), months.map(c => c.val)], read, key:hvTempKey() };
 }
 
-// ---- vista "Anni": un tracciato per anno (pioggia: cumulata dal 1 gennaio; temperatura: media mensile) ----
+// ---- vista "Anni": una linea per anno (pioggia: cumulata dal 1 gennaio; temperatura: media mensile). L'ultimo anno e' blu e
+// piu' spesso, gli altri grigi (piu' tenui andando indietro), gli incompleti tratteggiati; il nome dell'anno in fondo alla linea ----
+const hvGrey = age => (document.body.classList.contains('dark') ? ['#9aabbf', '#7a8b9f', '#5f6e80'] : ['#7d8a99', '#a3adb9', '#c3cad3'])[Math.min(age, 3) - 1];
 function hvYearsView(h, v){
   const isP = v === 'PREC', val = isP ? h.p : h.tm, hrs = isP ? h.hp : h.ht;
   const yrs = {};                                                  // anno -> accumulatori
@@ -3408,53 +3445,78 @@ function hvYearsView(h, v){
     list.forEach(Y => { for(let m = 0; m < 12; m++) Y.arr[m] = Y.tcnt[m] >= 10 ? Math.round(Y.tsum[m] / Y.tcnt[m] * 10) / 10 : null; });
   }
   const nx = isP ? 366 : 12, MS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-  const x = Array.from({ length:nx }, (_, i) => i);
-  const dayLab = i => { if(i == null) return '--'; const t = new Date(Date.UTC(2023, 0, 1 + i)); return t.getUTCDate() + ' ' + MESI_BR[t.getUTCMonth()]; };
-  const series = [ { label:isP ? 'Giorno' : 'Mese', value:(u, i) => i == null ? '--' : (isP ? dayLab(i) : MESI_BR[i]) } ];
-  const data = [x];
-  list.forEach((Y, k) => {
-    const lastYear = k === list.length - 1;
+  const x = Array.from({ length:nx }, (_, i) => i), n = list.length;
+  const dayLab = i => { const t = new Date(Date.UTC(2023, 0, 1 + Math.min(i, 364))); return t.getUTCDate() + ' ' + MESI_BR[t.getUTCMonth()]; };
+  const lines = list.map((Y, k) => ({ Y, color:k < n - 1 ? hvGrey(n - 1 - k) : (document.body.classList.contains('dark') ? '#63a4e8' : '#2b6cb0'),
     // tratteggiato = anno che non copre l'inizio (dati da dopo il 10 gennaio) o con meno del 90% dei giorni completi
-    const part = Y.first > 10 || Y.have < 0.9 * (Y.last - Y.first + 1);
-    series.push({ label:String(Y.y) + (part ? '*' : ''), stroke:lastYear ? '#2b6cb0' : HV_COLORS[k % HV_COLORS.length],
-                  width:lastYear ? 2.6 : 1.4, dash:(part && !lastYear) ? [6, 4] : undefined, spanGaps:false, points:{ show:!isP, size:4 } });
-    data.push(Y.arr);
-  });
+    part:Y.first > 10 || Y.have < 0.9 * (Y.last - Y.first + 1) }));
+  const ends = [];                                                 // l'ultimo punto di ogni linea, per il nome dell'anno
+  lines.forEach(o => { let j = nx - 1; while(j >= 0 && o.Y.arr[j] == null) j--; if(j >= 0) ends.push({ name:String(o.Y.y), color:o.color, x:j, y:o.Y.arr[j] }); });
+  const read = i => hvTip(isP ? dayLab(i) : MESI_BR[i], lines.filter(o => o.Y.arr[i] != null).reverse().map(o =>        // dal piu' recente
+    '<span' + (o.part ? ' class="part"' : '') + '>' + hvSw(o.color, true, o.part) + o.Y.y + ' ' + (isP ? Math.round(o.Y.arr[i]) + ' mm' : fmt1(o.Y.arr[i]) + ' °C') + '</span>'));
   const opts = hvBase({
+    padding:[20, 44, 0, 0],                                        // a destra il posto per il nome degli anni
     scales:{ x:{ time:false, range:isP ? [0, 365] : [-0.3, 11.3] }, y:{ range:(u, mn, mx) => isP ? [0, Math.max(mx * 1.06, 1)] : [mn - 1, mx + 1] } },
-    series,
-    axes:[ { grid:{ stroke:GRID() }, stroke:AXTX(), splits:() => isP ? MS : x, values:(u, sp) => sp.map(i => MESI_BR[isP ? MS.indexOf(i) : i]) },
-           { grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label:isP ? 'mm da inizio anno' : '°C (media mensile)', labelSize:22 } ]
+    series:[{}].concat(lines.map((o, k) => ({ label:String(o.Y.y), stroke:o.color, width:k < n - 1 ? 1.4 : 2.6, dash:o.part ? [6, 4] : undefined,
+                                              spanGaps:false, points:{ show:!isP, size:3 } }))),
+    // un mese si' e uno no quando non ci stanno tutti (telefono: meno di 26 px a mese, tolti asse dei valori e margine destro)
+    axes:[ { grid:{ stroke:GRID() }, stroke:AXTX(), splits:() => isP ? MS : x,
+             values:(u, sp) => sp.map((i, k) => (u.width - 58 - 44) / 12 < 26 && k % 2 ? '' : MESI_BR[isP ? MS.indexOf(i) : i]) },
+           hvYAxis(isP ? 'mm da inizio anno' : '°C (media mensile)') ]
   });
-  return { opts, data };
+  return { opts, data:[x, ...lines.map(o => o.Y.arr)], read, ends, key:lines.some(o => o.part) ? [hvSw(hvGrey(1), true, true) + 'incompleto'] : [] };
 }
 
-// ---- vista "Giorni": serie giornaliera (pioggia: istogramma; temperatura: banda min-max + media), intervallo scelto ----
+// ---- vista "Giorni": serie giornaliera (pioggia: barre; temperatura: banda min-max + media), periodo scelto ----
 function hvDaysView(h, v){
-  const x = h.x;
-  let opts, data;
-  if(v === 'PREC'){
-    data = [x, h.p.map((p, i) => (p != null && h.hp[i] >= 20) ? p : null), h.p.map((p, i) => (p != null && h.hp[i] < 20) ? p : null)];
-    opts = hvBase({
-      scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] } },
-      series:[ { label:'Giorno', value:(u, ts) => hvDayLabel(ts) },
-               { label:'mm', stroke:'#2b6cb0', fill:'#2b6cb0cc', width:1, paths:hvBars(), points:{ show:false } },
-               { label:'mm (incompleto)', stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } } ],
-      axes:hvAxes('mm')
-    });
-  } else {
-    data = [x, h.tx, h.tn, h.tm];
-    opts = hvBase({
-      scales:{ x:{ time:true } },
-      series:[ { label:'Giorno', value:(u, ts) => hvDayLabel(ts) },
-               { label:'Max °C', stroke:'#e53e3e', width:1, points:{ show:false } },
-               { label:'Min °C', stroke:'#2b6cb0', width:1, points:{ show:false } },
-               { label:'Media °C', stroke:AXTX(), width:1.6, points:{ show:false } } ],
-      bands:[ { series:[1, 2], fill:'rgba(229,62,62,.12)' } ],
-      axes:hvAxes('°C')
-    });
+  const isP = v === 'PREC';
+  const read = i => hvTip(hvDayLabel(h.x[i]), isP ? (h.p[i] == null ? [] : [fmt1(h.p[i]) + ' mm']) : hvTempLines(h.tm[i], h.tn[i], h.tx[i]),
+                          !((isP ? h.hp[i] : h.ht[i]) >= 20));
+  if(isP) return { opts:hvRainOpts(), data:[h.x, h.p.map((p, i) => (p != null && h.hp[i] >= 20) ? p : null), h.p.map((p, i) => (p != null && h.hp[i] < 20) ? p : null)],
+                   read, key:hvRainKey(), days:true };
+  return { opts:hvTempOpts(1.6), data:[h.x, h.tx, h.tn, h.tm], read, key:hvTempKey(), days:true };
+}
+
+// chiave in alto a destra, riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e trascinamento) e nomi
+// degli anni in fondo alle linee
+function hvDecorate(u, r){
+  const wrap = u.over.parentNode, add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; wrap.appendChild(d); return d; };
+  if(r.key.length) add('hv-key', r.key.map(s => '<span>' + s + '</span>').join(''));
+  u._ends = (r.ends || []).map(e => { const d = add('hv-yl', e.name); d.style.color = e.color; return Object.assign({ el:d }, e); });
+  u._read = r.read;
+  u._tip = document.createElement('div'); u._tip.className = 'ctip hv-tip'; u.over.appendChild(u._tip);
+  // tocco e penna: il riquadro compare dove si tocca e segue il dito che scorre di lato (in verticale scorre la pagina);
+  // col mouse lo sposta gia' uPlot
+  u.over.style.touchAction = 'pan-y';
+  const at = e => { const b = u.over.getBoundingClientRect(); u.setCursor({ left:e.clientX - b.left, top:e.clientY - b.top }); };
+  u.over.addEventListener('pointerdown', at);
+  u.over.addEventListener('pointermove', e => { if(e.pointerType !== 'mouse') at(e); });
+}
+// il riquadro sta in alto, accanto alla linea del cursore (dall'altra parte vicino al bordo destro): non copre il dito
+function hvCursor(u){
+  const tip = u._tip, i = u.cursor.idx, l = u.cursor.left;
+  if(!tip) return;
+  if(i == null || l == null || l < 0){ tip.style.display = 'none'; return; }
+  tip.innerHTML = u._read(i);
+  tip.style.display = 'block';
+  const W = u.over.clientWidth, w = tip.offsetWidth;
+  const x = l + 10 + w <= W - 2 ? l + 10 : Math.max(2, Math.min(l - 10 - w, W - w - 2));
+  tip.style.transform = 'translate(' + Math.round(x) + 'px,2px)';
+}
+// nomi degli anni a destra dell'ultimo punto. Due vicini che si toccherebbero vanno uno sotto l'altro; se i piu' bassi
+// uscirebbero dal fondo del grafico, il gruppo risale
+function hvPlaceYears(u){
+  if(!u._ends) return;
+  const H = 13, top = u.over.offsetTop, bottom = top + u.over.clientHeight - H, near = (p, q) => Math.abs(p.x - q.x) < 36;
+  const ps = u._ends.map(e => ({ el:e.el, x:u.over.offsetLeft + u.valToPos(e.x, 'x') + 5, y:top + u.valToPos(e.y, 'y') - H / 2 }))
+                    .sort((a, b) => a.y - b.y);
+  ps.forEach((p, k) => ps.slice(0, k).forEach(q => { if(near(p, q) && p.y < q.y + H) p.y = q.y + H; }));
+  for(let k = ps.length - 1; k >= 0; k--){
+    const p = ps[k];
+    p.y = Math.min(p.y, bottom);
+    ps.slice(k + 1).forEach(q => { if(near(p, q) && p.y > q.y - H) p.y = q.y - H; });
   }
-  return { opts, data, table:'', days:true };
+  ps.forEach(p => { p.el.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px)'; });
 }
 
 function hvApplyRange(){
@@ -3477,42 +3539,44 @@ function hvSync(h){
 async function renderHist(){
   const st = currentStation;
   if(!st || !histMode) return;
-  const note = el('hvNote');
-  note.textContent = 'Carico lo storico…';
+  hvNoteSet(null, 'Carico lo storico…');
   const h = await histLoad(st);
   if(st !== currentStation || !histMode) return;
   if(histU){ histU.destroy(); histU = null; }
   el('hvChart').innerHTML = ''; el('hvTable').innerHTML = '';
-  if(!h){ note.textContent = 'Storico non disponibile per questa stazione (si aggiorna ogni notte).'; return; }
+  if(!h){ hvNoteSet(null, 'Storico non disponibile per questa stazione (si aggiorna ogni notte).'); return; }
   histData = h;
   if(histVar === 'PREC' && !h.hasP && h.hasT) histVar = 'TEMP';
   if(histVar === 'TEMP' && !h.hasT && h.hasP) histVar = 'PREC';
   hvSync(h);
   if(histView === 'tabella'){
-    el('hvTable').innerHTML = hvTableHtml(histMonths(h, histVar), histVar);
-    hvNoteSet(h);
-    updateHash();
-    return;
+    const months = histMonths(h, histVar);
+    el('hvTable').innerHTML = months.length ? hvTableHtml(months, histVar) : '<div class="hint">Nessun dato</div>';
+  } else {
+    const r = histView === 'anni' ? hvYearsView(h, histVar) : (histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar));
+    if(!r.opts){ el('hvChart').innerHTML = '<div class="hint">' + r.msg + '</div>'; hvNoteSet(null, ''); return; }
+    histU = new uPlot(r.opts, r.data, el('hvChart'));
+    hvDecorate(histU, r);
+    if(r.days) hvApplyRange();
   }
-  const r = histView === 'anni' ? hvYearsView(h, histVar) : (histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar));
-  if(!r.opts){ el('hvChart').innerHTML = '<div class="hint">' + (r.msg || 'Nessun dato') + '</div>'; note.textContent = ''; return; }
-  histU = new uPlot(r.opts, r.data, el('hvChart'));
-  if(r.days) hvApplyRange();
   hvNoteSet(h);
   updateHash();
 }
-function hvNoteSet(h){
-  const note = el('hvNote');
-  const d = ts => { const t = new Date(ts * 1000); return String(t.getUTCDate()).padStart(2, '0') + '/' + String(t.getUTCMonth() + 1).padStart(2, '0') + '/' + t.getUTCFullYear(); };
-  note.innerHTML = 'Dati dal ' + d(h.x[0]) + ' al ' + d(h.x[h.n - 1]) + ' · giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato · * = incompleto' +
-    (histView !== 'giorni' ? ' · elaborazioni non ufficiali dei dati grezzi delle fonti' : '');
+// riga sotto la vista: "Dati dal ... al ..." e la "i" che apre il metodo; senza dati solo il messaggio
+function hvNoteSet(h, msg){
+  const d = ts => { const t = new Date(ts * 1000); return pad(t.getUTCDate()) + '/' + pad(t.getUTCMonth() + 1) + '/' + t.getUTCFullYear(); };
+  el('hvDates').textContent = h ? 'Dati dal ' + d(h.x[0]) + ' al ' + d(h.x[h.n - 1]) : msg;
+  el('hvInfoBtn').hidden = !h;
+  if(!h) hvInfo(false);
 }
+function hvInfo(open){ el('hvInfoBtn').setAttribute('aria-expanded', String(open)); el('hvInfo').hidden = !open; }
 function exitHist(){
   if(!histMode) return;
   histMode = false;
   document.body.classList.remove('hist-mode');
   const b = el('histbtn'); b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
   if(histU){ histU.destroy(); histU = null; }
+  hvInfo(false);                                           // la prossima volta il metodo parte chiuso
 }
 async function setHistMode(on, v, w){
   if(!on){
@@ -3556,6 +3620,8 @@ function buildHistControls(){
   el('hvView').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; histView = b.dataset.w; renderHist(); });
   el('hvRange').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; histRange = +b.dataset.r; hvSync(histData); hvApplyRange(); });
   el('hvCsv').addEventListener('click', exportHistCSV);
+  el('hvInfoBtn').addEventListener('click', () => hvInfo(el('hvInfo').hidden));
+  el('hvInfoBtn').addEventListener('keydown', e => { if(e.key === 'Escape') hvInfo(false); });
 }
 
 // ridimensiona il grafico col pannello
@@ -3733,7 +3799,8 @@ el('themeBtn').addEventListener('click', () => {
   document.body.classList.toggle('dark');
   try { localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); } catch(e){}
   _syncThemeBtn();
-  if(currentStation && currentVar && currentVar !== WROSE && document.body.classList.contains('view-station'))
+  if(histMode) renderHist();                              // i colori dello Storico (griglia, assi, anni) dipendono dal tema
+  else if(currentStation && currentVar && currentVar !== WROSE && document.body.classList.contains('view-station'))
     renderChart(currentVar);
 });
 
