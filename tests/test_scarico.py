@@ -191,8 +191,9 @@ class TestScarico(unittest.TestCase):
         self.check_er_instants('normale')
 
     def test_emilia_romagna_quarto_dispari(self):
-        # registrato dal vivo a un quarto :15/:45: la pioggia (totali di 30 minuti, alle :00 e alle :30) torna solo come
-        # valori ripetuti ('precedente' S), che non si scrivono: derive.py li conterebbe due volte nelle PREC1..48
+        # registrato dal vivo a un quarto :15/:45: la pioggia (totali di 30 minuti, alle :00 e alle :30) non ha valori a
+        # quell'istante, solo qualche valore di prima ripetuto ('precedente' S), che non si scrive: derive.py lo
+        # conterebbe due volte nelle PREC1..48
         self.check_source('emilia_romagna', 'quarto_dispari', 'dati_emilia_romagna.py', [])
         self.check_er_instants('quarto_dispari')
 

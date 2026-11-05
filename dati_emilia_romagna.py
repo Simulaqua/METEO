@@ -4,11 +4,11 @@
 #   API_URL + get-time-series             la serie di una stazione: [{'t': epoch in ms UTC, 'v': valore}, ...]
 #   API_URL + get-sensor-values-no-time   tutte le stazioni di una variabile con il valore a un istante, il nome e le
 #                                         coordinate (gradi WGS84 per 100000); in testa {'time': epoch in ms UTC},
-#                                         l'istante dei valori, un'ora prima del time chiesto
-# Ogni giro prende come istante l'ultimo campione del livello di REF_STATION arrotondato per difetto al quarto d'ora,
-# scarica in ER/data-downloaded/dati/ il valore di ogni stazione a quell'istante per ogni variabile, lo aggiunge al
-# file del giorno (ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) e poi cancella i file scaricati: la serie
-# cresce di un punto a giro, per questo il cron lo lancia ogni 15 minuti.
+#                                         l'istante dei valori, un'ora prima del time chiesto (visto a novembre 2026)
+# Ogni giro chiede come time l'ultimo campione del livello di REF_STATION arrotondato per difetto al quarto d'ora,
+# scarica in ER/data-downloaded/dati/ la risposta di ogni variabile, ne aggiunge i valori al file del giorno
+# (ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) all'istante dell'intestazione e poi cancella i file
+# scaricati: la serie cresce di un punto a giro, per questo il cron lo lancia ogni 15 minuti.
 # Uso: python3 dati_emilia_romagna.py [--debug]
 import argparse
 import datetime
@@ -37,10 +37,6 @@ VARIABLES = {
 # l'istante del giro è l'ultimo campione del livello di questa stazione (Cesenatico porto, un idrometro affidabile),
 # arrotondato per difetto al quarto d'ora
 REF_STATION = '5444'
-# get-sensor-values-no-time risponde per un'ora prima del time chiesto (visto a novembre: forse legge il time come ora
-# italiana, d'estate sarebbero due ore), per questo si chiede un'ora dopo l'istante del giro; i valori si salvano
-# comunque all'istante scritto nell'intestazione della risposta
-ASK_AHEAD_MS = 60 * 60 * 1000
 # il feed dà la temperatura in kelvin e la pressione in pascal
 VALUE_CONV = {
     'TEMP': lambda v: round(v - 273.15, 1),
@@ -81,8 +77,8 @@ def reference_time(debug=False):
 
 
 def download(debug=False):
-    """Il valore di ogni stazione all'istante del giro, una variabile per file, in DOWNLOAD_DIR/dati/ con il prefisso
-    del giro AAAAMMGG-HHMMSS (restituito). Una variabile che non arriva si salta."""
+    """La risposta per l'istante del giro (i valori di un'ora prima), una variabile per file, in DOWNLOAD_DIR/dati/ con
+    il prefisso del giro AAAAMMGG-HHMMSS (restituito). Una variabile che non arriva si salta."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
     # tutte e due le cartelle subito: anche un giro che si ferma alla prima chiamata le lascia
     os.makedirs(folder, exist_ok=True)
@@ -91,11 +87,12 @@ def download(debug=False):
     ref_ms = reference_time(debug)
     print('Istante di riferimento (UTC ms): %d  (%s UTC)'
           % (ref_ms, datetime.datetime.utcfromtimestamp(ref_ms / 1000).strftime('%Y-%m-%d %H:%M')))
-    asked = str(ref_ms + ASK_AHEAD_MS)
+    # time=istante del giro: la risposta ha i valori di un'ora prima, di tutte le stazioni. Un'ora più tardi (provato
+    # il 2026-11-05) i valori sono freschi, ma dal 3 al 9% non è ancora arrivato e non si richiederebbe più
     for var in sorted(VARIABLES):
         name = stamp + '-' + var + '.json'
         try:
-            r = call('get-sensor-values-no-time', {'variabile': VARIABLES[var][0], 'time': asked}, 90, debug)
+            r = call('get-sensor-values-no-time', {'variabile': VARIABLES[var][0], 'time': str(ref_ms)}, 90, debug)
         except requests.RequestException as error:
             print('SKIP %s (%s)' % (name, error))
             continue
