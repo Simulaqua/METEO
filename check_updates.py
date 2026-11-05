@@ -26,7 +26,7 @@ LOG_FILE  = os.path.join(_BASE_DIR, 'tracking.log')
 REGIONS = {
     'VEN': 'dati_veneto.py',
     'TN' : 'dati_trentino.py',
-    'BZ' : 'BZ/dati_altoadige.py',
+    'BZ' : 'dati_altoadige.py',
     'FVG': 'dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',
     'ER' : 'ER/dati_emilia_romagna.py',
@@ -81,15 +81,15 @@ def scan_ven(m, sample):
     return mapped, dict(live), stations
 
 def scan_bz(m, sample):
-    mapped = set(getattr(m.variables, n).type for n in var_names(m))
+    mapped = set(m.VARIABLES.values())                           # i TYPE dei sensori letti dallo script
     stations = {}
-    raw = get(m.url_stations)
+    raw = get(m.STATIONS_URL)
     if raw:
         for f in json.loads(raw).get('features', []):
             p = f.get('properties', {}); sc = p.get('SCODE')
             if sc: stations[sc] = p.get('NAME_I') or p.get('NAME_D')
     live = Counter()
-    raw = get(m.url_sensors)
+    raw = get(m.SENSORS_URL)
     if raw:
         for r in json.loads(raw):
             live[r.get('TYPE')] += 1

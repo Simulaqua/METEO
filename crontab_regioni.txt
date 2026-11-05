@@ -23,7 +23,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 # ALTO ADIGE / BOLZANO - ogni 10 minuti, 24h
 # -------------------------------------------------------------------------------------------
-2,12,22,32,42,52 * * * * mkdir -p $BASE/BZ/logs && $PYTHON $BASE/BZ/dati_altoadige.py >> $BASE/BZ/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+2,12,22,32,42,52 * * * * mkdir -p $BASE/BZ/logs && $PYTHON $BASE/dati_altoadige.py >> $BASE/BZ/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # TRENTINO - ogni 15 minuti, 24h

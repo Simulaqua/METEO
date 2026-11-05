@@ -10,11 +10,15 @@ from tests import registratore
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
 # i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG e TN recover.py ha solo
-# il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì
-READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': []}
+# il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì.
+# recover.py legge solar_moment di BZ con getattr e ha una sua copia di riserva: se il nome sparisse, userebbe la copia
+# senza dirlo
+READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': [],
+                   'BZ': ['PARSE_DIR', 'SENSORS_URL', 'VARIABLES', 'solar_moment']}
 READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES'],
-                         'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES']}
+                         'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES'],
+                         'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES']}
 
 
 def load_file(path):
@@ -101,6 +105,9 @@ class TestScarico(unittest.TestCase):
 
     def test_trentino(self):
         self.check_source('trentino', 'normale', 'dati_trentino.py', [])
+
+    def test_altoadige(self):
+        self.check_source('altoadige', 'normale', 'dati_altoadige.py', [])
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si

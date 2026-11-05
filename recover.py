@@ -37,7 +37,7 @@ SOURCE_MAX_DAYS = {'ER': 3}
 
 REGION_FILE = {
     'VEN': 'dati_veneto.py',          'TN' : 'dati_trentino.py',
-    'BZ' : 'BZ/dati_altoadige.py',    'FVG': 'dati_fvg.py',
+    'BZ' : 'dati_altoadige.py',       'FVG': 'dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',   'ER' : 'ER/dati_emilia_romagna.py',
 }
 
@@ -192,11 +192,11 @@ def _er_solar(ref_ms):
 def fetch_bz(mod, days, debug=False):
     ''' Bolzano: /timeseries per ogni coppia (stazione, sensore) attiva. DATE (CET/CEST) -> istante solare. '''
     TS = 'https://geoservices.buergernetz.bz.it/services/meteo/v1/timeseries'
-    normalize = getattr(mod, 'normalize_istante', _bz_istante)   # fallback autonomo
+    normalize = getattr(mod, 'solar_moment', _bz_istante)        # fallback autonomo
     d_to   = now_solar().strftime('%Y%m%d')
     d_from = (now_solar() - datetime.timedelta(days=days)).strftime('%Y%m%d')
-    type2var = {getattr(mod.variables, v).type: v for v in var_list(mod)}
-    sensors = http_json(mod.url_sensors)
+    type2var = {ty: v for v, ty in mod.VARIABLES.items()}
+    sensors = http_json(mod.SENSORS_URL)
     pairs, um_map = [], {}
     for r in sensors:
         sc, ty = r.get('SCODE'), r.get('TYPE')
@@ -337,8 +337,10 @@ def fetch_lom(mod, days, debug=False):
 #-----------------------------------------------------------------------------------------------------------
 def recover_snapshot_region(region, mod, fetcher, days, force, debug):
     ''' Regioni a snapshot (BZ/ER/LOM): gate sul buco, poi fetch storico + merge. '''
-    variables = var_list(mod)
-    parse_dir = mod.directory.parse
+    if region == 'BZ':
+        variables, parse_dir = list(mod.VARIABLES), mod.PARSE_DIR
+    else:                                                        # ER e LOM hanno ancora le classi
+        variables, parse_dir = var_list(mod), mod.directory.parse
     eff_days = min(days, SOURCE_MAX_DAYS.get(region, days))   # limita alla profondita' servibile dalla fonte
     hole, why = has_hole(parse_dir, variables, eff_days, CADENCE[region])
     print(f'[{region}] gate ({eff_days}gg): {why}')
