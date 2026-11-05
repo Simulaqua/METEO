@@ -1,20 +1,24 @@
 import ast
 import glob
+import gzip
 import http.server
+import io
 import os
 import shutil
 import tempfile
 import threading
 import time
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import requests
 
 import comune
-from comune import (USER_AGENT, aware_to_solar, civil_to_solar, delete_downloaded, get, get_json, get_text, is_dst_civil,
-                    load_json, save_json, to_float, utc_to_solar, write_parsed)
+from comune import (USER_AGENT, aware_to_solar, civil_to_solar, day_files, delete_downloaded, get, get_json, get_text,
+                    is_dst_civil, is_dst_solar, load_json, merge_readings, save_json, to_float, utc_to_solar,
+                    value_key, write_parsed)
 
 RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -187,6 +191,71 @@ class TestWriteParsed(unittest.TestCase):
     def test_days_none_tiene_le_vecchie(self):
         write_parsed('XX', self.stations, {'TEMP': {'S1': [('202601010000', 9.0)]}}, {'TEMP': '°C'}, days=None)
         self.assertEqual(self.giorno('TEMP', '20260101')['S1']['MISURE']['VALORE'], [9.0])
+
+
+class TestAttrezziParte3(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+
+    def scrivi(self, name, content=b'{}'):
+        path = os.path.join(self.dir, name)
+        with open(path, 'wb') as fp:
+            fp.write(content)
+        return path
+
+    def test_ora_legale_solare_e_civile(self):
+        marzo = [datetime(2026, 3, 29, h) for h in range(5)]
+        ottobre = [datetime(2026, 10, 25, h) for h in range(5)]
+        self.assertEqual([is_dst_solar(d) for d in marzo], [False, False, True, True, True])
+        self.assertEqual([is_dst_civil(d) for d in marzo], [False, False, True, True, True])
+        self.assertEqual([is_dst_solar(d) for d in ottobre], [True, True, False, False, False])
+        self.assertEqual([is_dst_civil(d) for d in ottobre], [True, True, True, False, False])
+
+    def test_carica_gz(self):
+        buono = self.scrivi('a.json.gz', gzip.compress('{"a": "àè"}'.encode('utf-8')))
+        self.assertEqual(load_json(buono), {'a': 'àè'})
+        troncato = self.scrivi('b.json.gz', gzip.compress(b'{"a": [1, 2, 3, 4, 5, 6, 7, 8]}' * 50)[:-30])
+        rovinato = self.scrivi('c.json.gz', b'\x1f\x8b\x08\x00' + b'non e un flusso deflate' * 5)
+        for path in (troncato, rovinato):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(load_json(path), {})
+            self.assertEqual(out.getvalue().count('\n'), 1)
+            self.assertTrue(out.getvalue().startswith('WARN: file JSON illeggibile ('), out.getvalue())
+            self.assertTrue(out.getvalue().strip().endswith(', ignorato: ' + path), out.getvalue())
+
+    def test_day_files(self):
+        self.assertEqual(day_files(os.path.join(self.dir, 'manca'), 'TEMP'), {})
+        for name in ('TEMP-20261103.json.gz', 'TEMP-20261101.json', 'TEMP-20261101.json.gz', 'TEMP-20261102.json',
+                     'TEMP-2026110.json', 'TEMPX-20261101.json'):
+            self.scrivi(name)
+        trovati = day_files(self.dir, 'TEMP')
+        self.assertEqual(list(trovati), ['20261101', '20261102', '20261103'])
+        self.assertEqual(trovati['20261101'], os.path.join(self.dir, 'TEMP-20261101.json'))
+        self.assertEqual(trovati['20261103'], os.path.join(self.dir, 'TEMP-20261103.json.gz'))
+
+    def test_value_key(self):
+        self.assertEqual((value_key('VEN'), value_key('FVG'), value_key('')), ('VM', 'VALORE', 'VALORE'))
+
+    def test_merge_readings(self):
+        path = os.path.join(self.dir, 'TEMP-20260110.json')
+        save_json({'S1': {'STAZIONE': {'SCODE': 'S1'}, 'UM': 'C',
+                          'MISURE': {'ISTANTE': ['202601100000', '202601100100'], 'VALORE': [1.0, 2.0]}}}, path)
+        nuove = []
+
+        def new_record(sc):
+            nuove.append(sc)
+            return {'STAZIONE': {'SCODE': sc}, 'UM': 'C', 'MISURE': {'ISTANTE': [], 'VALORE': []}}
+
+        readings = {'S1': [('202601100100', 9.0), ('202601100050', 1.5), ('202601100200', None)],
+                    'S2': [('202601100300', 4.0)]}
+        self.assertEqual(merge_readings(self.dir, 'TEMP', readings, new_record), 2)
+        self.assertEqual(nuove, ['S2'])
+        dati = load_json(path)
+        self.assertEqual(dati['S1']['MISURE']['ISTANTE'], ['202601100000', '202601100050', '202601100100'])
+        self.assertEqual(dati['S1']['MISURE']['VALORE'], [1.0, 1.5, 2.0])
+        self.assertEqual(dati['S2']['MISURE']['VALORE'], [4.0])
 
 
 class TestCartelleGrezze(unittest.TestCase):

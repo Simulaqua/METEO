@@ -1,9 +1,11 @@
-"""Attrezzi condivisi dagli script di scarico (Python 3.7 sul Pi, requests vecchia: niente API recenti)."""
+"""Attrezzi condivisi dai programmi del Pi (Python 3.7, requests vecchia: niente API recenti)."""
 import datetime
+import gzip
 import json
 import math
 import os
 import time
+import zlib
 
 import requests
 
@@ -20,19 +22,44 @@ def region_dir(code):
 
 def load_json(path):
     """Un file mancante, vuoto o troncato (scrittura interrotta, disco pieno) non deve fermare lo script:
-    si riparte da {} con un avviso nel log."""
+    si riparte da {} con un avviso nel log. Legge anche i .json.gz."""
     if not os.path.exists(path):
         return {}
     try:
-        with open(path, encoding='utf-8') as fp:
-            text = fp.read()
+        if path.endswith('.gz'):
+            with gzip.open(path, 'rt', encoding='utf-8') as fp:
+                text = fp.read()
+        else:
+            with open(path, encoding='utf-8') as fp:
+                text = fp.read()
         if not text.strip():
             print('WARN: file JSON vuoto, ignorato: ' + path)
             return {}
         return json.loads(text)
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, EOFError, zlib.error) as error:     # gzip rovinato in 3.7: niente BadGzipFile
         print('WARN: file JSON illeggibile (' + str(error) + '), ignorato: ' + path)
         return {}
+
+
+def day_files(parse_dir, var):
+    """{'AAAAMMGG': percorso} dei file <var>-AAAAMMGG.json e .json.gz, in ordine di giorno: os.listdir non è
+    ordinato e export e climatologia dipendono dall'ordine di lettura. Se ci sono entrambi vince il .json."""
+    if not os.path.isdir(parse_dir):
+        return {}
+    found = {}
+    for name in sorted(os.listdir(parse_dir)):
+        for suffix in ('.json', '.json.gz'):
+            stem = name[:-len(suffix)]
+            if name.endswith(suffix) and stem.startswith(var + '-') and len(stem) == len(var) + 9 \
+                    and stem[-8:].isdigit():
+                found.setdefault(stem[-8:], os.path.join(parse_dir, name))
+                break
+    return found
+
+
+def value_key(region):
+    """Il Veneto salva i valori sotto VM, tutte le altre regioni sotto VALORE."""
+    return 'VM' if region == 'VEN' else 'VALORE'
 
 
 def save_json(data, path, sort_keys=False):
@@ -91,6 +118,14 @@ def is_dst_civil(dt):
     return datetime.datetime(y, 3, last_sunday(3), 2) <= dt < datetime.datetime(y, 10, last_sunday(10), 3)
 
 
+def is_dst_solar(dt):
+    """Ora solare in ingresso: legale dalle 02:00 solari dell'ultima domenica di marzo alle 02:00 solari
+    dell'ultima di ottobre (le 03:00 civili)."""
+    y = dt.year
+    last_sunday = lambda month: 31 - ((datetime.date(y, month, 31).weekday() + 1) % 7)
+    return datetime.datetime(y, 3, last_sunday(3), 2) <= dt < datetime.datetime(y, 10, last_sunday(10), 2)
+
+
 def civil_to_solar(dt):
     if is_dst_civil(dt):
         dt = dt - datetime.timedelta(hours=1)
@@ -120,6 +155,39 @@ def to_float(v):
 
 
 # ---------------------------------------------------------------------------------------------------------
+def merge_readings(parse_dir, var, readings, new_record):
+    """Fonde `readings` = {scode: [(istante, valore)]} nei file giornalieri <var>-<AAAAMMGG>.json di parse_dir,
+    ordinati per istante; i None si saltano e un istante già salvato tiene il suo valore. `new_record(scode)`
+    crea il record di una stazione assente dal file. Un caricamento e un salvataggio per giorno; ritorna le
+    letture aggiunte."""
+    by_day = {}
+    for sc, pts in readings.items():
+        for ist, val in pts:
+            if val is not None:
+                by_day.setdefault(ist[:8], {}).setdefault(sc, []).append((ist, val))
+    added = 0
+    for day, per in by_day.items():
+        fn = os.path.join(parse_dir, var + '-' + day + '.json')
+        bin_day = load_json(fn)
+        for sc, pts in per.items():
+            rec = bin_day.get(sc)
+            if rec is None:
+                rec = new_record(sc)
+                bin_day[sc] = rec
+            m = rec['MISURE']
+            merged = dict(zip(m['ISTANTE'], m['VALORE']))
+            before = len(merged)
+            for ist, val in pts:
+                if ist not in merged:
+                    merged[ist] = val
+            keys = sorted(merged.keys())
+            m['ISTANTE'] = keys
+            m['VALORE'] = [merged[k] for k in keys]
+            added += len(merged) - before
+        save_json(bin_day, fn)
+    return added
+
+
 def write_parsed(region_code, stations, readings, units, days=8):
     """Fonde le letture nei file giornalieri <regione>/data-parsed/<VAR>/<VAR>-<AAAAMMGG>.json, ordinate e
     senza doppioni per istante. Le letture più vecchie di `days` giorni si scartano (days=None: si tengono)."""
@@ -134,32 +202,12 @@ def write_parsed(region_code, stations, readings, units, days=8):
         floor = (now_solar() - datetime.timedelta(days=days)).strftime('%Y%m%d%H%M')
     added = 0
     for var, per_scode in readings.items():
-        by_day = {}
-        for sc, pts in per_scode.items():
-            for ist, val in pts:
-                if val is None or (floor is not None and ist < floor):
-                    continue
-                by_day.setdefault(ist[:8], {}).setdefault(sc, []).append((ist, val))
-        for day, per in by_day.items():
-            fn = os.path.join(parse_dir, var, var + '-' + day + '.json')
-            bin_day = load_json(fn)
-            for sc, pts in per.items():
-                rec = bin_day.get(sc)
-                if rec is None:
-                    rec = {'STAZIONE': station_list.get(sc, {'SCODE': sc}),
-                           'UM': units.get(var), 'MISURE': {'ISTANTE': [], 'VALORE': []}}
-                    bin_day[sc] = rec
-                m = rec['MISURE']
-                merged = dict(zip(m['ISTANTE'], m['VALORE']))
-                before = len(merged)
-                for ist, val in pts:
-                    if ist not in merged:
-                        merged[ist] = val
-                keys = sorted(merged.keys())
-                m['ISTANTE'] = keys
-                m['VALORE'] = [merged[k] for k in keys]
-                added += len(merged) - before
-            save_json(bin_day, fn)
+        recent = per_scode
+        if floor is not None:
+            recent = {sc: [(ist, val) for ist, val in pts if ist >= floor] for sc, pts in per_scode.items()}
+        new_record = lambda sc, var=var: {'STAZIONE': station_list.get(sc, {'SCODE': sc}), 'UM': units.get(var),
+                                          'MISURE': {'ISTANTE': [], 'VALORE': []}}
+        added += merge_readings(os.path.join(parse_dir, var), var, recent, new_record)
     save_json(station_list, stazioni_path)
     print('[%s] stazioni: %d | nuove letture inserite: %d' % (region_code, len(stations), added))
     return added
