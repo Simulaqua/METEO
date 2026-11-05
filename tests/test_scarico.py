@@ -26,15 +26,12 @@ def read_json(path):
         return json.load(fp)
 
 
-def canonical_json(content):
-    """Un JSON riscritto in un modo solo. Non si confrontano gli oggetti decodificati: per Python 1, 1.0 e true
-    sono uguali."""
-    return json.dumps(json.loads(content.decode('utf-8')), sort_keys=True, ensure_ascii=False)
-
-
 def same(name, content, expected, json_equal):
     if json_equal and name.endswith('.json'):
-        return canonical_json(content) == canonical_json(expected)
+        # il JSON prodotto si riscrive come lo scriveva lo script di prima (accenti in sequenze di escape, separatori
+        # compatti, chiavi nel suo ordine) e poi si confronta byte per byte: si perdona solo la codifica degli accenti,
+        # non l'ordine delle stazioni (export_web ne dipende) né i tipi dei valori (1, 1.0 e true)
+        content = json.dumps(json.loads(content.decode('utf-8')), separators=(',', ':')).encode('ascii')
     return content == expected
 
 
@@ -42,7 +39,8 @@ class TestScarico(unittest.TestCase):
 
     def check_source(self, fonte, giro, script, args, json_equal=False):
         """Due giri di script sulle risposte di fonte/giro: stessi codici di uscita, stessi file (byte per byte; con
-        json_equal i .json decodificati) e stesse cartelle degli attesi."""
+        json_equal i .json prodotti dopo averli riscritti con il codificatore di prima) e stesse cartelle degli
+        attesi."""
         run_dir = os.path.join(FIXTURES, fonte, giro)
         files, runs, folders = registratore.replay_twice(run_dir, script, args)
         output = ''.join(proc.stdout + proc.stderr for proc in runs)
@@ -88,7 +86,7 @@ class TestScarico(unittest.TestCase):
         self.check_source('pc', 'pie_full', 'dati_pc.py', ['-r', 'PIE', '--full'])
 
     # lo script di prima scriveva gli accenti come \u00e0, comune.save_json li scrive in UTF-8: stesso contenuto,
-    # byte diversi, quindi i JSON del Veneto si confrontano decodificati
+    # byte diversi: con json_equal i JSON prodotti si riscrivono come li scriveva lui, poi si confrontano byte per byte
     def test_veneto_oggi(self):
         self.check_source('veneto', 'oggi', 'dati_veneto.py', ['-date', 't'], json_equal=True)
 

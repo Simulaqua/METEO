@@ -52,10 +52,13 @@ def fetch(url, path):
 def download():
     """Gli elenchi e il file di ogni stazione in DOWNLOAD_DIR/<elenco>/, con il prefisso del giro AAAAMMGG-HHMMSS
     (restituito). Le stazioni nuove si aggiungono a stazioni.json; quelle sparite dagli elenchi restano."""
+    # tutte le cartelle subito, come lo script di prima: anche un giro che si ferma a metà le lascia tutte
+    for list_id in STATION_LISTS:
+        os.makedirs(os.path.join(DOWNLOAD_DIR, list_id), exist_ok=True)
+    os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     for list_id, list_file in STATION_LISTS.items():
         folder = os.path.join(DOWNLOAD_DIR, list_id)
-        os.makedirs(folder, exist_ok=True)
         path = fetch(BASE_URL + '/' + list_file, os.path.join(folder, stamp + '-stazioni-' + list_file))
         if path is None:
             print('Lista stazioni non scaricata: salto ' + list_id)        # riprova al giro dopo
@@ -109,14 +112,18 @@ def read_station(root, var):
 def parse(stamp, date, debug=False):
     """Per ogni variabile, nel file del giorno: i dati di stazione e sensore del giro e, se la stazione si è
     aggiornata (ISTANTERUN), le sue misure del giorno successive all'ultima già salvata."""
+    for var in VARIABLES:                   # anche qui tutte le cartelle subito, come lo script di prima
+        os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
+    stations = comune.load_json(STATIONS_JSON)
     begin, end = day_window(date)
     if debug:
         print('finestra %s - %s' % (begin, end))
     # ORALEGALE nei file: 1 se il giro avviene con l'ora legale (solo un'informazione)
     dst = int(comune.is_dst_civil(datetime.datetime.now()))
-    stations = comune.load_json(STATIONS_JSON)
     added = 0
-    for var, list_id in VARIABLES.items():
+    # in ordine alfabetico come lo script di prima: se un file rotto ferma il giro, restano scritte le stesse variabili
+    for var in sorted(VARIABLES):
+        list_id = VARIABLES[var]
         path = os.path.join(PARSE_DIR, var, var + '-' + begin[:8] + '.json')
         archive = comune.load_json(path)
         done = set()
