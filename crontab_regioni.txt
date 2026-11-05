@@ -42,7 +42,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 # FRIULI VENEZIA GIULIA - ogni 60 minuti, 24h
 # -------------------------------------------------------------------------------------------
-8 * * * * mkdir -p $BASE/FVG/logs && $PYTHON $BASE/FVG/dati_fvg.py >> $BASE/FVG/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+8 * * * * mkdir -p $BASE/FVG/logs && $PYTHON $BASE/dati_fvg.py >> $BASE/FVG/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # LOMBARDIA (ARPA Lombardia) - ogni 30 minuti, 24h (dato a 10 min, finestra 3h: ogni run riscarica le

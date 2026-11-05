@@ -1,0 +1,19 @@
+[
+ "FVG",
+ "FVG/data-downloaded",
+ "FVG/data-downloaded/dati",
+ "FVG/data-parsed",
+ "FVG/data-parsed/BAGNATURA",
+ "FVG/data-parsed/CLOUDINESS",
+ "FVG/data-parsed/DVENTO",
+ "FVG/data-parsed/DVENTOMAX",
+ "FVG/data-parsed/PREC",
+ "FVG/data-parsed/PREC_TYPE",
+ "FVG/data-parsed/PRESS",
+ "FVG/data-parsed/RADSOL",
+ "FVG/data-parsed/TEMP",
+ "FVG/data-parsed/TEMPACQUA",
+ "FVG/data-parsed/UMID",
+ "FVG/data-parsed/VVENTO",
+ "FVG/data-parsed/VVENTOSCAL"
+]

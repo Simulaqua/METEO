@@ -27,7 +27,7 @@ REGIONS = {
     'VEN': 'dati_veneto.py',
     'TN' : 'TN/dati_trentino.py',
     'BZ' : 'BZ/dati_altoadige.py',
-    'FVG': 'FVG/dati_fvg.py',
+    'FVG': 'dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',
     'ER' : 'ER/dati_emilia_romagna.py',
     # layer aggiuntivi: il "modulo" e' lo script multi-rete (per riusarne le mappe sigla/variabile)
@@ -132,15 +132,14 @@ def scan_tn(m, sample):
     return mapped, dict(live), stations
 
 def scan_fvg(m, sample):
-    mapped = set()
-    for n in var_names(m):
-        c = getattr(m.variables, n)
-        mapped.add(c.tag); mapped.update(getattr(c, 'extra', {}).values())
-    raw = get(m.home_URL)
+    mapped = set(m.VARIABLES.values())                           # i tag di <meteo_data> letti dallo script
+    for extra in m.EXTRA.values():
+        mapped.update(extra.values())
+    raw = get(m.HOME_URL)
     codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', raw.decode('utf-8', 'replace')))) if raw else []
     smp = codes[:sample] if sample else codes
     def fields(c):
-        raw = get(m.station_base + c + '.xml')
+        raw = get(m.STATION_URL + c + '.xml')
         if not raw: return (c, None, [])
         try:
             md = ET.fromstring(raw).find('meteo_data')

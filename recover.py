@@ -37,7 +37,7 @@ SOURCE_MAX_DAYS = {'ER': 3}
 
 REGION_FILE = {
     'VEN': 'dati_veneto.py',          'TN' : 'TN/dati_trentino.py',
-    'BZ' : 'BZ/dati_altoadige.py',    'FVG': 'FVG/dati_fvg.py',
+    'BZ' : 'BZ/dati_altoadige.py',    'FVG': 'dati_fvg.py',
     'LOM': 'LOM/dati_lombardia.py',   'ER' : 'ER/dati_emilia_romagna.py',
 }
 
