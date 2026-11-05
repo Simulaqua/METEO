@@ -178,9 +178,9 @@ PYTHON=/usr/bin/python3
 # (history.py) -> branch 'history' (publish_history.sh), letto dalla scheda "Storico" del sito.
 # Rielabora solo i giorni nuovi + gli ultimi 3 (cache in history_cache/). Alle 07:20 il giorno
 # prima e' arrivato anche dalle fonti lente (Lombardia pubblica con 4-5 h di ritardo).
-# SPENTO finche' lo Storico non viene pubblicato: per accenderlo togliere il '#' davanti alla riga.
+# flock: mai due giri insieme (scrivono nelle stesse cartelle history_out/ e history_cache/).
 # -------------------------------------------------------------------------------------------
-#20 7 * * * mkdir -p $BASE/logs && /bin/bash $BASE/publish_history.sh >> $BASE/logs/history-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+20 7 * * * mkdir -p $BASE/logs && flock -n $BASE/.history.lock /bin/bash $BASE/publish_history.sh >> $BASE/logs/history-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # RADAR DPC (dati_radar.py): radar SRI della Protezione Civile, ultime 6 ore in PNG per la mappa,

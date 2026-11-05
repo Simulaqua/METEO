@@ -11,6 +11,11 @@ site/*/
 radar_out/
 .radar.lock
 
+# --- storico lungo: generato sul Pi (pubblicato sul branch 'history' da publish_history.sh) ---
+history_out/
+history_cache/
+.history.lock
+
 # --- spazio di lavoro dei piani (superpowers) e copie di lavoro separate ---
 .superpowers/
 .worktrees/
