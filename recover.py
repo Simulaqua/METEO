@@ -38,7 +38,7 @@ SOURCE_MAX_DAYS = {'ER': 3}
 REGION_FILE = {
     'VEN': 'dati_veneto.py',          'TN' : 'dati_trentino.py',
     'BZ' : 'dati_altoadige.py',       'FVG': 'dati_fvg.py',
-    'LOM': 'dati_lombardia.py',       'ER' : 'ER/dati_emilia_romagna.py',
+    'LOM': 'dati_lombardia.py',       'ER' : 'dati_emilia_romagna.py',
 }
 
 #-----------------------------------------------------------------------------------------------------------
@@ -65,9 +65,6 @@ def jsave(obj, fn):
 def now_solar():
     ''' Ora solare (CET, UTC+1 fisso), come i timestamp d'archivio. '''
     return datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-
-def var_list(mod):
-    return [v for v in dir(mod.variables) if not v.startswith('__')]
 
 #-----------------------------------------------------------------------------------------------------------
 # GATE: cerca un buco interno nell'archivio recente (leggendo solo i file gia' presenti, niente rete)
@@ -225,20 +222,20 @@ def fetch_bz(mod, days, debug=False):
 
 def fetch_er(mod, days, debug=False):
     ''' Emilia-Romagna: get-time-series per ogni stazione (dal registro) x variabile. t(ms UTC)->istante solare. '''
-    solar = getattr(mod, 'solar_istante', _er_solar)             # fallback autonomo
+    solar = getattr(mod, 'solar_moment', _er_solar)              # fallback autonomo
     value_conv = getattr(mod, 'VALUE_CONV', {})
-    stazioni_path = os.path.join(mod.directory.parse, 'stazioni.json')
+    stazioni_path = os.path.join(mod.PARSE_DIR, 'stazioni.json')
     reg = jload(stazioni_path) if os.path.exists(stazioni_path) else {}
     floor = (now_solar() - datetime.timedelta(days=days)).strftime('%Y%m%d%H%M')
     points, um_map = {}, {}
     scodes = list(reg.keys())
     for i, sc in enumerate(scodes):
-        for var in var_list(mod):
-            desc = getattr(mod.variables, var).desc
+        for var in sorted(mod.VARIABLES):          # in ordine alfabetico: i file del giorno si scrivono in quest'ordine
+            desc, unit = mod.VARIABLES[var]
             conv = value_conv.get(var)
-            um_map[(var, sc)] = getattr(mod.variables, var).unit
+            um_map[(var, sc)] = unit
             try:
-                ts = http_json(mod.API + 'get-time-series',
+                ts = http_json(mod.API_URL + 'get-time-series',
                                {'stazione': sc, 'variabile': desc}, timeout=45)
             except Exception:
                 continue
@@ -337,10 +334,7 @@ def fetch_lom(mod, days, debug=False):
 #-----------------------------------------------------------------------------------------------------------
 def recover_snapshot_region(region, mod, fetcher, days, force, debug):
     ''' Regioni a snapshot (BZ/ER/LOM): gate sul buco, poi fetch storico + merge. '''
-    if region in ('BZ', 'LOM'):
-        variables, parse_dir = list(mod.VARIABLES), mod.PARSE_DIR
-    else:                                                        # ER ha ancora le classi
-        variables, parse_dir = var_list(mod), mod.directory.parse
+    variables, parse_dir = sorted(mod.VARIABLES), mod.PARSE_DIR
     eff_days = min(days, SOURCE_MAX_DAYS.get(region, days))   # limita alla profondita' servibile dalla fonte
     hole, why = has_hole(parse_dir, variables, eff_days, CADENCE[region])
     print(f'[{region}] gate ({eff_days}gg): {why}')

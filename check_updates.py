@@ -29,7 +29,7 @@ REGIONS = {
     'BZ' : 'dati_altoadige.py',
     'FVG': 'dati_fvg.py',
     'LOM': 'dati_lombardia.py',
-    'ER' : 'ER/dati_emilia_romagna.py',
+    'ER' : 'dati_emilia_romagna.py',
     # layer aggiuntivi: il "modulo" e' lo script multi-rete (per riusarne le mappe sigla/variabile)
     'AQ_VEN': 'dati_aria.py', 'AQ_LOM': 'dati_aria.py', 'AQ_BZ': 'dati_aria.py',
     'AQ_TN' : 'dati_aria.py', 'AQ_ER' : 'dati_aria.py',
@@ -51,9 +51,6 @@ def get(url, timeout=25):
         return urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=timeout).read()
     except Exception:
         return None
-
-def var_names(m):
-    return [n for n in dir(m.variables) if not n.startswith('__')]
 
 #-----------------------------------------------------------------------------------------------------------
 # SCANNER PER REGIONE  ->  (mapped:set, live:dict{code:n_staz}, stations:dict{code:name})
@@ -168,11 +165,11 @@ def scan_lom(m, sample):
 
 def scan_er(m, sample):
     import urllib.parse
-    mapped = set(getattr(m.variables, n).desc for n in var_names(m))
+    mapped = set(desc for desc, unit in m.VARIABLES.values())    # i descrittori delle variabili lette dallo script
     stations = {}
     for n in ('LIVIDRO', 'TEMP', 'PREC'):
-        desc = getattr(m.variables, n).desc
-        raw = get(m.API + 'get-sensor-values?variabile=' + urllib.parse.quote(desc, safe=''))
+        desc = m.VARIABLES[n][0]
+        raw = get(m.API_URL + 'get-sensor-values?variabile=' + urllib.parse.quote(desc, safe=''))
         if not raw:
             continue
         for s in json.loads(raw):

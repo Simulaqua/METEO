@@ -11,17 +11,20 @@ from tests import registratore
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
 # i nomi che recover.py e check_updates.py leggono negli script regionali, per regione; di FVG e TN recover.py ha solo
 # il percorso (le fonti non hanno storico da recuperare): la prova controlla che lo script si carichi da lì.
-# recover.py legge solar_moment di BZ e OPERATORS, SKIP_VALUES e SKIP_DIR_VALUES di LOM con getattr, con dei valori di
-# riserva suoi: se un nome sparisse, userebbe quelli senza dirlo (il suo SKIP_VALUES non scarta -999)
+# recover.py legge solar_moment di BZ ed ER, OPERATORS, SKIP_VALUES e SKIP_DIR_VALUES di LOM e VALUE_CONV di ER con
+# getattr, con dei valori di riserva suoi: se un nome sparisse, userebbe quelli senza dirlo (il suo SKIP_VALUES non
+# scarta -999, senza VALUE_CONV salverebbe kelvin e pascal)
 READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': [],
                    'BZ': ['PARSE_DIR', 'SENSORS_URL', 'VARIABLES', 'solar_moment'],
                    'LOM': ['DATA_URL', 'OPERATORS', 'PARSE_DIR', 'REGISTRY_URL', 'SKIP_DIR_VALUES', 'SKIP_VALUES',
-                           'VARIABLES']}
+                           'VARIABLES'],
+                   'ER': ['API_URL', 'PARSE_DIR', 'VALUE_CONV', 'VARIABLES', 'solar_moment']}
 READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES'],
                          'TN': ['EXTRA', 'LIST_URL', 'NS', 'STATION_URL', 'VARIABLES'],
                          'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES'],
-                         'LOM': ['REGISTRY_URL', 'VARIABLES']}
+                         'LOM': ['REGISTRY_URL', 'VARIABLES'],
+                         'ER': ['API_URL', 'VARIABLES']}
 
 
 def load_file(path):
@@ -126,6 +129,9 @@ class TestScarico(unittest.TestCase):
             self.assertEqual(re.findall(r'riprovo fra (\d+) s', proc.stdout), ['5', '15', '30'])
             self.assertEqual(proc.stderr.strip().splitlines()[-1],
                              'Error downloading https://www.dati.lombardia.it/resource/647i-nhxk.json: HTTP 429')
+
+    def test_emilia_romagna(self):
+        self.check_source('emilia_romagna', 'normale', 'dati_emilia_romagna.py', [])
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si

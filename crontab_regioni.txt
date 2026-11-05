@@ -56,7 +56,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 # EMILIA-ROMAGNA (ARPAE / Allerta Meteo) - ogni 15 minuti, 24h (snapshot arrotondato a 15 min)
 # -------------------------------------------------------------------------------------------
-9,24,39,54 * * * * mkdir -p $BASE/ER/logs && $PYTHON $BASE/ER/dati_emilia_romagna.py >> $BASE/ER/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+9,24,39,54 * * * * mkdir -p $BASE/ER/logs && $PYTHON $BASE/dati_emilia_romagna.py >> $BASE/ER/logs/download-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # QUALITA' DELL'ARIA (dati_aria.py) - ogni ora, 24h. Un solo run per tutte le reti disponibili
