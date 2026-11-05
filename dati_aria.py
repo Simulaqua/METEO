@@ -166,7 +166,8 @@ def download_bz(debug=False, days=7):
             data = comune.get_json(BZ_AIRQUALITY + '/timeseries',
                                    {'station_code': sc, 'date_from': date_from, 'date_to': date_to})
         except Exception as e:
-            if debug: print('  BZ ' + sc + ' skip: ' + str(e)); continue
+            if debug: print('  BZ ' + sc + ' skip: ' + str(e))
+            continue
         got = False
         for e in data:
             var = BZ_MCODEMAP.get(e.get('MCODE'))
@@ -244,7 +245,8 @@ def download_tn(debug=False):
         name = s.get('nome')
         co = TN_COORDS.get(name)
         if not co:
-            if debug: print('  TN senza coordinate: ' + str(name)); continue
+            if debug: print('  TN senza coordinate: ' + str(name))
+            continue
         sc = slug(name)
         stations[sc] = {'NOME': name, 'LAT': co[0], 'LON': co[1]}
         for day, hours in (s.get('dati') or {}).items():

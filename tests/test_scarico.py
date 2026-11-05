@@ -73,11 +73,27 @@ class TestScarico(unittest.TestCase):
     def test_aria(self):
         self.check_source('aria', 'normale', 'dati_aria.py', ['-r', 'all'])
 
+    def test_aria_bz_errore(self):
+        # come normale, ma la serie della stazione BZ4 risponde 500: BZ4 salta (niente valori di BZ, la stazione
+        # prima), le altre stazioni e le altre reti restano uguali
+        self.check_source('aria', 'bz_errore', 'dati_aria.py', ['-r', 'all'])
+
+    def test_aria_tn_senza_coordinate(self):
+        # come normale, ma il bollettino TN ha una stazione senza coordinate in testa: salta, il resto di TN si scrive
+        self.check_source('aria', 'tn_senza_coordinate', 'dati_aria.py', ['-r', 'all'])
+
     def test_laghi(self):
         self.check_source('laghi', 'normale', 'dati_laghi.py', [])
 
     def test_mare_reti(self):
         self.check_source('mare', 'reti', 'dati_mare.py', ['-r', 'VEN,ER,FVG'])
+
+    def test_mare_ven_file_mancanti(self):
+        # derivata da mare/reti: le risposte dei file CPSM 'livello' e 'temparia' sono sostituite dalla pagina di blocco
+        # Incapsula registrata il 2026-11-04, perché CPSM a volte blocca i client automatici. Prova che la rete VEN
+        # salta i file mancanti e scrive il resto (senza le loro variabili e le stazioni che avevano solo loro), e che
+        # ER e FVG restano uguali
+        self.check_source('mare', 'ven_file_mancanti', 'dati_mare.py', ['-r', 'VEN,ER,FVG'])
 
     def test_mare_acqven(self):
         self.check_source('mare', 'acqven', 'dati_mare.py', ['-r', 'ACQVEN'])

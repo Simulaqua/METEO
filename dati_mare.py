@@ -85,7 +85,8 @@ def download_ven(debug=False):
         try:
             files[name] = comune.get_json(CPSM_BASE + name + '.json')
         except Exception as e:
-            if debug: print('  CPSM ' + name + ' skip: ' + str(e)); files[name] = []
+            if debug: print('  CPSM ' + name + ' skip: ' + str(e))
+            files[name] = []
         for r in files[name]:
             sid = r.get('ID_stazione')
             lat, lon = r.get('latDDN'), r.get('lonDDE')

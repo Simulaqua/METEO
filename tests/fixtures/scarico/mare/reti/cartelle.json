@@ -17,5 +17,17 @@
  "MAR_FVG/data-parsed/TEMP",
  "MAR_FVG/data-parsed/TEMPACQUA",
  "MAR_FVG/data-parsed/UMID",
- "MAR_FVG/data-parsed/VVENTO"
+ "MAR_FVG/data-parsed/VVENTO",
+ "MAR_VEN",
+ "MAR_VEN/data-parsed",
+ "MAR_VEN/data-parsed/DVENTO",
+ "MAR_VEN/data-parsed/MAREA",
+ "MAR_VEN/data-parsed/ONDE",
+ "MAR_VEN/data-parsed/PRESS",
+ "MAR_VEN/data-parsed/RADSOL",
+ "MAR_VEN/data-parsed/TEMP",
+ "MAR_VEN/data-parsed/TEMPACQUA",
+ "MAR_VEN/data-parsed/UMID",
+ "MAR_VEN/data-parsed/VVENTO",
+ "MAR_VEN/data-parsed/VVENTOMAX"
 ]
