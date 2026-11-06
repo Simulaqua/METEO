@@ -173,7 +173,7 @@ PYTHON=/usr/bin/python3
 # -------------------------------------------------------------------------------------------
 # STORICO LUNGO (07:20): aggregati giornalieri di pioggia e temperatura di tutto l'archivio
 # (history.py) -> branch 'history' (publish_history.sh), letto dalla scheda "Storico" del sito.
-# Rielabora solo i giorni nuovi + gli ultimi 3 (cache in history_cache/). Alle 07:20 il giorno
+# Rielabora solo i giorni nuovi + gli ultimi 8 (cache in history_cache/). Alle 07:20 il giorno
 # prima e' arrivato anche dalle fonti lente (Lombardia pubblica con 4-5 h di ritardo).
 # flock: mai due giri insieme (scrivono nelle stesse cartelle history_out/ e history_cache/).
 # -------------------------------------------------------------------------------------------

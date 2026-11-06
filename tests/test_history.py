@@ -49,8 +49,8 @@ class HistoryBase(unittest.TestCase):
     def parse(self, region):
         return os.path.join(self.base, region, 'data-parsed')
 
-    def run_region(self, region, full=False):
-        days, n = history.process_region(region, self.cache, full=full)
+    def run_region(self, region, full=False, today=None):
+        days, n = history.process_region(region, self.cache, full=full, today=today)
         history.write_region(region, days, self.out)
         return days, n
 
@@ -239,20 +239,17 @@ class CacheAndOutputTest(HistoryBase):
         self.assertEqual(days['20200101']['A'][0], 1.0)         # vecchio: dalla cache
         self.assertEqual(days[today]['A'][0], 7.0)              # recente: rielaborato
 
-    def test_recent_window_is_three_days(self):
+    def test_finestra_otto_giorni(self):
         p = self.parse('LOM')
-        now = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        d2 = (now - datetime.timedelta(days=2)).strftime('%Y%m%d')
-        d5 = (now - datetime.timedelta(days=5)).strftime('%Y%m%d')
-        for d in (d2, d5):
+        for d in ('20261028', '20261027'):                      # G-8 e G-9
             write_day(p, 'PREC', d, {'A': (ts_list(d, [0]), [1.0])}, 'VALORE')
-        self.run_region('LOM')
-        for d in (d2, d5):
+        self.run_region('LOM', today='20261105')
+        for d in ('20261028', '20261027'):
             write_day(p, 'PREC', d, {'A': (ts_list(d, [0]), [7.0])}, 'VALORE')
-        days, n = self.run_region('LOM')
+        days, n = self.run_region('LOM', today='20261105')
         self.assertEqual(n, 1)
-        self.assertEqual(days[d2]['A'][0], 7.0)                 # dentro i 3 giorni: rielaborato
-        self.assertEqual(days[d5]['A'][0], 1.0)                 # fuori: dalla cache
+        self.assertEqual(days['20261028']['A'][0], 7.0)         # G-8: rielaborato
+        self.assertEqual(days['20261027']['A'][0], 1.0)         # G-9: dalla cache
 
     def test_bad_cache_version_is_ignored(self):
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')

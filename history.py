@@ -17,7 +17,7 @@
 # giorno con piu' ore di dato.
 #
 # Usa una CACHE (un file per regione con gli aggregati gia' calcolati): ogni notte si rielaborano solo i giorni
-# nuovi + gli ultimi 3 (potrebbero ricevere dati in ritardo). Il primo giro (backfill) rilegge tutto l'archivio.
+# nuovi + gli ultimi 8 (potrebbero ricevere dati in ritardo). Il primo giro (backfill) rilegge tutto l'archivio.
 #
 # Uscita: <out>/<REGIONE>/<STAZIONE>.json   {"v":1,"d0":"YYYYMMDD","p":[...],"hp":[...],"tn":[...],"tx":[...],
 #         "tm":[...],"ht":[...]}  (un elemento per giorno da d0; null = nessun dato) + <out>/index.json.
@@ -28,6 +28,7 @@ import argparse
 import datetime
 import os
 import re
+import sys
 import time
 
 import comune
@@ -36,7 +37,9 @@ import quality
 BASE = os.path.dirname(os.path.realpath(__file__))
 OLD_VEN = '/home/manuel/dati/arpav/live/data-parsed'          # vecchio sistema ARPAV (sola lettura)
 VARS = ('PREC', 'TEMP')
-RECENT_DAYS = 3                                                # sempre rielaborati (arrivi in ritardo)
+# sempre rielaborati (arrivi in ritardo): recover.py (18:40) ricuce fino a 7 giorni prima del giorno in cui gira, e quel
+# giro cade dopo lo Storico delle 07:20, quindi fra due Storici il giorno piu' vecchio che puo' cambiare e' G-8
+RECENT_DAYS = 8
 PREC_DAY_MAX = 1500.0                                          # oltre, la somma giornaliera e' un guasto
 CACHE_V = 1
 
@@ -114,20 +117,28 @@ def aggregate_file(region, var, path, umid_path=None):
                 out.setdefault(scode, {})[day] = [None, len(hours), round(min(xs), 1), round(max(xs), 1), round(tm, 1)]
     return out
 
+def aggregate_or_skip(region, var, path, umid_path=None):
+    ''' aggregate_file di un file solo: se ha la forma sbagliata (JSON valido ma non un archivio) lo salta e lo dice. '''
+    try:
+        return aggregate_file(region, var, path, umid_path)
+    except (TypeError, ValueError, KeyError, AttributeError) as e:
+        print('WARN: file saltato (%s): %s' % (e, path), file=sys.stderr)
+        return {}
+
 def day_record(region, files, day):
     ''' Aggregati di un giorno da tutte le fonti: {scode: [psum, hp, tn, tx, tm, ht]}; per ogni variabile e stazione
         vince la fonte con piu' ore di dato (a parita', la piu' recente). files = [{var: {giorno: percorso}}, ...]. '''
     res = {}
     for fm in files:
         if day in fm['PREC']:
-            for scode, dd in aggregate_file(region, 'PREC', fm['PREC'][day]).items():
+            for scode, dd in aggregate_or_skip(region, 'PREC', fm['PREC'][day]).items():
                 v = dd.get(day)
                 if v:
                     r = res.setdefault(scode, [None, 0, None, None, None, 0])
                     if v[1] >= r[1]:
                         r[0], r[1] = v[0], v[1]
         if day in fm['TEMP']:
-            for scode, dd in aggregate_file(region, 'TEMP', fm['TEMP'][day], fm['UMID'].get(day)).items():
+            for scode, dd in aggregate_or_skip(region, 'TEMP', fm['TEMP'][day], fm['UMID'].get(day)).items():
                 v = dd.get(day)
                 if v:
                     r = res.setdefault(scode, [None, 0, None, None, None, 0])

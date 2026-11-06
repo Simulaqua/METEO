@@ -20,30 +20,38 @@ import comune
 import quality                      # sentinelle (-999...) e valori impossibili: scartati in lettura
 
 
+def scan_file(path, var, key, agg):
+    ''' Aggiunge a agg i valori di un file giornaliero. '''
+    for scode, rec in comune.load_json(path).items():
+        misure = rec.get('MISURE', {})
+        per_day = agg.setdefault(scode, {})
+        for istante, v in zip(misure.get('ISTANTE', []), misure.get(key, [])):
+            value = comune.to_float(v)
+            if value is None or not quality.valid(var, value):
+                continue
+            day = str(istante)[:8]
+            if var == 'PREC':
+                per_day[day] = per_day.get(day, 0.0) + value
+            elif day not in per_day:
+                per_day[day] = [value, value, value, 1]
+            else:
+                a = per_day[day]
+                a[0] = min(a[0], value)
+                a[1] = max(a[1], value)
+                a[2] += value
+                a[3] += 1
+
+
 def scan(parse_dir, var, region):
     ''' Legge un file al giorno di <parse_dir>/<var>, dal più vecchio, senza tenere in memoria i valori:
     TEMP -> {scode: {giorno: [min, max, somma, conteggio]}}, PREC -> {scode: {giorno: somma}}. '''
     key = comune.value_key(region)
     agg = {}
     for path in comune.day_files(os.path.join(parse_dir, var), var).values():
-        for scode, rec in comune.load_json(path).items():
-            misure = rec.get('MISURE', {})
-            per_day = agg.setdefault(scode, {})
-            for istante, v in zip(misure.get('ISTANTE', []), misure.get(key, [])):
-                value = comune.to_float(v)
-                if value is None or not quality.valid(var, value):
-                    continue
-                day = str(istante)[:8]
-                if var == 'PREC':
-                    per_day[day] = per_day.get(day, 0.0) + value
-                elif day not in per_day:
-                    per_day[day] = [value, value, value, 1]
-                else:
-                    a = per_day[day]
-                    a[0] = min(a[0], value)
-                    a[1] = max(a[1], value)
-                    a[2] += value
-                    a[3] += 1
+        try:
+            scan_file(path, var, key, agg)
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            print('WARN: file saltato (%s): %s' % (e, path), file=sys.stderr)
     return agg
 
 

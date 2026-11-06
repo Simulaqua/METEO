@@ -130,21 +130,29 @@ def read_window(parse_dir, region, cutoff, prec_cutoff):
         for day, path in comune.day_files(var_dir, var).items():
             if day < var_cutoff[:8]:
                 continue
-            for scode, record in comune.load_json(path).items():
-                # i file di ARPAV (VEN) non hanno UM: l'unità sta nel blocco SENSORE
-                unit = record.get('UM')
-                if unit is None:
-                    sensor = record.get('SENSORE') or {}
-                    unit = sensor.get('UNITNM') or sensor.get('UNITCODE')
-                if unit:
-                    units[var] = unit
-                measures = record.get('MISURE', {})
-                for moment, value in zip(measures.get('ISTANTE', []), measures.get(value_key, [])):
-                    if moment is not None and moment >= var_cutoff and plausible(value):
-                        data.setdefault(scode, {}).setdefault(var, {})[moment] = value
-                if scode not in station_meta:
-                    station_meta[scode] = record.get('STAZIONE', {})
+            try:
+                read_file(path, var, value_key, var_cutoff, plausible, data, units, station_meta)
+            except (TypeError, ValueError, KeyError, AttributeError) as e:
+                print('WARN: file saltato (' + str(e) + '): ' + path, file=sys.stderr)
     return data, units, station_meta
+
+
+def read_file(path, var, value_key, var_cutoff, plausible, data, units, station_meta):
+    """Aggiunge a data, units e station_meta le letture di un file giornaliero."""
+    for scode, record in comune.load_json(path).items():
+        # i file di ARPAV (VEN) non hanno UM: l'unità sta nel blocco SENSORE
+        unit = record.get('UM')
+        if unit is None:
+            sensor = record.get('SENSORE') or {}
+            unit = sensor.get('UNITNM') or sensor.get('UNITCODE')
+        if unit:
+            units[var] = unit
+        measures = record.get('MISURE', {})
+        for moment, value in zip(measures.get('ISTANTE', []), measures.get(value_key, [])):
+            if moment is not None and moment >= var_cutoff and plausible(value):
+                data.setdefault(scode, {}).setdefault(var, {})[moment] = value
+        if scode not in station_meta:
+            station_meta[scode] = record.get('STAZIONE', {})
 
 
 def add_derived(data, units, station_meta):
