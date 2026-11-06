@@ -24,8 +24,10 @@ READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'BZ': ['SENSORS_URL', 'STATIONS_URL', 'VARIABLES'],
                          'LOM': ['REGISTRY_URL', 'VARIABLES'],
                          'ER': ['API_URL', 'VARIABLES'],
-                         'AQ_VEN': ['VEN_POLLMAP'], 'AQ_LOM': ['LOM_TYPEMAP'], 'AQ_BZ': ['BZ_MCODEMAP'],
-                         'AQ_TN': ['TN_POLLMAP'], 'PC_FVG': ['FVG_MAP'], 'PC_TN': ['TN_MAP']}
+                         'AQ_VEN': ['VEN_BASE', 'VEN_POLLMAP'], 'AQ_LOM': ['LOM_ANAGRAFICA', 'LOM_TYPEMAP'],
+                         'AQ_BZ': ['BZ_AIRQUALITY', 'BZ_MCODEMAP'], 'AQ_TN': ['TN_POLLMAP', 'TN_URL'],
+                         'AQ_ER': ['ER_STATIONS_CSV'], 'PC_FVG': ['FVG_API', 'FVG_MAP'],
+                         'PC_TN': ['TN_BASE', 'TN_MAP']}
 
 
 def load_file(path):
@@ -305,13 +307,13 @@ class TestScarico(unittest.TestCase):
 
     def test_moduli_letti_da_recover_e_check_updates(self):
         # i due programmi leggono le impostazioni degli script regionali (recover.py li importa come moduli,
-        # check_updates.py li carica dai loro percorsi); recover.py si muove solo dopo un buco nei dati, quindi un nome
+        # check_updates.py pure); recover.py si muove solo dopo un buco nei dati, quindi un nome
         # sparito non si vedrebbe subito
         recover = load_file(os.path.join(registratore.PROJECT, 'recover.py'))
         check_updates = load_file(os.path.join(registratore.PROJECT, 'check_updates.py'))
         loaded = [(importlib.import_module(recover.REGION_MODULE[region]), names)
                   for region, names in READ_BY_RECOVER.items()]
-        loaded += [(check_updates.load_module(check_updates.REGIONS[region]), names)
+        loaded += [(importlib.import_module(check_updates.REGIONS[region]), names)
                    for region, names in READ_BY_CHECK_UPDATES.items()]
         for module, names in loaded:
             for name in names:

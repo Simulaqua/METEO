@@ -12,45 +12,45 @@
 #       python3 check_updates.py -r all --sample 40   (piu' veloce: campiona 40 stazioni/lista)
 # Le eventuali novita' vengono stampate e appese a tracking.log (con data/ora).
 
-import os, sys, json, re, csv, io, argparse, datetime, importlib.util, urllib.request
+import argparse, csv, datetime, importlib, io, json, os, re
 import xml.etree.ElementTree as ET
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
-_UA = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) meteo-check/1.0'}   # alcune fonti bloccano l'UA di default
+import requests
+
+import comune
 
 _BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 TRACK_DIR = os.path.join(_BASE_DIR, '.tracking')
 LOG_FILE  = os.path.join(_BASE_DIR, 'tracking.log')
 
 REGIONS = {
-    'VEN': 'dati_veneto.py',
-    'TN' : 'dati_trentino.py',
-    'BZ' : 'dati_altoadige.py',
-    'FVG': 'dati_fvg.py',
-    'LOM': 'dati_lombardia.py',
-    'ER' : 'dati_emilia_romagna.py',
+    'VEN': 'dati_veneto',
+    'TN' : 'dati_trentino',
+    'BZ' : 'dati_altoadige',
+    'FVG': 'dati_fvg',
+    'LOM': 'dati_lombardia',
+    'ER' : 'dati_emilia_romagna',
     # layer aggiuntivi: il "modulo" e' lo script multi-rete (per riusarne le mappe sigla/variabile)
-    'AQ_VEN': 'dati_aria.py', 'AQ_LOM': 'dati_aria.py', 'AQ_BZ': 'dati_aria.py',
-    'AQ_TN' : 'dati_aria.py', 'AQ_ER' : 'dati_aria.py',
-    'PC_FVG': 'dati_pc.py',   'PC_TN' : 'dati_pc.py',
+    'AQ_VEN': 'dati_aria', 'AQ_LOM': 'dati_aria', 'AQ_BZ': 'dati_aria',
+    'AQ_TN' : 'dati_aria', 'AQ_ER' : 'dati_aria',
+    'PC_FVG': 'dati_pc',   'PC_TN' : 'dati_pc',
 }
 
 #-----------------------------------------------------------------------------------------------------------
-def load_module(rel_path):
-    ''' Import a region script by file path (to read its settings tables and endpoint constants). '''
-    path = os.path.join(_BASE_DIR, rel_path)
-    name = 'reg_' + os.path.splitext(os.path.basename(path))[0]
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod  = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-def get(url, timeout=25):
+# una risposta mancante, rifiutata o rovinata non ferma il giro: la regione risulta senza stazioni
+def get_or_none(url, params=None, timeout=25):
     try:
-        return urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=timeout).read()
-    except Exception:
+        r = comune.get(url, params=params, timeout=timeout)
+    except requests.RequestException:
         return None
+    return r.content if r.ok else None
+
+def get_json_or_none(url):
+    raw = get_or_none(url)
+    try: return json.loads(raw.decode('utf-8', 'replace')) if raw else None
+    except ValueError: return None
 
 #-----------------------------------------------------------------------------------------------------------
 # SCANNER PER REGIONE  ->  (mapped:set, live:dict{code:n_staz}, stations:dict{code:name})
@@ -59,7 +59,7 @@ def scan_ven(m, sample):
     mapped = set(m.VARIABLES)                                    # per ARPAV il TYPE == nome variabile
     stations, links = {}, []
     for u in m.STATION_LISTS.values():
-        raw = get(m.BASE_URL + '/' + u)
+        raw = get_or_none(m.BASE_URL + '/' + u)
         if not raw: continue
         for s in ET.fromstring(raw).iter('STAZIONE'):
             ids = s.findtext('IDSTAZ'); nm = s.findtext('NOME'); ln = s.findtext('LINKSTAZ')
@@ -67,7 +67,7 @@ def scan_ven(m, sample):
             if ln:  links.append(ln)
     if sample: links = links[:sample]
     def types(ln):
-        raw = get(m.BASE_URL + '/' + ln)
+        raw = get_or_none(m.BASE_URL + '/' + ln)
         if not raw: return []
         try: return [t.text for t in ET.fromstring(raw).findall('STAZIONE/SENSORE/TYPE')]
         except Exception: return []
@@ -80,13 +80,13 @@ def scan_ven(m, sample):
 def scan_bz(m, sample):
     mapped = set(m.VARIABLES.values())                           # i TYPE dei sensori letti dallo script
     stations = {}
-    raw = get(m.STATIONS_URL)
+    raw = get_or_none(m.STATIONS_URL)
     if raw:
         for f in json.loads(raw).get('features', []):
             p = f.get('properties', {}); sc = p.get('SCODE')
             if sc: stations[sc] = p.get('NAME_I') or p.get('NAME_D')
     live = Counter()
-    raw = get(m.SENSORS_URL)
+    raw = get_or_none(m.SENSORS_URL)
     if raw:
         for r in json.loads(raw):
             live[r.get('TYPE')] += 1
@@ -99,7 +99,7 @@ def scan_tn(m, sample):
     for extra in m.EXTRA.values():
         mapped.update(extra.values())
     stations, codes = {}, []
-    raw = get(m.LIST_URL)
+    raw = get_or_none(m.LIST_URL)
     if raw:
         for a in ET.fromstring(raw).findall('mt:anagrafica', NS):
             code = a.find('mt:codice', NS); nome = a.find('mt:nome', NS)
@@ -109,7 +109,7 @@ def scan_tn(m, sample):
     smp = codes[:sample] if sample else codes
     nsuri = '{' + NS['mt'] + '}'
     def leaves(c):
-        raw = get(m.STATION_URL + c)
+        raw = get_or_none(m.STATION_URL + c)
         if not raw: return []
         try:
             out = []
@@ -131,11 +131,11 @@ def scan_fvg(m, sample):
     mapped = set(m.VARIABLES.values())                           # i tag di <meteo_data> letti dallo script
     for extra in m.EXTRA.values():
         mapped.update(extra.values())
-    raw = get(m.HOME_URL)
+    raw = get_or_none(m.HOME_URL)
     codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', raw.decode('utf-8', 'replace')))) if raw else []
     smp = codes[:sample] if sample else codes
     def fields(c):
-        raw = get(m.STATION_URL + c + '.xml')
+        raw = get_or_none(m.STATION_URL + c + '.xml')
         if not raw: return (c, None, [])
         try:
             md = ET.fromstring(raw).find('meteo_data')
@@ -154,7 +154,7 @@ def scan_lom(m, sample):
     mapped = set(m.VARIABLES.values())                           # le tipologie dei sensori lette dallo script
     q = "?$select=tipologia,idstazione,nomestazione&$where=storico%3D%27N%27&$limit=20000"
     stations, live = {}, Counter()
-    raw = get(m.REGISTRY_URL + q)
+    raw = get_or_none(m.REGISTRY_URL + q)
     if raw:
         for a in json.loads(raw):
             live[a.get('tipologia')] += 1
@@ -164,12 +164,11 @@ def scan_lom(m, sample):
     return mapped, dict(live), stations
 
 def scan_er(m, sample):
-    import urllib.parse
     mapped = set(desc for desc, unit in m.VARIABLES.values())    # i descrittori delle variabili lette dallo script
     stations = {}
     for n in ('LIVIDRO', 'TEMP', 'PREC'):
         desc = m.VARIABLES[n][0]
-        raw = get(m.API_URL + 'get-sensor-values?variabile=' + urllib.parse.quote(desc, safe=''))
+        raw = get_or_none(m.API_URL + 'get-sensor-values', params={'variabile': desc})
         if not raw:
             continue
         for s in json.loads(raw):
@@ -183,14 +182,9 @@ def scan_er(m, sample):
 # NUOVE STAZIONI (per l'aria TN/ER servono a sapere che va aggiunta/verificata una coordinata). Il
 # flag "variabile non mappata" e' tenuto solo dove e' pulito (PC_TN: 2 grandezze); per l'aria le reti
 # misurano molte specie che non tracciamo di proposito, quindi non lo attiviamo (sarebbe rumore).
-def _jget(url):
-    raw = get(url)
-    try: return json.loads(raw) if raw else None
-    except Exception: return None
-
 def scan_aq_ven(m, sample):
-    data = _jget('https://www2.arpa.veneto.it/aria-json/exported/aria/data.json') or {}
-    stats = _jget('https://www2.arpa.veneto.it/aria-json/exported/aria/stats.json') or {}
+    data = get_json_or_none(m.VEN_BASE + 'data.json') or {}
+    stats = get_json_or_none(m.VEN_BASE + 'stats.json') or {}
     names = {s['codseqst']: s.get('nome') for s in stats.get('stazioni', [])}
     stations = {s['codseqst']: names.get(s['codseqst']) for s in data.get('stazioni', [])}
     return set(m.VEN_POLLMAP.values()), {}, stations
@@ -198,25 +192,25 @@ def scan_aq_ven(m, sample):
 def scan_aq_lom(m, sample):
     q = "?$select=idstazione,nomestazione&$where=storico%3D%27N%27&$group=idstazione,nomestazione&$limit=5000"
     stations = {}
-    for a in (_jget('https://www.dati.lombardia.it/resource/ib47-atvt.json' + q) or []):
+    for a in (get_json_or_none(m.LOM_ANAGRAFICA + q) or []):
         if a.get('idstazione'):
             stations[a['idstazione']] = a.get('nomestazione')
     return set(m.LOM_TYPEMAP.values()), {}, stations
 
 def scan_aq_bz(m, sample):
     stations = {}
-    for r in (_jget('https://dati.retecivica.bz.it/services/airquality/sensors') or []):
+    for r in (get_json_or_none(m.BZ_AIRQUALITY + '/sensors') or []):
         if r.get('MCODE') in m.BZ_MCODEMAP and r.get('SCODE'):
             stations.setdefault(r['SCODE'], r['SCODE'])
     return set(m.BZ_MCODEMAP.values()), {}, stations
 
 def scan_aq_tn(m, sample):
-    d = _jget('https://bollettino.appa.tn.it/aria/opendata/json/last/2,4,6,8,9,15,22,23') or {}
+    d = get_json_or_none(m.TN_URL) or {}
     stations = {s.get('nome'): s.get('nome') for s in d.get('stazione', []) if s.get('nome')}
     return set(m.TN_POLLMAP.values()), {}, stations
 
 def scan_aq_er(m, sample):
-    raw = get('https://docs.google.com/spreadsheets/d/1-4wgZ8JeLeg0bODTSFUrshPY-_y9mERUu0FJtSFr78s/export?format=csv')
+    raw = get_or_none(m.ER_STATIONS_CSV)
     stations = {}
     if raw:
         for r in csv.DictReader(io.StringIO(raw.decode('utf-8', 'replace'))):
@@ -226,12 +220,12 @@ def scan_aq_er(m, sample):
     return set(), {}, stations
 
 def scan_pc_fvg(m, sample):
-    d = _jget('https://monitor.protezionecivile.fvg.it/api/stations') or {}
+    d = get_json_or_none(m.FVG_API + '/stations') or {}
     stations = {str(s.get('id')): s.get('name') for s in d.get('stations', []) if s.get('id') is not None}
     return set(m.FVG_MAP.values()), {}, stations
 
 def scan_pc_tn(m, sample):
-    g = _jget('https://www.floods.it/api/v1/monitoring/index.json') or {}
+    g = get_json_or_none(m.TN_BASE + 'index.json') or {}
     stations, live = {}, Counter()
     for f in g.get('features', []):
         md = (f.get('properties') or {}).get('metadata', {})
@@ -254,8 +248,7 @@ def main():
                         help='Campiona N stazioni per lista (0 = tutte, default). Piu\' veloce ma puo\' perdere variabili rare.')
     args = parser.parse_args()
 
-    if not os.path.exists(TRACK_DIR):
-        os.makedirs(TRACK_DIR)
+    os.makedirs(TRACK_DIR, exist_ok=True)
     sample  = args.sample or None
     regions = list(REGIONS) if args.region.lower() == 'all' else [args.region]
     stamp   = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -266,7 +259,7 @@ def main():
     for region in regions:
         if region not in REGIONS:
             print('Regione sconosciuta: ' + region); continue
-        m = load_module(REGIONS[region])
+        m = importlib.import_module(REGIONS[region])
         mapped, live, stations = SCANNERS[region](m, sample)
 
 # variabili presenti nel feed ma NON mappate
@@ -274,11 +267,11 @@ def main():
 
 # stazioni nuove rispetto allo snapshot
         snap = os.path.join(TRACK_DIR, region + '_stations.json')
-        known = set(json.load(open(snap))) if os.path.exists(snap) else None
+        known = set(comune.load_json(snap)) if os.path.exists(snap) else None
         cur   = set(stations)
         baseline = known is None
         new_staz = [] if baseline else sorted(cur - known)
-        json.dump(sorted(cur | (known or set())), open(snap, 'w'))   # aggiorna snapshot (unione)
+        comune.save_json(sorted(cur | (known or set())), snap)   # aggiorna snapshot (unione)
 
 # report a schermo
         print(f"\n=== {region} ===")
@@ -305,7 +298,7 @@ def main():
 
     print(f"\n---\nTotale: {tot_vars} variabili non mappate, {tot_staz} stazioni nuove.")
     if log_blocks:
-        with open(LOG_FILE, 'a') as fp:
+        with open(LOG_FILE, 'a', encoding='utf-8') as fp:
             fp.write("\n".join(log_blocks) + "\n")
         print('Novita\' registrate in ' + LOG_FILE)
 
