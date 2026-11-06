@@ -22,6 +22,8 @@
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dstorico"   # lo stesso a 375 px (anche 320x640, 430x932, 1024x768)
     tests/web/run.sh "w.html?w=1024&h=768&src=it_local.html%3Fsuite%3Dschede"   # scheda su due righe: grafico entro 75 px, Confronti, Storico ×
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dschede"    # telefono (anche 320x640, 430x932): riga 2 che scorre, niente fuori pagina
+    tests/web/run.sh "w.html?w=1024&h=768&src=it_local.html%3Fsuite%3Ddrawer"   # pannello accanto alla mappa (anche 1280x800): 400 px, anello, pillole, riquadri, ⤢ (si ricarica una volta), ×
+    tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Ddrawer"    # telefono (anche 320x640, 430x932): foglio basso -> pannello completo -> basso -> chiuso
     python3 tests/web/setup.py --clean    # toglie site/_radar_test/
 
 Serve Chrome (headless). Le suite sono in it_tests.js; ogni pagina stampa "RISULTATO: n/n".
