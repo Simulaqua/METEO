@@ -63,10 +63,6 @@ TN_COORDS = {
 }
 
 
-def slug(name):
-    return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or 'staz'
-
-
 def pollutant_symbol(name):
     """Nome del parametro ARPAE -> sigla comune, None se non è un inquinante che teniamo."""
     n = (name or '').upper()
@@ -247,7 +243,7 @@ def download_tn(debug=False):
         if not co:
             print('WARN: [TN] stazione senza coordinate: %s' % name)
             continue
-        sc = slug(name)
+        sc = comune.slug(name)
         stations[sc] = {'NOME': name, 'LAT': co[0], 'LON': co[1]}
         for day, hours in (s.get('dati') or {}).items():
             for hour, vals in hours.items():

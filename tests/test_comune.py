@@ -17,8 +17,8 @@ import requests
 
 import comune
 from comune import (USER_AGENT, aware_to_solar, civil_to_solar, day_files, delete_downloaded, get, get_json, get_text,
-                    is_dst_civil, is_dst_solar, load_json, merge_readings, save_json, to_float, utc_to_solar,
-                    value_key, write_parsed)
+                    is_dst_civil, is_dst_solar, load_json, merge_readings, save_json, save_url, slug, to_float,
+                    utc_to_solar, value_key, write_parsed)
 
 RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -167,6 +167,29 @@ class TestRete(unittest.TestCase):
             with self.assertRaises(requests.ConnectionError):
                 get('http://x.invalid/')
         self.assertEqual(g.call_count, 2)
+
+
+class TestSaveUrl(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+
+    def test_slug(self):
+        self.assertEqual(slug('Lago di Garda'), 'Lago_di_Garda')
+        self.assertEqual(slug(''), 'staz')
+        self.assertEqual(slug(None, 'lago'), 'lago')
+
+    def test_save_url(self):
+        s = ServerLocale(status=404, corpo=b'non trovato')
+        self.addCleanup(s.close)
+        path = os.path.join(self.dir, 'pagina.html')
+        self.assertEqual(save_url(s.url, path), b'non trovato')
+        with open(path, 'rb') as fp:
+            self.assertEqual(fp.read(), b'non trovato')
+        with mock.patch('comune.time.sleep'):
+            with self.assertRaises(SystemExit) as uscita:
+                save_url('http://127.0.0.1:1/', os.path.join(self.dir, 'no.html'))
+        self.assertIn('Error downloading', str(uscita.exception))
 
 
 class TestWriteParsed(unittest.TestCase):

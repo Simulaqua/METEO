@@ -63,10 +63,6 @@ OGS_STATIONS = [
 OGS_QC_OK = (0, 1, 2)   # SeaDataNet L20: non controllato, buono, probabilmente buono; 3-9 si scartano
 
 
-def slug(name):
-    return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or 'staz'
-
-
 def numbers(text):
     """Tutti i numeri di una stringa come '209 gradi, 1.4 m/s, 2.2 m/s'."""
     return [float(x) for x in re.findall(r'-?\d+\.?\d*', text or '')]
@@ -156,7 +152,7 @@ def download_er(debug=False):
             dt = datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%SZ')
         except (KeyError, ValueError):
             continue
-        sc = slug(name)
+        sc = comune.slug(name)
         moment = comune.utc_to_solar(dt)
         stations[sc] = {'NOME': name, 'LAT': lat, 'LON': lon}
         for var, v in vals.items():

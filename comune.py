@@ -4,6 +4,7 @@ import gzip
 import json
 import math
 import os
+import sys
 import time
 import zlib
 
@@ -105,6 +106,18 @@ def get_json(url, params=None, headers=None, timeout=60, verify=True):
     return json.loads(get_text(url, params=params, headers=headers, timeout=timeout, verify=verify))
 
 
+def save_url(url, path):
+    """Salva in path il corpo di url, qualunque sia lo stato HTTP (una pagina di errore la scartano i lettori), e lo
+    restituisce. Un errore di rete ferma il giro."""
+    try:
+        r = get(url)
+    except requests.RequestException as error:
+        sys.exit('Error downloading ' + url + ': ' + str(error))
+    with open(path, 'wb') as fp:
+        fp.write(r.content)
+    return r.content
+
+
 # ---------------------------------------------------------------------------------------------------------
 # Tempo: i file dati usano l'ora solare (UTC+1 tutto l'anno)
 
@@ -153,6 +166,11 @@ def to_float(v):
         return None if math.isnan(f) else f      # scarta NaN
     except (TypeError, ValueError):
         return None
+
+
+def slug(name, empty='staz'):
+    """Il nome come sigla: lettere e cifre, il resto un '_'; se non resta nulla, empty."""
+    return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or empty
 
 
 # ---------------------------------------------------------------------------------------------------------

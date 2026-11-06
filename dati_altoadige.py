@@ -12,9 +12,6 @@ import argparse
 import datetime
 import os
 import re
-import sys
-
-import requests
 
 import comune
 
@@ -46,16 +43,6 @@ VARIABLES = {
 }
 
 
-def fetch(url, path):
-    """Salva in path il file di url, qualunque sia lo stato HTTP. Un errore di rete ferma il giro."""
-    try:
-        r = comune.get(url)
-    except requests.RequestException as error:
-        sys.exit('Error downloading ' + url + ': ' + str(error))
-    with open(path, 'wb') as fp:
-        fp.write(r.content)
-
-
 def download():
     """L'anagrafica e le letture in DOWNLOAD_DIR/dati/, con il prefisso del giro AAAAMMGG-HHMMSS (restituito)."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
@@ -63,8 +50,8 @@ def download():
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    fetch(STATIONS_URL, os.path.join(folder, stamp + '-stations.json'))
-    fetch(SENSORS_URL, os.path.join(folder, stamp + '-sensors.json'))
+    comune.save_url(STATIONS_URL, os.path.join(folder, stamp + '-stations.json'))
+    comune.save_url(SENSORS_URL, os.path.join(folder, stamp + '-sensors.json'))
     return stamp
 
 

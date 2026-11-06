@@ -29,10 +29,6 @@ LAKE_CENTER = {
 }
 
 
-def slug(name):
-    return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or 'lago'
-
-
 def post_json(session, path, data):
     r = session.post(BASE_URL + path, data=data, headers={'X-Requested-With': 'XMLHttpRequest'}, timeout=60)
     r.raise_for_status()
@@ -58,7 +54,7 @@ def download(debug=False):
         if not name:
             continue
         marker = markers[i] if i < len(markers) else {}
-        code = slug(name)
+        code = comune.slug(name, 'lago')
         center = LAKE_CENTER.get(name)
         stations[code] = {'NOME': name,
                           'LAT': center[0] if center else marker.get('lat'),

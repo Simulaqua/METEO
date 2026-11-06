@@ -12,10 +12,7 @@ import argparse
 import datetime
 import os
 import re
-import sys
 import xml.etree.ElementTree as ET
-
-import requests
 
 import comune
 
@@ -48,18 +45,6 @@ META_TAGS = {'observation_time', 'observation_date', 'observation_hour',
              'station_id', 'station_name', 'station_altitude'}
 
 
-def fetch(url, path):
-    """Salva in path il file di url, qualunque sia lo stato HTTP (una pagina di errore non è XML: parse la salta), e
-    ne restituisce il contenuto. Un errore di rete ferma il giro."""
-    try:
-        r = comune.get(url)
-    except requests.RequestException as error:
-        sys.exit('Error downloading ' + url + ': ' + str(error))
-    with open(path, 'wb') as fp:
-        fp.write(r.content)
-    return r.content
-
-
 def download():
     """La pagina principale e il file di ogni stazione in DOWNLOAD_DIR/dati/, con il prefisso del giro
     AAAAMMGG-HHMMSS (restituito)."""
@@ -68,13 +53,13 @@ def download():
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    home = fetch(HOME_URL, os.path.join(folder, stamp + '-home.html'))
+    home = comune.save_url(HOME_URL, os.path.join(folder, stamp + '-home.html'))
     # codici di cifre o di lettere e cifre (101, G201, A009); i link <codice>_week.xml (gli aggregati giornalieri)
     # restano fuori perché '_' non è fra i caratteri ammessi
     codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', home.decode('utf-8', 'replace'))))
     print('Pagina principale: %d stazioni' % len(codes))
     for code in codes:
-        fetch(STATION_URL + code + '.xml', os.path.join(folder, stamp + '-' + code + '.xml'))
+        comune.save_url(STATION_URL + code + '.xml', os.path.join(folder, stamp + '-' + code + '.xml'))
     return stamp
 
 

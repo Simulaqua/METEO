@@ -11,10 +11,7 @@
 import argparse
 import datetime
 import os
-import sys
 import xml.etree.ElementTree as ET
-
-import requests
 
 import comune
 
@@ -41,16 +38,6 @@ VARIABLES = {
 EXTRA = {'VVENTO': {'VMAX': 'vmax'}}                               # la raffica
 
 
-def fetch(url, path):
-    """Salva in path il file di url, qualunque sia lo stato HTTP. Un errore di rete ferma il giro."""
-    try:
-        r = comune.get(url)
-    except requests.RequestException as error:
-        sys.exit('Error downloading ' + url + ': ' + str(error))
-    with open(path, 'wb') as fp:
-        fp.write(r.content)
-
-
 def child_text(element, tag):
     """Il testo del tag figlio; None se il tag manca o è vuoto."""
     child = element.find('mt:' + tag, NS)
@@ -67,7 +54,7 @@ def download():
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     list_path = os.path.join(folder, stamp + '-listaStazioni.xml')
-    fetch(LIST_URL, list_path)
+    comune.save_url(LIST_URL, list_path)
     listed = {}
     for item in ET.parse(list_path).getroot().findall('mt:anagrafica', NS):
         station = {field: child_text(item, field) for field in LIST_FIELDS}
@@ -79,7 +66,7 @@ def download():
     active = [code for code, station in listed.items() if not (station['fine'] or '').strip()]
     print('Elenco: %d stazioni, %d attive' % (len(listed), len(active)))
     for code in active:
-        fetch(STATION_URL + code, os.path.join(folder, stamp + '-' + code + '.xml'))
+        comune.save_url(STATION_URL + code, os.path.join(folder, stamp + '-' + code + '.xml'))
     return stamp
 
 
