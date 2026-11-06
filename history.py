@@ -22,17 +22,15 @@
 # Uscita: <out>/<REGIONE>/<STAZIONE>.json   {"v":1,"d0":"YYYYMMDD","p":[...],"hp":[...],"tn":[...],"tx":[...],
 #         "tm":[...],"ht":[...]}  (un elemento per giorno da d0; null = nessun dato) + <out>/index.json.
 #
-# Uso:   python3 history.py [--out DIR] [--cache DIR] [--regions VEN,LOM] [--full] [--from YYYYMMDD]
+# Uso:   python3 history.py [--out DIR] [--cache DIR] [--regions VEN,LOM] [--full]
 
 import argparse
 import datetime
-import gzip
-import json
 import os
 import re
-import sys
 import time
 
+import comune
 import quality
 
 BASE = os.path.dirname(os.path.realpath(__file__))
@@ -41,10 +39,6 @@ VARS = ('PREC', 'TEMP')
 RECENT_DAYS = 3                                                # sempre rielaborati (arrivi in ritardo)
 PREC_DAY_MAX = 1500.0                                          # oltre, la somma giornaliera e' un guasto
 CACHE_V = 1
-
-# chiave dei valori nel JSON dell'archivio ('VM' per il Veneto, 'VALORE' per le altre fonti)
-def value_key(region):
-    return 'VM' if region == 'VEN' else 'VALORE'
 
 def sources_of(region):
     ''' Elenco (etichetta, cartella data-parsed) della regione, dal piu' vecchio al piu' recente. '''
@@ -67,38 +61,13 @@ def discover_regions():
     return regs
 
 #-----------------------------------------------------------------------------------------------------------
-def list_days(parse_dir, var):
-    ''' {YYYYMMDD: percorso} dei file giornalieri di una variabile (.json oppure .json.gz). '''
-    d = os.path.join(parse_dir, var)
-    out = {}
-    if not os.path.isdir(d):
-        return out
-    for fn in os.listdir(d):
-        m = re.match(r'^' + var + r'-(\d{8})\.json(\.gz)?$', fn)
-        if m:
-            day = m.group(1)
-            if day not in out or not m.group(2):                # preferisci il .json (piu' recente) al .gz
-                out[day] = os.path.join(d, fn)
-    return out
-
-def load_json(path):
-    try:
-        if path.endswith('.gz'):
-            with gzip.open(path, 'rt', encoding='utf-8') as f:
-                return json.load(f)
-        with open(path, encoding='utf-8') as f:
-            return json.load(f)
-    except (OSError, ValueError, EOFError):
-        return None
-
-#-----------------------------------------------------------------------------------------------------------
 def aggregate_file(region, var, path, umid_path=None):
     ''' Aggrega un file giornaliero: {scode: {giorno: [somma|None, ore, tmin, tmax, tmedia]}} (per PREC solo i
         primi due campi). Un file puo' contenere istanti di piu' giorni: si raggruppa per data dell'ISTANTE. '''
-    data = load_json(path)
+    data = comune.load_json(path)
     if not isinstance(data, dict):
         return {}
-    vkey = value_key(region)
+    vkey = comune.value_key(region)
     out = {}
     zero_ts = {}                                                 # TEMP == 0.0 esatto: candidati a "zero-guasto"
     per = {}                                                     # scode -> giorno -> dati grezzi
@@ -109,7 +78,7 @@ def aggregate_file(region, var, path, umid_path=None):
         for ts, v in zip(ist, val):
             if not ts or len(ts) < 10:
                 continue
-            x = quality.to_float(v)
+            x = comune.to_float(v)
             if not quality.valid(var, x):
                 continue
             day, hour = ts[:8], ts[8:10]
@@ -118,11 +87,11 @@ def aggregate_file(region, var, path, umid_path=None):
             if var == 'TEMP' and x == 0.0:
                 zero_ts.setdefault(scode, set()).add(ts)
     if zero_ts and umid_path:                                    # TEMP=0 con UMID=0 allo stesso istante = datalogger azzerato
-        um = load_json(umid_path)
+        um = comune.load_json(umid_path)
         if isinstance(um, dict):
             for scode, tss in zero_ts.items():
                 mis = ((um.get(scode) or {}).get('MISURE')) or {}
-                zeros = set(ts for ts, v in zip(mis.get('ISTANTE') or [], mis.get(vkey) or []) if quality.to_float(v) == 0.0)
+                zeros = set(ts for ts, v in zip(mis.get('ISTANTE') or [], mis.get(vkey) or []) if comune.to_float(v) == 0.0)
                 for ts in tss & zeros:
                     for day, st in per.get(scode, {}).items():
                         st.pop(ts, None)
@@ -168,40 +137,31 @@ def day_record(region, files, day):
 
 #-----------------------------------------------------------------------------------------------------------
 def load_cache(path):
-    d = load_json(path) if os.path.exists(path) else None
+    d = comune.load_json(path)
     if isinstance(d, dict) and d.get('v') == CACHE_V and isinstance(d.get('days'), dict):
         return d
     return {'v': CACHE_V, 'days': {}}
-
-def save_atomic(path, obj):
-    tmp = path + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(obj, f, separators=(',', ':'))
-    os.replace(tmp, path)
-
-def day_add(day, n):
-    return (datetime.datetime.strptime(day, '%Y%m%d') + datetime.timedelta(days=n)).strftime('%Y%m%d')
 
 def day_span(d0, d1):
     return (datetime.datetime.strptime(d1, '%Y%m%d') - datetime.datetime.strptime(d0, '%Y%m%d')).days + 1
 
 #-----------------------------------------------------------------------------------------------------------
-def process_region(region, out_dir, cache_dir, full=False, from_day=None, verbose=False):
+def process_region(region, cache_dir, full=False, verbose=False, today=None):
+    ''' today = giorno solare corrente AAAAMMGG (None: adesso). '''
     srcs = sources_of(region)
-    files = [{v: list_days(p, v) for v in ('PREC', 'TEMP', 'UMID')} for _, p in srcs]     # elenco file, una volta sola
+    files = [{v: comune.day_files(os.path.join(p, v), v) for v in ('PREC', 'TEMP', 'UMID')} for _, p in srcs]     # elenco file, una volta sola
     all_days = set()
     for fm in files:
         for v in VARS:
             all_days.update(fm[v])
-    if from_day:
-        all_days = set(d for d in all_days if d >= from_day)
     if not all_days:
         return None
     cpath = os.path.join(cache_dir, region + '.json')
     cache = {'v': CACHE_V, 'days': {}} if full else load_cache(cpath)
     days = cache['days']
-    today = datetime.datetime.utcnow() + datetime.timedelta(hours=1)           # giorno solare corrente
-    recent_from = (today - datetime.timedelta(days=RECENT_DAYS)).strftime('%Y%m%d')
+    if today is None:
+        today = comune.now_solar().strftime('%Y%m%d')
+    recent_from = (datetime.datetime.strptime(today, '%Y%m%d') - datetime.timedelta(days=RECENT_DAYS)).strftime('%Y%m%d')
     todo = sorted(d for d in all_days if d not in days or d >= recent_from)
     t0 = time.time()
     for i, day in enumerate(todo):
@@ -213,8 +173,7 @@ def process_region(region, out_dir, cache_dir, full=False, from_day=None, verbos
         if verbose and (i + 1) % 100 == 0:
             print('  %s: %d/%d giorni (%.0fs)' % (region, i + 1, len(todo), time.time() - t0))
     if todo:
-        os.makedirs(cache_dir, exist_ok=True)
-        save_atomic(cpath, cache)
+        comune.save_json(cache, cpath)
     return days, len(todo)
 
 def write_region(region, days, out_dir):
@@ -250,7 +209,7 @@ def write_region(region, days, out_dir):
             continue
         fn = re.sub(r'[^A-Za-z0-9_.-]', '_', scode) + '.json'
         keep.add(fn)
-        save_atomic(os.path.join(rdir, fn), obj)
+        comune.save_json(obj, os.path.join(rdir, fn))
     for fn in os.listdir(rdir):                                # via le stazioni sparite
         if fn.endswith('.json') and fn not in keep:
             os.remove(os.path.join(rdir, fn))
@@ -265,16 +224,16 @@ def main():
     ap.add_argument('--cache', default=os.path.join(BASE, 'history_cache'), help='cartella della cache')
     ap.add_argument('--regions', default='', help='elenco separato da virgole (default: tutte)')
     ap.add_argument('--full', action='store_true', help='ignora la cache e rielabora tutto')
-    ap.add_argument('--from', dest='from_day', default=None, help='solo i giorni >= YYYYMMDD (prove)')
     ap.add_argument('-v', '--verbose', action='store_true')
     a = ap.parse_args()
 
     regions = [r for r in a.regions.split(',') if r] or discover_regions()
     os.makedirs(a.out, exist_ok=True)
-    index = {'v': 1, 'updated': (datetime.datetime.utcnow() + datetime.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M'), 'regions': {}}
+    now = comune.now_solar()                                   # l'ora si prende una volta: stesso giorno per tutte le regioni
+    index = {'v': 1, 'updated': now.strftime('%Y-%m-%dT%H:%M'), 'regions': {}}
     t0 = time.time()
     for region in regions:
-        res = process_region(region, a.out, a.cache, a.full, a.from_day, a.verbose)
+        res = process_region(region, a.cache, a.full, a.verbose, now.strftime('%Y%m%d'))
         if res is None:
             print('%-8s nessun dato PREC/TEMP' % region)
             continue
@@ -283,7 +242,7 @@ def main():
         print('%-8s %4d stazioni, giorni %s..%s (%d elaborati ora)' % (region, ns, d_first, d_last, n_new))
         if ns:
             index['regions'][region] = {'stations': ns, 'from': d_first, 'to': d_last}
-    save_atomic(os.path.join(a.out, 'index.json'), index)
+    comune.save_json(index, os.path.join(a.out, 'index.json'))
     print('Fatto in %.0fs -> %s' % (time.time() - t0, a.out))
 
 if __name__ == '__main__':

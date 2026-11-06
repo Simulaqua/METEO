@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import comune
 import history
 
 
@@ -49,7 +50,7 @@ class HistoryBase(unittest.TestCase):
         return os.path.join(self.base, region, 'data-parsed')
 
     def run_region(self, region, full=False):
-        days, n = history.process_region(region, self.out, self.cache, full=full)
+        days, n = history.process_region(region, self.cache, full=full)
         history.write_region(region, days, self.out)
         return days, n
 
@@ -134,9 +135,9 @@ class AggregatesTest(HistoryBase):
     def test_gz_and_json_both_read_json_preferred(self):
         p = self.parse('LOM')
         write_day(p, 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [9.0])}, 'VALORE', gz=True)
-        self.assertTrue(history.list_days(p, 'PREC')['20200101'].endswith('.json.gz'))
+        self.assertTrue(comune.day_files(os.path.join(p, 'PREC'), 'PREC')['20200101'].endswith('.json.gz'))
         write_day(p, 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
-        self.assertTrue(history.list_days(p, 'PREC')['20200101'].endswith('.json'))
+        self.assertTrue(comune.day_files(os.path.join(p, 'PREC'), 'PREC')['20200101'].endswith('.json'))
         days, _ = self.run_region('LOM')
         self.assertEqual(days['20200101']['A'][0], 1.0)
 
@@ -185,10 +186,6 @@ class VenetoOverlapTest(HistoryBase):
         write_day(self.parse('VEN'), 'PREC', '20200102', {'A': (ts_list('20200102', [0]), [2.0])}, 'VM')
         self.run_region('VEN')
         self.assertEqual(self.station('VEN', 'A')['p'], [1.0, 2.0])
-
-    def test_value_key_per_region(self):
-        self.assertEqual(history.value_key('VEN'), 'VM')
-        self.assertEqual(history.value_key('LOM'), 'VALORE')
 
 
 class DiscoverTest(HistoryBase):
