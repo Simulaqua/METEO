@@ -1,9 +1,13 @@
 # Pubblicazione (publish.sh): lo stato del sito che scrive status.py, letto dal banner della pagina e dagli avvisi
 # GitHub. Il resto di publish.sh lo provano gli scenari di tests/test_rete.py (TestBash).
+# Le prove di main() lanciano una copia di status.py in una cartella temporanea: main() lavora nella cartella del suo
+# file, e quella dell'originale è il progetto vero.
 #   /usr/bin/python3 -m unittest tests.test_pubblica -v
-import json, os, sys, tempfile, unittest
+import importlib.util, json, os, shutil, sys, tempfile, unittest
+from unittest import mock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT)
 import status
 
 
@@ -20,7 +24,24 @@ def stations(*times):
                                     for n, moment in enumerate(times)]})
 
 
+def listing(folder):
+    """I nomi in folder, in ordine; [] se la cartella non c'è."""
+    return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+
+
 class TestStato(unittest.TestCase):
+
+    def copy_of_status(self):
+        """Una cartella temporanea con una copia di status.py e il modulo caricato dalla copia; alla fine la prova
+        torna nella sua cartella di lavoro e la cartella temporanea sparisce."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder)
+        self.addCleanup(os.chdir, os.getcwd())
+        shutil.copy(os.path.join(PROJECT, 'status.py'), folder)
+        spec = importlib.util.spec_from_file_location('status_copia', os.path.join(folder, 'status.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return folder, module
 
     def test_stato_regioni_e_backup(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -39,6 +60,52 @@ class TestStato(unittest.TestCase):
         self.assertEqual(out['regions'], {'LAGHI': {'latest': '2026-11-05T12:00', 'n': 2, 'old': 1},
                                           'MAR_ER': {'latest': '2026-11-05T11:30', 'n': 2, 'old': 0}})
         self.assertEqual(out['backup'], {'last': '2026-11-05', 'warn': ['a', 'c'], 'info': 'fatto in 12s'})
+
+    def test_main_scrive_status_json(self):
+        folder, copy = self.copy_of_status()
+        write(os.path.join(folder, 'site', 'LAGHI', 'stations.geojson'),
+              stations('2026-11-05T12:00', '2026-11-05T08:50'))
+        write(os.path.join(folder, 'logs', 'backup-20261105-044000.log'),
+              'ATTENZIONE: rotazione ferma -- archivio sceso\nfatto in 12s, è tutto\n')
+        os.makedirs(os.path.join(folder, 'usb', '2026-11-05'))
+        copy.BACKUP_ROOT = os.path.join(folder, 'usb')
+        # lanciato da un'altra cartella: lavora comunque nella sua
+        elsewhere = os.path.join(folder, 'altrove')
+        os.makedirs(elsewhere)
+        os.chdir(elsewhere)
+        copy.main()
+        self.assertEqual(listing(os.path.join(folder, 'site', 'STATUS')), ['status.json'])
+        # i byte di json.dump predefinito (", " e ": ", escape ASCII): quelli pubblicati da sempre
+        expected = {'latest': '2026-11-05T12:00',
+                    'regions': {'LAGHI': {'latest': '2026-11-05T12:00', 'n': 2, 'old': 1}},
+                    'backup': {'last': '2026-11-05', 'warn': ['rotazione ferma'], 'info': 'fatto in 12s, è tutto'}}
+        with open(os.path.join(folder, 'site', 'STATUS', 'status.json'), 'rb') as fp:
+            self.assertEqual(fp.read(), json.dumps(expected).encode('ascii'))
+        # nessuna stazione con l'ultimo dato: nessun file
+        empty, copy = self.copy_of_status()
+        write(os.path.join(empty, 'site', 'LAGHI', 'stations.geojson'),
+              json.dumps({'features': [{'properties': {'scode': 'S0'}}]}))
+        copy.main()
+        self.assertEqual(listing(os.path.join(empty, 'site')), ['LAGHI'])
+
+    def test_main_scrittura_fallita_senza_temporanei(self):
+        folder, copy = self.copy_of_status()
+        write(os.path.join(folder, 'site', 'LAGHI', 'stations.geojson'), stations('2026-11-05T12:00'))
+        os.chdir(folder)
+        names = []
+
+        def disk_full(data, fp):
+            names.append(os.path.basename(fp.name))
+            fp.write('{"latest": ')
+            raise OSError(28, 'No space left on device')
+
+        with mock.patch.object(copy.json, 'dump', disk_full):
+            with self.assertRaises(OSError):
+                copy.main()
+        # un temporaneo per processo (due publish sovrapposti non scrivono nello stesso file), tolto se la scrittura
+        # fallisce
+        self.assertEqual(names, ['status.json.%d.tmp' % os.getpid()])
+        self.assertEqual(listing(os.path.join(folder, 'site', 'STATUS')), [])
 
 
 if __name__ == '__main__':

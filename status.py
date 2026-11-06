@@ -8,7 +8,7 @@
 #   backup   il backup notturno su chiavetta (backup_usb.sh), per l'avviso 'Warning - backup off'
 # Cambia solo quando i dati avanzano davvero: non fa ripartire il push dei dati a ogni giro.
 #
-# Uso:   python3 status.py      (nella cartella del progetto, come lo lancia publish.sh)
+# Uso:   python3 status.py      (lavora nella sua cartella, il progetto)
 
 import datetime
 import glob
@@ -72,16 +72,25 @@ def backup_status(logs_dir, backup_root):
 
 
 def main():
+    # percorsi relativi alla cartella del programma, da dovunque lo si lanci: anche i messaggi d'errore scritti nello
+    # stato (con il percorso del log) restano quelli di sempre
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     out = build_status('site', 'logs', BACKUP_ROOT)
     if not out['latest']:
         return
     path = os.path.join('site', 'STATUS', 'status.json')
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    # json.dump predefinito (", " e ": ", escape ASCII), non comune.save_json: i byte del file pubblicato restano
-    # quelli di sempre
-    with open(path + '.tmp', 'w', encoding='utf-8') as fp:
-        json.dump(out, fp)
-    os.replace(path + '.tmp', path)
+    # temporaneo per processo: due publish sovrapposti (il cron non ha lock) non scrivono nello stesso file
+    tmp = '%s.%d.tmp' % (path, os.getpid())
+    try:
+        # json.dump predefinito (", " e ": ", escape ASCII), non comune.save_json: i byte del file pubblicato
+        # restano quelli di sempre
+        with open(tmp, 'w', encoding='utf-8') as fp:
+            json.dump(out, fp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):                 # scrittura fallita: niente avanzi in STATUS/
+            os.remove(tmp)
 
 
 if __name__ == '__main__':
