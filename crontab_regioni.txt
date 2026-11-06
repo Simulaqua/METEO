@@ -123,12 +123,9 @@ PYTHON=/usr/bin/python3
 # PUBLISH ogni 10 min (a :05,:15,... cosi' gira dopo i download).
 # publish.sh pusha i DATI sul branch 'data' (letto dal sito via raw, NIENTE deploy Pages) e la
 # PAGINA su gh-pages solo se cambia -> si puo' pubblicare spesso senza far fallire i deploy Pages.
-# Imposta REMOTE dentro publish.sh. Verifica il path di bash con 'which bash' (spesso /bin/bash).
+# Il repository di destinazione (REMOTE) e' in publish.sh; il Pi pubblica via SSH con la sua deploy key.
 # -------------------------------------------------------------------------------------------
 5,15,25,35,45,55 * * * * mkdir -p $BASE/logs && /bin/bash $BASE/publish.sh >> $BASE/logs/publish-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
-
-# In alternativa a publish (se NON pubblichi su GitHub, solo sito locale): solo export
-# 5,15,25,35,45,55 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/export_web.py -r all >> $BASE/logs/export-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
 # -------------------------------------------------------------------------------------------
 # CHECK UPDATES (una volta al giorno) - segnala nuove stazioni / variabili non mappate.

@@ -1,0 +1,29 @@
+# Cosa deploy.sh NON copia sul Pi (rsync --exclude-from). Una riga per modello.
+# Per il CODICE vince sempre il Mac (niente --update): il deploy e' prevedibile.
+
+# Dati e log: restano quelli del Pi
+data-parsed
+data-downloaded
+logs
+.tracking
+
+# Export del sito: lo rigenera export_web sul Pi; si copia solo site/index.html
+site/*/
+
+# Stato che tiene il Pi (cache di PC_PO, log di check_updates, repository di radar e storico)
+sensors_map.json
+elements_map.json
+tracking.log
+radar_out/
+history_cache/
+history_out/
+
+# Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture)
+tests/
+.superpowers/
+.claude/
+
+# Git, cache e spazzatura del Mac
+.git
+__pycache__
+.DS_Store
