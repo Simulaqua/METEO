@@ -180,6 +180,8 @@
   #windrose .wr-legend { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; display:flex;
                          flex-wrap:wrap; gap:6px; justify-content:center; }
   #windrose .wr-mean { font-size:12px; color:var(--fg); text-align:center; margin-top:5px; }
+  .wdir { white-space:nowrap; }
+  .wd-ar { display:inline-block; font-style:normal; font-weight:400; line-height:1; width:.9em; text-align:center; margin-left:.12em; transform-origin:50% 55%; }
   /* ---- MAPPA: in alto a destra sfondi, Pioggia · Cursore · Radar e zoom; in basso la PLANCIA (tempo, legenda, crediti in
      un solo pannello, che sul telefono si chiude). Un solo materiale per tutti: --pbg sfondo, --pl bordo, --psh ombra ---- */
   :root { --pbg:rgba(255,255,255,.96); --pl:rgba(16,24,40,.14); --pl2:rgba(16,24,40,.08); --trk:#e1e7ee; --buf:#b8cbe1; --ink:#3b4a5c;
@@ -1949,6 +1951,12 @@ async function updateClimaBox(){
 // ---- ROSA DEI VENTI + VENTO MEDIO VETTORIALE (dal _table: DVENTO direzione + VVENTO velocita') ----
 const _DIR16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
 const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+// sigla + freccia piccola: la sigla e' la PROVENIENZA (NNE = da nord-nord-est), la freccia (↓ ruotata dei gradi misurati)
+// va DOVE VA il vento: da N punta in giu', da E a sinistra. Unico punto che scrive una direzione del vento in HTML
+function windDirHtml(deg){
+  const d = ((+deg % 360) + 360) % 360, n = _dirName(d), t = 'vento da ' + n;
+  return `<span class="wdir" role="img" aria-label="${t}" title="${t}">${n}<i class="wd-ar" aria-hidden="true" style="transform:rotate(${Math.round(d * 10) / 10}deg)">↓</i></span>`;
+}
 const _WR_CLASSES = [                                    // classi di velocita' (m/s) -> colore (debole->forte)
   {lo:0.5, hi:2,        c:'#c7e9b4', l:'0.5–2'}, {lo:2, hi:4,   c:'#7fcdbb', l:'2–4'},
   {lo:4,   hi:6,        c:'#41b6c4', l:'4–6'},   {lo:6, hi:9,   c:'#1d91c0', l:'6–9'},
@@ -2025,7 +2033,7 @@ function updateWindRose(){
     `<div class="wr-title">Rosa dei venti <span class="wr-sub">· ${n} osservazioni</span></div>` +
     `<svg viewBox="0 0 260 250" width="100%" style="max-width:300px;display:block;margin:0 auto">${svg}</svg>` +
     `<div class="wr-legend">m/s: ${legend}</div>` +
-    `<div class="wr-mean">Vento medio (vettoriale): <b>${vspeed.toFixed(1)} m/s</b> da <b>${_dirName(fromDeg)}</b>` +
+    `<div class="wr-mean">Vento medio (vettoriale): <b>${vspeed.toFixed(1)} m/s</b> da <b>${windDirHtml(fromDeg)}</b>` +
       ` · media scalare ${sspeed.toFixed(1)} m/s · calme ${(calm/n*100).toFixed(0)}%</div>`;
 }
 
@@ -4328,9 +4336,10 @@ const KEY_VARS = Object.keys(KEY_LABELS);
 function keyValues(p, main){
   const lt = p.latest || {};
   return KEY_VARS.filter(v => v !== main && hasVal(lt, v)).slice(0, 3).map(v => {
-    let text = latestText(p, v);
-    if(v === 'VVENTO' && hasVal(lt, 'DVENTO') && !isNaN(+lt.DVENTO)) text += ' ' + _DIR16[Math.round(+lt.DVENTO / 22.5) % 16];
-    return { v, label: KEY_LABELS[v], text };
+    let text = latestText(p, v), html = null;
+    if(v === 'VVENTO' && hasVal(lt, 'DVENTO') && !isNaN(+lt.DVENTO)){      // sigla di provenienza + freccia (windDirHtml)
+      html = escHtml(text) + ' ' + windDirHtml(+lt.DVENTO); text += ' ' + _dirName(+lt.DVENTO); }
+    return { v, label: KEY_LABELS[v], text, html };
   });
 }
 // i puntini mostrano un fotogramma (Cursore, o radar con le stazioni sulla stessa variabile; come "slide" in renderMarkers)
@@ -4419,7 +4428,7 @@ function cardHtml(M){
          (M.main ? '<div class="hc-main"><span class="hc-val">' + e(M.main.text) + '</span><span class="hc-delta"></span>' +
                    (bare ? '<span class="hc-lab">' + e(M.main.label) + '</span>' : '') + '</div>' : '') +
          '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
-         '<div class="hc-keys">' + M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' + e(k.text) + '</b></div>').join('') + '</div>';
+         '<div class="hc-keys">' + M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' + (k.html || e(k.text)) + '</b></div>').join('') + '</div>';
 }
 // ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia
 const CARD_OBST = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';

@@ -568,6 +568,31 @@
     const K = keyValues(P, 'TEMP');
     eq('valori chiave', K.map(k => [k.v, k.label]), [['PREC24', 'Pioggia 24 h'], ['VVENTO', 'Vento'], ['UMID', 'Umidità']]);
     log(/ SE$/.test(K[1].text), 'vento con la direzione', K[1].text);
+    {                                                 // freccia del vento: la sigla e' la provenienza, la freccia va dove va il vento
+      const probe = html => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden';
+        d.innerHTML = html; document.body.appendChild(d);
+        const w = d.querySelector('.wdir'), ar = w && w.querySelector('.wd-ar'), m = ar && getComputedStyle(ar).transform;
+        const ang = m && m !== 'none' ? Math.round((Math.atan2(+m.slice(7).split(',')[1], +m.slice(7).split(',')[0]) * 180 / Math.PI + 360) % 360) : 0;
+        const r = [w && w.firstChild.textContent, ang, w && w.title, w && w.getAttribute('aria-label'), ar && ar.textContent.trim().length > 0, d.textContent];
+        d.remove(); return r; };
+      eq('freccia: helper unico', typeof windDirHtml, 'function');
+      if(typeof windDirHtml === 'function'){
+        eq('freccia: 0 gradi = da N, giu', probe(windDirHtml(0)).slice(0, 4), ['N', 0, 'vento da N', 'vento da N']);
+        eq('freccia: 90 gradi = da E, a sinistra', probe(windDirHtml(90)).slice(0, 4), ['E', 90, 'vento da E', 'vento da E']);
+        eq('freccia: 225 gradi = da SO, in alto a destra', probe(windDirHtml(225)).slice(0, 4), ['SO', 225, 'vento da SO', 'vento da SO']);
+        eq('freccia: gradi esatti, non il settore', probe(windDirHtml(100)).slice(0, 3), ['E', 100, 'vento da E']);
+        eq('freccia: -45 e 360+45', [probe(windDirHtml(-45))[0], probe(windDirHtml(405))[0], probe(windDirHtml(-45))[1]], ['NO', 'NE', 315]);
+        log(probe(windDirHtml(135))[4], 'freccia: un segno visibile', '');
+      }
+      const kv = K.find(k => k.v === 'VVENTO'), host = document.createElement('div'); host.innerHTML = cardHtml(cardModel(P));
+      const w = host.querySelector('.hc-keys .wdir');
+      log(!!w && w.firstChild.textContent === 'SE' && w.title === 'vento da SE' && /^12 /.test(host.querySelector('.hc-keys b').parentNode.nextSibling.querySelector('b').textContent), 'freccia: nella scheda (vento 12, da SE)', host.querySelector('.hc-keys') && host.querySelector('.hc-keys').innerHTML);
+      log(!!kv && !/undefined|\[object/.test(kv.text), 'freccia: testo semplice intatto', kv && kv.text);
+      const cs = { cols:{ DVENTO:Array(12).fill(90), VVENTO:Array(12).fill(3) } }, save = currentStation;     // 12 osservazioni da E
+      currentStation = { _table: cs }; updateWindRose(); const rw = el('windrose').querySelector('.wr-mean .wdir');
+      currentStation = save; updateWindRose();
+      log(!!rw && rw.firstChild.textContent === 'E' && rw.title === 'vento da E' && /rotate\(90(\.\d+)?deg\)/.test(rw.querySelector('.wd-ar').style.transform), 'freccia: nella rosa dei venti (da E, 90 gradi)', rw && rw.outerHTML);
+    }
     const M = cardModel(P);
     eq('modello', [M.name, M.where, M.main && M.main.v, M.keys.length], ['Arba', regionLabel('FVG') + ' · ' + SOURCES.FVG.name, 'TEMP', 3]);
     const E = cardModel({ name:'Vuota', scode:'X2', _region:'ZZ', variables:[], latest:{ TEMP:'' } });
@@ -614,6 +639,9 @@
         box.hidden = true; box.style.visibility = '';
       }
       log(!cut.size, 'valori chiave interi, mai tagliati', cut.size + ': ' + [...cut].slice(0, 8).join(' | '));
+      { const t = document.createElement('div'); let bad = 0, n = 0;
+        markerRefs.forEach(r => { t.innerHTML = cardHtml(cardModel(r.p)); t.querySelectorAll('.wdir').forEach(w => { n++; if(w.title !== 'vento da ' + w.firstChild.textContent || !w.querySelector('.wd-ar')) bad++; }); });
+        log(bad === 0 && n > 0, 'freccia: ogni direzione ha il suo "vento da"', n + ' viste, ' + bad + ' storte'); }
     }
     for(const [tag, X, Y] of [['sotto la barra', 40, el('topbar').getBoundingClientRect().bottom + 14],
                               ['vicino alla colonna', innerWidth - 70, Math.max(160, el('topbar').getBoundingClientRect().bottom + 30)],
