@@ -17,14 +17,17 @@
 
 <style>
   :root { --bg:#fff; --fg:#1c2733; --muted:#6b7a8d; --line:#e2e8f0; --accent:#2b6cb0;
-          --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; }
+          --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; --bar:#f6f8fb; }
   body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
-              --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; }
+              --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
   /* override scuri (scoped: il tema chiaro resta intatto) */
   body.dark select, body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
-  body.dark .btn, body.dark #vars button, body.dark #pbar .mode, body.dark #panel .act
+  body.dark .btn, body.dark #vars button, body.dark #pbar .mode, body.dark #pact .act
     { background:var(--soft); color:var(--fg); border-color:var(--line); }
-  body.dark .btn:hover, body.dark #panel .act:hover { background:var(--soft2); }
+  body.dark .btn:hover { background:var(--soft2); }
+  body.dark #tabbar { background:var(--bar); }
+  body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); color:var(--muted); }
+  body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
   body.dark #pages { background:var(--soft2); }
   body.dark #pages .pg.active { background:var(--card); color:var(--fg); box-shadow:none; }
   body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
@@ -36,10 +39,20 @@
   html { -webkit-text-size-adjust:100%; }   /* iPhone: niente ingrandimento automatico dei testi (sballa il layout) */
   html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--fg); background:var(--bg); }
   #app { display:flex; flex-direction:column; height:100%; }
-  /* ---- layout: la mappa (con ricerca e pillole sopra) e, a stazione aperta, il suo pannello a destra (telefono: sopra) ---- */
+  /* ---- layout: barra delle schede in alto, sotto la mappa (con ricerca e pillole sopra) o la scheda stazione ---- */
   #layout { display:flex; flex:1 1 auto; min-height:0; }
-  #content { position:relative; flex:1 1 auto; min-width:0; display:flex; }
-  #views { flex:1 1 auto; position:relative; min-width:0; }
+  #content { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #tabbar { display:flex; align-items:flex-end; gap:3px; padding:6px 8px 0; border-bottom:1px solid var(--line);
+            overflow-x:auto; flex:0 0 auto; scrollbar-width:thin; background:#f6f8fb; }
+  #tabbar .tab { padding:7px 12px; border:1px solid var(--line); border-bottom:none; border-radius:8px 8px 0 0;
+                 background:#eef2f7; font-size:13px; cursor:pointer; white-space:nowrap; color:var(--muted);
+                 display:inline-flex; align-items:center; gap:7px; max-width:190px; }
+  #tabbar .tab .tnm { overflow:hidden; text-overflow:ellipsis; }
+  #tabbar .tab.active { background:#fff; color:var(--fg); font-weight:600; }
+  #tabbar .tab .x { color:#9aa8b8; font-size:14px; line-height:1; }
+  #tabbar .tab .x:hover { color:#d33; }
+  #tabbar .brand { align-self:center; padding:0 10px 6px 4px; font-size:14px; font-weight:700; white-space:nowrap; }
+  #views { flex:1 1 auto; position:relative; min-height:0; }
   select { padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; max-width:200px; }
   .btn { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#f7fafc;
          font-size:13px; cursor:pointer; color:var(--fg); }
@@ -57,63 +70,24 @@
   #climabox th:first-child, #climabox td:first-child { text-align:left; }
   #climabox .rec { color:var(--muted); margin-top:6px; }
   #map { position:absolute; inset:0; }
-  /* ---- PANNELLO DELLA STAZIONE: a destra della mappa, largo 400 px (⤢: 70 % della finestra; il Confronto schede e'
-     sempre largo); sul telefono copre la mappa a tutta altezza e scorre. Dall'alto: 1) nome · codice e ultimo dato, a
-     destra Link, ⤢, ×; le stazioni aperte; i riquadri dei valori; 2) variabili | modi (nello Storico la sua barra al posto
-     di entrambi); grafico, statistiche, fonte; in fondo Aggiorna, CSV, PNG ---- */
-  #panel { --pp:16px; position:relative; flex:none; width:400px; display:none; flex-direction:column; gap:8px;
-           padding:8px var(--pp) 14px; overflow:auto; background:var(--bg); border-left:1px solid var(--line); }
+  #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
+           flex-direction:column; padding:8px 16px 14px; gap:8px; overflow:auto; }
   body.view-station #panel { display:flex; }
-  @media (min-width:721px){ body.panel-wide #panel, body.view-compare #panel { width:70%; } }
-  .pn-grab { display:none; }                          /* linguetta: solo sul telefono */
-  /* nome e codice/ultimo dato scorrono come una frase: se non ci stanno sulla riga del nome, i dati vanno sotto */
-  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:start; column-gap:8px; }
-  .pn-t { min-width:0; line-height:24px; }
-  #stationName { font-size:16px; font-weight:600; overflow-wrap:anywhere; }
-  #stationMeta { display:inline-block; max-width:100%; vertical-align:top; font-size:12px; color:var(--muted); white-space:nowrap;
-                 overflow:hidden; text-overflow:ellipsis; }
+  /* scheda della stazione in due righe: 1) nome · codice e ultimo dato, azioni a destra; 2) variabili | modi
+     (nello Storico la sua barra al posto di entrambi). Sopra al grafico restano ~70 px */
+  #phead { display:grid; grid-template-columns:auto minmax(0, 1fr) auto; align-items:baseline; column-gap:8px; }
+  #stationName { font-size:16px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
+  #stationMeta { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #stationMeta:not(:empty)::before { content:'· '; }
-  #pact, #pfoot { display:flex; gap:4px; }
-  #ptabs[hidden], #ptiles[hidden], #pbar[hidden], #pfoot[hidden] { display:none; }
-  /* flex:none: col pannello piu' alto dello schermo le righe che scorrono di lato (quindi senza altezza minima)
-     verrebbero schiacciate a 0 e i pulsanti finirebbero sopra la riga 1 */
-  #phead, #ptabs, #ptiles, #pbar, #pfoot { flex:none; }
-  /* stazioni aperte e riga 2: una riga sola che scorre di lato (anche partendo fra due pulsanti), senza barra visibile */
-  #ptabs, #pbar { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; overflow-x:auto; scrollbar-width:none;
-                  margin:0 calc(-1 * var(--pp)); padding:0 var(--pp); }
-  #ptabs::-webkit-scrollbar, #pbar::-webkit-scrollbar { display:none; }
-  .ptab { display:inline-flex; flex:none; align-items:center; max-width:180px; height:26px; border:1px solid var(--line);
-          border-radius:999px; background:var(--soft); color:var(--muted); font-size:12px; }
-  .ptab button { height:100%; border:none; background:none; color:inherit; font:inherit; cursor:pointer; white-space:nowrap; }
-  .ptab .pt-n { min-width:0; padding:0 3px 0 11px; overflow:hidden; text-overflow:ellipsis; }
-  .ptab .pt-x { flex:none; padding:0 9px 0 4px; font-size:14px; color:#9aa8b8; }
-  .ptab .pt-x:hover { color:#d33; }
-  .ptab.on { background:#e7eff9; color:#1f5a99; border-color:rgba(43,108,176,.35); font-weight:600; }
-  body.dark .ptab.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
-  /* riquadri dei valori attuali (sul telefono stretto due per riga): clic = quella variabile nel grafico */
-  #ptiles { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; }
-  .tile { display:flex; flex-direction:column; min-width:0; padding:5px 8px 6px; border:1px solid var(--line); border-radius:8px;
-          background:var(--soft); color:var(--fg); text-align:left; cursor:pointer; font:inherit; }
-  .tile:hover { background:var(--soft2); }
-  .tile.on { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
-  .tile span { font-size:11px; line-height:15px; color:var(--muted); overflow-wrap:break-word; }
-  .tile b { font-size:15px; line-height:20px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
+  #pact { display:flex; gap:4px; align-self:center; }
+  #pact[hidden], #pbar[hidden] { display:none; }
+  /* flex:none: col pannello piu' alto dello schermo la riga 2 (che sul telefono scorre di lato, quindi senza altezza
+     minima) verrebbe schiacciata a 0 e i pulsanti finirebbero sopra la riga 1 */
+  #phead, #pbar { flex:none; }
+  /* le pillole vanno a capo una per una, i modi (nello Storico la sua barra e "Storico ×") tutti insieme */
+  #pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
   #vars { display:contents; }
-  #modes { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; min-width:0; }
-  #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
-  /* desktop: niente righe che scorrono di lato (col mouse non si scorrono), stazioni aperte e riga 2 vanno a capo. Pannello
-     largo (⤢, Confronto schede): le pillole una per una e i modi (nello Storico la sua barra e "Storico ×") tutti insieme.
-     Pannello da 400 px: le pillole delle variabili in un blocco loro, sotto i modi interi su una riga (nello Storico la sua
-     barra, al piu' su due righe): pulsanti un po' piu' stretti */
-  @media (min-width:721px){
-    #ptabs, #pbar { flex-wrap:wrap; overflow-x:visible; row-gap:8px; }
-    #modes { flex:0 1 auto; flex-wrap:wrap; row-gap:8px; }
-    body:not(.panel-wide):not(.view-compare):not(.hist-mode) #vars:not(:empty) { display:flex; flex:1 0 100%; flex-wrap:wrap; gap:6px; }
-    body:not(.panel-wide):not(.view-compare) #modes { flex:1 0 100%; }
-    body:not(.panel-wide):not(.view-compare) .pb-sep { display:none; }
-    body:not(.panel-wide):not(.view-compare) #pbar button.mode, body:not(.panel-wide):not(.view-compare) #pbar button.tog,
-    body:not(.panel-wide):not(.view-compare) .hv-seg button { padding:0 8px; }
-  }
+  #modes { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:0; }
   .pb-sep { flex:none; width:1px; height:18px; margin:0 3px; background:var(--line); }
   #vars button { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--line);
                  background:#f7fafc; border-radius:999px; font-size:12px; cursor:pointer; color:var(--fg); white-space:nowrap; }
@@ -131,12 +105,10 @@
   #histbtn .hb-x { display:none; }
   body.hist-mode #histbtn .hb-x { display:inline; }   /* "Storico ×": lo stesso pulsante fa uscire */
   #cmpMenu { z-index:20; }                            /* sopra il grafico (etichetta e "Tutto" stanno a 4-5) */
-  #panel .act { display:inline-flex; align-items:center; height:24px; padding:0 9px; border:1px solid var(--line); background:#fff;
+  #pact .act { display:inline-flex; align-items:center; height:24px; padding:0 9px; border:1px solid var(--line); background:#fff;
                border-radius:6px; font-size:12px; cursor:pointer; color:var(--accent); text-decoration:none; white-space:nowrap; }
-  #panel .act:hover { background:#eef4fb; }
-  #panel .act svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  #pact .act.ic { justify-content:center; width:26px; padding:0; font-size:15px; color:var(--muted); }   /* ⤢ e × */
-  #pexp[aria-pressed="true"], body.dark #pexp[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); }
+  #pact .act:hover { background:#eef4fb; }
+  #pact .act svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   body:not(.hist-mode) #hvCsv { display:none; }       /* CSV dello Storico: al posto di quello della serie */
   /* grafico + legenda in colonna a destra */
   #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
@@ -166,9 +138,8 @@
   #source { margin-top:12px; line-height:1.6; }
   #source a { color:var(--accent); }
   .marker-dot { }
-  /* Confronto schede: niente riquadri, Aggiorna/CSV/PNG, ⤢ (e' sempre largo), confronti, Impilato e Storico (aprirebbe
-     quello dell'ultima stazione) */
-  body.view-compare #ptiles, body.view-compare #pfoot, body.view-compare #pexp, body.view-compare #stackbtn,
+  /* scheda Confronto: niente confronti, Impilato e Storico (aprirebbe quello dell'ultima stazione) */
+  body.view-compare #refresh, body.view-compare #download, body.view-compare #exportpng, body.view-compare #stackbtn,
   body.view-compare #cmpBtn, body.view-compare #histbtn { display:none; }
   .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
   .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
@@ -341,12 +312,6 @@
   .dock.min #tsRange { top:8px; }
   .dock.min .dk-legend { flex-wrap:nowrap; gap:8px; }
   .dock.min #tsLab { min-width:0; }
-  /* desktop con la mappa stretta accanto al pannello: come sul telefono il cursore va su una riga sua, il resto a capo */
-  .dock.narrow .dk-time { flex-wrap:wrap; }
-  .dock.narrow .dk-track { order:9; flex:1 0 100%; margin:0 6px; }
-  .dock.narrow #tsSpeed { margin-left:auto; }
-  .dock.narrow .dk-legend { flex-wrap:wrap; }
-  .dock.narrow .dk-credits { flex:1 0 100%; margin-left:0; }
   @media (max-width:720px){
     .leaflet-control-zoom { display:none; }                 /* sul telefono si ingrandisce con due dita */
     .leaflet-top.leaflet-left .leaflet-control { margin:10px 0 0 10px; }
@@ -396,11 +361,11 @@
            text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
   .hv-tip { white-space:normal; max-width:calc(100% - 4px); }
   .hv-tip .part { color:var(--muted); }
-  /* tabella: mesi in riga, anni in colonna (larga quanto il pannello; col pannello largo ~96 px ad anno, al massimo 520 px;
-     se non ci sta scorre e i mesi restano fermi). Dietro ogni numero una barra lunga --w, staccata dai bordi */
+  /* tabella: mesi in riga, anni in colonna (--ny anni: ~96 px l'uno, al massimo 520 px; sul telefono larga quanto lo
+     schermo; se non ci sta scorre e i mesi restano fermi). Dietro ogni numero una barra lunga --w, staccata dai bordi */
   #hvTable { overflow-x:auto; max-width:520px; }
-  #hvTable table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
-  @media (min-width:721px){ body.panel-wide #hvTable table { width:min(100%, calc(48px + var(--ny) * 96px)); } }
+  #hvTable table { width:min(100%, calc(48px + var(--ny) * 96px)); border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  @media (max-width:720px){ #hvTable table { width:100%; } }
   #hvTable th, #hvTable td { padding:4px 8px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
   #hvTable th { color:var(--muted); font-weight:400; }
   #hvTable td { min-width:56px; padding-left:4px; }
@@ -458,13 +423,6 @@
   #topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-direction:column; align-items:flex-start;
             gap:8px; max-width:calc(100% - 80px); pointer-events:none; }
   #topbar > *, #pillRow > * { pointer-events:auto; }
-  /* nome del sito prima della ricerca, piccolo e in grassetto (alone del colore di fondo: si legge sopra la mappa); solo su
-     schermi larghi e con la mappa intera o accanto al pannello da 400 px, dove non stringe ricerca e pillole */
-  #topbar > .tb-r { display:flex; align-items:center; gap:10px; max-width:100%; pointer-events:none; }   /* sotto la scritta la mappa si tocca */
-  .tb-q { pointer-events:auto; }
-  #brand { display:none; padding:0 2px; color:var(--fg); white-space:nowrap; font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-           text-shadow:0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg); }
-  @media (min-width:1000px){ #brand { display:block; } body.view-station.panel-wide #brand, body.view-compare #brand { display:none; } }
   .tb-q { position:relative; width:300px; max-width:100%; }
   .tb-q svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px; fill:none;
         stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
@@ -558,11 +516,10 @@
   #sheet .hc-spark svg { height:40px; }
   body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
 
-  /* ---- MOBILE / schermo verticale: ricerca a tutta larghezza, pillole scorrevoli di lato; il pannello della stazione copre
-     la mappa a tutta altezza (la linguetta in giu' lo riporta al foglio basso) e la plancia si nasconde ---- */
+  /* ---- MOBILE / schermo verticale: tab scorrevoli; ricerca a tutta larghezza, pillole scorrevoli di lato ---- */
   @media (max-width:720px){
     #topbar { left:10px; right:10px; top:10px; max-width:none; align-items:stretch; }
-    .tb-q { width:auto; flex:1 1 auto; }
+    .tb-q { width:auto; }
     #stationQ { height:40px; font-size:16px; }          /* 16 px: l'iPhone non ingrandisce la pagina al tocco */
     .tb-q kbd { display:none; }
     #searchList { top:46px; right:0; width:auto; max-width:none; }
@@ -578,21 +535,19 @@
     .pm-filter { height:38px; font-size:16px; }
     #srcpanel, #notepanel { right:0; min-width:0; max-width:none; }
     #sheet { left:8px; right:8px; bottom:8px; width:auto; max-width:none; }
-    #panel { --pp:12px; position:absolute; inset:0; z-index:1200; width:auto; border-left:none; padding:10px var(--pp) 28px; }
-    body.view-station #dock, body.view-station #prodMenu { display:none; }
-    .pn-grab { display:block; flex:none; height:20px; margin:-10px calc(-1 * var(--pp)) -4px; touch-action:none; cursor:grab; }
-    .pn-grab::before { content:''; display:block; width:40px; height:5px; margin:8px auto 0; border-radius:3px; background:var(--pl); }
+    #panel { padding:10px 12px 18px; }
     /* riga 1: nome e azioni (mai nascoste: il nome va a capo), sotto codice e ultimo dato */
-    #phead { grid-template-areas:"name act" "meta meta"; align-items:center; }
-    .pn-t { display:contents; }
+    #phead { grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"name act" "meta meta"; align-items:center; }
     #stationName { grid-area:name; line-height:1.25; }
     #pact { grid-area:act; }
-    #stationMeta { grid-area:meta; display:block; }
+    #stationMeta { grid-area:meta; }
     #stationMeta:not(:empty)::before { content:none; }
-    #panel .act { height:28px; padding:0 8px; }
-    #pact .act.ic { width:32px; padding:0; }
-    #panel #pexp { display:none; }                      /* il pannello e' gia' largo quanto lo schermo */
-    .ptab { height:30px; font-size:13px; }
+    #pact .act { height:28px; padding:0 8px; }
+    /* riga 2: una riga sola che scorre di lato (anche partendo fra due pulsanti), senza barra visibile */
+    #pbar, #modes { flex-wrap:nowrap; }
+    #pbar { overflow-x:auto; scrollbar-width:none; margin:0 -12px; padding:0 12px; }
+    #pbar::-webkit-scrollbar { display:none; }
+    #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
     #vars button, #pbar button.mode, #pbar button.tog { height:30px; font-size:13px; }   /* tap target piu' grandi */
     #vars button { padding:0 12px; }
     .hv-seg button { height:28px; font-size:13px; }
@@ -603,11 +558,11 @@
        e le scritte sotto (min/max/media, fonte) finivano sovrapposte al grafico. */
     #chartwrap { flex:0 0 auto; min-height:0; flex-direction:column; overflow:visible; }
     #chart { flex:0 0 auto; width:100%; height:46vh; min-height:220px; overflow:hidden; }
+    #panel { padding-bottom:28px; }
     #chartlegend { width:100%; flex:0 0 auto; font-size:12px; padding-top:8px; overflow-y:visible;
                    display:flex; flex-wrap:wrap; gap:4px 16px; }
     #chartlegend .lg { margin:0; }                  /* voci confronto affiancate, vanno a capo */
   }
-  @media (max-width:420px){ #ptiles { grid-template-columns:repeat(2, minmax(0, 1fr)); } }   /* "Temperatura" intera */
 </style>
 </head>
 <body>
@@ -643,21 +598,21 @@
       <div id="count" class="hint"></div>
   </div>
   <div id="content">
+    <nav id="tabbar">
+      <span class="brand">Simulaqua Meteo</span>
+      <button class="tab active" id="tabMap">Mappa</button>
+    </nav>
     <div id="views">
     <div id="map"></div>
     <!-- barra in alto sulla mappa: ricerca e pillole (i menu si aprono sotto le pillole) -->
     <div id="topbar">
-      <!-- nome del sito (desktop largo) e ricerca; i suggerimenti si aprono sotto il campo -->
-      <div class="tb-r">
-        <span id="brand">Simulaqua Meteo</span>
-        <div class="tb-q">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
-          <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
-                 aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
-          <kbd>/</kbd>
-          <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
-        </div>
+      <div class="tb-q">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
+        <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
+               aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
+        <kbd>/</kbd>
       </div>
+      <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
       <div id="pillRow">
         <button id="pgPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Misure dirette</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
         <button id="regPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le regioni</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
@@ -714,23 +669,19 @@
       </div>
     </div>
     <div id="prodMenu" class="dk-menu" role="menu" aria-label="Cosa mostra la mappa"></div>
-    </div>
-    <!-- pannello della stazione: a destra della mappa (sul telefono sopra, a tutta altezza) -->
-    <aside id="panel" aria-label="Stazione">
-      <div class="pn-grab" aria-hidden="true"></div>
-      <!-- riga 1: nome · codice e ultimo dato; a destra Link, ⤢ (Espandi), × (Chiudi) -->
+    <div id="panel">
+      <!-- riga 1: nome · codice e ultimo dato; a destra le azioni (nello Storico il suo CSV e Link) -->
       <div id="phead">
-        <div class="pn-t"><span id="stationName"></span> <span id="stationMeta"></span></div>
-        <div id="pact">
+        <div id="stationName">Seleziona una stazione</div>
+        <div id="stationMeta"></div>
+        <div id="pact" hidden>
+          <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
+          <a id="download" class="act" download title="Scarica il CSV">CSV</a>
+          <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
+          <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
           <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
-          <button id="pexp" class="act ic" aria-pressed="false" aria-label="Espandi" title="Espandi">⤢</button>
-          <button id="pclose" class="act ic" aria-label="Chiudi" title="Chiudi">×</button>
         </div>
       </div>
-      <!-- stazioni aperte (al massimo 8) e "Confronto": solo con almeno due pillole -->
-      <nav id="ptabs" aria-label="Stazioni aperte" hidden></nav>
-      <!-- valori attuali, scelti dal tipo di stazione: clic = quella variabile nel grafico -->
-      <div id="ptiles" hidden></div>
       <!-- riga 2: variabili | modi; nello Storico la sua barra al posto di entrambi e in fondo "Storico ×" -->
       <div id="pbar" hidden>
         <div id="vars"></div>
@@ -771,14 +722,8 @@
       <div id="status" class="hint"></div>
       <div id="climabox" style="display:none"></div>
       <div id="source" class="hint"></div>
-      <!-- in fondo: Aggiorna, CSV, PNG (nello Storico il suo CSV) -->
-      <div id="pfoot" hidden>
-        <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
-        <a id="download" class="act" download title="Scarica il CSV">CSV</a>
-        <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
-        <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
-      </div>
-    </aside>
+    </div>
+    </div>
   </div>
   </div>
 </div>
@@ -1094,16 +1039,14 @@ function initMap(){
                onBuffer: () => { if(snap.on && tsSrc === Radar.source) tsBuffer(); } });
 }
 
-// nessuna stazione: il pannello (se aperto) si chiude e si svuota
 function resetPanel(){
   exitHist();
-  if(panelShown()) showMapView();
-  el('stationName').textContent = '';
+  el('stationName').textContent = 'Seleziona una stazione';
   el('stationMeta').textContent = '';
-  el('vars').innerHTML = ''; el('ptiles').innerHTML = '';
+  el('vars').innerHTML = '';
   el('source').innerHTML = '';
   cmpClose();
-  el('ptiles').hidden = true; el('pbar').hidden = true; el('pfoot').hidden = true;
+  el('pact').hidden = true; el('pbar').hidden = true;
   document.body.classList.remove('rose-mode');
   const wr = el('windrose'); if(wr) wr.innerHTML = '';
 }
@@ -1113,8 +1056,8 @@ const TZNOTE = 'Orari in ora locale italiana (CET / CEST con ora legale).';
 async function loadRegions(regions){
   _needFit = true;                 // nuova selezione di regioni: rifitta la mappa una volta
   snapPause();
-  const keep = panelShown();       // la stazione aperta nel pannello resta (i comandi della mappa cambiano solo la mappa)
-  if(!keep){ clearChart(); resetPanel(); }
+  clearChart();
+  resetPanel();
   setStatus('Carico le stazioni…');
 
   allFeatures = [];
@@ -1132,7 +1075,7 @@ async function loadRegions(regions){
       allFeatures.push(f);
     });
   }));
-  if(!keep || !panelShown()) selectedKey = '';
+  selectedKey = '';
   refreshFilters();
   renderMarkers();
   snapSync();                      // cursore aperto: ricarica i fotogrammi per le nuove regioni (o chiudi)
@@ -1143,8 +1086,6 @@ async function loadRegions(regions){
 // ------------------------------------------------------------------------------------------------
 const featKey  = f => f.properties._region + '|' + f.properties.scode;
 const featName = f => prettyName(f.properties.name || f.properties.scode);
-// stessa stazione anche dopo un ricaricamento delle regioni (che rifa' gli oggetti): per regione e codice
-function sameStation(a, b){ return !!a && !!b && a._region === b._region && a.scode === b.scode; }
 const selectedFeature = () => selectedKey ? allFeatures.find(f => featKey(f) === selectedKey) : null;
 
 // stazioni da mostrare in elenco/mappa: filtrate per variabile (se selezionata)
@@ -1179,11 +1120,13 @@ function buildStationFilter(){
   sel.value = (selectedKey && list.some(f => featKey(f) === selectedKey)) ? selectedKey : '';
 }
 
-// elenco variabili (pillola Variabile): l'unione delle stazioni in elenco, anche con una stazione aperta nel pannello
-// (la pillola colora la mappa, non sceglie la variabile della stazione)
+// elenco variabili: se c'è una stazione selezionata solo le sue; altrimenti l'unione delle stazioni in elenco
 function buildVarFilter(){
   const set = new Set();
-  stationsForList().forEach(f => (f.properties.variables || []).forEach(v => { if(varCat(v) === currentPage) set.add(v); }));
+  const sf = selectedFeature();
+  const add = v => { if(varCat(v) === currentPage) set.add(v); };   // solo variabili della pagina attiva
+  if(sf) (sf.properties.variables || []).forEach(add);
+  else stationsForList().forEach(f => (f.properties.variables || []).forEach(add));
   const sel = el('varFilter');
   sel.innerHTML = '<option value="">Tutte le variabili</option>';
   [...set].sort((a,b) => natLabel(varLabel(a), varLabel(b))).forEach(v => {
@@ -1199,17 +1142,14 @@ let markerRefs = [];              // [{m, p}] puntini correnti: il cursore del t
 // scheda al passaggio: stazione e puntino mostrati, attesa in corso, tipo dell'ultimo puntatore sulla mappa (mouse/touch/pen);
 // cardSeq/sheetSeq contano i disegni: un andamento arrivato tardi per un disegno vecchio si scarta
 let cardP = null, cardM = null, cardTimer = null, lastPointer = 'mouse', cardSeq = 0;
-let sheetP = null, sheetSeq = 0;                     // foglio basso (tocco): stazione mostrata
-let stationRing = null;                              // anello sulla stazione del foglio basso o del pannello (syncRing; creato una volta)
+let sheetP = null, sheetRing = null, sheetSeq = 0;   // foglio basso (tocco): stazione mostrata e anello sulla mappa
 function renderMarkers(){
   hideCard();                       // i puntini rinascono: la scheda di quello vecchio non vale piu'
   markersLayer.clearLayers();
   markerRefs = [];
   const bounds = [];
   const all = stationsForList();
-  const shown = (Radar.on && !radarUi.stations) ? [] : all;                   // radar: "Stazioni" spento
-  // la stazione aperta nel pannello resta sulla mappa (col suo anello) anche dove il filtro della mappa la toglierebbe
-  const open = shownStation(), list = open && !shown.some(f => sameStation(f.properties, open)) ? shown.concat([{ properties: open }]) : shown;
+  const list = (Radar.on && !radarUi.stations) ? [] : all;                    // radar: "Stazioni" spento
   // colormap quando e' selezionata UNA regione (unita' coerente) OPPURE la variabile ha la stessa unita' ovunque
   // (UNIT_SAFE: temperatura, umidita', pioggia) E la variabile e' confrontabile nello spazio (cmVar). Colora con
   // l'ULTIMO valore disponibile, A PRESCINDERE dal ritardo. Livelli/acqua/marea/direzione: mai.
@@ -1217,7 +1157,7 @@ function renderMarkers(){
   const cmVar = ((singleRegion || UNIT_SAFE.has(filterVar)) && canColormap(filterVar)) ? filterVar : null;
   const slide = !!(snap.on && cmVar && snap.var === cmVar);      // cursore del tempo attivo su questa variabile
   let vmin = null, vmax = null;
-  const refU = cmVar ? refUnitFor(cmVar, shown) : '';            // unita' di riferimento della scala
+  const refU = cmVar ? refUnitFor(cmVar, list) : '';             // unita' di riferimento della scala
   const valFor = p => {
     if(!cmVar) return null;
     if(slide) return snapVal(p);                                 // valore al fotogramma scelto
@@ -1230,7 +1170,7 @@ function renderMarkers(){
   if(cmVar && isRain(cmVar)){ vmin = 0; vmax = 0; }              // pioggia: classi a soglie fisse, niente scala min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }  // cursore: scala FISSA su tutta la finestra
   else if(cmVar){
-    shown.forEach(f => { const nv = valFor(f.properties);
+    list.forEach(f => { const nv = valFor(f.properties);
       if(nv != null){ vmin = (vmin==null)?nv:Math.min(vmin,nv); vmax = (vmax==null)?nv:Math.max(vmax,nv); } });
   }
   list.forEach(f => {
@@ -1259,20 +1199,20 @@ function renderMarkers(){
     m.on('mouseover', () => cardHover(p, m));                           // scheda al passaggio (solo mouse)
     m.on('mouseout', cardLeave);
     m.on('click', () => {                                               // mouse: apre la stazione; tocco: il foglio basso
-      if(lastPointer === 'mouse'){ hideCard(); selectStation(p); } else openSheet(p);
+      if(lastPointer === 'mouse'){ hideCard(); selectStation(p); } else openSheet(p, m);
     });
     m.addTo(markersLayer);
     markerRefs.push({ m, p });
     bounds.push([p._lat, p._lon]);
   });
-  if(bounds.length && _needFit){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }   // anche la stazione aperta
+  if(bounds.length && _needFit && !selectedKey){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }
   el('count').textContent = (Radar.on && !radarUi.stations) ? 'Stazioni nascoste'
-                          : shown.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
+                          : list.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
   el('stationQ').placeholder = 'Cerca fra ' + all.length + ' stazioni…';      // anche coi puntini nascosti dal radar
   if(sheetP){                                     // foglio aperto: resta (zoom, Cursore), si chiude se la stazione esce dall'elenco
-    if(markerRefs.some(x => sameStation(x.p, sheetP))) drawSheet(); else closeSheet();
+    const r = markerRefs.find(x => x.p === sheetP);
+    if(r){ sheetRing.setRadius(r.m.getRadius() + 5); drawSheet(); } else closeSheet();
   }
-  syncRing();                                     // puntini nuovi: l'anello prende il raggio nuovo (o sparisce)
   updateColorbar(cmVar, vmin, vmax, slide ? snap.unit : refU);
   if(typeof syncMapControls === 'function') syncMapControls();
   setStatus('');
@@ -1430,12 +1370,10 @@ async function snapLoad(v){
   return true;
 }
 
-// PLANCIA: altezza in --dockh (il menu del prodotto si apre sopra), menu allineato al suo pulsante su desktop; con la
-// mappa stretta accanto al pannello (desktop) la barra del tempo va a capo come sul telefono
+// PLANCIA: altezza in --dockh (il menu del prodotto si apre sopra), menu allineato al suo pulsante su desktop
 function dockLayout(){
   const d = el('dock'), m = el('prodMenu');
   if(!d) return;
-  d.classList.toggle('narrow', !PHONE.matches && el('views').clientWidth < 600);
   document.documentElement.style.setProperty('--dockh', d.offsetHeight + 'px');
   if(m && m.classList.contains('open') && !PHONE.matches){
     const b = el('dkProd').getBoundingClientRect(), v = el('views').getBoundingClientRect();
@@ -1606,14 +1544,16 @@ function lastRainVar(){
 }
 let mapPrevPage = 'dirette';
 // imposta la variabile mostrata sulla mappa (passando dalla pagina giusta); '' = nessuna variabile
-function setMapVar(v){                                   // solo la mappa: il pannello aperto resta com'e'
+function setMapVar(v){
   if(v){
     if(currentPage !== varCat(v)){
       if(currentPage !== 'indici') mapPrevPage = currentPage;
-      setPage(varCat(v), false);
+      const b = document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]'); if(b) b.click();
     }
     if(isRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
-  } else if(currentPage === 'indici' && mapPrevPage !== 'indici') setPage(mapPrevPage, false);
+  } else if(currentPage === 'indici' && mapPrevPage !== 'indici'){
+    const b = document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]'); if(b) b.click();
+  }
   const sel = el('varFilter');
   if(!v || [...sel.options].some(o => o.value === v)){
     sel.value = v; sel.dispatchEvent(new Event('change'));
@@ -1827,19 +1767,17 @@ function setMeta(code, c){
   el('stationMeta').textContent = code + (when ? ' · ultimo dato ' + when : '');
 }
 async function selectStation(props){
-  props = (allFeatures.find(f => sameStation(f.properties, props)) || { properties: props }).properties;   // dopo un ricaricamento: l'oggetto nuovo
   snapPause();                                   // apri una stazione: il cursore del tempo si ferma
-  closeSheet();                                  // e il foglio basso (anche di un'altra: ricerca, link, pillole) si chiude
-  tilePick = '';
+  closeSheet();                                  // e il foglio basso (anche di un'altra: ricerca, link, schede) si chiude
   currentStation = props;
   selectedKey = props._region + '|' + props.scode;
   const region = props._region;
+  openStationTab(props);                         // scheda nella tab bar + vista stazione
+  if(props._lat != null) map.panTo([props._lat, props._lon]);
   currentUnits = unitsByRegion[region] || {};
-  openPanel(props);                              // pannello aperto, la mappa si stringe e tiene visibile la stazione
   el('panel').scrollTop = 0;            // su mobile: mostra la stazione dall'inizio
   el('stationName').textContent = prettyName(props.name || props.scode);
   setMeta(props.scode, civSec(props.latest_time));
-  renderTiles(props);                   // subito (ultimo dato del file delle stazioni), poi dalla serie
   const src = SOURCES[region];
   el('source').innerHTML = (src
     ? `Fonte: ${src.name} · <a href="${src.url}" target="_blank" rel="noopener">${src.url}</a> · `
@@ -1854,27 +1792,22 @@ async function selectStation(props){
     let csv;
     try {
       csv = await (await fdata(`${region}/${props.series}`)).text();
-    } catch(e){ if(currentStation === props) setStatus('Serie non disponibile (' + e + ')'); return; }
+    } catch(e){ setStatus('Serie non disponibile (' + e + ')'); return; }
     table = parseCSV(csv);                // {header:[datetime,VAR,...], cols:{name:[...]}, x:[epoch]}
     props._table = table; props._tableAt = Date.now();
   }
-  if(currentStation !== props) return;    // nel frattempo se n'e' aperta un'altra: il pannello e' suo
 
   // pulsante di download del CSV della stazione
   const dl = el('download');
   dl.href = `${DATA_BASE}/${region}/${props.series}`;
   dl.download = prettyName(props.name || props.scode).replace(/[^\w-]+/g,'_') + '_' + region + '.csv';
-  el('pbar').hidden = false; el('pfoot').hidden = false;
-  renderTiles(props);
+  el('pact').hidden = false; el('pbar').hidden = false;
 
-  // bottoni variabile: le variabili della pagina attiva (dirette / derivate / indici); se la stazione non ne ha (es. un
-  // idrometro con la mappa sulla pioggia 24 h, che sta fra gli indici) quelle della prima pagina in cui ne ha
+  // bottoni variabile: SOLO le variabili della pagina attiva (dirette / derivate / indici)
   const allVars = ((props.variables && props.variables.length) ? props.variables
                 : table.header.slice(1)).slice();
   if(windObsCount(table) >= 10) allVars.push(WROSE);   // chip "Rosa dei venti" nel gruppo derivate
-  const onPage = pg => allVars.filter(v => varCat(v) === pg).sort(natVars);
-  let vars = onPage(currentPage);
-  for(const pg of ['dirette', 'derivate', 'indici']) if(!vars.length) vars = onPage(pg);
+  const vars = allVars.filter(v => varCat(v) === currentPage).sort(natVars);
   currentVar2 = null;                     // nuova stazione: azzera l'eventuale 2ª variabile precedente
   document.body.classList.remove('rose-mode');         // nuova stazione: riparti dal grafico
   buildVarButtons(vars);
@@ -1902,8 +1835,9 @@ async function selectStation(props){
   }
   setStatus('');
 
-  el('stationFilter').value = selectedKey;  // tendina nascosta (fonte unica) e puntino evidenziato
-  buildVarFilter();                         // un link puo' aver cambiato pagina: le variabili della pillola sono quelle della pagina
+  // aggiorna i menu a tendina in base alla stazione selezionata
+  el('stationFilter').value = selectedKey;
+  buildVarFilter();
   renderMarkers();
   updateHash();
 }
@@ -1923,7 +1857,6 @@ function buildVarButtons(vars){
       b.innerHTML = `<span class="vnm">${varLabel(v)}</span>`
                   + `<span class="vadd" title="Aggiungi come 2ª variabile (asse destro)">＋</span>`;
       b.onclick = (e) => {
-        tilePick = '';                              // scelta dalla pillola: si accende il primo riquadro della variabile
         if(e.target.classList.contains('vadd')) toggleVar2(v);
         else if(stackMode) toggleStackVar(v);       // Impilato: la pillola aggiunge/toglie un pannello
         else drawVar(v);
@@ -1955,16 +1888,6 @@ function syncVarButtons(){
     // il '+' non ha senso nei confronti (una sola variabile) né sulla variabile già principale
     if(add) add.style.display = (compare || v === currentVar) ? 'none' : '';
   });
-  syncTiles();
-  if(PHONE.matches) revealChip();
-}
-// telefono: la riga 2 scorre di lato; la pillola accesa si porta in vista (anche aprendo una stazione)
-function revealChip(){
-  const a = el('vars').querySelector('button.active'), sc = el('pbar');
-  if(!a || !a.getClientRects().length || sc.scrollWidth <= sc.clientWidth) return;      // nello Storico le pillole sono nascoste
-  const r = a.getBoundingClientRect(), s = sc.getBoundingClientRect(), pad = 12;
-  if(r.left < s.left + pad) sc.scrollLeft -= s.left + pad - r.left;
-  else if(r.right > s.right - pad) sc.scrollLeft += r.right - (s.right - pad);
 }
 
 function drawVar(v){
@@ -2225,7 +2148,6 @@ async function refreshStation(){
     const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
     const t = parseCSV(csv);
     currentStation._table = t;
-    renderTiles(currentStation);                                      // riquadri coi valori freschi
     const vars = t.header.slice(1);
     if(currentVar === WROSE) updateWindRose();                       // resta sulla rosa, ridisegnala coi dati freschi
     else drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
@@ -3741,8 +3663,8 @@ window.addEventListener('resize', () => {
   if(map) map.invalidateSize();
   clearTimeout(_rsT);           // ridisegna il grafico con la nuova taglia (evita canvas troppo alti)
   _rsT = setTimeout(() => {
-    if(document.body.classList.contains('view-compare')){ if(compareVar) renderCompareTabs(compareVar); }
-    else if(currentStation && panelShown() && currentVar && currentVar !== WROSE) renderChart(currentVar);
+    if(currentStation && document.body.classList.contains('view-station') && currentVar && currentVar !== WROSE)
+      renderChart(currentVar);
   }, 250);
 });
 el('refresh').addEventListener('click', refreshStation);
@@ -3754,115 +3676,74 @@ el('copylink').addEventListener('click', async () => {
   const b = el('copylink'); b.textContent = 'copiato ✓';
   setTimeout(() => { b.textContent = 'Link'; }, 1500);
 });
-// ---- PANNELLO DELLA STAZIONE: accanto alla mappa (desktop: a destra, 400 px; ⤢ al 70 % della finestra, scelta ricordata
-// nel browser; il Confronto schede sempre largo). Telefono: copre la mappa a tutta altezza, la linguetta in giu' lo
-// riporta al foglio basso. In cima le stazioni aperte come pillole (al massimo 8, esce la piu' vecchia) e "Confronto" ----
-let openTabs = [];                     // [{key, props}] stazioni aperte, in ordine di apertura
+// ✕ (solo mobile): chiude l'overlay del grafico e torna alla mappa, mantenendo la stazione selezionata
+// ---- TAB BAR: [Mappa] + una scheda per ogni stazione aperta --------------------------------------
+let openTabs = [];                     // [{key, props}] in ordine di apertura
 const MAX_TABS = 8;
 const tabKeyOf = p => p._region + '|' + p.scode;
-let compareOpen = false, compareVar = null;
-const CMP_KEY = '__cmp__';
-// funzioni, non costanti: le usano anche parti piu' in alto nel file (renderMarkers, updateHash)
-function panelShown(){ return document.body.classList.contains('view-station'); }
-function shownStation(){ return panelShown() && !document.body.classList.contains('view-compare') ? currentStation : null; }
-// anello sulla stazione del foglio basso o del pannello (nel confronto nessuna): uno solo, spostato e rimesso sopra ai
-// puntini ogni volta che si ridisegnano
-function syncRing(){
-  const p = sheetP || shownStation(), r = p && markerRefs.find(x => sameStation(x.p, p));
-  if(!r){ if(stationRing) stationRing.remove(); return; }
-  if(!stationRing) stationRing = L.circleMarker(r.m.getLatLng(), { color:'#c05621', weight:2.5, fill:false, interactive:false });
-  stationRing.setLatLng(r.m.getLatLng()).setRadius(r.m.getRadius() + 5).addTo(map).bringToFront();
-}
-// margini della mappa libera per tenerci la stazione: sotto la barra in alto, a sinistra dei pulsanti, sopra la plancia
-// (o sopra il foglio basso: below = sua altezza)
-function mapPad(below){
-  const v = el('views').getBoundingClientRect(), d = el('dock');
-  if(below == null) below = d.offsetHeight ? v.bottom - d.getBoundingClientRect().top : 0;
-  return { paddingTopLeft:[24, el('topbar').getBoundingClientRect().bottom - v.top + 16], paddingBottomRight:[64, below + 16] };
-}
-// il pannello si e' aperto, chiuso o allargato: la mappa cambia larghezza solo a destra (quel che si vedeva resta al suo
-// posto) e, se serve, si sposta il minimo per tenere la stazione nella parte visibile (sul telefono il pannello la copre).
-// Spostamento secco, come il pannello che compare
-function panelLayout(){
-  map.invalidateSize({ pan:false });
-  syncRing();
-  const p = shownStation();
-  if(p && p._lat != null && !PHONE.matches) map.panInside([p._lat, p._lon], Object.assign(mapPad(), { animate:false }));
-}
-let panelWide = false;
-try { panelWide = localStorage.getItem('panelWide') === '1'; } catch(e){}
-function syncPanelWide(){
-  document.body.classList.toggle('panel-wide', panelWide);
-  const b = el('pexp');
-  b.setAttribute('aria-pressed', String(panelWide));
-  b.title = panelWide ? 'Riduci' : 'Espandi'; b.setAttribute('aria-label', b.title);
-}
-syncPanelWide();
-el('pexp').addEventListener('click', () => {
-  panelWide = !panelWide;
-  try { localStorage.setItem('panelWide', panelWide ? '1' : '0'); } catch(e){}
-  syncPanelWide();
-  panelLayout();
-});
-function openPanel(props){
+function openStationTab(props){
   const key = tabKeyOf(props);
   const t = openTabs.find(x => x.key === key);
   if(t) t.props = props;                            // aggiorna il riferimento (reload regioni)
   else {
     openTabs.push({key, props});
-    if(openTabs.length > MAX_TABS) openTabs.shift();  // limite: esce la piu' vecchia
+    if(openTabs.length > MAX_TABS) openTabs.shift();  // limite: chiude la piu' vecchia
   }
   document.body.classList.add('view-station');
   document.body.classList.remove('view-compare');              // chiude la vista confronto
-  renderTabs(key);
-  panelLayout();
+  renderTabbar(key);
 }
-// pillole delle stazioni aperte e "Confronto": il nome apre, la × chiude; la riga c'e' con almeno due pillole
-function renderTabs(activeKey){
-  const bar = el('ptabs');
-  bar.innerHTML = '';
-  const add = (key, name, onOpen, onClose) => {
-    const s = document.createElement('span');
-    s.className = 'ptab' + (key === activeKey ? ' on' : '');
-    s.innerHTML = '<button class="pt-n"></button><button class="pt-x" title="Chiudi">×</button>';
-    const [n, x] = s.children;
-    n.textContent = name; n.title = name; n.onclick = onOpen;
-    if(key === activeKey) n.setAttribute('aria-current', 'true');
-    x.setAttribute('aria-label', 'Chiudi ' + name); x.onclick = onClose;
-    bar.appendChild(s);
-  };
-  openTabs.forEach(t => add(t.key, prettyName(t.props.name || t.props.scode), () => selectStation(t.props), () => closeTab(t.key)));
-  if(compareOpen) add(CMP_KEY, 'Confronto', () => { renderTabs(CMP_KEY); renderCompareView(); }, closeCompare);
-  bar.hidden = !(openTabs.length > 1 || compareOpen);
-  const a = bar.querySelector('.on');
-  if(a && !bar.hidden) a.scrollIntoView({ block:'nearest', inline:'nearest' });
+function renderTabbar(activeKey){
+  const bar = el('tabbar');
+  [...bar.querySelectorAll('.tab.station')].forEach(b => b.remove());
+  openTabs.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab station' + (activeKey === t.key ? ' active' : '');
+    b.innerHTML = '<span class="tnm"></span><span class="x" title="Chiudi">×</span>';
+    b.querySelector('.tnm').textContent = prettyName(t.props.name || t.props.scode);
+    b.onclick = (e) => {
+      if(e.target.classList.contains('x')) closeTab(t.key);
+      else selectStation(t.props);
+    };
+    bar.appendChild(b);
+  });
+  if(compareOpen){
+    const b = document.createElement('button');
+    b.className = 'tab station' + (activeKey === CMP_KEY ? ' active' : '');
+    b.innerHTML = '<span class="tnm">Confronto</span><span class="x" title="Chiudi">×</span>';
+    b.onclick = (e) => {
+      if(e.target.classList.contains('x')) closeCompare();
+      else { renderTabbar(CMP_KEY); renderCompareView(); }
+    };
+    bar.appendChild(b);
+  }
+  el('tabMap').classList.toggle('active', !activeKey);
 }
+let compareOpen = false, compareVar = null;
+const CMP_KEY = '__cmp__';
 function openCompareTab(){
   compareOpen = true;
-  renderTabs(CMP_KEY);
+  renderTabbar(CMP_KEY);
   renderCompareView();
 }
-// × su "Confronto": torna la stazione di prima (o l'ultima aperta); nessuna, il pannello si chiude
 function closeCompare(){
   compareOpen = false;
-  if(!document.body.classList.contains('view-compare')){ renderTabs(currentStation && tabKeyOf(currentStation)); return; }
-  const t = openTabs.find(x => currentStation && x.key === tabKeyOf(currentStation)) || openTabs[openTabs.length - 1];
-  if(t) selectStation(t.props); else showMapView();
+  if(document.body.classList.contains('view-compare')) showMapView();
+  else renderTabbar(document.body.classList.contains('view-station') && currentStation ? tabKeyOf(currentStation) : null);
 }
-// vista Confronto schede: variabili = unione delle stazioni aperte, una curva per stazione
+// vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
 async function renderCompareView(){
   exitHist();
   exitStack();                                    // il confronto fra schede e' a variabile singola (usa la legenda a lato)
   document.body.classList.add('view-station', 'view-compare');
   document.body.classList.remove('rose-mode');
-  panelLayout();                                  // pannello largo, niente anello
   el('panel').scrollTop = 0;
   el('stationName').textContent = 'Confronto schede';
   el('stationMeta').textContent = openTabs.length
     ? openTabs.map(t => prettyName(t.props.name || t.props.scode)).join('  ·  ')
     : 'Nessuna scheda aperta';
   el('source').innerHTML = TZNOTE + ' Dati in tempo reale non validati.';
-  el('pbar').hidden = false;
+  el('pact').hidden = false; el('pbar').hidden = false;
   const wr = el('windrose'); if(wr) wr.innerHTML = '';
   const cbx = el('climabox'); if(cbx){ cbx.style.display = 'none'; cbx.innerHTML = ''; }
   el('chartstats').textContent = '';
@@ -3887,52 +3768,19 @@ async function renderCompareView(){
   syncModes();
   if(compareVar) renderCompareTabs(compareVar); else clearChart();
 }
-// chiude il pannello: la mappa torna intera, via l'ancora (la stazione resta scelta; la × del pannello la chiude)
 function showMapView(){
   document.body.classList.remove('view-station', 'view-compare');
-  cmpClose();
+  renderTabbar(null);
   history.replaceState(null, '', location.pathname + location.search);
-  panelLayout();
+  if(map) setTimeout(() => map.invalidateSize(), 40);
 }
-// × su una pillola: quella stazione si chiude; se era la stazione nel pannello, passa all'ultima rimasta
 function closeTab(key){
   openTabs = openTabs.filter(t => t.key !== key);
-  if(document.body.classList.contains('view-compare')){ renderTabs(CMP_KEY); renderCompareView(); return; }
-  if(!currentStation || tabKeyOf(currentStation) !== key){ renderTabs(currentStation && tabKeyOf(currentStation)); return; }
-  const last = openTabs[openTabs.length - 1];
-  if(last) selectStation(last.props); else showMapView();
+  if(document.body.classList.contains('view-compare')){ renderTabbar(CMP_KEY); renderCompareView(); return; }
+  if(currentStation && tabKeyOf(currentStation) === key) showMapView();
+  else renderTabbar(currentStation && document.body.classList.contains('view-station') ? tabKeyOf(currentStation) : null);
 }
-// × del pannello (o Esc): chiude la stazione (come la × della sua pillola; nel confronto, il confronto) e il pannello; su
-// desktop il fuoco passa alla ricerca (sul telefono aprirebbe la tastiera)
-function closeStation(){
-  if(document.body.classList.contains('view-compare')) compareOpen = false;
-  else if(currentStation) openTabs = openTabs.filter(t => t.key !== tabKeyOf(currentStation));
-  showMapView();
-  selectedKey = ''; el('stationFilter').value = '';
-  renderMarkers();
-  if(!PHONE.matches) el('stationQ').focus({ preventScroll:true });
-}
-el('pclose').addEventListener('click', closeStation);
-// Esc chiude il pannello quando non c'e' altro da chiudere prima (menu, suggerimenti, Fonti, Note, metodo dello Storico,
-// anteprima del PNG) e non si sta scrivendo in un campo. In cattura: si guarda cosa e' aperto prima che i menu si chiudano
-document.addEventListener('keydown', e => {
-  if(e.key !== 'Escape' || !panelShown()) return;
-  const busy = menuAnchor || !el('moreMenu').hidden || !el('cmpMenu').hidden || prodMenuOpen() || el('searchList').classList.contains('open') ||
-               el('srcpanel').style.display === 'block' || el('notepanel').style.display === 'block' || !el('hvInfo').hidden ||
-               el('pngsheet').classList.contains('show');
-  if(!busy && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) closeStation();
-}, true);
-// telefono: dal pannello al foglio basso della stessa stazione, tenuta visibile sopra il foglio
-function panelToSheet(){
-  const r = currentStation && markerRefs.find(x => sameStation(x.p, currentStation));
-  showMapView();
-  if(!r) return;                                              // stazione non sulla mappa: resta tutto chiuso
-  openSheet(r.p);
-  map.panInside(r.m.getLatLng(), Object.assign(mapPad(el('sheet').offsetHeight), { animate:false }));
-}
-let pnY0 = null;                                              // linguetta del pannello (telefono): in giu' torna al foglio basso
-el('panel').addEventListener('pointerdown', e => { pnY0 = PHONE.matches ? grabStart(e, '.pn-grab') : null; });
-el('panel').addEventListener('pointerup', e => { if(pnY0 != null && e.clientY - pnY0 > 40) panelToSheet(); pnY0 = null; });
+el('tabMap').addEventListener('click', showMapView);
 el('noteBtn').addEventListener('click', (e) => {
   e.stopPropagation();                           // il clic non arriva al documento: chiudi qui gli altri pannelli
   el('srcpanel').style.display = 'none'; closeSearch();
@@ -3952,8 +3800,8 @@ el('themeBtn').addEventListener('click', () => {
   try { localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); } catch(e){}
   _syncThemeBtn();
   if(histMode) renderHist();                              // i colori dello Storico (griglia, assi, anni) dipendono dal tema
-  else if(document.body.classList.contains('view-compare')){ if(compareVar) renderCompareTabs(compareVar); }
-  else if(currentStation && currentVar && currentVar !== WROSE && panelShown()) renderChart(currentVar);
+  else if(currentStation && currentVar && currentVar !== WROSE && document.body.classList.contains('view-station'))
+    renderChart(currentVar);
 });
 
 // carica ON-DEMAND la serie a 30 giorni (series30/) per il "Confronto 30 giorni", e la mette in cache
@@ -3993,13 +3841,10 @@ function syncModes(){
 document.querySelectorAll('#modes .mode[data-mode]').forEach(b => b.addEventListener('click', () => pickMode(b.dataset.mode)));
 
 // "Confronti ▾": menu sotto il pulsante; frecce, Inizio e Fine fra le voci; Esc e Tab chiudono tornando al pulsante; clic fuori chiude
-let cmpAt = '';                                          // dov'era il pulsante quando il menu si e' aperto
-const cmpPos = () => { const r = el('cmpBtn').getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top); };
 function cmpOpen(){
   const m = el('cmpMenu');
   m.hidden = false; el('cmpBtn').setAttribute('aria-expanded', 'true');
   placeMenu(m, el('cmpBtn'));
-  cmpAt = cmpPos();
   (m.querySelector('.on') || m.querySelector('button')).focus({ preventScroll:true });
 }
 function cmpClose(refocus){
@@ -4019,9 +3864,8 @@ el('cmpMenu').addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => { if(!e.target.closest('#cmpMenu, #cmpBtn')) cmpClose(); });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') cmpClose(el('cmpMenu').contains(document.activeElement)); });
-// il menu e' fisso: non seguirebbe il pulsante se scorre il pannello o la riga 2, quindi si chiude se il pulsante si e'
-// spostato (uno 'scroll' arrivato in ritardo, di prima dell'apertura, non conta); 'scroll' non risale ai genitori
-['panel', 'pbar'].forEach(id => el(id).addEventListener('scroll', () => { if(cmpPos() !== cmpAt) cmpClose(); }, { passive:true }));
+// il menu e' fisso: non seguirebbe il pulsante se scorre il pannello o (telefono) la riga 2; 'scroll' non risale ai genitori
+['panel', 'pbar'].forEach(id => el(id).addEventListener('scroll', () => cmpClose(), { passive:true }));
 window.addEventListener('resize', () => { if(!el('cmpMenu').hidden) placeMenu(el('cmpMenu'), el('cmpBtn')); });
 
 el('stackbtn').addEventListener('click', () => setStackMode(!stackMode));
@@ -4041,48 +3885,50 @@ el('stationFilter').addEventListener('change', e => {
 });
 
 // selezione variabile -> filtra le stazioni (e l'elenco)
-// variabile della mappa: colora e filtra i puntini, nient'altro (la stazione aperta nel pannello resta com'e')
 el('varFilter').addEventListener('change', e => {
   filterVar = e.target.value;
   if(filterVar !== radarDotsVar() && !radarUi.switching) radarOff(false);  // il radar vive con la variabile del suo prodotto
+  // se la stazione aperta non ha la variabile, deselezionala
+  const f = selectedFeature();
+  if(f && filterVar && !(f.properties.variables || []).includes(filterVar)){
+    selectedKey = ''; clearChart(); resetPanel();
+  }
   buildStationFilter();
   buildVarFilter();
   renderMarkers();
+  // se resta una stazione aperta e ha la variabile, mostrala nel grafico
+  const f2 = selectedFeature();
+  if(f2 && filterVar && f2.properties._table) drawVar(filterVar);
   snapSync();                                            // cursore aperto: ricarica per la nuova variabile (o chiudi)
 });
 
 el('resetBtn').addEventListener('click', () => {
   el('region').value = 'ALL';
-  filterVar = '';
-  if(!panelShown()) selectedKey = '';            // la stazione aperta nel pannello resta
+  filterVar = ''; selectedKey = '';
   syncPills();                                   // subito, senza aspettare il caricamento
   loadRegions(REGIONS_ALL);
 });
 
-// 3 pagine: misure dirette / derivate / indici. Cambiano le variabili della mappa (e la pagina "indici" mostra anche la
-// climatologia della stazione). withPanel = anche le pillole delle variabili del pannello: la scelta della pagina, i
-// riquadri, i link; i comandi della mappa (Pioggia, Radar, Cursore) la cambiano solo per la mappa. Una stazione senza
-// variabili nella nuova pagina tiene le sue pillole e il suo grafico
-function setPage(page, withPanel){
+// 3 pagine: misure dirette / derivate / indici. Cambiano quali variabili sono selezionabili + la
+// pagina "indici" mostra anche la climatologia della stazione.
+[...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => {
   if(!radarUi.switching) radarOff(false);                                  // un'altra pagina spegne il radar
-  currentPage = page;
-  [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x.dataset.page === page));
+  currentPage = b.dataset.page;
+  [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x === b));
   filterVar = '';                              // la variabile potrebbe non appartenere alla nuova pagina
-  const st = withPanel && shownStation();
-  if(st){
-    const base = (st.variables || []).slice();
-    if(windObsCount(st._table) >= 10) base.push(WROSE);                   // chip rosa (gruppo derivate)
-    const vars = base.filter(v => varCat(v) === page).sort(natVars);
-    if(vars.length){
-      document.body.classList.remove('rose-mode');                         // riparti dal grafico (drawVar la riattiva se serve)
-      buildVarButtons(vars); updateClimaBox();
-      drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
-    }
+  document.body.classList.remove('rose-mode'); // cambio pagina: riparti dal grafico (drawVar la riattiva se serve)
+  const sf = selectedFeature();
+  if(sf){                                      // stazione aperta: ricostruisci per la nuova pagina
+    const base = (sf.properties.variables || []).slice();
+    if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WROSE);   // chip rosa (gruppo derivate)
+    const vars = base.filter(v => varCat(v) === currentPage).sort(natVars);
+    buildVarButtons(vars); updateClimaBox();
+    if(vars.length) drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
+    else clearChart();
   }
   buildStationFilter(); buildVarFilter(); renderMarkers();
   snapSync();
-}
-[...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => setPage(b.dataset.page, true)));
+}));
 
 // ---- WATCHDOG "dati fermi": STATUS/status.json (scritto dal publish) contiene il timestamp della
 // misura piu' recente fra TUTTE le regioni. Se supera STALE_HOURS -> banner rosso. Silenzioso se il
@@ -4344,13 +4190,12 @@ function searchStations(q, list){
   hits.sort((a, b) => a.rank - b.rank || a.nn.localeCompare(b.nn) || a.k.localeCompare(b.k));   // omonimi: ordine fisso
   return hits.slice(0, 8).map(h => h.f);
 }
-// ultimo valore come nel tooltip: livello in quota assoluta se la stazione ha lo zero idrometrico (cm -> /100);
-// x = il valore (di norma l'ultimo del file delle stazioni; i riquadri del pannello passano quello della serie)
-function latestText(p, v, x = p.latest[v]){
+// ultimo valore come nel tooltip: livello in quota assoluta se la stazione ha lo zero idrometrico (cm -> /100)
+function latestText(p, v){
   const units = unitsByRegion[p._region] || {};
   const off = (v === 'LIVIDRO' && p.zero_idro != null) ? p.zero_idro : 0;
   const scale = (off && units[v] === 'cm') ? 0.01 : 1;
-  let val = (off && x != null) ? Math.round((x * scale + off) * 1000) / 1000 : x;
+  let val = (off && p.latest[v] != null) ? Math.round((p.latest[v] * scale + off) * 1000) / 1000 : p.latest[v];
   if(val !== '' && isFinite(+val) && /\.\d{3,}/.test(String(val))) val = Math.round(val * 100) / 100;   // medie: 20.8333 -> 20.83
   const u = off ? 'm s.m.m.' : (units[v] || '');
   return val + (u ? ' ' + u : '');
@@ -4451,7 +4296,7 @@ document.addEventListener('keydown', e => {
   const a = document.activeElement;
   if(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
   e.preventDefault(); closeMenu();
-  if(PHONE.matches && panelShown()) showMapView();          // sul telefono il pannello copre la ricerca
+  if(document.body.classList.contains('view-station') || document.body.classList.contains('view-compare')) showMapView();
   el('stationQ').focus();
 });
 
@@ -4576,25 +4421,21 @@ function cardHtml(M){
          '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
          '<div class="hc-keys">' + M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' + e(k.text) + '</b></div>').join('') + '</div>';
 }
-// ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia (coprono la
-// mappa: un puntino sotto di loro non ha scheda) e il nome del sito (una scritta: i puntini sotto si toccano e hanno la scheda)
-const CARD_COVER = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
-const CARD_OBST = '#brand, ' + CARD_COVER;
-function cardObstacles(sel = CARD_OBST){
-  return [...document.querySelectorAll(sel)].filter(o => o.getClientRects().length && o.offsetWidth).map(o => o.getBoundingClientRect());
+// ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia
+const CARD_OBST = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
+function cardObstacles(){
+  return [...document.querySelectorAll(CARD_OBST)].filter(o => o.getClientRects().length && o.offsetWidth).map(o => o.getBoundingClientRect());
 }
 const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
                           Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-// a destra del puntino, poi a sinistra, sotto, sopra (centrata o allineata a un lato del puntino, per gli schermi stretti),
-// infine di lato col puntino vicino al bordo alto o basso della scheda (schermi bassi: fra barra in alto e plancia);
+// a destra del puntino, poi a sinistra, sotto, sopra (centrata o allineata a un lato del puntino, per gli schermi stretti);
 // dentro la mappa; vince il primo posto libero, se no quello che copre meno
 function placeCard(c, x, y){
-  const V = el('views').getBoundingClientRect(), w = c.offsetWidth, h = c.offsetHeight, G = 12, M = 8, E = 24, obs = cardObstacles();
+  const V = el('views').getBoundingClientRect(), w = c.offsetWidth, h = c.offsetHeight, G = 12, M = 8, obs = cardObstacles();
   let best = null, bestA = Infinity;
   for(const [x0, y0] of [[x + G, y - h / 2], [x - G - w, y - h / 2],
                          [x - w / 2, y + G], [x + G - w, y + G], [x - G, y + G],
-                         [x - w / 2, y - G - h], [x + G - w, y - G - h], [x - G, y - G - h],
-                         [x + G, y - E], [x - G - w, y - E], [x + G, y + E - h], [x - G - w, y + E - h]]){
+                         [x - w / 2, y - G - h], [x + G - w, y - G - h], [x - G, y - G - h]]){
     const l = Math.max(V.left + M, Math.min(x0, V.right - M - w)), t = Math.max(V.top + M, Math.min(y0, V.bottom - M - h));
     const R = { left:l, top:t, right:l + w, bottom:t + h };
     let a = obs.reduce((s, o) => s + overlap(R, o), 0);
@@ -4611,7 +4452,7 @@ function positionCard(){
   const pt = map.latLngToContainerPoint(cardM.getLatLng()), mr = map.getContainer().getBoundingClientRect(), c = el('hoverCard');
   const x = mr.left + pt.x, y = mr.top + pt.y;
   if(x < mr.left || x > mr.right || y < mr.top || y > mr.bottom ||
-     cardObstacles(CARD_COVER).some(o => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom)){ hideCard(); return; }
+     cardObstacles().some(o => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom)){ hideCard(); return; }
   c.style.visibility = 'hidden'; c.hidden = false;
   placeCard(c, x, y);
   c.style.visibility = '';
@@ -4638,8 +4479,7 @@ function cardLeave(){ clearTimeout(cardTimer); cardTimer = setTimeout(hideCard, 
 ['pointerdown', 'pointermove'].forEach(t => map.getContainer().addEventListener(t, e => { lastPointer = e.pointerType || 'mouse'; }, true));
 map.on('move', positionCard);
 
-// ---- FOGLIO BASSO (tocco su un puntino): stessa scheda, "Apri la scheda" (o la linguetta in su: il pannello completo),
-// anello sulla stazione --------------------------------------------------------------------------------------------------
+// ---- FOGLIO BASSO (tocco su un puntino): stessa scheda, "Apri la scheda", anello sulla stazione -----------------------
 function drawSheet(){
   const p = sheetP;
   if(!p) return;
@@ -4657,118 +4497,35 @@ function sheetFit(){
 window.addEventListener('resize', sheetFit);
 // col foglio aperto la plancia si nasconde: i crediti della mappa (obbligatori) passano nel foglio e poi tornano
 function mapCredits(){ return map && map.attributionControl && map.attributionControl.getContainer(); }
-function openSheet(p){
+function openSheet(p, m){
   hideCard();
   sheetP = p;
+  if(sheetRing) map.removeLayer(sheetRing);
+  sheetRing = L.circleMarker([p._lat, p._lon], { radius:(m ? m.getRadius() : 4) + 5, color:'#c05621', weight:2.5, fill:false,
+                                                interactive:false }).addTo(map);
   el('sheet').hidden = false; document.body.classList.add('sheet-open');
   if(mapCredits()) el('sheet').querySelector('.sh-cred').appendChild(mapCredits());
-  syncRing();
   drawSheet();
 }
 function closeSheet(){
   sheetP = null;
+  if(sheetRing) map.removeLayer(sheetRing);
   el('sheet').hidden = true; document.body.classList.remove('sheet-open');
   if(mapCredits() && el('sheet').contains(mapCredits())) el('dkCredits').appendChild(mapCredits());
-  syncRing();
 }
-function sheetToPanel(){ const p = sheetP; closeSheet(); if(p) selectStation(p); }   // il foglio diventa il pannello completo
 el('sheetClose').addEventListener('click', closeSheet);
-el('sheetOpen').addEventListener('click', sheetToPanel);
-// trascinamento da una linguetta: punto di partenza (null fuori dalla linguetta); il puntatore resta a lei anche uscendo
-// dal foglio (in su, sopra la mappa)
-function grabStart(e, sel){
-  if(!e.target.closest(sel)) return null;
-  try { e.target.setPointerCapture(e.pointerId); } catch(err){}
-  return e.clientY;
-}
-let shY0 = null;                                         // linguetta del foglio: in giu' chiude, in su il pannello completo
-el('sheet').addEventListener('pointerdown', e => { shY0 = grabStart(e, '.sh-grab'); });
-el('sheet').addEventListener('pointerup', e => {
-  if(shY0 == null) return;
-  const dy = e.clientY - shY0; shY0 = null;
-  if(dy > 40) closeSheet(); else if(dy < -40) sheetToPanel();
-});
+el('sheetOpen').addEventListener('click', () => { const p = sheetP; closeSheet(); if(p) selectStation(p); });
+let shY0 = null;                                         // trascinamento in giu' dalla linguetta: chiude
+el('sheet').addEventListener('pointerdown', e => { shY0 = e.target.closest('.sh-grab') ? e.clientY : null; });
+el('sheet').addEventListener('pointerup', e => { if(shY0 != null && e.clientY - shY0 > 40) closeSheet(); shY0 = null; });
 map.on('click', () => { if(sheetP) closeSheet(); });    // tocco sulla mappa fuori dai puntini
-
-// ---- RIQUADRI DEL PANNELLO: i valori attuali della stazione, al massimo quattro, scelti dal tipo di stazione (se ne
-// mancano, i valori chiave della scheda al passaggio; senza tipo, le prime variabili con un valore); clic = quella
-// variabile nel grafico (la pioggia 24 h apre la pioggia, la variazione il livello) ------------------------------------
-const measures = (p, v) => (p.variables || []).includes(v);
-const TILE_TYPES = [                                     // [tipo, variabili]; DLIV = variazione del livello in 3 ore
-  [p => p._region.startsWith('AQ_') || measures(p, 'EAQI'), ['EAQI', 'PM10', 'NO2', 'O3', 'PM25']],                  // aria
-  [p => measures(p, 'MAREA') || measures(p, 'ONDE'), ['MAREA', 'ONDE', 'TEMPACQUA']],                                // mare
-  [p => (measures(p, 'LIVIDRO') || measures(p, 'LIVLAGO')) && !measures(p, 'TEMP'), ['LIVIDRO', 'LIVLAGO', 'DLIV', 'PORTATA']],   // idrometro, lago
-  [p => measures(p, 'TEMP') || measures(p, 'PREC'), ['TEMP', 'PREC24', 'VVENTO', 'UMID']],                          // meteo
-];
-const TILE_LABELS = Object.assign({}, KEY_LABELS, { EAQI:'Qualità aria', PM25:'PM2.5', LIVLAGO:'Livello', DLIV:'Variazione 3 h' });
-// ultimo valore della serie (aggiornata da "Aggiorna"); se manca, quello del file delle stazioni. i = riga nella serie
-function tileLast(p, v){
-  const c = p._table && p._table.cols[v];
-  if(c) for(let i = c.length - 1; i >= 0; i--) if(c[i] != null) return { x: c[i], i };
-  return hasVal(p.latest || {}, v) ? { x: p.latest[v], i: -1 } : null;
-}
-// variazione del livello: ultimo dato meno quello di 3 ore prima (al piu' 4): in metri al centimetro, in cm senza decimali;
-// '' se non si puo' dire
-function levelDelta(p, v){
-  const t = p._table, c = t && t.cols[v], l = tileLast(p, v);
-  if(!c || !l || l.i < 0) return '';
-  let j = l.i;
-  while(j >= 0 && !(c[j] != null && t.x[j] <= t.x[l.i] - 3 * 3600)) j--;
-  if(j < 0 || t.x[j] < t.x[l.i] - 4 * 3600) return '';
-  const units = unitsByRegion[p._region] || {}, u = varOffset(v, p) ? 'm' : (units[v] || ''), raw = (c[l.i] - c[j]) * varScale(v, p, units);
-  const d = u === 'cm' ? Math.round(raw) : Math.round(raw * 100) / 100;
-  return (d > 0 ? '+' : '') + (u === 'cm' ? String(d) : fmtNum(d, v)) + (u ? ' ' + u : '');
-}
-function stationTiles(p){
-  const type = TILE_TYPES.find(([is]) => is(p)), lev = ['LIVIDRO', 'LIVLAGO'].find(v => measures(p, v));
-  const cand = type ? type[1].concat(KEY_VARS)
-                    : (p.variables || []).slice().sort((a, b) => (varCat(a) !== 'dirette') - (varCat(b) !== 'dirette') || natVars(a, b));
-  const out = [];
-  for(const v of cand){
-    if(out.length === 4) break;
-    if(v === WROSE || out.some(t => t.v === v)) continue;
-    if(v === 'DLIV'){ const s = lev ? levelDelta(p, lev) : ''; if(s) out.push({ v, chart: lev, label: TILE_LABELS.DLIV, text: s }); continue; }
-    const l = tileLast(p, v);
-    if(!l || l.x === '') continue;
-    let text = v === 'EAQI' ? EAQI_BANDS[Math.max(1, Math.min(6, Math.round(+l.x) || 1)) - 1].l : latestText(p, v, l.x);   // l'indice: la sua classe
-    const dir = v === 'VVENTO' && tileLast(p, 'DVENTO');
-    if(dir && !isNaN(+dir.x)) text += ' ' + _DIR16[Math.round(+dir.x / 22.5) % 16];
-    out.push({ v, chart: v === 'PREC24' && measures(p, 'PREC') ? 'PREC' : v, label: TILE_LABELS[v] || varLabel(v), text });
-  }
-  return out;
-}
-let tilePick = '';                 // riquadro scelto col clic: fra due sulla stessa variabile (Livello, Variazione 3 h) si accende quello
-function renderTiles(p){
-  const box = el('ptiles'), T = stationTiles(p);
-  box.innerHTML = '';
-  T.forEach(t => {
-    const b = document.createElement('button');
-    b.className = 'tile'; b.dataset.v = t.chart; b.dataset.k = t.v; b.title = 'Nel grafico';
-    b.innerHTML = '<span></span><b></b>';
-    b.firstChild.textContent = t.label; b.lastChild.textContent = t.text;
-    b.addEventListener('click', () => { showInChart(t.chart); tilePick = t.v; syncTiles(); });
-    box.appendChild(b);
-  });
-  box.hidden = !T.length;
-  syncTiles();
-}
-function syncTiles(){
-  const T = [...el('ptiles').children], hit = T.filter(b => b.dataset.v === currentVar), on = hit.find(b => b.dataset.k === tilePick) || hit[0];
-  T.forEach(b => b.classList.toggle('on', b === on));
-}
-// la variabile nel grafico; se fra le pillole del pannello non c'e', prima la sua pagina (come i link)
-function showInChart(v){
-  const has = () => [...el('vars').children].some(b => b.dataset.var === v);
-  if(!has()) setPage(varCat(v), true);
-  if(has()) drawVar(v);
-}
 
 // ---- LINK CONDIVISIBILI: #REGIONE/CODICE/VARIABILE ----------------------------------------------
 // aggiornato ad ogni selezione; all'apertura, se presente, riporta alla stessa vista. Separatore '/':
 // '|' non e' ammesso negli URL e WhatsApp/Mail/Outlook spezzavano il link (o lo cambiavano in %7C).
 // I link vecchi gia' condivisi (con '|' o '%7C') si aprono ancora.
 function updateHash(){
-  if(!shownStation()) return;                                    // l'ancora c'e' solo col pannello aperto sulla stazione
+  if(!currentStation) return;
   const parts = [currentStation._region, currentStation.scode, currentVar || ''];
   if(stackMode) parts.push('S:' + effectiveStack().join(','));  // 4a parte: variabili della pila ("Impilato")
   else if(histMode) parts.push('H:' + histVar + ':' + histView);   // 4a parte: storico lungo (variabile e vista)

@@ -132,7 +132,7 @@
     clickAt(ref.m.getLatLng()); await sleep(400);
     log(!document.querySelector('.leaflet-popup') && selectedKey && selectedKey !== before && Radar.on, 'tocco su puntino = stazione',
         'popup ' + !!document.querySelector('.leaflet-popup') + ', stazione ' + selectedKey + ', radar ' + Radar.on);
-    // chiudi la stazione (tendina nascosta): i passi dopo partono senza stazione scelta, qualunque puntino si sia toccato
+    // chiudi la stazione: col selettore ristretto alle sue variabili i passi dopo dipenderebbero da quale puntino si e' toccato
     el('stationFilter').value = ''; el('stationFilter').dispatchEvent(new Event('change'));
     await until(() => !selectedKey);
     // la x chiude la barra, il radar resta acceso e torna all'ultimo
@@ -701,7 +701,7 @@
     log(vis(sheetEl()) && sheetEl().textContent.includes(NAME) && sheetEl().textContent.includes('Apri la scheda'), 'tocco: foglio basso', '');
     eq('tocco: la stazione non si apre da sola', inStation(), false);
     log(!vis(card), 'tocco: niente scheda del mouse', '');
-    log(!vis(el('dock')) && typeof stationRing !== 'undefined' && !!stationRing && map.hasLayer(stationRing), 'foglio aperto: plancia nascosta, stazione evidenziata', '');
+    log(!vis(el('dock')) && typeof sheetRing !== 'undefined' && !!sheetRing && map.hasLayer(sheetRing), 'foglio aperto: plancia nascosta, stazione evidenziata', '');
     if(innerWidth <= 720){ const S = sheetEl().getBoundingClientRect(); log(Math.abs(S.left - 8) < 1 && Math.abs(innerWidth - 8 - S.right) < 1, 'telefono: foglio largo quanto lo schermo', JSON.stringify([S.left, S.right])); }
     {                                                                             // schermo basso (telefono in orizzontale)
       const S = sheetEl().getBoundingClientRect(), T = el('topbar').getBoundingClientRect(), X = el('sheetClose').getBoundingClientRect();
@@ -712,7 +712,7 @@
       log(vis(A) && A.textContent.trim() !== '' && A.contains(h), 'foglio aperto: crediti della mappa visibili', A.textContent);
     }
     el('sheetClose').click(); await sleep(50);
-    log(!vis(sheetEl()) && vis(el('dock')) && !map.hasLayer(stationRing), '× chiude, la plancia torna', '');
+    log(!vis(sheetEl()) && vis(el('dock')) && !map.hasLayer(sheetRing), '× chiude, la plancia torna', '');
     log(el('dkCredits').contains(map.attributionControl.getContainer()), 'foglio chiuso: crediti di nuovo nella plancia', '');
     tapAt(mk(AP), 'touch'); await sleep(100);
     const gr = sheetEl().querySelector('.sh-grab'), g = gr.getBoundingClientRect();
@@ -729,9 +729,9 @@
     showMapView(); map.panTo(mk(AP).m.getLatLng(), { animate:false }); await sleep(150);
     tapAt(mk(AP), 'touch'); await sleep(100);
     const OB = markerRefs.find(r => r.p !== AP).p; selectStation(OB); await until(() => inStation() && currentStation === OB); showMapView(); await sleep(50);
-    log(!vis(sheetEl()) && !map.hasLayer(stationRing) && !document.body.classList.contains('sheet-open'),
+    log(!vis(sheetEl()) && !map.hasLayer(sheetRing) && !document.body.classList.contains('sheet-open'),
         'un\'altra stazione aperta (ricerca, link): il foglio si chiude', '');
-    // chiudi la stazione a caricamento finito (tendina nascosta): le prove dopo partono senza stazione scelta
+    // chiudi la stazione a caricamento finito: col selettore ristretto alle sue variabili PREC24 potrebbe mancare
     await until(() => el('stationFilter').value === OB._region + '|' + OB.scode);
     el('stationFilter').value = ''; el('stationFilter').dispatchEvent(new Event('change')); await until(() => !selectedKey);
     // un file orario lento non sovrascrive il foglio (o la scheda) gia' passato a un'altra variabile
@@ -1179,13 +1179,10 @@
     finish();
   }
 
-  // scheda della stazione su due righe: in alto nome, codice e ultimo dato, Link ⤢ × (rilascio 3: Aggiorna, CSV e PNG in
-  // fondo al pannello); sotto variabili e modi (i tre confronti in "Confronti ▾"); nello Storico la sua barra al posto di
-  // variabili e modi, in fondo "Storico ×".
-  // Desktop (w.html 1024x768, pannello da 400 px): la seconda riga diventa due blocchi (le variabili, che vanno a capo; sotto
-  // i modi interi), grafico entro 75 + 32 px dall'alto del pannello, tolte le righe del pannello accanto alla mappa (stazioni
-  // aperte, riquadri) e le righe in piu' delle variabili. Telefono (w.html 320/375/430, FVG/A280 con molte variabili): la seconda riga resta una e scorre di
-  // lato, niente esce dalla pagina, le azioni restano visibili
+  // scheda della stazione su due righe: in alto nome, codice e ultimo dato, azioni; sotto variabili e modi (i tre confronti
+  // in "Confronti ▾"); nello Storico la sua barra al posto di variabili e modi, in fondo "Storico ×".
+  // Desktop (w.html 1024x768): grafico entro 75 px dalla barra delle schede. Telefono (w.html 320/375/430, FVG/A280 con
+  // molte variabili): la seconda riga resta una e scorre di lato, niente esce dalla pagina, le azioni restano visibili
   async function suiteSchede(){
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2;
@@ -1195,24 +1192,9 @@
     log(P && V && A, 'stazioni di prova trovate', JSON.stringify([!!P, !!V, !!A]));
     if(!(P && V && A)) return finish();
     const open = async p => { await selectStation(p); await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000); await sleep(300); };
-    // dall'alto del pannello all'inizio del grafico, tolte le righe venute col pannello accanto alla mappa (stazioni aperte,
-    // riquadri: contenuto nuovo, non spazio perso). Prima si misurava dalla barra delle schede, che non c'e' piu'
-    // Desktop: anche le righe in piu' delle pillole delle variabili (vanno a capo: tante variabili, tante righe) sono contenuto
-    const gap = id => { const g = parseFloat(getComputedStyle(el('panel')).rowGap) || 0, v = el('vars');
-      const chips = !phone && getComputedStyle(v).display === 'flex' ? Math.max(0, R(v).height - 24) : 0;
-      return Math.round(R(el(id)).top - R(el('panel')).top - chips - ['ptabs', 'ptiles'].filter(i => vis(el(i))).reduce((s, i) => s + R(el(i)).height + g, 0)); };
+    const gap = id => Math.round(R(el(id)).top - R(el('tabbar')).bottom);        // dalla barra delle schede all'inizio del grafico
     const sameRow = es => es.length > 0 && Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
-    const acts = () => ['copylink', 'pexp', 'pclose'].filter(id => vis(el(id)));                  // riga 1
-    const foot = () => ['refresh', 'download', 'exportpng', 'hvCsv'].filter(id => vis(el(id)));    // in fondo al pannello
-    const ACTS = phone ? ['copylink', 'pclose'] : ['copylink', 'pexp', 'pclose'];                  // ⤢ solo su desktop
-    // desktop, pannello da 400 px: la riga 2 diventa il blocco delle pillole delle variabili (va a capo, tutte nel pannello)
-    // e sotto i modi su una riga loro (nello Storico la sua barra va a capo al piu' una volta), quindi il grafico sta entro
-    // 75 + 32 px (contate le righe in piu' delle variabili come contenuto); il telefono resta su una riga sola
-    const B = phone ? 75 : 107, rows2 = c => { const m = c.map(mid).sort((a, b) => a - b); return m.filter((y, i) => !i || y - m[i - 1] > 6).length; };
-    const inPanel = e => R(e).left >= R(el('panel')).left - 0.5 && R(e).right <= R(el('panel')).right + 0.5;
-    const row2Ok = c => { if(phone) return sameRow(c);
-      const v = c.filter(e => e.closest('#vars')), m = c.filter(e => !e.closest('#vars'));
-      return sameRow(m) && m.every(inPanel) && (!v.length || (v.every(inPanel) && Math.min(...m.map(e => R(e).top)) >= Math.max(...v.map(e => R(e).bottom)) - 1)); };
+    const acts = () => ['refresh', 'download', 'exportpng', 'hvCsv', 'copylink'].filter(id => vis(el(id)));
     // riga 2 tutta sotto la riga 1 (nome, dati, azioni) e tutta sopra il grafico: niente sovrapposizioni
     const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
       return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
@@ -1220,12 +1202,10 @@
     const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvRange')].filter(vis);
     const tag2 = e => e.id || (e.dataset.mode ? 'mode:' + e.dataset.mode : 'var');
     const scroller = () => { for(let e = el('vars'); e && e !== el('panel'); e = e.parentElement) if(/auto|scroll/.test(getComputedStyle(e).overflowX)) return e; return null; };
-    const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte (quelle in fondo: scorrendo fin li')
+    const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte
       const bad = want.filter(id => { const e = el(id); if(!vis(e)) return true;
-        if(e.closest('#pfoot')) e.scrollIntoView({ block:'nearest' });
         const r = R(e), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return r.left < -0.5 || r.right > innerWidth + 0.5 || !(h && e.contains(h)); });
-      el('panel').scrollTop = 0;
       eq(tag + ': azioni visibili e intere', bad, []);
     };
     const M = { w:innerWidth, h:innerHeight };
@@ -1235,19 +1215,17 @@
     await open(P); await until(() => vis(el('histbtn')), 5000);
     const name = el('stationName'), meta = el('stationMeta');
     log(/^234\b|\b234\b/.test(meta.textContent) && /ultimo dato \S/.test(meta.textContent), 'riga 1: codice e ultimo dato', meta.textContent);
-    eq('riga 1: azioni', acts(), ACTS);
-    eq('in fondo: azioni', foot(), ['refresh', 'download', 'exportpng']);
+    eq('riga 1: azioni', acts(), ['refresh', 'download', 'exportpng', 'copylink']);
     if(!phone) log(sameRow([name, meta, ...acts().map(el)]), 'riga 1: nome, dati e azioni sulla stessa riga',
                    JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
     else log(sameRow([name, ...acts().map(el)]) && R(meta).top >= R(name).bottom - 1, 'riga 1 (telefono): nome e azioni, sotto codice e ultimo dato',
              JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
     const c2 = ctl2();
     eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'cmpBtn', 'stackbtn', 'histbtn']);
-    log(row2Ok(c2) && stacked(c2, 'chart'), phone ? 'riga 2: tutta su una riga, fra la prima e il grafico'
-                                                   : 'riga 2: le variabili nel pannello (vanno a capo), sotto i modi su una riga loro, fra la prima e il grafico',
+    log(sameRow(c2) && stacked(c2, 'chart'), 'riga 2: tutta su una riga, fra la prima e il grafico',
         JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
     M.normale = gap('chart');
-    if(!phone) log(M.normale <= B, 'normale: grafico a ' + M.normale + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.normale);
+    if(!phone) log(M.normale <= 75, 'normale: grafico a ' + M.normale + ' px dalla barra delle schede (al massimo 75)', M.normale);
 
     // "Confronti ▾": un comando, un menu con i tre confronti
     const cb = el('cmpBtn'), cm = el('cmpMenu');
@@ -1316,35 +1294,30 @@
       closeCompare(); await sleep(100);
     }
 
-    // Storico: la sua barra nella seconda riga, "Storico ×" in fondo, in alto le stesse azioni, in fondo al pannello il suo CSV
+    // Storico: la sua barra nella seconda riga, "Storico ×" in fondo, CSV e Link in alto
     await open(V); await until(() => vis(el('histbtn')), 5000);
     el('histbtn').click(); await until(() => histMode && !!histU, 8000); await sleep(300);
     const hb = el('histbtn');
     log(histMode && vis(hb) && /Storico\s*×/.test(hb.innerText), 'Storico: "Storico ×"', hb.innerText);
     log(![...el('vars').children].some(vis), 'Storico: niente variabili', '');
-    eq('Storico: azioni (riga 1, in fondo)', [acts(), foot()], [ACTS, ['hvCsv']]);
+    eq('Storico: azioni', acts(), ['hvCsv', 'copylink']);
     eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
-    // la barra dello Storico: telefono su una riga (che scorre), desktop al piu' due righe tutte dentro il pannello
-    const histOk = () => (phone ? sameRow(ctl2()) : rows2(ctl2()) <= 2 && ctl2().every(e => R(e).left >= R(el('panel')).left - 0.5 && R(e).right <= R(el('panel')).right + 0.5)) &&
-                         stacked(ctl2(), 'hvChart');
-    log(histOk(), phone ? 'Storico: riga 2 su una riga, fra la prima e il grafico' : 'Storico: la sua barra al piu\' su due righe, nel pannello, fra la prima riga e il grafico',
-        JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
     M.storico = gap('hvChart');
-    if(!phone) log(M.storico <= B, 'Storico (Valdagno): grafico a ' + M.storico + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.storico);
+    if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
     el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
     eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
-    log(histOk(), phone ? 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico' : 'Storico/Giorni: la sua barra al piu\' su due righe, nel pannello, fra la prima riga e il grafico',
-        JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
-    log(ctl2().every(e => e === hb || mid(e) < mid(hb) - 6 || (Math.abs(mid(e) - mid(hb)) <= 6 && R(e).right <= R(hb).left)), 'Storico ×: in fondo alla riga', '');
-    if(!phone) log(gap('hvChart') <= B, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo ' + B + ')', gap('hvChart'));
-    if(phone){ actsOk('telefono, Storico', [...ACTS, 'hvCsv']); noOverflow('telefono, Storico'); }
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    log(R(hb).left >= Math.max(...ctl2().filter(e => e !== hb).map(e => R(e).right)), 'Storico ×: in fondo alla riga', '');
+    if(!phone) log(gap('hvChart') <= 75, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
+    if(phone){ actsOk('telefono, Storico', ['hvCsv', 'copylink']); noOverflow('telefono, Storico'); }
     hb.click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
     log(!histMode && !vis(el('histview')) && [...el('vars').children].some(vis) && vis(document.querySelector('button[data-mode="week"]')) && !/×/.test(hb.innerText),
         '"Storico ×" esce dallo Storico: tornano variabili e modi', hb.innerText);
     await open(P); await until(() => vis(el('histbtn')), 5000);
     el('histbtn').click(); await until(() => histMode, 8000); await sleep(800);
     M.storico234 = gap('hvChart');                                    // Padova non e' nel campione: barra vera, grafico vuoto
-    if(!phone) log(M.storico234 <= B, 'Storico (Padova): grafico a ' + M.storico234 + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.storico234);
+    if(!phone) log(M.storico234 <= 75, 'Storico (Padova): grafico a ' + M.storico234 + ' px dalla barra delle schede (al massimo 75)', M.storico234);
     await setHistMode(false);
 
     // telefono: Arba (12 variabili) e la stazione dal nome piu' lungo
@@ -1360,13 +1333,13 @@
         log(r.left >= -0.5 && r.right <= innerWidth + 0.5 && !!h && last.contains(h), 'telefono: scorrendo si arriva all\'ultimo comando', tag2(last) + ' ' + JSON.stringify([r.left, r.right]));
         sc.scrollLeft = 0; await sleep(100);
       }
-      actsOk('telefono, Arba', [...ACTS, 'refresh', 'download', 'exportpng']);
+      actsOk('telefono, Arba', ['refresh', 'download', 'exportpng', 'copylink']);
       noOverflow('telefono, Arba');
       M.telefono = gap('chart');
       const long = allFeatures.map(f => f.properties).filter(p => (p.variables || []).some(v => varCat(v) === currentPage))
                               .reduce((a, p) => prettyName(p.name || p.scode).length > prettyName(a.name || a.scode).length ? p : a);
       await open(long);
-      actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', [...ACTS, 'refresh', 'download', 'exportpng']);
+      actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'download', 'exportpng', 'copylink']);
       noOverflow('telefono, nome lungo');
       log(stacked(ctl2(), 'chart'), 'telefono, nome lungo: riga 2 fra la prima e il grafico', '');
       log(name.scrollWidth <= name.clientWidth + 1, 'telefono, nome lungo: nome intero (va a capo, non tagliato)', JSON.stringify([name.scrollWidth, name.clientWidth]));
@@ -1378,408 +1351,9 @@
     finish('MISURE ' + JSON.stringify(M));
   }
 
-  // pannello della stazione accanto alla mappa (rilascio 3). Desktop (w.html 1024x768 e 1280x800): a destra, largo 400 px,
-  // la mappa resta a sinistra con la stazione dentro, cerchiata; in alto Link, ⤢ e ×; le stazioni aperte come pillole (al
-  // massimo 8); i riquadri dei valori secondo il tipo di stazione; ⤢ al 70 % e ricordato dopo un ricaricamento (la pagina si
-  // ricarica una volta: i risultati passano in sessionStorage); × chiude; scheda al passaggio, pulsanti della mappa e plancia
-  // mai sotto il pannello. Telefono (w.html 320/375/430): foglio basso -> pannello a tutta altezza -> basso -> chiuso, plancia
-  // nascosta a foglio aperto; con FVG/A280 (molte variabili) niente esce dalla pagina
-  async function suiteDrawer(){
-    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
-    const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2;
-    const meet = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
-    const ls = k => { try { return localStorage.getItem(k); } catch(e){ return 'errore'; } };
-    const click = id => { const e = el(id); if(e) e.click(); return !!e; };
-    // indirizzo di questa pagina, preso subito: le pagine di prova hanno <base href="../">, quindi un '#...' relativo (link,
-    // updateHash) porta l'indirizzo alla radice del sito e un ricaricamento aprirebbe la pagina vera invece di questa
-    const phone = innerWidth <= 720, KEY = 'provaPannello', HERE = location.pathname + location.search;
-    const shown = () => document.body.classList.contains('view-station') && vis(el('panel'));
-    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc) || {}).properties;
-    const scr = p => { const q = map.latLngToContainerPoint([p._lat, p._lon]), c = R(map.getContainer()); return [c.left + q.x, c.top + q.y]; };
-    // la stazione si vede: dentro la mappa (8 px dai bordi) e nel suo punto c'e' la mappa (non barra, pulsanti, plancia o pannello)
-    const inMap = p => { const [x, y] = scr(p), m = R(el('map')), t = document.elementFromPoint(x, y);
-      return x >= m.left + 8 && x <= m.right - 8 && y >= m.top + 8 && y <= m.bottom - 8 && !!t && t.tagName === 'CANVAS' && map.getContainer().contains(t); };
-    const open = async p => { await selectStation(p); await until(() => currentStation === p && shown() && !!el('chart').querySelector('canvas'), 8000); await sleep(400); };
-    const tiles = () => [...document.querySelectorAll('#ptiles .tile')].filter(vis);
-    const tileTxt = () => tiles().map(b => [(b.querySelector('span') || {}).textContent, (b.querySelector('b') || {}).textContent]);
-    const tile = lab => tiles().find(b => (b.querySelector('span') || {}).textContent === lab);
-    const pills = () => [...document.querySelectorAll('#ptabs .ptab')].filter(vis);
-    const pillNames = () => pills().map(b => (b.querySelector('.pt-n') || b).textContent.trim());
-    const pill = name => pills().find(b => (b.querySelector('.pt-n') || b).textContent.trim() === name);
-    const NM = p => prettyName(p.name || p.scode);
-    const errs = () => eq('errori JS', window.__errs, []);
-    // nei riquadri ogni parola ci sta intera ("Temperatura" non va a capo a meta')
-    const wholeWords = T => { const s = document.createElement('span'); s.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
-      document.body.appendChild(s);
-      const bad = T.flatMap(b => [...b.children].flatMap(e => { s.style.font = getComputedStyle(e).font;
-        return e.textContent.split(/\s+/).filter(w => { s.textContent = w; return s.getBoundingClientRect().width > e.clientWidth + 0.5; }); }));
-      s.remove(); return bad; };
-
-    // dopo il ricaricamento: la scelta ⤢ e' rimasta e il link apre il pannello
-    let prev = null; try { prev = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch(e){}
-    if(prev){
-      try { sessionStorage.removeItem(KEY); } catch(e){}
-      res.push(...prev);
-      await until(() => currentStation && currentStation.scode === '79' && shown() && !!el('chart').querySelector('canvas'), 15000); await sleep(400);
-      log(!!currentStation && currentStation.scode === '79' && currentVar === 'PREC' && shown(), 'ricaricata col link #VEN/79/PREC: pannello aperto su Valdagno, pioggia',
-          location.hash + ' ' + (currentStation && currentStation.scode) + ' ' + currentVar);
-      const w = R(el('panel')).width;
-      log(Math.abs(w - 0.7 * innerWidth) <= 2, 'ricaricata: ⤢ ricordato, pannello al 70 % (' + Math.round(w) + ' px)', w + ' / ' + innerWidth);
-      log(inMap(currentStation), 'ricaricata: la stazione si vede nella mappa', JSON.stringify(scr(currentStation)));
-      click('pexp'); await sleep(400);
-      log(Math.abs(R(el('panel')).width - 400) <= 1 && ls('panelWide') === '0', 'ricaricata: ⤢ di nuovo torna a 400 px e lo ricorda', R(el('panel')).width + ' ' + ls('panelWide'));
-      try { localStorage.removeItem('panelWide'); } catch(e){}
-      errs();
-      return finish();
-    }
-
-    // let: dopo un ricaricamento delle regioni le stazioni sono oggetti nuovi e si riprendono (vedi "Azzera i filtri")
-    let P = st('VEN', '234'), V = st('VEN', '79'), A = st('FVG', 'A280');                 // Padova, Valdagno (meteo); Arba (molte variabili)
-    let I = st('VEN', '194'), Q = st('AQ_LOM', '685'), S = st('MAR_VEN', '1021');          // idrometro, aria, mare
-    log(P && V && A && I && Q && S, 'stazioni di prova trovate', JSON.stringify([!!P, !!V, !!A, !!I, !!Q, !!S]));
-    if(!(P && V && A && I && Q && S)) return finish();
-    try { localStorage.removeItem('panelWide'); } catch(e){}
-    setMapVar(''); await until(() => filterVar === '');
-    log(!el('tabbar') && !el('tabMap'), 'niente vista a schede (barra Mappa | schede)', '');
-    log(!shown() && Math.abs(R(el('map')).width - innerWidth) <= 1, 'all\'inizio: niente pannello, mappa larga quanto la finestra', R(el('map')).width + ' / ' + innerWidth);
-    // pulsanti della mappa (colonna in alto a destra) e nome del sito: in alto a sinistra prima della ricerca, piccolo e in
-    // grassetto, dentro la mappa, lontano dai pulsanti e fuori dalla strada della scheda al passaggio; non sul telefono
-    const ctl = () => [...document.querySelectorAll('.leaflet-top.leaflet-right .leaflet-control')].filter(vis);
-    const brandOk = tag => { const b = el('brand'), q = R(el('stationQ')), m = R(el('map'));
-      log(vis(b) && b.textContent.trim() === 'Simulaqua Meteo' && +getComputedStyle(b).fontWeight >= 600 && R(b).right <= q.left &&
-          Math.abs(mid(b) - (q.top + q.bottom) / 2) <= 4 && R(b).left >= m.left && ctl().length >= 2 && ctl().every(c => !meet(R(b), R(c))),
-          tag + ': "Simulaqua Meteo" in alto a sinistra, prima della ricerca, lontano dai pulsanti', JSON.stringify(b ? [vis(b), R(b).left, R(b).right, q.left] : 'assente')); };
-    if(phone) log(!vis(el('brand')), 'telefono: niente "Simulaqua Meteo" (lascia posto a ricerca e pillole)', '');
-    else {
-      brandOk('mappa intera');
-      log(!!el('brand') && el('brand').matches(CARD_OBST), 'la scheda al passaggio non va sopra "Simulaqua Meteo"', CARD_OBST);
-      { const b = R(el('brand')), h = document.elementFromPoint((b.left + b.right) / 2, (b.top + b.bottom) / 2);   // la scritta lascia passare il puntatore
-        log(!!h && map.getContainer().contains(h), 'sotto "Simulaqua Meteo" i puntini si toccano (la scritta lascia passare il puntatore)', h && (h.id || h.className || h.tagName)); }
-    }
-
-    if(phone){
-      // un link apre il pannello a tutta altezza
-      history.replaceState(null, '', '#FVG/A280/TEMP'); await applyHash();
-      await until(() => currentStation === A && shown() && !!el('chart').querySelector('canvas'), 8000); await sleep(400);
-      const pn = R(el('panel')), cn = R(el('content') || el('panel'));
-      log(shown() && Math.abs(pn.left) <= 0.5 && Math.abs(pn.right - innerWidth) <= 0.5 && Math.abs(pn.bottom - innerHeight) <= 0.5 && Math.abs(pn.top - cn.top) <= 0.5,
-          'telefono: il link apre il pannello a tutta altezza', JSON.stringify([pn.left, pn.top, pn.right, pn.bottom, cn.top]));
-      { const q = R(el('stationQ')), h = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
-        log(!vis(el('dock')) && !!h && el('panel').contains(h), 'telefono, pannello aperto: plancia nascosta, mappa coperta', h && (h.id || h.className)); }
-      log(!vis(el('pexp')) && vis(el('pclose')), 'telefono: niente ⤢, c\'e\' la ×', '');
-      { const a = el('vars').querySelector('button.active'), r = a && R(a);                // la riga che scorre e' portata alla pillola accesa
-        log(!!a && r.left >= -0.5 && r.right <= innerWidth + 0.5, 'telefono: la pillola della variabile aperta si vede subito',
-            a ? JSON.stringify([a.textContent.trim(), Math.round(r.left), Math.round(r.right)]) : 'nessuna'); }
-      eq('telefono, Arba: riquadri', tileTxt().map(t => t[0]), ['Temperatura', 'Pioggia 24 h', 'Vento', 'Umidità']);
-      { const T = tiles(), ov = [];
-        T.forEach((a, i) => T.slice(i + 1).forEach(b => { if(meet(R(a), R(b))) ov.push(i); }));
-        log(T.length === 4 && !ov.length && T.every(b => R(b).left >= -0.5 && R(b).right <= innerWidth + 0.5 && b.scrollWidth <= b.clientWidth + 1),
-            'telefono: riquadri interi, dentro lo schermo, non sovrapposti', JSON.stringify([T.map(b => [Math.round(R(b).left), Math.round(R(b).right)]), ov]));
-        eq('telefono: nei riquadri nessuna parola spezzata', wholeWords(T), []); }
-      { const order = ['phead', 'ptiles', 'pbar', 'chartwrap'].map(el), bad = [];
-        for(let i = 1; i < order.length; i++) if(!order[i] || !order[i - 1] || R(order[i]).top < R(order[i - 1]).bottom - 1) bad.push(i);
-        log(!bad.length, 'telefono: nome, riquadri, comandi e grafico uno sotto l\'altro', JSON.stringify(order.map(e => e && [Math.round(R(e).top), Math.round(R(e).bottom)]))); }
-      noOverflow('telefono, Arba');
-      click('pclose'); await sleep(200);
-      log(!shown() && vis(el('dock')) && !location.hash, 'telefono: × chiude, la plancia torna', location.hash);
-
-      // foglio basso -> pannello -> basso -> chiuso
-      map.setView([46.1, 13.0], 10, { animate:false }); await sleep(300);
-      const lone = r => markerRefs.every(o => o === r || Math.hypot(scr(o.p)[0] - scr(r.p)[0], scr(o.p)[1] - scr(r.p)[1]) > 14);
-      const B = markerRefs.find(r => r.p.latest && r.p.latest.TEMP != null && map.getBounds().pad(-0.2).contains(r.m.getLatLng()) && lone(r));
-      log(!!B, 'telefono: un puntino isolato', '');
-      if(!B) return finish();
-      const BP = B.p;
-      map.panTo(B.m.getLatLng(), { animate:false }); await sleep(200);
-      const tapAt = p => { const [x, y] = scr(p);
-        map.getContainer().dispatchEvent(new PointerEvent('pointerdown', { pointerType:'touch', clientX:x, clientY:y, bubbles:true }));
-        clickAt([p._lat, p._lon]); };
-      const drag = (e, dy) => { const r = R(e), x = r.left + r.width / 2, y = r.top + r.height / 2;
-        e.dispatchEvent(new PointerEvent('pointerdown', { pointerType:'touch', isPrimary:true, clientX:x, clientY:y, bubbles:true }));
-        e.dispatchEvent(new PointerEvent('pointerup', { pointerType:'touch', isPrimary:true, clientX:x, clientY:y + dy, bubbles:true })); };
-      tapAt(BP); await sleep(200);
-      log(vis(el('sheet')) && !shown() && !vis(el('dock')), 'telefono: tocco = foglio basso, plancia nascosta', '');
-      const sg = el('sheet').querySelector('.sh-grab');
-      if(sg) drag(sg, -80);
-      await until(() => shown() && currentStation === BP && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
-      log(shown() && currentStation === BP && !vis(el('sheet')) && !vis(el('dock')), 'telefono: trascinato in su diventa il pannello completo',
-          JSON.stringify([shown(), currentStation && currentStation.scode, vis(el('sheet')), vis(el('dock'))]));
-      { const pn = el('panel'), pn2 = R(pn), long = pn.scrollHeight > pn.clientHeight;   // scorre se il contenuto e' piu' alto
-        if(long){ pn.scrollTop = 60; await sleep(50); }
-        log(Math.abs(pn2.bottom - innerHeight) <= 0.5 && getComputedStyle(pn).overflowY === 'auto' && (!long || pn.scrollTop > 0),
-            'telefono: pannello a tutta altezza, scorre', JSON.stringify([pn2.top, pn2.bottom, pn.scrollHeight, pn.clientHeight, pn.scrollTop]));
-        pn.scrollTop = 0; await sleep(50); }
-      const pg = el('panel').querySelector('.pn-grab');
-      log(vis(pg), 'telefono: linguetta in cima al pannello', '');
-      if(pg) drag(pg, 80);
-      await sleep(250);
-      log(!shown() && vis(el('sheet')) && el('sheet').textContent.includes(NM(BP)) && !vis(el('dock')) && !!stationRing && map.hasLayer(stationRing),
-          'telefono: trascinato in giù torna basso (stessa stazione, cerchiata)', JSON.stringify([shown(), vis(el('sheet')), vis(el('dock'))]));
-      if(sg) drag(sg, 80);
-      await sleep(250);
-      log(!vis(el('sheet')) && !shown() && vis(el('dock')), 'telefono: ancora in giù si chiude, la plancia torna', '');
-      tapAt(BP); await sleep(200);
-      el('sheetOpen').click(); await until(() => shown() && currentStation === BP, 8000); await sleep(200);
-      log(shown() && !vis(el('sheet')) && !vis(el('dock')), 'telefono: "Apri la scheda" apre il pannello completo', '');
-      click('pclose'); await sleep(200);
-      log(!shown() && !vis(el('sheet')) && vis(el('dock')), 'telefono: × lo chiude del tutto', '');
-      errs();
-      return finish();
-    }
-
-    // desktop: clic su un puntino vicino al bordo destro (aprendo il pannello finirebbe sotto)
-    map.setView([P._lat, P._lon], 12, { animate:false }); await sleep(300);
-    { const [x, y] = scr(P); map.panBy([x - (innerWidth - 120), y - innerHeight / 2], { animate:false }); await sleep(300); }
-    map.getContainer().dispatchEvent(new PointerEvent('pointerdown', { pointerType:'mouse', bubbles:true }));
-    clickAt([P._lat, P._lon]);
-    await until(() => currentStation === P && shown() && !!el('chart').querySelector('canvas'), 8000); await sleep(600);
-    const pnR = () => R(el('panel'));
-    log(shown() && currentStation === P, 'clic sul puntino: si apre il pannello', currentStation && currentStation.scode);
-    log(Math.abs(pnR().width - 400) <= 1 && Math.abs(pnR().right - innerWidth) <= 1, 'pannello a destra, largo 400 px', JSON.stringify([pnR().left, pnR().right, pnR().width]));
-    { const m = R(el('map'));
-      log(Math.abs(m.left) <= 1 && Math.abs(m.right - pnR().left) <= 1, 'la mappa resta a sinistra, fino al pannello', JSON.stringify([m.left, m.right, pnR().left])); }
-    log(inMap(P), 'la stazione si vede nella mappa (che si e\' spostata)', JSON.stringify([scr(P), R(el('map')).right]));
-    { const rg = typeof stationRing !== 'undefined' && stationRing, mk = markerRefs.find(r => r.p === P), ll = rg && rg.getLatLng();
-      log(!!rg && map.hasLayer(rg) && !!ll && Math.abs(ll.lat - P._lat) < 1e-9 && Math.abs(ll.lng - P._lon) < 1e-9 && !!mk && rg.getRadius() > mk.m.getRadius() && !rg.options.interactive,
-          'la stazione e\' cerchiata', JSON.stringify([!!rg, ll, mk && mk.m.getRadius(), rg && rg.getRadius()])); }
-    { const nm = el('stationName'), mt = el('stationMeta'), A1 = ['copylink', 'pexp', 'pclose'].map(el);
-      eq('riga 1: nome', nm.textContent, 'Padova');
-      log(/^234 · ultimo dato \S/.test(mt.textContent), 'riga 1: codice e ultimo dato', mt.textContent);
-      eq('riga 1: Link, ⤢, ×', A1.map(e => !!e && vis(e) && e.textContent.trim()), ['Link', '⤢', '×']);
-      log(A1.every(Boolean) && [nm, mt, ...A1].every(e => Math.abs(mid(e) - mid(nm)) <= 6) && R(A1[2]).right <= innerWidth && R(A1[2]).right >= innerWidth - 40 &&
-          R(A1[0]).right <= R(A1[1]).left && R(A1[1]).right <= R(A1[2]).left, 'riga 1: nome, dati e azioni su una riga, le azioni a destra',
-          JSON.stringify([nm, mt, ...A1].map(e => e && Math.round(mid(e))))); }
-    { const F = ['refresh', 'download', 'exportpng'].map(el), c = R(el('chartwrap'));
-      log(F.every(e => vis(e) && R(e).top >= c.bottom - 1 && R(e).left >= pnR().left), 'in fondo Aggiorna, CSV e PNG, sotto il grafico',
-          JSON.stringify(F.map(e => e && [Math.round(R(e).top), vis(e)]).concat([Math.round(c.bottom)]))); }
-    brandOk('pannello a 400 px');
-    // nel pannello da 400 px i modi (7 g · 3 g · 24 h · Confronti · Impilato · Storico) stanno interi su una riga loro, sotto le
-    // pillole delle variabili, e si vedono senza scorrere: nel pannello, in ogni riga che scorre e al loro posto (hit test)
-    const MODES = () => [...document.querySelectorAll('#modes > .mode[data-mode], #cmpBtn, #stackbtn, #histbtn')].filter(vis);
-    const whole = e => { const r = R(e), p = pnR();
-      if(r.left < p.left - 0.5 || r.right > p.right + 0.5) return false;
-      for(let a = e.parentElement; a && a !== el('panel'); a = a.parentElement)
-        if(getComputedStyle(a).overflowX !== 'visible'){ const q = R(a); if(r.left < q.left - 0.5 || r.right > q.right + 0.5) return false; }
-      const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && e.contains(h); };
-    const modesOk = tag => { const M = MODES(), rows = new Set(M.map(e => Math.round(mid(e)))), chips = [...el('vars').children].filter(vis);
-      log(M.length >= 5 && M.every(whole) && rows.size === 1 && (!chips.length || Math.min(...M.map(e => R(e).top)) >= Math.max(...chips.map(e => R(e).bottom)) - 1),
-          tag + ': i modi interi e visibili su una riga loro, sotto le variabili',
-          JSON.stringify(M.map(e => [e.dataset.mode || e.id, Math.round(R(e).left), Math.round(R(e).right), whole(e)]).concat([[...rows], Math.round(pnR().right)]))); };
-    await until(() => vis(el('histbtn')), 5000);
-    modesOk('Padova');
-
-    // riquadri dei valori, secondo il tipo di stazione (valori ricalcolati dalla serie: ultimo dato, punto decimale)
-    const last = (p, v) => { const c = p._table && p._table.cols[v]; if(c) for(let i = c.length - 1; i >= 0; i--) if(c[i] != null) return i; return -1; };
-    const unit = (p, v) => (unitsByRegion[p._region] || {})[v] || '';
-    const r2 = x => String(Math.round(x * 100) / 100);
-    const txt = (p, v) => { const i = last(p, v); if(i < 0) return null; let x = p._table.cols[v][i];
-      if(v === 'LIVIDRO' && p.zero_idro != null){ x = Math.round((x * (unit(p, v) === 'cm' ? 0.01 : 1) + p.zero_idro) * 1000) / 1000; return r2(x) + ' m s.m.m.'; }
-      if(v === 'EAQI') return EAQI_BANDS[Math.max(1, Math.min(6, Math.round(x))) - 1].l;
-      return r2(x) + (unit(p, v) ? ' ' + unit(p, v) : ''); };
-    // variazione in 3 ore: in metri con due decimali (anche col cm portato a metri dallo zero idrometrico), in cm senza decimali
-    const d3 = (p, v) => { const c = p._table.cols[v], X = p._table.x, i = last(p, v); let j = i;
-      while(j >= 0 && !(c[j] != null && X[j] <= X[i] - 3 * 3600)) j--;
-      if(i < 0 || j < 0 || X[j] < X[i] - 4 * 3600) return null;
-      const cm = unit(p, v) === 'cm' && p.zero_idro == null, raw = (c[i] - c[j]) * (unit(p, v) === 'cm' && !cm ? 0.01 : 1);
-      const d = cm ? Math.round(raw) : Math.round(raw * 100) / 100;
-      return (d > 0 ? '+' : '') + (cm ? String(d) : d.toFixed(2)) + (cm ? ' cm' : ' m'); };
-    const DIR16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
-    const checkTiles = (tag, p, want) => {
-      eq(tag + ': riquadri (etichetta e valore)', tileTxt(), want);
-      const T = tiles(), ov = [];
-      T.forEach((a, i) => T.slice(i + 1).forEach(b => { if(meet(R(a), R(b))) ov.push(i); }));
-      log(T.length >= 1 && T.length <= 4 && !ov.length && T.every(b => R(b).left >= pnR().left - 0.5 && R(b).right <= pnR().right + 0.5 && !/,|undefined|NaN|null/.test(b.textContent)),
-          tag + ': al massimo quattro, nel pannello, non sovrapposti, punto decimale', JSON.stringify(T.map(b => b.textContent)));
-      eq(tag + ': nessuna parola spezzata', wholeWords(T), []);
-    };
-    log(!!el('ptiles'), 'riquadri dei valori', 'assenti');
-    checkTiles('meteo (Padova)', P, [['Temperatura', txt(P, 'TEMP')], ['Pioggia 24 h', txt(P, 'PREC24')], ['Umidità', txt(P, 'UMID')]]);
-    { const t = tile('Pioggia 24 h'); if(t) t.click(); await until(() => currentVar === 'PREC', 3000); await sleep(200);
-      const chip = el('vars').querySelector('[data-var="PREC"]');
-      log(currentVar === 'PREC' && !!chip && chip.classList.contains('active') && !!t && t.classList.contains('on') && !!el('chart').querySelector('canvas'),
-          'clic su "Pioggia 24 h": la pioggia nel grafico', currentVar);
-      const u = tile('Umidità'); if(u) u.click(); await until(() => currentVar === 'UMID', 3000);
-      log(currentVar === 'UMID' && !!u && u.classList.contains('on') && !(t && t.classList.contains('on')), 'clic su "Umidità": l\'umidità nel grafico', currentVar); }
-    await open(I);
-    checkTiles('idrometro (Posina)', I, [['Livello', txt(I, 'LIVIDRO')], ['Variazione 3 h', d3(I, 'LIVIDRO')], ['Portata', txt(I, 'PORTATA')]]);
-    { const t = tile('Portata'); if(t) t.click(); await until(() => currentVar === 'PORTATA', 3000);
-      const t2 = tile('Variazione 3 h'); if(t2) t2.click(); await until(() => currentVar === 'LIVIDRO', 3000);
-      log(currentVar === 'LIVIDRO' && !!t2 && t2.classList.contains('on'), 'clic su "Variazione 3 h": il livello nel grafico', currentVar);
-      log(!!t2 && t2.classList.contains('on') && !tile('Livello').classList.contains('on'), 'clic su "Variazione 3 h": acceso solo quel riquadro, non "Livello"',
-          tiles().filter(b => b.classList.contains('on')).map(b => b.textContent).join(' | '));
-      const t3 = tile('Livello'); if(t3) t3.click(); await sleep(150);
-      log(!!t3 && t3.classList.contains('on') && !t2.classList.contains('on'), 'clic su "Livello": acceso solo "Livello"',
-          tiles().filter(b => b.classList.contains('on')).map(b => b.textContent).join(' | ')); }
-    { const G = st('LOM', '1876');                                                 // idrometro in cm, senza zero idrometrico (Tirano)
-      if(G){ await open(G);
-        checkTiles('idrometro in cm (Tirano)', G, [['Livello', txt(G, 'LIVIDRO')], ['Variazione 3 h', d3(G, 'LIVIDRO')]]);
-        log(/^[+-]?\d+ cm$/.test((tileTxt()[1] || [])[1] || ''), 'variazione in cm senza decimali', JSON.stringify(tileTxt())); }
-      else log(false, 'idrometro in cm (LOM 1876) trovato', ''); }
-    await open(Q);
-    checkTiles('aria (Calusco)', Q, [['Qualità aria', txt(Q, 'EAQI')], ['PM10', txt(Q, 'PM10')], ['NO₂', txt(Q, 'NO2')], ['O₃', txt(Q, 'O3')]]);
-    { const t = tile('Qualità aria'); if(t) t.click(); await until(() => currentVar === 'EAQI' && currentPage === 'indici', 5000); await sleep(200);
-      const chip = el('vars').querySelector('[data-var="EAQI"]');
-      log(currentVar === 'EAQI' && currentPage === 'indici' && !!chip && chip.classList.contains('active'), 'clic su "Qualità aria": l\'indice nel grafico (pagina Indici)', currentVar + ' ' + currentPage);
-      document.querySelector('#pages .pg[data-page="dirette"]').click(); await until(() => currentPage === 'dirette'); await sleep(200); }
-    await open(S);                                                                // marea e onde, poi i valori chiave che ha: vento (con la direzione) e umidita'
-    checkTiles('mare (Acqua Alta)', S, [['Marea', txt(S, 'MAREA')], ['Onde', txt(S, 'ONDE')],
-                                       ['Vento', txt(S, 'VVENTO') + ' ' + DIR16[Math.round(S._table.cols.DVENTO[last(S, 'DVENTO')] / 22.5) % 16]], ['Umidità', txt(S, 'UMID')]]);
-
-    // stazioni aperte come pillole: solo con almeno due; × ne chiude una; al massimo 8, la piu' vecchia esce
-    showMapView(); openTabs.length = 0;
-    await open(P);
-    log(!pills().length, 'una stazione: niente pillole', JSON.stringify(pillNames()));
-    await open(V); await open(A);
-    eq('tre stazioni: tre pillole in ordine', pillNames(), [NM(P), NM(V), NM(A)]);
-    log(!!pill(NM(A)) && pill(NM(A)).classList.contains('on'), 'pillola accesa: l\'ultima aperta', '');
-    { const b = pill(NM(V)); if(b) (b.querySelector('.pt-n') || b).click(); await until(() => currentStation === V && !!el('chart').querySelector('canvas'), 8000); await sleep(200);
-      log(currentStation === V && pill(NM(V)).classList.contains('on'), 'clic su una pillola: quella stazione', currentStation && currentStation.scode); }
-    { const b = pill(NM(P)), x = b && b.querySelector('.pt-x'); if(x) x.click(); await sleep(300);
-      eq('× su una pillola: quella stazione si chiude', [pillNames(), currentStation && currentStation.scode], [[NM(V), NM(A)], '79']); }
-    { const b = pill(NM(V)), x = b && b.querySelector('.pt-x'); if(x) x.click();
-      await until(() => currentStation === A && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
-      log(currentStation === A && shown() && !pills().length, '× sulla pillola aperta: passa all\'ultima rimasta (una: niente pillole)', JSON.stringify([currentStation && currentStation.scode, pillNames()])); }
-    const more = allFeatures.map(f => f.properties).filter(p => ![P, V, A, I, Q, S].includes(p) && (p.variables || []).includes('TEMP')).slice(0, 3);
-    for(const p of [P, V, I, Q, S, ...more]) await open(p);
-    eq('al massimo 8 pillole: esce la più vecchia (Arba)', pillNames(), [P, V, I, Q, S, ...more].map(NM));
-    // Confronto schede nel pannello, largo
-    const cb = el('cmpBtn');
-    if(cb){ cb.scrollIntoView({ block:'nearest', inline:'nearest' }); cb.click(); await sleep(80);
-      const it = el('cmpMenu').querySelector('[data-mode="tabs"]'); if(it) it.click(); }
-    await until(() => document.body.classList.contains('view-compare'), 8000); await sleep(600);
-    log(document.body.classList.contains('view-compare') && shown() && el('stationName').textContent === 'Confronto schede', 'Confronto schede nel pannello', '');
-    log(!!pill('Confronto') && pill('Confronto').classList.contains('on') && pillNames().length === 9, 'pillola "Confronto" accesa, in fondo', JSON.stringify(pillNames()));
-    log(Math.abs(pnR().width - 0.7 * innerWidth) <= 2 && !tiles().length, 'Confronto: pannello al 70 %, niente riquadri', pnR().width);
-    { const b = pill('Confronto'), x = b && b.querySelector('.pt-x'); if(x) x.click();
-      await until(() => !document.body.classList.contains('view-compare') && shown() && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
-      log(!document.body.classList.contains('view-compare') && shown() && !pill('Confronto') && Math.abs(pnR().width - 400) <= 1,
-          '× su "Confronto": torna la stazione, 400 px', JSON.stringify([currentStation && currentStation.scode, pnR().width])); }
-
-    // ⤢ al 70 % e ritorno (la mappa resta una striscia a sinistra, la stazione dentro); la riga 2 va a capo
-    await open(A);
-    const ctlLeft = () => ctl().every(c => R(c).right <= pnR().left + 0.5);
-    log(ctl().length >= 2 && ctlLeft(), 'pulsanti della mappa a sinistra del pannello', JSON.stringify(ctl().map(c => Math.round(R(c).right)).concat([pnR().left])));
-    { const C = [...el('vars').children].filter(vis), Pl = pills(), out = [...C, ...Pl].filter(e => !whole(e));     // col mouse si arriva a tutto:
-      log(C.length >= 10 && Pl.length === 8 && !out.length, 'a 400 px tutte le pillole delle variabili (' + C.length + ') e delle stazioni (' + Pl.length + ') di Arba dentro il pannello',
-          JSON.stringify(out.slice(0, 4).map(e => [e.textContent.trim().slice(0, 18), Math.round(R(e).left), Math.round(R(e).right)]))); }   // niente righe che scorrono nascoste
-    modesOk('Arba (molte variabili)');
-    log(!!el('pexp') && el('pexp').getAttribute('aria-pressed') === 'false', '⤢: spento all\'inizio', el('pexp') && el('pexp').outerHTML.slice(0, 120));
-    click('pexp'); await sleep(500);
-    log(Math.abs(pnR().width - 0.7 * innerWidth) <= 2 && Math.abs(R(el('map')).right - pnR().left) <= 1 && Math.abs(R(el('map')).width - 0.3 * innerWidth) <= 2,
-        '⤢: pannello al 70 %, mappa come striscia a sinistra', JSON.stringify([pnR().width, R(el('map')).width, innerWidth]));
-    log(!!el('pexp') && el('pexp').getAttribute('aria-pressed') === 'true' && ls('panelWide') === '1', '⤢: acceso e ricordato', ls('panelWide'));
-    log(inMap(A) && ctlLeft(), '⤢: stazione nella striscia, pulsanti a sinistra del pannello', JSON.stringify(scr(A)));
-    log(!!el('brand') && !vis(el('brand')), '⤢: niente "Simulaqua Meteo" (la mappa e\' una striscia)', '');
-    { const c = [...document.querySelectorAll('#vars > button, #modes > button')].filter(vis), rows = new Set(c.map(e => Math.round(mid(e))));
-      log(getComputedStyle(el('pbar')).flexWrap === 'wrap' && el('pbar').scrollWidth <= el('pbar').clientWidth + 1 && rows.size >= 2, '⤢: la riga 2 va a capo', JSON.stringify([...rows])); }
-    noOverflow('⤢, Arba');
-    click('pexp'); await sleep(500);
-    log(Math.abs(pnR().width - 400) <= 1 && el('pexp').getAttribute('aria-pressed') === 'false' && ls('panelWide') === '0', '⤢ di nuovo: 400 px', pnR().width + ' ' + ls('panelWide'));
-
-    // la scheda al passaggio non copre mai il pannello (puntino isolato accanto al pannello, stretto e largo)
-    const card = el('hoverCard');
-    const move = (x, y) => { const t = document.elementFromPoint(x, y);
-      if(t){ t.dispatchEvent(new PointerEvent('pointermove', { pointerType:'mouse', clientX:x, clientY:y, bubbles:true }));
-             t.dispatchEvent(new MouseEvent('mousemove', { clientX:x, clientY:y, bubbles:true })); } };
-    map.setView([46.1, 13.0], 10, { animate:false }); await sleep(300);
-    const loneP = r => markerRefs.every(o => o === r || Math.hypot(scr(o.p)[0] - scr(r.p)[0], scr(o.p)[1] - scr(r.p)[1]) > 14);
-    const H = markerRefs.find(r => map.getBounds().pad(-0.2).contains(r.m.getLatLng()) && loneP(r));
-    for(const wide of [false, true]){
-      if(wide){ click('pexp'); await sleep(500); }
-      const tag = wide ? '⤢' : '400 px';
-      if(!H){ log(false, tag + ': un puntino isolato', ''); continue; }
-      { const [x, y] = scr(H.p); map.panBy([x - (R(el('map')).right - 30), y - (R(el('map')).top + R(el('map')).height * 0.6)], { animate:false }); await sleep(200); }
-      move(5, innerHeight / 2); await sleep(80); move(...scr(H.p)); await until(() => vis(card), 2000); await sleep(100);
-      log(vis(card) && !meet(R(card), pnR()) && R(card).right <= pnR().left + 0.5, tag + ': la scheda al passaggio resta sulla mappa, mai sul pannello',
-          JSON.stringify([vis(card), R(card).left, R(card).right, pnR().left]));
-      move(5, innerHeight / 2); await sleep(150);
-    }
-    // plancia del Cursore accanto al pannello, intera e usabile (a 400 px e al 70 %)
-    setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
-    await openSlider(); await until(() => snap.on && snap.T.length, 20000); await sleep(400);
-    const dockOk = tag => {
-      const d = el('dock'), D = R(d), V0 = R(el('views')), pr = R(el('tsPlay')), h = document.elementFromPoint(pr.left + pr.width / 2, pr.top + pr.height / 2);
-      const out = [...d.querySelectorAll('*')].filter(e => vis(e) && (R(e).left < D.left - 0.5 || R(e).right > D.right + 0.5)).map(e => e.id || e.className || e.tagName);
-      log(vis(d) && D.right <= pnR().left + 0.5 && D.left >= V0.left - 0.5 && !out.length && !!h && el('tsPlay').contains(h) && R(el('tsRange')).width >= 80,
-          tag + ': plancia del Cursore accanto al pannello, intera e usabile', JSON.stringify([Math.round(D.left), Math.round(D.right), Math.round(pnR().left), out.slice(0, 4), h && (h.id || h.tagName), Math.round(R(el('tsRange')).width)]));
-    };
-    dockOk('⤢');
-    click('pexp'); await sleep(500);
-    dockOk('400 px');
-    closeSlider(); setMapVar(''); await until(() => filterVar === '');
-
-    // i comandi della mappa cambiano solo la mappa: con un idrometro aperto (niente pioggia) Pioggia, Radar, Cursore, un'altra
-    // variabile, un'altra regione e "Azzera i filtri" lasciano il pannello sulla stazione (stessa variabile), cerchiata e
-    // visibile anche dove il filtro della mappa la toglierebbe, con la sua ancora
-    await open(I);
-    const v0 = currentVar;
-    const kept = async tag => { await sleep(400);
-      const rg = typeof stationRing !== 'undefined' && stationRing, ll = rg && rg.getLatLng();
-      log(shown() && !!currentStation && currentStation._region === 'VEN' && currentStation.scode === '194' && currentVar === v0 && !!el('chart').querySelector('canvas') &&
-          !!rg && map.hasLayer(rg) && Math.abs(ll.lat - I._lat) < 1e-9 && Math.abs(ll.lng - I._lon) < 1e-9 && map.getBounds().contains(ll) && /^#VEN\/194\//.test(location.hash),
-          tag + ': il pannello resta sull\'idrometro (stessa variabile), cerchiato e visibile, ancora sua',
-          JSON.stringify([shown(), currentStation && currentStation.scode, currentVar, !!rg && map.hasLayer(rg), !!ll && map.getBounds().contains(ll), location.hash])); };
-    el('mcRain').click(); await until(() => isRain(filterVar), 5000); await kept('Pioggia');
-    el('mcRain').click(); await sleep(200);
-    el('mcRadar').click(); await until(() => Radar.on, 20000);
-    log(Radar.on, 'Radar acceso', Radar.state);
-    await kept('Radar');
-    el('mcRadar').click(); await until(() => !Radar.on, 5000); await kept('Radar spento');
-    el('mcSnap').click(); await until(() => snap.on && snap.T.length, 20000); await kept('Cursore');
-    closeSlider(); await sleep(100);
-    el('varPill').click(); await sleep(80);
-    { const it = [...el('pillMenu').querySelectorAll('[data-v]')].find(b => b.dataset.v && !(I.variables || []).includes(b.dataset.v)); if(it) it.click(); }
-    await sleep(200); await kept('un\'altra variabile (' + filterVar + ')');
-    el('regPill').click(); await sleep(80);
-    { const it = el('pillMenu').querySelector('[data-v="FVG"]'); if(it) it.click(); }
-    await until(() => el('region').value === 'FVG' && allFeatures.length > 0 && allFeatures.every(f => REGION_GROUPS.FVG.includes(f.properties._region)) && !el('status').textContent, 20000);
-    await kept('un\'altra regione (Friuli V.G.)');
-    el('moreBtn').click(); await sleep(50); el('resetBtn').click();
-    await until(() => el('region').value === 'ALL' && allFeatures.length > 2000 && !el('status').textContent, 20000); await sleep(500);
-    await kept('"Azzera i filtri"');
-    [P, V, A, I, Q, S] = [st('VEN', '234'), st('VEN', '79'), st('FVG', 'A280'), st('VEN', '194'), st('AQ_LOM', '685'), st('MAR_VEN', '1021')];
-    { const b = pill(NM(A)), n = b && (b.querySelector('.pt-n') || b); if(n) n.click();       // aperta prima dei ricaricamenti: dalla sua pillola ha l'anello
-      await until(() => currentStation && currentStation.scode === 'A280' && !!el('chart').querySelector('canvas'), 8000); await sleep(400);
-      const rg = typeof stationRing !== 'undefined' && stationRing, ll = rg && rg.getLatLng();
-      log(!!rg && map.hasLayer(rg) && !!ll && Math.abs(ll.lat - A._lat) < 1e-9 && Math.abs(ll.lng - A._lon) < 1e-9, 'dopo i ricaricamenti, una stazione riaperta dalla sua pillola e\' cerchiata',
-          JSON.stringify([!!rg && map.hasLayer(rg), ll])); }
-    document.querySelector('#pages .pg[data-page="dirette"]').click(); await until(() => currentPage === 'dirette'); await sleep(300);
-
-    // × chiude: niente pannello ne' ancora, la mappa torna intera, la stazione esce dalle pillole e non e' piu' cerchiata
-    await open(P);
-    log(/^#VEN\/234\//.test(location.hash), 'ancora della stazione', location.hash);
-    const before = pillNames();
-    el('pclose').focus(); click('pclose'); await sleep(400);
-    log(!shown() && !location.hash && Math.abs(R(el('map')).width - innerWidth) <= 1 && !(typeof stationRing !== 'undefined' && stationRing && map.hasLayer(stationRing)),
-        '× chiude: mappa intera, niente ancora, niente anello', JSON.stringify([shown(), location.hash, R(el('map')).width]));
-    log(document.activeElement === el('stationQ'), '×: il fuoco passa alla ricerca', document.activeElement && (document.activeElement.id || document.activeElement.tagName));
-    await open(A);                                                                // Arba era gia' fra le pillole
-    eq('× : la stazione chiusa non e\' piu\' fra le pillole, le altre restano', pillNames(), before.filter(n => n !== NM(P)));
-    // Esc: con un menu aperto chiude solo il menu; senza, chiude il pannello e il fuoco passa alla ricerca
-    const esc = () => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
-    el('cmpBtn').focus(); el('cmpBtn').click(); await sleep(80);
-    esc(); await sleep(100);
-    log(shown() && el('cmpMenu').hidden, 'Esc col menu Confronti aperto: si chiude il menu, il pannello resta', JSON.stringify([shown(), el('cmpMenu').hidden]));
-    esc(); await sleep(300);
-    log(!shown() && !location.hash && document.activeElement === el('stationQ'), 'Esc: chiude il pannello, il fuoco passa alla ricerca',
-        JSON.stringify([shown(), location.hash, document.activeElement && (document.activeElement.id || document.activeElement.tagName)]));
-    if(shown()) click('pclose');
-    el('stationQ').blur(); await sleep(100);
-    // un link apre il pannello
-    history.replaceState(null, '', '#VEN/234/UMID'); await applyHash();
-    await until(() => currentStation === P && shown() && currentVar === 'UMID', 8000); await sleep(400);
-    log(currentStation === P && shown() && currentVar === 'UMID' && inMap(P), 'link #VEN/234/UMID: pannello aperto, stazione nella mappa', location.hash);
-    // ⤢ acceso, un link nell'indirizzo e la pagina si ricarica: la seconda parte controlla (vedi sopra)
-    click('pexp'); await sleep(300);
-    errs();
-    try { sessionStorage.setItem(KEY, JSON.stringify(res)); } catch(e){ log(false, 'sessionStorage', String(e)); return finish(); }
-    // ricarica verso un indirizzo scritto qui (questa pagina, la stessa suite, il link): non dipende dall'indirizzo del momento
-    location.replace(HERE + (HERE.includes('?') ? '&' : '?') + 'ricarica=1#VEN/79/PREC');
-  }
-
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
-            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede, drawer:suiteDrawer })[suite]())
+            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();
