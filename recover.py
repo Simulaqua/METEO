@@ -18,8 +18,9 @@
 #   LOM  - Socrata storico: query a chunk temporali (<50000 righe/richiesta).
 #   TN   - la fonte espone solo ieri e oggi: dopo un buco il primo giro riprende da dove si era fermato (fino a ieri).
 #   FVG  - la fonte espone solo l'ultima osservazione oraria: NESSUNO storico, buchi non recuperabili.
-# Indirizzi, variabili e conversioni delle fonti sono quelli degli script di scarico, importati come moduli: un nome
-# sparito da uno script ferma la sua regione con ERRORE.
+# Indirizzi, variabili e conversioni delle fonti vengono dagli script di scarico, importati come moduli (salvo
+# BZ_TIMESERIES_URL, la serie storica che dati_altoadige.py non chiede): un nome sparito da uno script ferma la sua
+# regione con ERRORE.
 #
 # Uso:  python3 recover.py -r all                (tutte; salta dove non c'e' buco)
 #       python3 recover.py -r LOM --days 2        (una regione, finestra 2 giorni)

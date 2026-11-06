@@ -63,11 +63,12 @@ def value_key(region):
 
 
 def save_json(data, path, sort_keys=False):
-    """Scrittura atomica: su .tmp, fsync, poi rename; un kill a metà non lascia mai un .json monco."""
+    """Scrittura atomica: su .tmp, fsync, poi rename; un kill a metà non lascia mai un .json monco. Il .tmp ha il pid
+    nel nome: due processi che scrivono lo stesso file (recover.py e uno scarico) non si mescolano nel temporaneo."""
     folder = os.path.dirname(path)
     if folder:
         os.makedirs(folder, exist_ok=True)
-    tmp = path + '.tmp'
+    tmp = '%s.%d.tmp' % (path, os.getpid())
     with open(tmp, 'w', encoding='utf-8') as fp:
         json.dump(data, fp, ensure_ascii=False, separators=(',', ':'), sort_keys=sort_keys)
         fp.flush()
@@ -168,7 +169,10 @@ def merge_readings(parse_dir, var, readings, new_record):
     added = 0
     for day, per in by_day.items():
         fn = os.path.join(parse_dir, var + '-' + day + '.json')
-        bin_day = load_json(fn)
+        # un giorno già compresso (la compressione delle 03:30) riparte dal .json.gz, che resta com'è: il .json
+        # scritto vince in day_files e con i soli punti nuovi nasconderebbe il resto del giorno
+        source = fn + '.gz' if not os.path.exists(fn) and os.path.exists(fn + '.gz') else fn
+        bin_day = load_json(source)
         for sc, pts in per.items():
             rec = bin_day.get(sc)
             if rec is None:

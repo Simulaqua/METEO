@@ -107,6 +107,15 @@ class TestJson(unittest.TestCase):
         with open(p, 'rb') as fp:
             self.assertEqual(fp.read(), b'{"b":1,"a":2}')
 
+    def test_temporaneo_per_processo(self):
+        # recover.py e uno scarico possono scrivere lo stesso file nello stesso momento: con un temporaneo comune il
+        # JSON uscirebbe mescolato
+        p = os.path.join(self.dir, 'f.json')
+        with mock.patch.object(comune.os, 'replace', wraps=os.replace) as replace:
+            save_json({'a': 1}, p)
+        replace.assert_called_once_with('%s.%d.tmp' % (p, os.getpid()), p)
+        self.assertEqual(os.listdir(self.dir), ['f.json'])
+
     def test_carica_mancante_vuoto_rotto(self):
         vuoto = os.path.join(self.dir, 'vuoto.json')
         rotto = os.path.join(self.dir, 'rotto.json')
@@ -256,6 +265,24 @@ class TestAttrezziParte3(unittest.TestCase):
         self.assertEqual(dati['S1']['MISURE']['ISTANTE'], ['202601100000', '202601100050', '202601100100'])
         self.assertEqual(dati['S1']['MISURE']['VALORE'], [1.0, 1.5, 2.0])
         self.assertEqual(dati['S2']['MISURE']['VALORE'], [4.0])
+
+    def test_merge_readings_su_un_giorno_compresso(self):
+        # il giorno c'è solo come .json.gz (la compressione delle 03:30): il .json scritto deve avere tutto il giorno,
+        # perché day_files lo preferisce al .json.gz
+        compresso = self.scrivi('TEMP-20260110.json.gz', gzip.compress(
+            b'{"S1":{"STAZIONE":{"SCODE":"S1"},"UM":"C",'
+            b'"MISURE":{"ISTANTE":["202601100000","202601100100"],"VALORE":[1.0,2.0]}}}'))
+        with open(compresso, 'rb') as fp:
+            prima = fp.read()
+        new_record = lambda sc: {'STAZIONE': {'SCODE': sc}, 'UM': 'nuovo', 'MISURE': {'ISTANTE': [], 'VALORE': []}}
+        readings = {'S1': [('202601100100', 9.0), ('202601100200', 3.0)]}
+        self.assertEqual(merge_readings(self.dir, 'TEMP', readings, new_record), 1)
+        dati = load_json(os.path.join(self.dir, 'TEMP-20260110.json'))
+        self.assertEqual(dati['S1']['UM'], 'C')
+        self.assertEqual(dati['S1']['MISURE'], {'ISTANTE': ['202601100000', '202601100100', '202601100200'],
+                                                'VALORE': [1.0, 2.0, 3.0]})
+        with open(compresso, 'rb') as fp:
+            self.assertEqual(fp.read(), prima)
 
 
 class TestCartelleGrezze(unittest.TestCase):
