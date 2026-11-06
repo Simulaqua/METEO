@@ -780,6 +780,20 @@
     log(vis(card) && !card.querySelector('.hc-spark polyline') && /^max .+ in 1 h$/.test(card.querySelector('.hc-mm').textContent),
         'scheda: un file lento non sovrascrive la variabile nuova', card.querySelector('.hc-mm').textContent);
     move(5, innerHeight / 2); setMapVar('');
+    {                                                  // "prevalente ..." sotto il grafico della direzione: sigla + freccia
+      const W = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('DVENTO') && hasVal(p.latest || {}, 'DVENTO'));
+      log(!!W, 'stazione con direzione del vento trovata', '');
+      if(W){
+        await selectStation(W); await until(() => currentStation === W); await sleep(800); drawVar('DVENTO');
+        await until(() => /prevalente/.test(el('chartstats').textContent), 6000);
+        const cs = el('chartstats'), w = cs.querySelector('.wdir'), m = w && getComputedStyle(w.querySelector('.wd-ar')).transform;
+        const rot = m && m !== 'none' ? Math.round((Math.atan2(+m.slice(7).split(',')[1], +m.slice(7).split(',')[0]) * 180 / Math.PI + 360) % 360) : -1;
+        log(/^prevalente /.test(cs.textContent) && !!w && rot >= 0 && rot % 45 === 0 && w.firstChild.textContent === SECT8[rot / 45] &&
+            w.title === 'vento da ' + SECT8[rot / 45] && w.getAttribute('aria-label') === w.title,
+            'prevalente: sigla, freccia ruotata come il settore, "vento da"', cs.innerHTML + ' rot=' + rot);
+        showMapView();
+      }
+    }
     eq('errori JS', window.__errs, []);
     finish();
   }

@@ -2557,6 +2557,17 @@ function prevailingDir(vals){
   let k = 0; for(let i = 1; i < 8; i++) if(c[i] > c[k]) k = i;
   return SECT8[k];
 }
+// gradi del centro del settore prevalente (per la freccia accanto a "prevalente NE"); null se v non e' una direzione o senza dati
+function prevailingDeg(v, xs, ys, a, b){
+  if(!isDirVar(v)) return null;
+  const vals = [];
+  for(let i = 0; i < xs.length; i++){ const x = xs[i], y = ys[i]; if(x != null && y != null && !isNaN(y) && x >= a && x <= b) vals.push(y); }
+  return vals.length ? SECT8.indexOf(prevailingDir(vals)) * 45 : null;
+}
+// scrive le statistiche in un elemento: per le direzioni "prevalente" + sigla con freccia, altrimenti testo semplice
+function setStats(node, txt, deg){
+  if(deg == null) node.textContent = txt; else node.innerHTML = 'prevalente ' + windDirHtml(deg);
+}
 // statistiche della serie (xs, ys) della variabile v sull'intervallo [a, b] (segue lo zoom). rs = info pioggia
 // (durata delle barre, buchi); unit = '' per non ripetere l'unita'
 function statsText(v, unit, xs, ys, a, b, rs){
@@ -2737,7 +2748,7 @@ function mainStats(u){
     if(r.tmin) rb.push('min ' + r.tmin.val + '°');
     if(rb.length) txt += '  ·  record storici: ' + rb.join(' / ');
   }
-  el('chartstats').textContent = txt;
+  setStats(el('chartstats'), txt, prevailingDeg(m.v, m.s1.x, m.s1.y, a, b));
 }
 
 // modo 'Confronto': una curva per ogni giorno (grigie) sovrapposte per ora del giorno; oggi in blu sopra.
@@ -2918,7 +2929,8 @@ function createStack(host, cfg){
     for(let i = 0; i < p.sx.length; i++){ const x = p.sx[i], y = p.sy[i]; if(x != null && y != null && !isNaN(y) && x >= a && x <= b) last = y; }
     p.lastTxt = last == null ? '' : fmtNum(last, p.v);
     p.statTxt = statsText(p.v, '', p.sx, p.sy, a, b, p.rs);
-    p.hs.textContent = p.statTxt;
+    p.statDeg = prevailingDeg(p.v, p.sx, p.sy, a, b);
+    setStats(p.hs, p.statTxt, p.statDeg);
     if(p.cum){                   // la curva sull'asse destro: piccola legenda accanto alle statistiche
       const c = document.createElement('span'); c.className = 'stk-cum';
       c.innerHTML = '<i></i>cumulata'; c.querySelector('i').style.background = CUMC();
@@ -3104,8 +3116,13 @@ async function exportStackPNG(){
       const tw = ctx.measureText(title).width;                      // larghezza misurata col font del titolo
       ctx.fillStyle = '#5a6b7a'; ctx.font = '17px system-ui, sans-serif';
       ctx.fillText(p.statTxt, PAD_L + 38 + tw + 18, y + 28);
+      const stw = ctx.measureText(p.statTxt).width;
+      if(p.statDeg != null){                                           // freccia ↓ ruotata (giu' = vento da N), come nella pagina
+        ctx.save(); ctx.translate(PAD_L + 38 + tw + 18 + stw + 12, y + 22); ctx.rotate(p.statDeg * Math.PI / 180);
+        ctx.textAlign = 'center'; ctx.fillText('↓', 0, 6); ctx.restore();
+      }
       if(p.cum){                                                       // legenda della curva cumulata (asse destro)
-        const sx0 = PAD_L + 38 + tw + 18 + ctx.measureText(p.statTxt).width + 22;
+        const sx0 = PAD_L + 38 + tw + 18 + stw + (p.statDeg != null ? 34 : 22);
         ctx.fillStyle = '#1a365d'; ctx.fillRect(sx0, y + 20, 22, 4);
         ctx.fillStyle = '#5a6b7a'; ctx.fillText('cumulata (asse destro)', sx0 + 30, y + 28);
       }
