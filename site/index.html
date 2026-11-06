@@ -98,13 +98,22 @@
   .tile.on { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
   .tile span { font-size:11px; line-height:15px; color:var(--muted); overflow-wrap:break-word; }
   .tile b { font-size:15px; line-height:20px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
-  /* riga 2 col pannello largo: le pillole vanno a capo una per una, i modi (nello Storico la sua barra e "Storico ×") tutti insieme */
   #vars { display:contents; }
   #modes { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; min-width:0; }
   #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
+  /* riga 2 su desktop. Pannello largo (⤢, Confronto schede): va a capo, le pillole una per una e i modi (nello Storico la sua
+     barra e "Storico ×") tutti insieme. Pannello da 400 px: le pillole delle variabili in una riga loro che scorre di lato,
+     sotto i modi interi su una riga (nello Storico la sua barra, al piu' su due righe): pulsanti un po' piu' stretti */
   @media (min-width:721px){
-    body.panel-wide #pbar, body.view-compare #pbar { flex-wrap:wrap; overflow-x:visible; }
-    body.panel-wide #modes, body.view-compare #modes { flex:0 1 auto; flex-wrap:wrap; }
+    #pbar { flex-wrap:wrap; overflow-x:visible; row-gap:8px; }
+    #modes { flex:0 1 auto; flex-wrap:wrap; row-gap:8px; }
+    body:not(.panel-wide):not(.view-compare):not(.hist-mode) #vars:not(:empty) { display:flex; flex:1 0 100%; gap:6px; overflow-x:auto;
+          scrollbar-width:none; margin:0 calc(-1 * var(--pp)); padding:0 var(--pp); }
+    #vars::-webkit-scrollbar { display:none; }
+    body:not(.panel-wide):not(.view-compare) #modes { flex:1 0 100%; }
+    body:not(.panel-wide):not(.view-compare) .pb-sep { display:none; }
+    body:not(.panel-wide):not(.view-compare) #pbar button.mode, body:not(.panel-wide):not(.view-compare) #pbar button.tog,
+    body:not(.panel-wide):not(.view-compare) .hv-seg button { padding:0 8px; }
   }
   .pb-sep { flex:none; width:1px; height:18px; margin:0 3px; background:var(--line); }
   #vars button { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--line);
@@ -450,6 +459,12 @@
   #topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-direction:column; align-items:flex-start;
             gap:8px; max-width:calc(100% - 80px); pointer-events:none; }
   #topbar > *, #pillRow > * { pointer-events:auto; }
+  /* nome del sito prima della ricerca, piccolo e in grassetto (alone del colore di fondo: si legge sopra la mappa); solo su
+     schermi larghi e con la mappa intera o accanto al pannello da 400 px, dove non stringe ricerca e pillole */
+  .tb-r { display:flex; align-items:center; gap:10px; max-width:100%; }
+  #brand { display:none; padding:0 2px; color:var(--fg); white-space:nowrap; font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+           text-shadow:0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg); }
+  @media (min-width:1000px){ #brand { display:block; } body.view-station.panel-wide #brand, body.view-compare #brand { display:none; } }
   .tb-q { position:relative; width:300px; max-width:100%; }
   .tb-q svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px; fill:none;
         stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
@@ -547,7 +562,7 @@
      la mappa a tutta altezza (la linguetta in giu' lo riporta al foglio basso) e la plancia si nasconde ---- */
   @media (max-width:720px){
     #topbar { left:10px; right:10px; top:10px; max-width:none; align-items:stretch; }
-    .tb-q { width:auto; }
+    .tb-q { width:auto; flex:1 1 auto; }
     #stationQ { height:40px; font-size:16px; }          /* 16 px: l'iPhone non ingrandisce la pagina al tocco */
     .tb-q kbd { display:none; }
     #searchList { top:46px; right:0; width:auto; max-width:none; }
@@ -632,13 +647,17 @@
     <div id="map"></div>
     <!-- barra in alto sulla mappa: ricerca e pillole (i menu si aprono sotto le pillole) -->
     <div id="topbar">
-      <div class="tb-q">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
-        <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
-               aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
-        <kbd>/</kbd>
+      <!-- nome del sito (desktop largo) e ricerca; i suggerimenti si aprono sotto il campo -->
+      <div class="tb-r">
+        <span id="brand">Simulaqua Meteo</span>
+        <div class="tb-q">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
+          <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
+                 aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
+          <kbd>/</kbd>
+          <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
+        </div>
       </div>
-      <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
       <div id="pillRow">
         <button id="pgPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Misure dirette</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
         <button id="regPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le regioni</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
@@ -4529,8 +4548,8 @@ function cardHtml(M){
          '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
          '<div class="hc-keys">' + M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' + e(k.text) + '</b></div>').join('') + '</div>';
 }
-// ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia
-const CARD_OBST = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
+// ostacoli che la scheda non deve coprire: nome del sito, ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia
+const CARD_OBST = '#brand, .tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
 function cardObstacles(){
   return [...document.querySelectorAll(CARD_OBST)].filter(o => o.getClientRects().length && o.offsetWidth).map(o => o.getBoundingClientRect());
 }

@@ -1182,9 +1182,10 @@
   // scheda della stazione su due righe: in alto nome, codice e ultimo dato, Link ⤢ × (rilascio 3: Aggiorna, CSV e PNG in
   // fondo al pannello); sotto variabili e modi (i tre confronti in "Confronti ▾"); nello Storico la sua barra al posto di
   // variabili e modi, in fondo "Storico ×".
-  // Desktop (w.html 1024x768): grafico entro 75 px dall'alto del pannello, tolte le righe del pannello accanto alla mappa
-  // (stazioni aperte, riquadri). Telefono (w.html 320/375/430, FVG/A280 con molte variabili): la seconda riga resta una e
-  // scorre di lato, niente esce dalla pagina, le azioni restano visibili
+  // Desktop (w.html 1024x768, pannello da 400 px): la seconda riga diventa due (le variabili che scorrono, sotto i modi
+  // interi), grafico entro 75 + 32 px dall'alto del pannello, tolte le righe del pannello accanto alla mappa (stazioni
+  // aperte, riquadri). Telefono (w.html 320/375/430, FVG/A280 con molte variabili): la seconda riga resta una e scorre di
+  // lato, niente esce dalla pagina, le azioni restano visibili
   async function suiteSchede(){
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2;
@@ -1202,6 +1203,12 @@
     const acts = () => ['copylink', 'pexp', 'pclose'].filter(id => vis(el(id)));                  // riga 1
     const foot = () => ['refresh', 'download', 'exportpng', 'hvCsv'].filter(id => vis(el(id)));    // in fondo al pannello
     const ACTS = phone ? ['copylink', 'pclose'] : ['copylink', 'pexp', 'pclose'];                  // ⤢ solo su desktop
+    // desktop, pannello da 400 px: la riga 2 e' su due righe (le pillole delle variabili, sotto i modi; nello Storico la sua
+    // barra va a capo al piu' una volta), quindi il grafico sta entro 75 + 32 px; il telefono resta su una riga sola
+    const B = phone ? 75 : 107, rows2 = c => { const m = c.map(mid).sort((a, b) => a - b); return m.filter((y, i) => !i || y - m[i - 1] > 6).length; };
+    const row2Ok = c => { if(phone) return sameRow(c);
+      const v = c.filter(e => e.closest('#vars')), m = c.filter(e => !e.closest('#vars'));
+      return sameRow(m) && (!v.length || (sameRow(v) && Math.min(...m.map(e => R(e).top)) >= Math.max(...v.map(e => R(e).bottom)) - 1)); };
     // riga 2 tutta sotto la riga 1 (nome, dati, azioni) e tutta sopra il grafico: niente sovrapposizioni
     const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
       return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
@@ -1232,10 +1239,11 @@
              JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
     const c2 = ctl2();
     eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'cmpBtn', 'stackbtn', 'histbtn']);
-    log(sameRow(c2) && stacked(c2, 'chart'), 'riga 2: tutta su una riga, fra la prima e il grafico',
+    log(row2Ok(c2) && stacked(c2, 'chart'), phone ? 'riga 2: tutta su una riga, fra la prima e il grafico'
+                                                   : 'riga 2: le variabili su una riga, sotto i modi su una riga loro, fra la prima e il grafico',
         JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
     M.normale = gap('chart');
-    if(!phone) log(M.normale <= 75, 'normale: grafico a ' + M.normale + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo 75)', M.normale);
+    if(!phone) log(M.normale <= B, 'normale: grafico a ' + M.normale + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.normale);
 
     // "Confronti ▾": un comando, un menu con i tre confronti
     const cb = el('cmpBtn'), cm = el('cmpMenu');
@@ -1312,14 +1320,19 @@
     log(![...el('vars').children].some(vis), 'Storico: niente variabili', '');
     eq('Storico: azioni (riga 1, in fondo)', [acts(), foot()], [ACTS, ['hvCsv']]);
     eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    // la barra dello Storico: telefono su una riga (che scorre), desktop al piu' due righe tutte dentro il pannello
+    const histOk = () => (phone ? sameRow(ctl2()) : rows2(ctl2()) <= 2 && ctl2().every(e => R(e).left >= R(el('panel')).left - 0.5 && R(e).right <= R(el('panel')).right + 0.5)) &&
+                         stacked(ctl2(), 'hvChart');
+    log(histOk(), phone ? 'Storico: riga 2 su una riga, fra la prima e il grafico' : 'Storico: la sua barra al piu\' su due righe, nel pannello, fra la prima riga e il grafico',
+        JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
     M.storico = gap('hvChart');
-    if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo 75)', M.storico);
+    if(!phone) log(M.storico <= B, 'Storico (Valdagno): grafico a ' + M.storico + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.storico);
     el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
     eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
-    log(R(hb).left >= Math.max(...ctl2().filter(e => e !== hb).map(e => R(e).right)), 'Storico ×: in fondo alla riga', '');
-    if(!phone) log(gap('hvChart') <= 75, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
+    log(histOk(), phone ? 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico' : 'Storico/Giorni: la sua barra al piu\' su due righe, nel pannello, fra la prima riga e il grafico',
+        JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    log(ctl2().every(e => e === hb || mid(e) < mid(hb) - 6 || (Math.abs(mid(e) - mid(hb)) <= 6 && R(e).right <= R(hb).left)), 'Storico ×: in fondo alla riga', '');
+    if(!phone) log(gap('hvChart') <= B, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo ' + B + ')', gap('hvChart'));
     if(phone){ actsOk('telefono, Storico', [...ACTS, 'hvCsv']); noOverflow('telefono, Storico'); }
     hb.click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
     log(!histMode && !vis(el('histview')) && [...el('vars').children].some(vis) && vis(document.querySelector('button[data-mode="week"]')) && !/×/.test(hb.innerText),
@@ -1327,7 +1340,7 @@
     await open(P); await until(() => vis(el('histbtn')), 5000);
     el('histbtn').click(); await until(() => histMode, 8000); await sleep(800);
     M.storico234 = gap('hvChart');                                    // Padova non e' nel campione: barra vera, grafico vuoto
-    if(!phone) log(M.storico234 <= 75, 'Storico (Padova): grafico a ' + M.storico234 + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo 75)', M.storico234);
+    if(!phone) log(M.storico234 <= B, 'Storico (Padova): grafico a ' + M.storico234 + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.storico234);
     await setHistMode(false);
 
     // telefono: Arba (12 variabili) e la stazione dal nome piu' lungo
@@ -1424,6 +1437,18 @@
     setMapVar(''); await until(() => filterVar === '');
     log(!el('tabbar') && !el('tabMap'), 'niente vista a schede (barra Mappa | schede)', '');
     log(!shown() && Math.abs(R(el('map')).width - innerWidth) <= 1, 'all\'inizio: niente pannello, mappa larga quanto la finestra', R(el('map')).width + ' / ' + innerWidth);
+    // pulsanti della mappa (colonna in alto a destra) e nome del sito: in alto a sinistra prima della ricerca, piccolo e in
+    // grassetto, dentro la mappa, lontano dai pulsanti e fuori dalla strada della scheda al passaggio; non sul telefono
+    const ctl = () => [...document.querySelectorAll('.leaflet-top.leaflet-right .leaflet-control')].filter(vis);
+    const brandOk = tag => { const b = el('brand'), q = R(el('stationQ')), m = R(el('map'));
+      log(vis(b) && b.textContent.trim() === 'Simulaqua Meteo' && +getComputedStyle(b).fontWeight >= 600 && R(b).right <= q.left &&
+          Math.abs(mid(b) - (q.top + q.bottom) / 2) <= 4 && R(b).left >= m.left && ctl().length >= 2 && ctl().every(c => !meet(R(b), R(c))),
+          tag + ': "Simulaqua Meteo" in alto a sinistra, prima della ricerca, lontano dai pulsanti', JSON.stringify(b ? [vis(b), R(b).left, R(b).right, q.left] : 'assente')); };
+    if(phone) log(!vis(el('brand')), 'telefono: niente "Simulaqua Meteo" (lascia posto a ricerca e pillole)', '');
+    else {
+      brandOk('mappa intera');
+      log(!!el('brand') && el('brand').matches(CARD_OBST), 'la scheda al passaggio non va sopra "Simulaqua Meteo"', CARD_OBST);
+    }
 
     if(phone){
       // un link apre il pannello a tutta altezza
@@ -1517,6 +1542,21 @@
     { const F = ['refresh', 'download', 'exportpng'].map(el), c = R(el('chartwrap'));
       log(F.every(e => vis(e) && R(e).top >= c.bottom - 1 && R(e).left >= pnR().left), 'in fondo Aggiorna, CSV e PNG, sotto il grafico',
           JSON.stringify(F.map(e => e && [Math.round(R(e).top), vis(e)]).concat([Math.round(c.bottom)]))); }
+    brandOk('pannello a 400 px');
+    // nel pannello da 400 px i modi (7 g · 3 g · 24 h · Confronti · Impilato · Storico) stanno interi su una riga loro, sotto le
+    // pillole delle variabili, e si vedono senza scorrere: nel pannello, in ogni riga che scorre e al loro posto (hit test)
+    const MODES = () => [...document.querySelectorAll('#modes > .mode[data-mode], #cmpBtn, #stackbtn, #histbtn')].filter(vis);
+    const whole = e => { const r = R(e), p = pnR();
+      if(r.left < p.left - 0.5 || r.right > p.right + 0.5) return false;
+      for(let a = e.parentElement; a && a !== el('panel'); a = a.parentElement)
+        if(getComputedStyle(a).overflowX !== 'visible'){ const q = R(a); if(r.left < q.left - 0.5 || r.right > q.right + 0.5) return false; }
+      const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && e.contains(h); };
+    const modesOk = tag => { const M = MODES(), rows = new Set(M.map(e => Math.round(mid(e)))), chips = [...el('vars').children].filter(vis);
+      log(M.length >= 5 && M.every(whole) && rows.size === 1 && (!chips.length || Math.min(...M.map(e => R(e).top)) >= Math.max(...chips.map(e => R(e).bottom)) - 1),
+          tag + ': i modi interi e visibili su una riga loro, sotto le variabili',
+          JSON.stringify(M.map(e => [e.dataset.mode || e.id, Math.round(R(e).left), Math.round(R(e).right), whole(e)]).concat([[...rows], Math.round(pnR().right)]))); };
+    await until(() => vis(el('histbtn')), 5000);
+    modesOk('Padova');
 
     // riquadri dei valori, secondo il tipo di stazione (valori ricalcolati dalla serie: ultimo dato, punto decimale)
     const last = (p, v) => { const c = p._table && p._table.cols[v]; if(c) for(let i = c.length - 1; i >= 0; i--) if(c[i] != null) return i; return -1; };
@@ -1595,16 +1635,18 @@
 
     // ⤢ al 70 % e ritorno (la mappa resta una striscia a sinistra, la stazione dentro); la riga 2 va a capo
     await open(A);
-    const ctl = () => [...document.querySelectorAll('.leaflet-top.leaflet-right .leaflet-control')].filter(vis);
     const ctlLeft = () => ctl().every(c => R(c).right <= pnR().left + 0.5);
     log(ctl().length >= 2 && ctlLeft(), 'pulsanti della mappa a sinistra del pannello', JSON.stringify(ctl().map(c => Math.round(R(c).right)).concat([pnR().left])));
-    log(el('pbar').scrollWidth > el('pbar').clientWidth + 20, 'a 400 px la riga 2 (Arba) scorre di lato', el('pbar').scrollWidth + ' / ' + el('pbar').clientWidth);
+    log(el('vars').scrollWidth > el('vars').clientWidth + 20, 'a 400 px le pillole delle variabili di Arba scorrono di lato (riga loro)',
+        el('vars').scrollWidth + ' / ' + el('vars').clientWidth);
+    modesOk('Arba (molte variabili)');
     log(!!el('pexp') && el('pexp').getAttribute('aria-pressed') === 'false', '⤢: spento all\'inizio', el('pexp') && el('pexp').outerHTML.slice(0, 120));
     click('pexp'); await sleep(500);
     log(Math.abs(pnR().width - 0.7 * innerWidth) <= 2 && Math.abs(R(el('map')).right - pnR().left) <= 1 && Math.abs(R(el('map')).width - 0.3 * innerWidth) <= 2,
         '⤢: pannello al 70 %, mappa come striscia a sinistra', JSON.stringify([pnR().width, R(el('map')).width, innerWidth]));
     log(!!el('pexp') && el('pexp').getAttribute('aria-pressed') === 'true' && ls('panelWide') === '1', '⤢: acceso e ricordato', ls('panelWide'));
     log(inMap(A) && ctlLeft(), '⤢: stazione nella striscia, pulsanti a sinistra del pannello', JSON.stringify(scr(A)));
+    log(!!el('brand') && !vis(el('brand')), '⤢: niente "Simulaqua Meteo" (la mappa e\' una striscia)', '');
     { const c = [...document.querySelectorAll('#vars > button, #modes > button')].filter(vis), rows = new Set(c.map(e => Math.round(mid(e))));
       log(getComputedStyle(el('pbar')).flexWrap === 'wrap' && el('pbar').scrollWidth <= el('pbar').clientWidth + 1 && rows.size >= 2, '⤢: la riga 2 va a capo', JSON.stringify([...rows])); }
     noOverflow('⤢, Arba');
