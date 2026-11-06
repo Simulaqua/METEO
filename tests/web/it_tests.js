@@ -132,7 +132,7 @@
     clickAt(ref.m.getLatLng()); await sleep(400);
     log(!document.querySelector('.leaflet-popup') && selectedKey && selectedKey !== before && Radar.on, 'tocco su puntino = stazione',
         'popup ' + !!document.querySelector('.leaflet-popup') + ', stazione ' + selectedKey + ', radar ' + Radar.on);
-    // chiudi la stazione: col selettore ristretto alle sue variabili i passi dopo dipenderebbero da quale puntino si e' toccato
+    // chiudi la stazione (tendina nascosta): i passi dopo partono senza stazione scelta, qualunque puntino si sia toccato
     el('stationFilter').value = ''; el('stationFilter').dispatchEvent(new Event('change'));
     await until(() => !selectedKey);
     // la x chiude la barra, il radar resta acceso e torna all'ultimo
@@ -731,7 +731,7 @@
     const OB = markerRefs.find(r => r.p !== AP).p; selectStation(OB); await until(() => inStation() && currentStation === OB); showMapView(); await sleep(50);
     log(!vis(sheetEl()) && !map.hasLayer(stationRing) && !document.body.classList.contains('sheet-open'),
         'un\'altra stazione aperta (ricerca, link): il foglio si chiude', '');
-    // chiudi la stazione a caricamento finito: col selettore ristretto alle sue variabili PREC24 potrebbe mancare
+    // chiudi la stazione a caricamento finito (tendina nascosta): le prove dopo partono senza stazione scelta
     await until(() => el('stationFilter').value === OB._region + '|' + OB.scode);
     el('stationFilter').value = ''; el('stationFilter').dispatchEvent(new Event('change')); await until(() => !selectedKey);
     // un file orario lento non sovrascrive il foglio (o la scheda) gia' passato a un'altra variabile
@@ -1182,9 +1182,9 @@
   // scheda della stazione su due righe: in alto nome, codice e ultimo dato, Link ⤢ × (rilascio 3: Aggiorna, CSV e PNG in
   // fondo al pannello); sotto variabili e modi (i tre confronti in "Confronti ▾"); nello Storico la sua barra al posto di
   // variabili e modi, in fondo "Storico ×".
-  // Desktop (w.html 1024x768, pannello da 400 px): la seconda riga diventa due (le variabili che scorrono, sotto i modi
-  // interi), grafico entro 75 + 32 px dall'alto del pannello, tolte le righe del pannello accanto alla mappa (stazioni
-  // aperte, riquadri). Telefono (w.html 320/375/430, FVG/A280 con molte variabili): la seconda riga resta una e scorre di
+  // Desktop (w.html 1024x768, pannello da 400 px): la seconda riga diventa due blocchi (le variabili, che vanno a capo; sotto
+  // i modi interi), grafico entro 75 + 32 px dall'alto del pannello, tolte le righe del pannello accanto alla mappa (stazioni
+  // aperte, riquadri) e le righe in piu' delle variabili. Telefono (w.html 320/375/430, FVG/A280 con molte variabili): la seconda riga resta una e scorre di
   // lato, niente esce dalla pagina, le azioni restano visibili
   async function suiteSchede(){
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
@@ -1197,18 +1197,22 @@
     const open = async p => { await selectStation(p); await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000); await sleep(300); };
     // dall'alto del pannello all'inizio del grafico, tolte le righe venute col pannello accanto alla mappa (stazioni aperte,
     // riquadri: contenuto nuovo, non spazio perso). Prima si misurava dalla barra delle schede, che non c'e' piu'
-    const gap = id => { const g = parseFloat(getComputedStyle(el('panel')).rowGap) || 0;
-      return Math.round(R(el(id)).top - R(el('panel')).top - ['ptabs', 'ptiles'].filter(i => vis(el(i))).reduce((s, i) => s + R(el(i)).height + g, 0)); };
+    // Desktop: anche le righe in piu' delle pillole delle variabili (vanno a capo: tante variabili, tante righe) sono contenuto
+    const gap = id => { const g = parseFloat(getComputedStyle(el('panel')).rowGap) || 0, v = el('vars');
+      const chips = !phone && getComputedStyle(v).display === 'flex' ? Math.max(0, R(v).height - 24) : 0;
+      return Math.round(R(el(id)).top - R(el('panel')).top - chips - ['ptabs', 'ptiles'].filter(i => vis(el(i))).reduce((s, i) => s + R(el(i)).height + g, 0)); };
     const sameRow = es => es.length > 0 && Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
     const acts = () => ['copylink', 'pexp', 'pclose'].filter(id => vis(el(id)));                  // riga 1
     const foot = () => ['refresh', 'download', 'exportpng', 'hvCsv'].filter(id => vis(el(id)));    // in fondo al pannello
     const ACTS = phone ? ['copylink', 'pclose'] : ['copylink', 'pexp', 'pclose'];                  // ⤢ solo su desktop
-    // desktop, pannello da 400 px: la riga 2 e' su due righe (le pillole delle variabili, sotto i modi; nello Storico la sua
-    // barra va a capo al piu' una volta), quindi il grafico sta entro 75 + 32 px; il telefono resta su una riga sola
+    // desktop, pannello da 400 px: la riga 2 diventa il blocco delle pillole delle variabili (va a capo, tutte nel pannello)
+    // e sotto i modi su una riga loro (nello Storico la sua barra va a capo al piu' una volta), quindi il grafico sta entro
+    // 75 + 32 px (contate le righe in piu' delle variabili come contenuto); il telefono resta su una riga sola
     const B = phone ? 75 : 107, rows2 = c => { const m = c.map(mid).sort((a, b) => a - b); return m.filter((y, i) => !i || y - m[i - 1] > 6).length; };
+    const inPanel = e => R(e).left >= R(el('panel')).left - 0.5 && R(e).right <= R(el('panel')).right + 0.5;
     const row2Ok = c => { if(phone) return sameRow(c);
       const v = c.filter(e => e.closest('#vars')), m = c.filter(e => !e.closest('#vars'));
-      return sameRow(m) && (!v.length || (sameRow(v) && Math.min(...m.map(e => R(e).top)) >= Math.max(...v.map(e => R(e).bottom)) - 1)); };
+      return sameRow(m) && m.every(inPanel) && (!v.length || (v.every(inPanel) && Math.min(...m.map(e => R(e).top)) >= Math.max(...v.map(e => R(e).bottom)) - 1)); };
     // riga 2 tutta sotto la riga 1 (nome, dati, azioni) e tutta sopra il grafico: niente sovrapposizioni
     const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
       return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
@@ -1240,7 +1244,7 @@
     const c2 = ctl2();
     eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'cmpBtn', 'stackbtn', 'histbtn']);
     log(row2Ok(c2) && stacked(c2, 'chart'), phone ? 'riga 2: tutta su una riga, fra la prima e il grafico'
-                                                   : 'riga 2: le variabili su una riga, sotto i modi su una riga loro, fra la prima e il grafico',
+                                                   : 'riga 2: le variabili nel pannello (vanno a capo), sotto i modi su una riga loro, fra la prima e il grafico',
         JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
     M.normale = gap('chart');
     if(!phone) log(M.normale <= B, 'normale: grafico a ' + M.normale + ' px dall\'alto del pannello, senza stazioni aperte e riquadri (al massimo ' + B + ')', M.normale);
@@ -1429,8 +1433,9 @@
       return finish();
     }
 
-    const P = st('VEN', '234'), V = st('VEN', '79'), A = st('FVG', 'A280');               // Padova, Valdagno (meteo); Arba (molte variabili)
-    const I = st('VEN', '194'), Q = st('AQ_LOM', '685'), S = st('MAR_VEN', '1021');        // idrometro, aria, mare
+    // let: dopo un ricaricamento delle regioni le stazioni sono oggetti nuovi e si riprendono (vedi "Azzera i filtri")
+    let P = st('VEN', '234'), V = st('VEN', '79'), A = st('FVG', 'A280');                 // Padova, Valdagno (meteo); Arba (molte variabili)
+    let I = st('VEN', '194'), Q = st('AQ_LOM', '685'), S = st('MAR_VEN', '1021');          // idrometro, aria, mare
     log(P && V && A && I && Q && S, 'stazioni di prova trovate', JSON.stringify([!!P, !!V, !!A, !!I, !!Q, !!S]));
     if(!(P && V && A && I && Q && S)) return finish();
     try { localStorage.removeItem('panelWide'); } catch(e){}
@@ -1448,6 +1453,8 @@
     else {
       brandOk('mappa intera');
       log(!!el('brand') && el('brand').matches(CARD_OBST), 'la scheda al passaggio non va sopra "Simulaqua Meteo"', CARD_OBST);
+      { const b = R(el('brand')), h = document.elementFromPoint((b.left + b.right) / 2, (b.top + b.bottom) / 2);   // la scritta lascia passare il puntatore
+        log(!!h && map.getContainer().contains(h), 'sotto "Simulaqua Meteo" i puntini si toccano (la scritta lascia passare il puntatore)', h && (h.id || h.className || h.tagName)); }
     }
 
     if(phone){
@@ -1460,6 +1467,9 @@
       { const q = R(el('stationQ')), h = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
         log(!vis(el('dock')) && !!h && el('panel').contains(h), 'telefono, pannello aperto: plancia nascosta, mappa coperta', h && (h.id || h.className)); }
       log(!vis(el('pexp')) && vis(el('pclose')), 'telefono: niente ⤢, c\'e\' la ×', '');
+      { const a = el('vars').querySelector('button.active'), r = a && R(a);                // la riga che scorre e' portata alla pillola accesa
+        log(!!a && r.left >= -0.5 && r.right <= innerWidth + 0.5, 'telefono: la pillola della variabile aperta si vede subito',
+            a ? JSON.stringify([a.textContent.trim(), Math.round(r.left), Math.round(r.right)]) : 'nessuna'); }
       eq('telefono, Arba: riquadri', tileTxt().map(t => t[0]), ['Temperatura', 'Pioggia 24 h', 'Vento', 'Umidità']);
       { const T = tiles(), ov = [];
         T.forEach((a, i) => T.slice(i + 1).forEach(b => { if(meet(R(a), R(b))) ov.push(i); }));
@@ -1566,11 +1576,14 @@
       if(v === 'LIVIDRO' && p.zero_idro != null){ x = Math.round((x * (unit(p, v) === 'cm' ? 0.01 : 1) + p.zero_idro) * 1000) / 1000; return r2(x) + ' m s.m.m.'; }
       if(v === 'EAQI') return EAQI_BANDS[Math.max(1, Math.min(6, Math.round(x))) - 1].l;
       return r2(x) + (unit(p, v) ? ' ' + unit(p, v) : ''); };
+    // variazione in 3 ore: in metri con due decimali (anche col cm portato a metri dallo zero idrometrico), in cm senza decimali
     const d3 = (p, v) => { const c = p._table.cols[v], X = p._table.x, i = last(p, v); let j = i;
       while(j >= 0 && !(c[j] != null && X[j] <= X[i] - 3 * 3600)) j--;
       if(i < 0 || j < 0 || X[j] < X[i] - 4 * 3600) return null;
-      const d = Math.round((c[i] - c[j]) * 100) / 100;
-      return (d > 0 ? '+' : '') + d.toFixed(2) + ' m'; };
+      const cm = unit(p, v) === 'cm' && p.zero_idro == null, raw = (c[i] - c[j]) * (unit(p, v) === 'cm' && !cm ? 0.01 : 1);
+      const d = cm ? Math.round(raw) : Math.round(raw * 100) / 100;
+      return (d > 0 ? '+' : '') + (cm ? String(d) : d.toFixed(2)) + (cm ? ' cm' : ' m'); };
+    const DIR16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
     const checkTiles = (tag, p, want) => {
       eq(tag + ': riquadri (etichetta e valore)', tileTxt(), want);
       const T = tiles(), ov = [];
@@ -1591,17 +1604,26 @@
     checkTiles('idrometro (Posina)', I, [['Livello', txt(I, 'LIVIDRO')], ['Variazione 3 h', d3(I, 'LIVIDRO')], ['Portata', txt(I, 'PORTATA')]]);
     { const t = tile('Portata'); if(t) t.click(); await until(() => currentVar === 'PORTATA', 3000);
       const t2 = tile('Variazione 3 h'); if(t2) t2.click(); await until(() => currentVar === 'LIVIDRO', 3000);
-      log(currentVar === 'LIVIDRO' && !!t2 && t2.classList.contains('on'), 'clic su "Variazione 3 h": il livello nel grafico', currentVar); }
+      log(currentVar === 'LIVIDRO' && !!t2 && t2.classList.contains('on'), 'clic su "Variazione 3 h": il livello nel grafico', currentVar);
+      log(!!t2 && t2.classList.contains('on') && !tile('Livello').classList.contains('on'), 'clic su "Variazione 3 h": acceso solo quel riquadro, non "Livello"',
+          tiles().filter(b => b.classList.contains('on')).map(b => b.textContent).join(' | '));
+      const t3 = tile('Livello'); if(t3) t3.click(); await sleep(150);
+      log(!!t3 && t3.classList.contains('on') && !t2.classList.contains('on'), 'clic su "Livello": acceso solo "Livello"',
+          tiles().filter(b => b.classList.contains('on')).map(b => b.textContent).join(' | ')); }
+    { const G = st('LOM', '1876');                                                 // idrometro in cm, senza zero idrometrico (Tirano)
+      if(G){ await open(G);
+        checkTiles('idrometro in cm (Tirano)', G, [['Livello', txt(G, 'LIVIDRO')], ['Variazione 3 h', d3(G, 'LIVIDRO')]]);
+        log(/^[+-]?\d+ cm$/.test((tileTxt()[1] || [])[1] || ''), 'variazione in cm senza decimali', JSON.stringify(tileTxt())); }
+      else log(false, 'idrometro in cm (LOM 1876) trovato', ''); }
     await open(Q);
     checkTiles('aria (Calusco)', Q, [['Qualità aria', txt(Q, 'EAQI')], ['PM10', txt(Q, 'PM10')], ['NO₂', txt(Q, 'NO2')], ['O₃', txt(Q, 'O3')]]);
     { const t = tile('Qualità aria'); if(t) t.click(); await until(() => currentVar === 'EAQI' && currentPage === 'indici', 5000); await sleep(200);
       const chip = el('vars').querySelector('[data-var="EAQI"]');
       log(currentVar === 'EAQI' && currentPage === 'indici' && !!chip && chip.classList.contains('active'), 'clic su "Qualità aria": l\'indice nel grafico (pagina Indici)', currentVar + ' ' + currentPage);
       document.querySelector('#pages .pg[data-page="dirette"]').click(); await until(() => currentPage === 'dirette'); await sleep(200); }
-    await open(S);
-    log(tileTxt().slice(0, 2).map(t => t[0]).join() === 'Marea,Onde' && tileTxt()[0][1] === txt(S, 'MAREA') && tileTxt()[1][1] === txt(S, 'ONDE'),
-        'mare (Acqua Alta): prima marea e onde', JSON.stringify(tileTxt()));
-    checkTiles('mare (Acqua Alta)', S, tileTxt());
+    await open(S);                                                                // marea e onde, poi i valori chiave che ha: vento (con la direzione) e umidita'
+    checkTiles('mare (Acqua Alta)', S, [['Marea', txt(S, 'MAREA')], ['Onde', txt(S, 'ONDE')],
+                                       ['Vento', txt(S, 'VVENTO') + ' ' + DIR16[Math.round(S._table.cols.DVENTO[last(S, 'DVENTO')] / 22.5) % 16]], ['Umidità', txt(S, 'UMID')]]);
 
     // stazioni aperte come pillole: solo con almeno due; × ne chiude una; al massimo 8, la piu' vecchia esce
     showMapView(); openTabs.length = 0;
@@ -1637,8 +1659,9 @@
     await open(A);
     const ctlLeft = () => ctl().every(c => R(c).right <= pnR().left + 0.5);
     log(ctl().length >= 2 && ctlLeft(), 'pulsanti della mappa a sinistra del pannello', JSON.stringify(ctl().map(c => Math.round(R(c).right)).concat([pnR().left])));
-    log(el('vars').scrollWidth > el('vars').clientWidth + 20, 'a 400 px le pillole delle variabili di Arba scorrono di lato (riga loro)',
-        el('vars').scrollWidth + ' / ' + el('vars').clientWidth);
+    { const C = [...el('vars').children].filter(vis), Pl = pills(), out = [...C, ...Pl].filter(e => !whole(e));     // col mouse si arriva a tutto:
+      log(C.length >= 10 && Pl.length === 8 && !out.length, 'a 400 px tutte le pillole delle variabili (' + C.length + ') e delle stazioni (' + Pl.length + ') di Arba dentro il pannello',
+          JSON.stringify(out.slice(0, 4).map(e => [e.textContent.trim().slice(0, 18), Math.round(R(e).left), Math.round(R(e).right)]))); }   // niente righe che scorrono nascoste
     modesOk('Arba (molte variabili)');
     log(!!el('pexp') && el('pexp').getAttribute('aria-pressed') === 'false', '⤢: spento all\'inizio', el('pexp') && el('pexp').outerHTML.slice(0, 120));
     click('pexp'); await sleep(500);
@@ -1685,16 +1708,63 @@
     dockOk('400 px');
     closeSlider(); setMapVar(''); await until(() => filterVar === '');
 
+    // i comandi della mappa cambiano solo la mappa: con un idrometro aperto (niente pioggia) Pioggia, Radar, Cursore, un'altra
+    // variabile, un'altra regione e "Azzera i filtri" lasciano il pannello sulla stazione (stessa variabile), cerchiata e
+    // visibile anche dove il filtro della mappa la toglierebbe, con la sua ancora
+    await open(I);
+    const v0 = currentVar;
+    const kept = async tag => { await sleep(400);
+      const rg = typeof stationRing !== 'undefined' && stationRing, ll = rg && rg.getLatLng();
+      log(shown() && !!currentStation && currentStation._region === 'VEN' && currentStation.scode === '194' && currentVar === v0 && !!el('chart').querySelector('canvas') &&
+          !!rg && map.hasLayer(rg) && Math.abs(ll.lat - I._lat) < 1e-9 && Math.abs(ll.lng - I._lon) < 1e-9 && map.getBounds().contains(ll) && /^#VEN\/194\//.test(location.hash),
+          tag + ': il pannello resta sull\'idrometro (stessa variabile), cerchiato e visibile, ancora sua',
+          JSON.stringify([shown(), currentStation && currentStation.scode, currentVar, !!rg && map.hasLayer(rg), !!ll && map.getBounds().contains(ll), location.hash])); };
+    el('mcRain').click(); await until(() => isRain(filterVar), 5000); await kept('Pioggia');
+    el('mcRain').click(); await sleep(200);
+    el('mcRadar').click(); await until(() => Radar.on, 20000);
+    log(Radar.on, 'Radar acceso', Radar.state);
+    await kept('Radar');
+    el('mcRadar').click(); await until(() => !Radar.on, 5000); await kept('Radar spento');
+    el('mcSnap').click(); await until(() => snap.on && snap.T.length, 20000); await kept('Cursore');
+    closeSlider(); await sleep(100);
+    el('varPill').click(); await sleep(80);
+    { const it = [...el('pillMenu').querySelectorAll('[data-v]')].find(b => b.dataset.v && !(I.variables || []).includes(b.dataset.v)); if(it) it.click(); }
+    await sleep(200); await kept('un\'altra variabile (' + filterVar + ')');
+    el('regPill').click(); await sleep(80);
+    { const it = el('pillMenu').querySelector('[data-v="FVG"]'); if(it) it.click(); }
+    await until(() => el('region').value === 'FVG' && allFeatures.length > 0 && allFeatures.every(f => REGION_GROUPS.FVG.includes(f.properties._region)) && !el('status').textContent, 20000);
+    await kept('un\'altra regione (Friuli V.G.)');
+    el('moreBtn').click(); await sleep(50); el('resetBtn').click();
+    await until(() => el('region').value === 'ALL' && allFeatures.length > 2000 && !el('status').textContent, 20000); await sleep(500);
+    await kept('"Azzera i filtri"');
+    [P, V, A, I, Q, S] = [st('VEN', '234'), st('VEN', '79'), st('FVG', 'A280'), st('VEN', '194'), st('AQ_LOM', '685'), st('MAR_VEN', '1021')];
+    { const b = pill(NM(A)), n = b && (b.querySelector('.pt-n') || b); if(n) n.click();       // aperta prima dei ricaricamenti: dalla sua pillola ha l'anello
+      await until(() => currentStation && currentStation.scode === 'A280' && !!el('chart').querySelector('canvas'), 8000); await sleep(400);
+      const rg = typeof stationRing !== 'undefined' && stationRing, ll = rg && rg.getLatLng();
+      log(!!rg && map.hasLayer(rg) && !!ll && Math.abs(ll.lat - A._lat) < 1e-9 && Math.abs(ll.lng - A._lon) < 1e-9, 'dopo i ricaricamenti, una stazione riaperta dalla sua pillola e\' cerchiata',
+          JSON.stringify([!!rg && map.hasLayer(rg), ll])); }
+    document.querySelector('#pages .pg[data-page="dirette"]').click(); await until(() => currentPage === 'dirette'); await sleep(300);
+
     // × chiude: niente pannello ne' ancora, la mappa torna intera, la stazione esce dalle pillole e non e' piu' cerchiata
     await open(P);
     log(/^#VEN\/234\//.test(location.hash), 'ancora della stazione', location.hash);
     const before = pillNames();
-    click('pclose'); await sleep(400);
+    el('pclose').focus(); click('pclose'); await sleep(400);
     log(!shown() && !location.hash && Math.abs(R(el('map')).width - innerWidth) <= 1 && !(typeof stationRing !== 'undefined' && stationRing && map.hasLayer(stationRing)),
         '× chiude: mappa intera, niente ancora, niente anello', JSON.stringify([shown(), location.hash, R(el('map')).width]));
+    log(document.activeElement === el('stationQ'), '×: il fuoco passa alla ricerca', document.activeElement && (document.activeElement.id || document.activeElement.tagName));
     await open(A);                                                                // Arba era gia' fra le pillole
     eq('× : la stazione chiusa non e\' piu\' fra le pillole, le altre restano', pillNames(), before.filter(n => n !== NM(P)));
-    click('pclose'); await sleep(300);
+    // Esc: con un menu aperto chiude solo il menu; senza, chiude il pannello e il fuoco passa alla ricerca
+    const esc = () => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
+    el('cmpBtn').focus(); el('cmpBtn').click(); await sleep(80);
+    esc(); await sleep(100);
+    log(shown() && el('cmpMenu').hidden, 'Esc col menu Confronti aperto: si chiude il menu, il pannello resta', JSON.stringify([shown(), el('cmpMenu').hidden]));
+    esc(); await sleep(300);
+    log(!shown() && !location.hash && document.activeElement === el('stationQ'), 'Esc: chiude il pannello, il fuoco passa alla ricerca',
+        JSON.stringify([shown(), location.hash, document.activeElement && (document.activeElement.id || document.activeElement.tagName)]));
+    if(shown()) click('pclose');
+    el('stationQ').blur(); await sleep(100);
     // un link apre il pannello
     history.replaceState(null, '', '#VEN/234/UMID'); await applyHash();
     await until(() => currentStation === P && shown() && currentVar === 'UMID', 8000); await sleep(400);

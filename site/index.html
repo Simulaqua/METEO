@@ -101,15 +101,14 @@
   #vars { display:contents; }
   #modes { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; min-width:0; }
   #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
-  /* riga 2 su desktop. Pannello largo (⤢, Confronto schede): va a capo, le pillole una per una e i modi (nello Storico la sua
-     barra e "Storico ×") tutti insieme. Pannello da 400 px: le pillole delle variabili in una riga loro che scorre di lato,
-     sotto i modi interi su una riga (nello Storico la sua barra, al piu' su due righe): pulsanti un po' piu' stretti */
+  /* desktop: niente righe che scorrono di lato (col mouse non si scorrono), stazioni aperte e riga 2 vanno a capo. Pannello
+     largo (⤢, Confronto schede): le pillole una per una e i modi (nello Storico la sua barra e "Storico ×") tutti insieme.
+     Pannello da 400 px: le pillole delle variabili in un blocco loro, sotto i modi interi su una riga (nello Storico la sua
+     barra, al piu' su due righe): pulsanti un po' piu' stretti */
   @media (min-width:721px){
-    #pbar { flex-wrap:wrap; overflow-x:visible; row-gap:8px; }
+    #ptabs, #pbar { flex-wrap:wrap; overflow-x:visible; row-gap:8px; }
     #modes { flex:0 1 auto; flex-wrap:wrap; row-gap:8px; }
-    body:not(.panel-wide):not(.view-compare):not(.hist-mode) #vars:not(:empty) { display:flex; flex:1 0 100%; gap:6px; overflow-x:auto;
-          scrollbar-width:none; margin:0 calc(-1 * var(--pp)); padding:0 var(--pp); }
-    #vars::-webkit-scrollbar { display:none; }
+    body:not(.panel-wide):not(.view-compare):not(.hist-mode) #vars:not(:empty) { display:flex; flex:1 0 100%; flex-wrap:wrap; gap:6px; }
     body:not(.panel-wide):not(.view-compare) #modes { flex:1 0 100%; }
     body:not(.panel-wide):not(.view-compare) .pb-sep { display:none; }
     body:not(.panel-wide):not(.view-compare) #pbar button.mode, body:not(.panel-wide):not(.view-compare) #pbar button.tog,
@@ -461,7 +460,8 @@
   #topbar > *, #pillRow > * { pointer-events:auto; }
   /* nome del sito prima della ricerca, piccolo e in grassetto (alone del colore di fondo: si legge sopra la mappa); solo su
      schermi larghi e con la mappa intera o accanto al pannello da 400 px, dove non stringe ricerca e pillole */
-  .tb-r { display:flex; align-items:center; gap:10px; max-width:100%; }
+  #topbar > .tb-r { display:flex; align-items:center; gap:10px; max-width:100%; pointer-events:none; }   /* sotto la scritta la mappa si tocca */
+  .tb-q { pointer-events:auto; }
   #brand { display:none; padding:0 2px; color:var(--fg); white-space:nowrap; font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
            text-shadow:0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg); }
   @media (min-width:1000px){ #brand { display:block; } body.view-station.panel-wide #brand, body.view-compare #brand { display:none; } }
@@ -1113,8 +1113,8 @@ const TZNOTE = 'Orari in ora locale italiana (CET / CEST con ora legale).';
 async function loadRegions(regions){
   _needFit = true;                 // nuova selezione di regioni: rifitta la mappa una volta
   snapPause();
-  clearChart();
-  resetPanel();
+  const keep = panelShown();       // la stazione aperta nel pannello resta (i comandi della mappa cambiano solo la mappa)
+  if(!keep){ clearChart(); resetPanel(); }
   setStatus('Carico le stazioni…');
 
   allFeatures = [];
@@ -1132,7 +1132,7 @@ async function loadRegions(regions){
       allFeatures.push(f);
     });
   }));
-  selectedKey = '';
+  if(!keep || !panelShown()) selectedKey = '';
   refreshFilters();
   renderMarkers();
   snapSync();                      // cursore aperto: ricarica i fotogrammi per le nuove regioni (o chiudi)
@@ -1143,6 +1143,8 @@ async function loadRegions(regions){
 // ------------------------------------------------------------------------------------------------
 const featKey  = f => f.properties._region + '|' + f.properties.scode;
 const featName = f => prettyName(f.properties.name || f.properties.scode);
+// stessa stazione anche dopo un ricaricamento delle regioni (che rifa' gli oggetti): per regione e codice
+function sameStation(a, b){ return !!a && !!b && a._region === b._region && a.scode === b.scode; }
 const selectedFeature = () => selectedKey ? allFeatures.find(f => featKey(f) === selectedKey) : null;
 
 // stazioni da mostrare in elenco/mappa: filtrate per variabile (se selezionata)
@@ -1205,7 +1207,9 @@ function renderMarkers(){
   markerRefs = [];
   const bounds = [];
   const all = stationsForList();
-  const list = (Radar.on && !radarUi.stations) ? [] : all;                    // radar: "Stazioni" spento
+  const shown = (Radar.on && !radarUi.stations) ? [] : all;                   // radar: "Stazioni" spento
+  // la stazione aperta nel pannello resta sulla mappa (col suo anello) anche dove il filtro della mappa la toglierebbe
+  const open = shownStation(), list = open && !shown.some(f => sameStation(f.properties, open)) ? shown.concat([{ properties: open }]) : shown;
   // colormap quando e' selezionata UNA regione (unita' coerente) OPPURE la variabile ha la stessa unita' ovunque
   // (UNIT_SAFE: temperatura, umidita', pioggia) E la variabile e' confrontabile nello spazio (cmVar). Colora con
   // l'ULTIMO valore disponibile, A PRESCINDERE dal ritardo. Livelli/acqua/marea/direzione: mai.
@@ -1213,7 +1217,7 @@ function renderMarkers(){
   const cmVar = ((singleRegion || UNIT_SAFE.has(filterVar)) && canColormap(filterVar)) ? filterVar : null;
   const slide = !!(snap.on && cmVar && snap.var === cmVar);      // cursore del tempo attivo su questa variabile
   let vmin = null, vmax = null;
-  const refU = cmVar ? refUnitFor(cmVar, list) : '';             // unita' di riferimento della scala
+  const refU = cmVar ? refUnitFor(cmVar, shown) : '';            // unita' di riferimento della scala
   const valFor = p => {
     if(!cmVar) return null;
     if(slide) return snapVal(p);                                 // valore al fotogramma scelto
@@ -1226,7 +1230,7 @@ function renderMarkers(){
   if(cmVar && isRain(cmVar)){ vmin = 0; vmax = 0; }              // pioggia: classi a soglie fisse, niente scala min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }  // cursore: scala FISSA su tutta la finestra
   else if(cmVar){
-    list.forEach(f => { const nv = valFor(f.properties);
+    shown.forEach(f => { const nv = valFor(f.properties);
       if(nv != null){ vmin = (vmin==null)?nv:Math.min(vmin,nv); vmax = (vmax==null)?nv:Math.max(vmax,nv); } });
   }
   list.forEach(f => {
@@ -1261,12 +1265,12 @@ function renderMarkers(){
     markerRefs.push({ m, p });
     bounds.push([p._lat, p._lon]);
   });
-  if(bounds.length && _needFit && !selectedKey){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }
+  if(bounds.length && _needFit){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }   // anche la stazione aperta
   el('count').textContent = (Radar.on && !radarUi.stations) ? 'Stazioni nascoste'
-                          : list.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
+                          : shown.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
   el('stationQ').placeholder = 'Cerca fra ' + all.length + ' stazioni…';      // anche coi puntini nascosti dal radar
   if(sheetP){                                     // foglio aperto: resta (zoom, Cursore), si chiude se la stazione esce dall'elenco
-    if(markerRefs.some(x => x.p === sheetP)) drawSheet(); else closeSheet();
+    if(markerRefs.some(x => sameStation(x.p, sheetP))) drawSheet(); else closeSheet();
   }
   syncRing();                                     // puntini nuovi: l'anello prende il raggio nuovo (o sparisce)
   updateColorbar(cmVar, vmin, vmax, slide ? snap.unit : refU);
@@ -1602,16 +1606,14 @@ function lastRainVar(){
 }
 let mapPrevPage = 'dirette';
 // imposta la variabile mostrata sulla mappa (passando dalla pagina giusta); '' = nessuna variabile
-function setMapVar(v){
+function setMapVar(v){                                   // solo la mappa: il pannello aperto resta com'e'
   if(v){
     if(currentPage !== varCat(v)){
       if(currentPage !== 'indici') mapPrevPage = currentPage;
-      const b = document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]'); if(b) b.click();
+      setPage(varCat(v), false);
     }
     if(isRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
-  } else if(currentPage === 'indici' && mapPrevPage !== 'indici'){
-    const b = document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]'); if(b) b.click();
-  }
+  } else if(currentPage === 'indici' && mapPrevPage !== 'indici') setPage(mapPrevPage, false);
   const sel = el('varFilter');
   if(!v || [...sel.options].some(o => o.value === v)){
     sel.value = v; sel.dispatchEvent(new Event('change'));
@@ -1825,8 +1827,10 @@ function setMeta(code, c){
   el('stationMeta').textContent = code + (when ? ' · ultimo dato ' + when : '');
 }
 async function selectStation(props){
+  props = (allFeatures.find(f => sameStation(f.properties, props)) || { properties: props }).properties;   // dopo un ricaricamento: l'oggetto nuovo
   snapPause();                                   // apri una stazione: il cursore del tempo si ferma
   closeSheet();                                  // e il foglio basso (anche di un'altra: ricerca, link, pillole) si chiude
+  tilePick = '';
   currentStation = props;
   selectedKey = props._region + '|' + props.scode;
   const region = props._region;
@@ -1863,11 +1867,14 @@ async function selectStation(props){
   el('pbar').hidden = false; el('pfoot').hidden = false;
   renderTiles(props);
 
-  // bottoni variabile: SOLO le variabili della pagina attiva (dirette / derivate / indici)
+  // bottoni variabile: le variabili della pagina attiva (dirette / derivate / indici); se la stazione non ne ha (es. un
+  // idrometro con la mappa sulla pioggia 24 h, che sta fra gli indici) quelle della prima pagina in cui ne ha
   const allVars = ((props.variables && props.variables.length) ? props.variables
                 : table.header.slice(1)).slice();
   if(windObsCount(table) >= 10) allVars.push(WROSE);   // chip "Rosa dei venti" nel gruppo derivate
-  const vars = allVars.filter(v => varCat(v) === currentPage).sort(natVars);
+  const onPage = pg => allVars.filter(v => varCat(v) === pg).sort(natVars);
+  let vars = onPage(currentPage);
+  for(const pg of ['dirette', 'derivate', 'indici']) if(!vars.length) vars = onPage(pg);
   currentVar2 = null;                     // nuova stazione: azzera l'eventuale 2ª variabile precedente
   document.body.classList.remove('rose-mode');         // nuova stazione: riparti dal grafico
   buildVarButtons(vars);
@@ -1896,6 +1903,7 @@ async function selectStation(props){
   setStatus('');
 
   el('stationFilter').value = selectedKey;  // tendina nascosta (fonte unica) e puntino evidenziato
+  buildVarFilter();                         // un link puo' aver cambiato pagina: le variabili della pillola sono quelle della pagina
   renderMarkers();
   updateHash();
 }
@@ -1915,6 +1923,7 @@ function buildVarButtons(vars){
       b.innerHTML = `<span class="vnm">${varLabel(v)}</span>`
                   + `<span class="vadd" title="Aggiungi come 2ª variabile (asse destro)">＋</span>`;
       b.onclick = (e) => {
+        tilePick = '';                              // scelta dalla pillola: si accende il primo riquadro della variabile
         if(e.target.classList.contains('vadd')) toggleVar2(v);
         else if(stackMode) toggleStackVar(v);       // Impilato: la pillola aggiunge/toglie un pannello
         else drawVar(v);
@@ -1947,6 +1956,15 @@ function syncVarButtons(){
     if(add) add.style.display = (compare || v === currentVar) ? 'none' : '';
   });
   syncTiles();
+  if(PHONE.matches) revealChip();
+}
+// telefono: la riga 2 scorre di lato; la pillola accesa si porta in vista (anche aprendo una stazione)
+function revealChip(){
+  const a = el('vars').querySelector('button.active'), sc = el('pbar');
+  if(!a || !a.getClientRects().length || sc.scrollWidth <= sc.clientWidth) return;      // nello Storico le pillole sono nascoste
+  const r = a.getBoundingClientRect(), s = sc.getBoundingClientRect(), pad = 12;
+  if(r.left < s.left + pad) sc.scrollLeft -= s.left + pad - r.left;
+  else if(r.right > s.right - pad) sc.scrollLeft += r.right - (s.right - pad);
 }
 
 function drawVar(v){
@@ -3750,7 +3768,7 @@ function shownStation(){ return panelShown() && !document.body.classList.contain
 // anello sulla stazione del foglio basso o del pannello (nel confronto nessuna): uno solo, spostato e rimesso sopra ai
 // puntini ogni volta che si ridisegnano
 function syncRing(){
-  const p = sheetP || shownStation(), r = p && markerRefs.find(x => x.p === p);
+  const p = sheetP || shownStation(), r = p && markerRefs.find(x => sameStation(x.p, p));
   if(!r){ if(stationRing) stationRing.remove(); return; }
   if(!stationRing) stationRing = L.circleMarker(r.m.getLatLng(), { color:'#c05621', weight:2.5, fill:false, interactive:false });
   stationRing.setLatLng(r.m.getLatLng()).setRadius(r.m.getRadius() + 5).addTo(map).bringToFront();
@@ -3884,21 +3902,33 @@ function closeTab(key){
   const last = openTabs[openTabs.length - 1];
   if(last) selectStation(last.props); else showMapView();
 }
-// × del pannello: chiude la stazione (come la × della sua pillola; nel confronto, il confronto) e il pannello
-el('pclose').addEventListener('click', () => {
+// × del pannello (o Esc): chiude la stazione (come la × della sua pillola; nel confronto, il confronto) e il pannello; su
+// desktop il fuoco passa alla ricerca (sul telefono aprirebbe la tastiera)
+function closeStation(){
   if(document.body.classList.contains('view-compare')) compareOpen = false;
   else if(currentStation) openTabs = openTabs.filter(t => t.key !== tabKeyOf(currentStation));
   showMapView();
   selectedKey = ''; el('stationFilter').value = '';
   renderMarkers();
-});
+  if(!PHONE.matches) el('stationQ').focus({ preventScroll:true });
+}
+el('pclose').addEventListener('click', closeStation);
+// Esc chiude il pannello quando non c'e' altro da chiudere prima (menu, suggerimenti, Fonti, Note, metodo dello Storico,
+// anteprima del PNG) e non si sta scrivendo in un campo. In cattura: si guarda cosa e' aperto prima che i menu si chiudano
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape' || !panelShown()) return;
+  const busy = menuAnchor || !el('moreMenu').hidden || !el('cmpMenu').hidden || prodMenuOpen() || el('searchList').classList.contains('open') ||
+               el('srcpanel').style.display === 'block' || el('notepanel').style.display === 'block' || !el('hvInfo').hidden ||
+               el('pngsheet').classList.contains('show');
+  if(!busy && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) closeStation();
+}, true);
 // telefono: dal pannello al foglio basso della stessa stazione, tenuta visibile sopra il foglio
 function panelToSheet(){
-  const p = currentStation;
+  const r = currentStation && markerRefs.find(x => sameStation(x.p, currentStation));
   showMapView();
-  if(!p || !markerRefs.some(r => r.p === p)) return;          // stazione non sulla mappa (filtrata): resta tutto chiuso
-  openSheet(p);
-  if(p._lat != null) map.panInside([p._lat, p._lon], Object.assign(mapPad(el('sheet').offsetHeight), { animate:false }));
+  if(!r) return;                                              // stazione non sulla mappa: resta tutto chiuso
+  openSheet(r.p);
+  map.panInside(r.m.getLatLng(), Object.assign(mapPad(el('sheet').offsetHeight), { animate:false }));
 }
 let pnY0 = null;                                              // linguetta del pannello (telefono): in giu' torna al foglio basso
 el('panel').addEventListener('pointerdown', e => { pnY0 = PHONE.matches ? grabStart(e, '.pn-grab') : null; });
@@ -4011,50 +4041,48 @@ el('stationFilter').addEventListener('change', e => {
 });
 
 // selezione variabile -> filtra le stazioni (e l'elenco)
+// variabile della mappa: colora e filtra i puntini, nient'altro (la stazione aperta nel pannello resta com'e')
 el('varFilter').addEventListener('change', e => {
   filterVar = e.target.value;
   if(filterVar !== radarDotsVar() && !radarUi.switching) radarOff(false);  // il radar vive con la variabile del suo prodotto
-  // se la stazione aperta non ha la variabile, deselezionala
-  const f = selectedFeature();
-  if(f && filterVar && !(f.properties.variables || []).includes(filterVar)){
-    selectedKey = ''; clearChart(); resetPanel();
-  }
   buildStationFilter();
   buildVarFilter();
   renderMarkers();
-  // se resta una stazione aperta e ha la variabile, mostrala nel grafico
-  const f2 = selectedFeature();
-  if(f2 && filterVar && f2.properties._table) drawVar(filterVar);
   snapSync();                                            // cursore aperto: ricarica per la nuova variabile (o chiudi)
 });
 
 el('resetBtn').addEventListener('click', () => {
   el('region').value = 'ALL';
-  filterVar = ''; selectedKey = '';
+  filterVar = '';
+  if(!panelShown()) selectedKey = '';            // la stazione aperta nel pannello resta
   syncPills();                                   // subito, senza aspettare il caricamento
   loadRegions(REGIONS_ALL);
 });
 
-// 3 pagine: misure dirette / derivate / indici. Cambiano quali variabili sono selezionabili + la
-// pagina "indici" mostra anche la climatologia della stazione.
-[...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => {
+// 3 pagine: misure dirette / derivate / indici. Cambiano le variabili della mappa (e la pagina "indici" mostra anche la
+// climatologia della stazione). withPanel = anche le pillole delle variabili del pannello: la scelta della pagina, i
+// riquadri, i link; i comandi della mappa (Pioggia, Radar, Cursore) la cambiano solo per la mappa. Una stazione senza
+// variabili nella nuova pagina tiene le sue pillole e il suo grafico
+function setPage(page, withPanel){
   if(!radarUi.switching) radarOff(false);                                  // un'altra pagina spegne il radar
-  currentPage = b.dataset.page;
-  [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x === b));
+  currentPage = page;
+  [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x.dataset.page === page));
   filterVar = '';                              // la variabile potrebbe non appartenere alla nuova pagina
-  document.body.classList.remove('rose-mode'); // cambio pagina: riparti dal grafico (drawVar la riattiva se serve)
-  const sf = selectedFeature();
-  if(sf){                                      // stazione aperta: ricostruisci per la nuova pagina
-    const base = (sf.properties.variables || []).slice();
-    if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WROSE);   // chip rosa (gruppo derivate)
-    const vars = base.filter(v => varCat(v) === currentPage).sort(natVars);
-    buildVarButtons(vars); updateClimaBox();
-    if(vars.length) drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
-    else clearChart();
+  const st = withPanel && shownStation();
+  if(st){
+    const base = (st.variables || []).slice();
+    if(windObsCount(st._table) >= 10) base.push(WROSE);                   // chip rosa (gruppo derivate)
+    const vars = base.filter(v => varCat(v) === page).sort(natVars);
+    if(vars.length){
+      document.body.classList.remove('rose-mode');                         // riparti dal grafico (drawVar la riattiva se serve)
+      buildVarButtons(vars); updateClimaBox();
+      drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
+    }
   }
   buildStationFilter(); buildVarFilter(); renderMarkers();
   snapSync();
-}));
+}
+[...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => setPage(b.dataset.page, true)));
 
 // ---- WATCHDOG "dati fermi": STATUS/status.json (scritto dal publish) contiene il timestamp della
 // misura piu' recente fra TUTTE le regioni. Se supera STALE_HOURS -> banner rosso. Silenzioso se il
@@ -4548,10 +4576,12 @@ function cardHtml(M){
          '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
          '<div class="hc-keys">' + M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' + e(k.text) + '</b></div>').join('') + '</div>';
 }
-// ostacoli che la scheda non deve coprire: nome del sito, ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia
-const CARD_OBST = '#brand, .tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
-function cardObstacles(){
-  return [...document.querySelectorAll(CARD_OBST)].filter(o => o.getClientRects().length && o.offsetWidth).map(o => o.getBoundingClientRect());
+// ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa, plancia (coprono la
+// mappa: un puntino sotto di loro non ha scheda) e il nome del sito (una scritta: i puntini sotto si toccano e hanno la scheda)
+const CARD_COVER = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
+const CARD_OBST = '#brand, ' + CARD_COVER;
+function cardObstacles(sel = CARD_OBST){
+  return [...document.querySelectorAll(sel)].filter(o => o.getClientRects().length && o.offsetWidth).map(o => o.getBoundingClientRect());
 }
 const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
                           Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
@@ -4581,7 +4611,7 @@ function positionCard(){
   const pt = map.latLngToContainerPoint(cardM.getLatLng()), mr = map.getContainer().getBoundingClientRect(), c = el('hoverCard');
   const x = mr.left + pt.x, y = mr.top + pt.y;
   if(x < mr.left || x > mr.right || y < mr.top || y > mr.bottom ||
-     cardObstacles().some(o => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom)){ hideCard(); return; }
+     cardObstacles(CARD_COVER).some(o => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom)){ hideCard(); return; }
   c.style.visibility = 'hidden'; c.hidden = false;
   placeCard(c, x, y);
   c.style.visibility = '';
@@ -4677,16 +4707,17 @@ function tileLast(p, v){
   if(c) for(let i = c.length - 1; i >= 0; i--) if(c[i] != null) return { x: c[i], i };
   return hasVal(p.latest || {}, v) ? { x: p.latest[v], i: -1 } : null;
 }
-// variazione del livello: ultimo dato meno quello di 3 ore prima (al piu' 4), al centimetro; '' se non si puo' dire
+// variazione del livello: ultimo dato meno quello di 3 ore prima (al piu' 4): in metri al centimetro, in cm senza decimali;
+// '' se non si puo' dire
 function levelDelta(p, v){
   const t = p._table, c = t && t.cols[v], l = tileLast(p, v);
   if(!c || !l || l.i < 0) return '';
   let j = l.i;
   while(j >= 0 && !(c[j] != null && t.x[j] <= t.x[l.i] - 3 * 3600)) j--;
   if(j < 0 || t.x[j] < t.x[l.i] - 4 * 3600) return '';
-  const units = unitsByRegion[p._region] || {}, d = Math.round((c[l.i] - c[j]) * varScale(v, p, units) * 100) / 100;
-  const u = varOffset(v, p) ? 'm' : (units[v] || '');
-  return (d > 0 ? '+' : '') + fmtNum(d, v) + (u ? ' ' + u : '');
+  const units = unitsByRegion[p._region] || {}, u = varOffset(v, p) ? 'm' : (units[v] || ''), raw = (c[l.i] - c[j]) * varScale(v, p, units);
+  const d = u === 'cm' ? Math.round(raw) : Math.round(raw * 100) / 100;
+  return (d > 0 ? '+' : '') + (u === 'cm' ? String(d) : fmtNum(d, v)) + (u ? ' ' + u : '');
 }
 function stationTiles(p){
   const type = TILE_TYPES.find(([is]) => is(p)), lev = ['LIVIDRO', 'LIVLAGO'].find(v => measures(p, v));
@@ -4706,25 +4737,30 @@ function stationTiles(p){
   }
   return out;
 }
+let tilePick = '';                 // riquadro scelto col clic: fra due sulla stessa variabile (Livello, Variazione 3 h) si accende quello
 function renderTiles(p){
   const box = el('ptiles'), T = stationTiles(p);
   box.innerHTML = '';
   T.forEach(t => {
     const b = document.createElement('button');
-    b.className = 'tile'; b.dataset.v = t.chart; b.title = 'Nel grafico';
+    b.className = 'tile'; b.dataset.v = t.chart; b.dataset.k = t.v; b.title = 'Nel grafico';
     b.innerHTML = '<span></span><b></b>';
     b.firstChild.textContent = t.label; b.lastChild.textContent = t.text;
-    b.addEventListener('click', () => showInChart(t.chart));
+    b.addEventListener('click', () => { showInChart(t.chart); tilePick = t.v; syncTiles(); });
     box.appendChild(b);
   });
   box.hidden = !T.length;
   syncTiles();
 }
-function syncTiles(){ [...el('ptiles').children].forEach(b => b.classList.toggle('on', b.dataset.v === currentVar)); }
-// la variabile nel grafico, passando dalla sua pagina se serve (come i link: la pagina cambia le pillole delle variabili)
+function syncTiles(){
+  const T = [...el('ptiles').children], hit = T.filter(b => b.dataset.v === currentVar), on = hit.find(b => b.dataset.k === tilePick) || hit[0];
+  T.forEach(b => b.classList.toggle('on', b === on));
+}
+// la variabile nel grafico; se fra le pillole del pannello non c'e', prima la sua pagina (come i link)
 function showInChart(v){
-  if(varCat(v) !== currentPage){ const b = document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]'); if(b) b.click(); }
-  if([...el('vars').children].some(b => b.dataset.var === v)) drawVar(v);
+  const has = () => [...el('vars').children].some(b => b.dataset.var === v);
+  if(!has()) setPage(varCat(v), true);
+  if(has()) drawVar(v);
 }
 
 // ---- LINK CONDIVISIBILI: #REGIONE/CODICE/VARIABILE ----------------------------------------------
