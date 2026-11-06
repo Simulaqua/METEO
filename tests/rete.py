@@ -4,8 +4,9 @@
 # Il campione sono gli attesi delle prove di scarico, un giro per fonte, più cinque file costruiti: tre .json.gz, uno
 # vuoto, uno rotto.
 # I bash (publish.sh, publish_history.sh, backup_usb.sh) girano in cartelle temporanee: GitHub è un repository nudo
-# locale, gli strumenti del Pi che il Mac non ha sono i sostituti di tests/shims/; i loro effetti stanno in
-# tests/fixtures/rete/bash.json, con i file che deploy.sh copierebbe da un albero di prova.
+# locale, gli strumenti del Pi che il Mac non ha sono i sostituti di tests/shims/ (dove curl rifiuta di partire: niente
+# rete); i loro effetti stanno in tests/fixtures/rete/bash.json, con i file che deploy.sh copierebbe da un albero di
+# prova.
 #   python3 tests/rete.py attesi export                 riscrive impronte.txt con l'uscita dei programmi di adesso
 #   python3 tests/rete.py attesi bash                   riscrive bash.json con gli effetti dei bash di adesso
 #   python3 tests/rete.py uscita CARTELLA [--da COMMIT]  lascia l'uscita in CARTELLA, per un diff -r fra due commit;
@@ -212,9 +213,11 @@ def bash_env(root, **extra):
     """Le variabili dei bash nella cartella di prova root, più extra: i sostituti davanti nel PATH (assoluto: gli
     script fanno cd "$BASE"), la HOME di root con il .gitconfig che manda REMOTE al repository nudo (run aggiunge il
     sito utente di Python, dove sta requests), git solo verso file locali: se il rimando mancasse, ssh e https sono
-    rifiutati."""
-    env = {'PATH': BASH_PATH, 'HOME': os.path.join(root, 'home'), 'GIT_ALLOW_PROTOCOL': 'file',
-           'GIT_CONFIG_NOSYSTEM': '1'}
+    rifiutati. Anche XDG_CONFIG_HOME punta nella HOME di prova: ereditata, farebbe leggere a git la configurazione
+    vera di chi lancia le prove."""
+    home = os.path.join(root, 'home')
+    env = {'PATH': BASH_PATH, 'HOME': home, 'XDG_CONFIG_HOME': os.path.join(home, '.config'),
+           'GIT_ALLOW_PROTOCOL': 'file', 'GIT_CONFIG_NOSYSTEM': '1'}
     env.update(extra)
     return env
 

@@ -1,0 +1,4 @@
+#!/bin/sh
+# curl di prova (tests/rete.py): gli scenari non escono mai in rete; un curl lanciato da un bash è un errore
+echo "curl di prova: niente rete negli scenari (curl $*)" >&2
+exit 1
