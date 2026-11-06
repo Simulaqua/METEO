@@ -10,15 +10,13 @@ from tests import registratore
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'scarico')
 # i nomi che recover.py e check_updates.py leggono negli script regionali, per regione (per i livelli AQ_* e PC_* di
-# check_updates.py in dati_aria.py e dati_pc.py); di FVG e TN recover.py ha solo il percorso (le fonti non hanno
-# storico da recuperare): la prova controlla che lo script si carichi da lì.
-# recover.py legge solar_moment di BZ ed ER, OPERATORS, SKIP_VALUES e SKIP_DIR_VALUES di LOM e VALUE_CONV di ER con
-# getattr, con dei valori di riserva suoi: se un nome sparisse, userebbe quelli senza dirlo (il suo SKIP_VALUES non
-# scarta -999, senza VALUE_CONV salverebbe kelvin e pascal)
+# check_updates.py in dati_aria.py e dati_pc.py); di FVG e TN recover.py ha solo il nome del modulo (le fonti non hanno
+# storico da recuperare): la prova controlla che si importi.
+# recover.py li legge direttamente: un nome sparito ferma la sua regione con ERRORE
 READ_BY_RECOVER = {'VEN': ['PARSE_DIR', 'VARIABLES'], 'FVG': [], 'TN': [],
                    'BZ': ['PARSE_DIR', 'SENSORS_URL', 'VARIABLES', 'solar_moment'],
                    'LOM': ['DATA_URL', 'OPERATORS', 'PARSE_DIR', 'REGISTRY_URL', 'SKIP_DIR_VALUES', 'SKIP_VALUES',
-                           'VARIABLES'],
+                           'VARIABLES', 'compact_moment', 'coordinate'],
                    'ER': ['API_URL', 'PARSE_DIR', 'VALUE_CONV', 'VARIABLES', 'solar_moment']}
 READ_BY_CHECK_UPDATES = {'VEN': ['BASE_URL', 'STATION_LISTS', 'VARIABLES'],
                          'FVG': ['EXTRA', 'HOME_URL', 'META_TAGS', 'STATION_URL', 'VARIABLES'],
@@ -306,11 +304,13 @@ class TestScarico(unittest.TestCase):
             self.assertIn('=== AQ_TN ===\n  stazioni: 0 nel feed | nuove: 0\n', proc.stdout)
 
     def test_moduli_letti_da_recover_e_check_updates(self):
-        # i due programmi caricano gli script regionali dai loro percorsi e ne leggono le impostazioni; recover.py si
-        # muove solo dopo un buco nei dati, quindi un nome sparito non si vedrebbe subito
+        # i due programmi leggono le impostazioni degli script regionali (recover.py li importa come moduli,
+        # check_updates.py li carica dai loro percorsi); recover.py si muove solo dopo un buco nei dati, quindi un nome
+        # sparito non si vedrebbe subito
         recover = load_file(os.path.join(registratore.PROJECT, 'recover.py'))
         check_updates = load_file(os.path.join(registratore.PROJECT, 'check_updates.py'))
-        loaded = [(recover.load_module(region), names) for region, names in READ_BY_RECOVER.items()]
+        loaded = [(importlib.import_module(recover.REGION_MODULE[region]), names)
+                  for region, names in READ_BY_RECOVER.items()]
         loaded += [(check_updates.load_module(check_updates.REGIONS[region]), names)
                    for region, names in READ_BY_CHECK_UPDATES.items()]
         for module, names in loaded:
