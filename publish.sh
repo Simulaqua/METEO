@@ -16,7 +16,7 @@ REMOTE="git@github.com:Simulaqua/METEO.git"
 SLUG="$(printf '%s' "$REMOTE" | sed -E 's#(git@github.com:|https?://github.com/)##; s#\.git$##')"
 RAW_BASE="https://raw.githubusercontent.com/$SLUG/data"
 # avvisi GitHub (workflow), pubblicati su gh-pages in .github/workflows/ con il loro nome
-WATCHDOGS=(watchdog.yml watchdog_backup.yml)
+WATCHDOGS=(watchdog.yml watchdog_backup.yml watchdog_storico.yml)
 
 mkdir -p "$BASE/.tracking"
 

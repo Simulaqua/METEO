@@ -58,6 +58,8 @@ BACKUP_LOG = 'logs/backup-20261105-044000.log'
 # TEMP di oggi per lo Storico, che non legge i laghi
 NEW_DATA = ('LAGHI/data-parsed/LIVLAGO/LIVLAGO-20261104.json', 'Lago_d_Idro', 10)
 NEW_HISTORY_DATA = ('MAR_FVG/data-parsed/TEMP/TEMP-20261105.json', 'MAMBO1', 60)
+# JSON valido di forma sbagliata (una lista) in una cartella di site/ che l'export non riscrive: status.py si ferma
+BAD_STATIONS = ('site/PROVA/stations.geojson', b'[]')
 # le righe dei due bash di pubblicazione e gli errori di git; quelle dei programmi Python le coprono le impronte, e
 # cambiano di proposito
 SCRIPT_LINES = ('DATI', 'PAGINA', 'STORICO', 'ERRORE', 'ATTENZIONE', 'Fatto. Repo', 'fatal:', 'error:')
@@ -405,7 +407,7 @@ def publish_run(root, name, **extra):
 def publish_scenarios():
     """I giri di publish.sh, in fila sullo stesso progetto: primo; invariato; dato nuovo (data-inc); pagina cambiata;
     lock occupato; tre con il remoto che non risponde (al terzo si rifà il repository dei dati); remoto di nuovo al
-    suo posto (push completo)."""
+    suo posto (push completo); status.py che si ferma."""
     with tempfile.TemporaryDirectory() as root:
         project = bash_project(root)
         runs = [publish_run(root, 'primo giro'), publish_run(root, 'invariato')]
@@ -422,6 +424,13 @@ def publish_scenarios():
             runs.append(publish_run(root, 'remoto spostato %d' % n))
         move_remote(root, back=True)
         runs.append(publish_run(root, 'remoto rimesso'))
+        # con status.py fermo publish.sh lo dice e pubblica lo stesso dati e pagina, cambiati tutti e due; status.json
+        # resta quello di prima: LAGHI senza la lettura nuova
+        write(os.path.join(project, BAD_STATIONS[0]), BAD_STATIONS[1])
+        add_reading(project, *NEW_DATA)
+        with open(os.path.join(project, 'site', 'index.html'), 'a', encoding='utf-8') as fp:
+            fp.write('<!-- pagina cambiata ancora -->\n')
+        runs.append(publish_run(root, 'status.py fermo'))
         return runs
 
 

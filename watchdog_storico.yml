@@ -1,0 +1,68 @@
+# ===========================================================================================
+# AVVISO 'Warning - storico off' (GitHub Actions) - ogni mattina: mail se l'ultimo giro riuscito
+# dello Storico (publish_history.sh, alle 07:20 sul Pi) ha 2+ giorni (una notte saltata non basta)
+# o se non ce n'e' nessuno.
+# SCHEMA COMUNE DEGLI AVVISI (watchdog.yml = meteo, watchdog_backup.yml = backup,
+# watchdog_storico.yml = storico):
+#   - leggono site/STATUS/status.json dal branch 'data' (scritto da publish.sh sul Pi)
+#   - esito = UNA annotazione stile SMS nel riepilogo del run (e nella mail):
+#       ok  titolo '<area> ok'   testo 'ultimo giro: oggi'
+#       ko  titolo '<area> off'  testo '<motivo> | <motivo>'      -> job fallito = mail
+#   - oggetto della mail = nome del workflow ('Warning - <area> off')
+#   - status.json illeggibile = avviso anche lui
+#   - prova: Actions -> il workflow -> Run workflow con 'prova' spuntato
+#   - la parte 'comune' del codice e' identica nei tre file; cambia solo la parte 'specifica'
+# Vive in .github/workflows/watchdog_storico.yml su gh-pages: ce lo rimette publish.sh a ogni push pagina.
+# ===========================================================================================
+name: 'Warning - storico off'
+on:
+  schedule:
+    - cron: '35 8 * * *'
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: 'Fallisci apposta per provare la mail'
+        type: boolean
+        default: false
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: check
+        env:
+          PROVA: ${{ inputs.prova }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, datetime, urllib.request, zoneinfo
+          AREA = 'storico'
+          SOGLIA_GIORNI = 2
+
+          # --- comune a tutti gli avvisi ---
+          def fine(motivi, stato):
+              if motivi:
+                  print('::error title=%s off::%s' % (AREA, ' | '.join(motivi).replace('%', '%25')))
+                  sys.exit(1)
+              print('::notice title=%s ok::%s' % (AREA, stato.replace('%', '%25')))
+              sys.exit(0)
+
+          if os.environ.get('PROVA') == 'true':
+              fine(['prova'], '')
+          try:
+              url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+              j = json.load(urllib.request.urlopen(url, timeout=30))
+          except Exception as e:
+              print(e)
+              fine(['status illeggibile'], '')
+          adesso = datetime.datetime.now(zoneinfo.ZoneInfo('Europe/Rome')).replace(tzinfo=None)
+
+          # --- specifico: eta' dell'ultimo giro riuscito dello Storico ---
+          h = j.get('history') or {}
+          try:
+              giorni = (adesso.date() - datetime.datetime.strptime(h.get('last') or '', '%Y-%m-%dT%H:%M').date()).days
+          except ValueError:
+              fine(['nessun giro'], '')
+          stato = 'ultimo giro: ' + {0: 'oggi', 1: 'ieri'}.get(giorni, '%d gg fa' % giorni)
+          fine([stato] if giorni >= SOGLIA_GIORNI else [], stato)
+          PY

@@ -6,6 +6,7 @@
 #   regions  per regione: misura piu' recente, stazioni, stazioni "indietro" (ultimo dato oltre 3 ore prima
 #            della piu' recente della stessa regione)
 #   backup   il backup notturno su chiavetta (backup_usb.sh), per l'avviso 'Warning - backup off'
+#   history  l'ultimo giro riuscito dello Storico (publish_history.sh), per l'avviso 'Warning - storico off'
 # Cambia solo quando i dati avanzano davvero: non fa ripartire il push dei dati a ogni giro.
 #
 # Uso:   python3 status.py      (lavora nella sua cartella, il progetto)
@@ -17,11 +18,13 @@ import os
 import re
 
 BACKUP_ROOT = '/mnt/usb/backup'
+HISTORY_HASH = os.path.join('.tracking', 'last_history_hash')
 
 
-def build_status(site_dir, logs_dir, backup_root):
-    """{'latest', 'regions', 'backup'} dagli stations.geojson di site_dir, dal backup in backup_root e dal suo ultimo
-    log in logs_dir. Un geojson illeggibile si salta."""
+def build_status(site_dir, logs_dir, backup_root, history_hash):
+    """{'latest', 'regions', 'backup', 'history'} dagli stations.geojson di site_dir, dal backup in backup_root e dal
+    suo ultimo log in logs_dir, dall'impronta dello Storico history_hash. Un geojson illeggibile si salta; uno valido
+    ma di forma sbagliata ferma lo stato (publish.sh lo dice e pubblica lo stesso)."""
     out = {'latest': '', 'regions': {}}
     for path in glob.glob(os.path.join(site_dir, '*', 'stations.geojson')):
         try:
@@ -47,6 +50,7 @@ def build_status(site_dir, logs_dir, backup_root):
             old = 0
         out['regions'][os.path.basename(os.path.dirname(path))] = {'latest': latest, 'n': len(times), 'old': old}
     out['backup'] = backup_status(logs_dir, backup_root)
+    out['history'] = history_status(history_hash)
     return out
 
 
@@ -71,11 +75,22 @@ def backup_status(logs_dir, backup_root):
         return {'last': '', 'warn': ['stato illeggibile'], 'info': str(error)[:200]}
 
 
+def history_status(history_hash):
+    """L'ultimo giro riuscito dello Storico: l'ora di modifica di history_hash, che publish_history.sh riscrive dopo
+    il push e tocca quando lo Storico non cambia. 'AAAA-MM-GGThh:mm' nell'ora locale (sul Pi quella italiana, come
+    latest); '' se il file manca."""
+    try:
+        moment = datetime.datetime.fromtimestamp(os.path.getmtime(history_hash))
+    except OSError:
+        return {'last': ''}
+    return {'last': moment.strftime('%Y-%m-%dT%H:%M')}
+
+
 def main():
     # percorsi relativi alla cartella del programma, da dovunque lo si lanci: anche i messaggi d'errore scritti nello
     # stato (con il percorso del log) restano quelli di sempre
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    out = build_status('site', 'logs', BACKUP_ROOT)
+    out = build_status('site', 'logs', BACKUP_ROOT, HISTORY_HASH)
     if not out['latest']:
         return
     path = os.path.join('site', 'STATUS', 'status.json')
