@@ -266,6 +266,11 @@ class TestScarico(unittest.TestCase):
         # corpo: la coppia salta (niente SOLEGG di 66500MS), le altre si scrivono
         self.check_source('recover', 'bz', 'recover.py', ['-r', 'BZ', '--force', '--days', '1'])
 
+    def test_recover_lom(self):
+        # registrato dal vivo, poi ridotto: nell'anagrafica le righe dei primi 5 idstazione (nell'ordine delle righe),
+        # nelle 6 risposte con $where le righe dei loro sensori; l'ultimo istante del dataset ($limit=1) com'era
+        self.check_source('recover', 'lom', 'recover.py', ['-r', 'LOM', '--force', '--days', '1'])
+
     def test_recover_tutte(self):
         # senza rete, con l'orologio fermo al 2026-11-05 13:00 UTC (14:00 solari), su un archivio di partenza scritto
         # una volta da uno script (iniziali/): una stazione S1, un file del giorno <VAR>-AAAAMMGG.json per ogni giorno
