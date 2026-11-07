@@ -22,6 +22,10 @@ history_out/
 /PIE/zero_idrometrici.json
 /PC_PIE/zero_idrometrici.json
 
+# Il vecchio sistema ARPAV dell'utente (old/, sul Pi ~/METEO/old) non si tocca mai; i worktree di git non servono
+/old/
+.worktrees/
+
 # Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture)
 tests/
 .superpowers/

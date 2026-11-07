@@ -2,7 +2,7 @@
 # dati_aria.py - qualità dell'aria, ogni rete regionale come una regione a sé con codice AQ_<RETE>
 # (AQ_VEN, AQ_TN, AQ_BZ, AQ_LOM, AQ_ER): stesso schema degli altri script,
 #   AQ_<RETE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json  +  AQ_<RETE>/data-parsed/stazioni.json
-# così export_web.py la esporta senza modifiche (basta aggiungerla a REGION_CFG) e la mappa la mostra.
+# così export_web.py la esporta senza modifiche (basta aggiungerla a REGIONS) e la mappa la mostra.
 # Sigle comuni degli inquinanti: PM10, PM25, NO2, O3, SO2, CO, C6H6 (benzene).
 # Ogni stazione ha sempre lat/lon (senza coordinate valide si scarta). Gli istanti sono in ora solare (UTC+1).
 # Uso: python3 dati_aria.py [-r all | -r VEN|TN|BZ|LOM|ER] [--debug]   (una rete per volta)

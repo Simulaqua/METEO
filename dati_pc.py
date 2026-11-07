@@ -35,8 +35,8 @@ TN_MAP = {'gage height': 'LIVIDRO', 'discharge': 'PORTATA'}
 TN_UNITS = {'LIVIDRO': 'm', 'PORTATA': 'm³/s'}
 
 # PO: feed idrometrico del bacino del Po. Aggrega reti regionali (ARPA Lombardia, Regione ER, ...) più le stazioni
-# proprie di AIPO e si scarica tutto: i doppioni con ER/LOM li toglie export_web alla pubblicazione (stazioni
-# vicine). Accesso anonimo pubblico; il certificato SSL del sito è incompleto, quindi verify=False, solo per questo
+# proprie di AIPO e si scarica tutto: i doppioni con ER/LOM restano (sulla mappa sono puntini vicini).
+# Accesso anonimo pubblico; il certificato SSL del sito è incompleto, quindi verify=False, solo per questo
 # host. Le coordinate sono in /v3/locations (x = lon, y = lat). PC_PO/elements_map.json tiene in cache
 # stazione -> elementId del livello.
 PO_BASE = 'https://idrometri.agenziapo.it/datascapeA'
