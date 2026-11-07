@@ -1242,16 +1242,31 @@
         log(near(S(), FULL, 60), 'Giorni: doppio clic, di nuovo tutto il periodo', days(S()));
         eq('Giorni: dopo il doppio clic acceso "Tutto"', litR(), ['0']);
       }
-      {                                                              // limiti: mai sotto 3 giorni, mai oltre tutto il periodo
+      {                                                              // limiti: mai sotto 3 giorni, mai oltre tutto il periodo. Ai limiti la
+                                                                     // rotellina resta al grafico solo nella coda dello stesso gesto (meno di
+                                                                     // 300 ms dall'ultimo scatto tenuto); un gesto nuovo fa scorrere la pagina
         for(let i = 0; i < 25; i++) await wheel(0.5, -500);
         log(Math.abs(W(S()) - MINW) < 60, 'Giorni: zoom al massimo = 3 giorni', W(S()) / 86400);
         const ev = await wheel(0.5, -500);
-        log(ev.defaultPrevented && Math.abs(W(S()) - MINW) < 60, 'Giorni: oltre i 3 giorni la rotellina in su non fa niente (e non scorre la pagina)', W(S()) / 86400);
+        log(ev.defaultPrevented && Math.abs(W(S()) - MINW) < 60, 'Giorni: a 3 giorni, subito dopo uno scatto di zoom, la rotellina in su resta al grafico (coda del gesto)', W(S()) / 86400);
+        await sleep(400);
+        const evp = await wheel(0.5, -500);
+        log(!evp.defaultPrevented && Math.abs(W(S()) - MINW) < 60, 'Giorni: a 3 giorni, dopo una pausa, la rotellina in su fa scorrere la pagina', W(S()) / 86400);
+        await sleep(400);
         for(let i = 0; i < 25; i++) await wheel(0.3, 500);
         log(near(S(), FULL, 60), 'Giorni: zoom indietro al massimo = tutto il periodo, non oltre', days(S()));
         eq('Giorni: tornati a tutto il periodo si riaccende "Tutto"', litR(), ['0']);
+        const evt = await wheel(0.5, 100);
+        log(evt.defaultPrevented && near(S(), FULL, 60), 'Giorni: su tutto il periodo, subito dopo lo zoom, la rotellina in giù resta al grafico (coda del gesto)', '');
+        await sleep(400);
         const ev2 = await wheel(0.5, 100);
-        log(!ev2.defaultPrevented && near(S(), FULL, 60), 'Giorni: su tutto il periodo la rotellina in giù lascia scorrere la pagina', '');
+        log(!ev2.defaultPrevented && near(S(), FULL, 60), 'Giorni: su tutto il periodo, dopo una pausa, la rotellina in giù fa scorrere la pagina', '');
+        const ev2b = await wheel(0.5, -100);                                  // lo stesso gesto torna indietro: resta alla pagina, niente zoom
+        log(!ev2b.defaultPrevented && near(S(), FULL, 60), 'Giorni: un gesto partito scorrendo la pagina e tornato indietro non zooma', days(S()));
+        await sleep(400);
+        { const s5 = S(), [xn, yn] = pt(0.5);                                 // Chrome: il resto di un gesto lasciato alla pagina non e' annullabile
+          histU.over.dispatchEvent(new WheelEvent('wheel', { deltaY:-300, deltaMode:0, clientX:xn, clientY:yn, bubbles:true, cancelable:false })); await sleep(60);
+          log(near(S(), s5, 60), 'Giorni: una rotellina non annullabile (pagina che sta già scorrendo) non zooma', days(S())); }
         const ev3 = await wheel(0.5, 30, { ctrlKey:true });                   // pizzico del trackpad (rotellina con Ctrl): mai lo zoom della pagina
         log(ev3.defaultPrevented, 'Giorni: il pizzico del trackpad resta al grafico', '');
         const s4 = S(); await wheel(0.4, -20, { ctrlKey:true });

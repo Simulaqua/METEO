@@ -3594,18 +3594,27 @@ function hvZoom(u){
   const zoomAt = (x, k) => { const v = val(x), w = clampW((win().max - win().min) * k), mn = v - x / W() * w; return hvSetWin(u, mn, mn + w, true); };
   const shift = px => { const s = win(), d = px / W() * (s.max - s.min); return hvSetWin(u, s.min + d, s.max + d, true); };
   let gest = null;                                                             // pizzico di Safari sul Mac
+  // un gesto della rotellina (scatti a meno di 300 ms l'uno dall'altro) resta di chi l'ha preso: il grafico se ha zoomato o
+  // spostato, se no la pagina. Cosi' ai limiti (tutto il periodo in giu', 3 giorni in su) un gesto nuovo fa scorrere la pagina,
+  // la coda di uno zoom non finisce nella pagina e un gesto partito scorrendo la pagina non zooma se torna indietro
+  let lastChart = -1e9, lastPage = -1e9;
   o.classList.add('hv-pan');
   o.addEventListener('wheel', e => {
+    if(!e.cancelable) return;                     // la pagina sta gia' scorrendo (Chrome: il resto del gesto non si annulla)
     if(gest && e.ctrlKey){ e.preventDefault(); return; }
+    const t = e.timeStamp, inGesture = t - Math.max(lastChart, lastPage) < 300;
+    if(!e.ctrlKey && inGesture && lastPage > lastChart){ lastPage = t; return; }       // gesto della pagina: resta alla pagina
+    const keep = () => { e.preventDefault(); lastChart = t; };
     const px = e.deltaMode === 1 ? 16 : e.deltaMode ? W() : 1, dy = e.deltaY;
-    if(!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(dy)){ shift(e.deltaX * px); e.preventDefault(); return; }   // di lato: sposta (e niente "indietro" del browser)
+    if(!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(dy)){ shift(e.deltaX * px); keep(); return; }   // di lato: sposta (e niente "indietro" del browser)
     // in su stringe, in giu' allarga, come d3-zoom: 2^(pixel * 0.002), righe * 0.05, pizzico x10. La rotellina del mouse sul Mac
     // manda scatti da 4.000244140625 px, troppo lenti cosi': almeno 0.2 a scatto
     let z = dy * (e.deltaMode === 1 ? 0.05 : e.deltaMode ? 1 : 0.002) * (e.ctrlKey ? 10 : 1);
     const q = dy / 4.000244140625;
     if(!e.ctrlKey && !e.deltaMode && dy && Math.abs(q - Math.round(q)) < 1e-6) z = Math.sign(dy) * Math.max(0.2, Math.abs(z));
-    // al limite la rotellina in giu' lascia scorrere la pagina; in su e il pizzico restano al grafico
-    if(zoomAt(lx(e), Math.pow(2, Math.max(-1, Math.min(1, z)))) || e.ctrlKey || dy < 0) e.preventDefault();
+    // il pizzico (Ctrl) resta sempre al grafico: mai lo zoom della pagina
+    if(zoomAt(lx(e), Math.pow(2, Math.max(-1, Math.min(1, z)))) || e.ctrlKey || inGesture) keep();
+    else lastPage = t;
   }, { passive:false });
   // mouse: trascinare sposta (il riquadro lo muove uPlot). Dita: una sposta, due allargano o stringono attorno al loro centro
   // (e spostano), doppio tocco = tutto il periodo
