@@ -3,7 +3,6 @@
 # <REGIONE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json[.gz] e scrive in <site-dir>/<REGIONE>/:
 #   series/<SCODE>.csv     la serie di ogni stazione, una colonna per variabile (con le derivate di derive.py)
 #   stations.geojson       le stazioni della mappa, con l'ultimo valore di ogni variabile
-#   stations_nocoord.csv   le stazioni senza coordinate, che restano fuori dalla mappa
 #   units.json             l'unità di ogni variabile
 #   snap/<VAR>.json        i fotogrammi orari del cursore del tempo
 # Con --series-only (l'export a 30 giorni, in series30/) scrive solo le serie, senza derivate.
@@ -71,7 +70,7 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
     """I file del sito di una regione in out_dir. coords = {scode: (lat, lon)} per le stazioni che in stazioni.json
     non hanno coordinate."""
     print('\n***  WEB EXPORT  ***   region ' + region)
-    cutoff_dt = datetime.datetime.now() - datetime.timedelta(days=days)
+    cutoff_dt = comune.now_solar() - datetime.timedelta(days=days)
     cutoff = cutoff_dt.strftime('%Y%m%d%H%M')
     # le somme di pioggia 1-48 h sono giuste anche all'inizio della finestra solo con la PREC dei 2 giorni prima: si
     # legge in più e si toglie dopo le derivate (l'export a 30 giorni non le calcola)
@@ -203,7 +202,7 @@ def write_series(data, series_dir):
 
 def write_map(region, data, station_meta, zeros, coords, out_dir):
     """stations.geojson con le stazioni che hanno coordinate (da stazioni.json, altrimenti da coords) e
-    stations_nocoord.csv con le altre. Ritorna i codici delle stazioni in mappa."""
+    le altre sono solo nel log. Ritorna i codici delle stazioni in mappa."""
     name_field, lat_field, lon_field = STATION_FIELDS.get(region, ('NOME', 'LAT', 'LON'))
     features = []
     no_coord = []
@@ -225,11 +224,8 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
                      os.path.join(out_dir, 'stations.geojson'))
     print('Stations on map (with lat/lon): ' + str(len(features)))
     if no_coord:
-        with open(os.path.join(out_dir, 'stations_nocoord.csv'), 'w', newline='', encoding='utf-8') as fp:
-            writer = csv.writer(fp)
-            writer.writerow(['scode', 'name'])
-            writer.writerows(no_coord)
-        print('Stations WITHOUT lat/lon (map TODO): ' + str(len(no_coord)) + '  -> stations_nocoord.csv')
+        print('Stazioni senza coordinate, non in mappa: ' + str(len(no_coord)) + ' (' +
+              ', '.join(scode for scode, _ in no_coord) + ')')
     return [feature['properties']['scode'] for feature in features]
 
 

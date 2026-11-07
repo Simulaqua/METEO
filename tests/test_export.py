@@ -28,7 +28,7 @@ def station(lat, lon):
 def export(folder, archive, epoch=rete.EPOCH):
     """L'export di tutte le regioni in folder, con l'orologio fermo a epoch, sull'archivio
     {regione: {scode: (record di stazioni.json, {variabile: [(istante, valore)]})}}; le letture di una variabile vanno
-    nel file del giorno della prima. Ritorna il processo."""
+    nel file del loro giorno. Ritorna il processo."""
     rete.copy_programs(folder)
     for region, stations in archive.items():
         parsed = os.path.join(folder, region, 'data-parsed')
@@ -36,10 +36,13 @@ def export(folder, archive, epoch=rete.EPOCH):
         day_files = {}
         for scode, (meta, readings) in stations.items():
             for var, points in readings.items():
-                path = os.path.join(parsed, var, '%s-%s.json' % (var, points[0][0][:8]))
-                day_files.setdefault(path, {})[scode] = {
-                    'STAZIONE': meta,
-                    'MISURE': {'ISTANTE': [moment for moment, _ in points], 'VALORE': [value for _, value in points]}}
+                for day in sorted({moment[:8] for moment, _ in points}):
+                    day_points = [(moment, value) for moment, value in points if moment[:8] == day]
+                    path = os.path.join(parsed, var, '%s-%s.json' % (var, day))
+                    day_files.setdefault(path, {})[scode] = {
+                        'STAZIONE': meta,
+                        'MISURE': {'ISTANTE': [moment for moment, _ in day_points],
+                                   'VALORE': [value for _, value in day_points]}}
         for path, records in day_files.items():
             write_json(path, records)
     return rete.run([sys.executable, 'export_web.py', '-r', 'all', '--site-dir', 'site'], folder, epoch=epoch)
@@ -109,6 +112,31 @@ class TestMappa(unittest.TestCase):
         self.assertEqual(list(first), ['A', 'B'])
         self.assertEqual(first['A']['latest'], {'TEMP': 12.5})               # senza l'umidita', con la temperatura
         self.assertEqual(first['B']['latest']['UMID'], 80)
+
+    def test_finestra_in_ora_solare_d_estate(self):
+        # l'archivio e' in ora solare: d'estate now() (civile) sposterebbe la finestra di un'ora. Alle 10:00 UTC del
+        # 10/07 sono le 11:00 solari: la finestra di 7 giorni parte dal 03/07 alle 11:00 solari = 12:00 civili
+        hours = []
+        moment = datetime.datetime(2026, 7, 1)
+        while moment <= datetime.datetime(2026, 7, 10, 11):
+            hours.append((moment.strftime('%Y%m%d%H%M'), 20.0))
+            moment += datetime.timedelta(hours=1)
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, {'LAGHI': {'S1': (station(45.6, 10.6), {'TEMP': hours})}}, epoch=1783677600))
+            with open(os.path.join(folder, 'site', 'LAGHI', 'series', 'S1.csv'), encoding='utf-8') as fp:
+                rows = fp.read().splitlines()
+        self.assertEqual(rows[1].split(',')[0], '2026-07-03T12:00')
+
+    def test_stazioni_senza_coordinate_nel_log(self):
+        lakes = {'S1': (station(45.6, 10.6), LAKE_LEVEL), 'S2': (station('', ''), LAKE_LEVEL)}
+        with tempfile.TemporaryDirectory() as folder:
+            proc = export(folder, {'LAGHI': lakes})
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            files = os.listdir(os.path.join(folder, 'site', 'LAGHI'))
+            clean = export(folder, {'LAGHI': {'S1': (station(45.6, 10.6), LAKE_LEVEL)}})
+        self.assertNotIn('stations_nocoord.csv', files)
+        self.assertIn('Stazioni senza coordinate, non in mappa: 1 (S2)', proc.stdout)
+        self.assertNotIn('Stazioni senza coordinate', clean.stdout)
 
 
 if __name__ == '__main__':

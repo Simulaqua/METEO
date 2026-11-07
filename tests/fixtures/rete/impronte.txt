@@ -3948,7 +3948,6 @@ e0c8d4f2e5dcef74b9ef7b023a22c14eb98bcb22  site/FVG/series30/ZON.csv
 423ca9fb63166105e87e70a8ad00af415b7f3ea0  site/FVG/snap/UMID.json
 23cd9c691e1c8af3f969630dfbcd28d08f9cc8ab  site/FVG/snap/VVENTO.json
 b8acc3636644973bc37e2caf4e697c94f2818438  site/FVG/stations.geojson
-55128a62c23ed6176cb2ebdae81748fe932dfcf3  site/FVG/stations_nocoord.csv
 cccc1aa799167e0cd67eccec5933cc3b3367e7d3  site/FVG/units.json
 44e19c255f15c8f601e039aea2bd7261d0262b7a  site/INV_ER/series/CONCA.csv
 095ac9bebd428ded2266a3633f4f5164729f4805  site/INV_ER/series/RIDRACOLI.csv
