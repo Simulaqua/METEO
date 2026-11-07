@@ -1,7 +1,7 @@
 # Come e' fatto il sistema
 
 Per chi arriva nuovo. Il README dice cosa c'e' nella cartella; qui c'e' come funziona e perche'. Gli appunti di lavoro
-da cui nasce questo testo (piani, specifiche, revisioni) restano nella storia di git, nella cartella `docs/superpowers`.
+piu' dettagliati (piani, revisioni) restano nella storia di git.
 
 ## Cosa fa
 
@@ -96,7 +96,7 @@ altre e passa da sola.
   Ogni notte si ricalcolano i giorni nuovi e gli ultimi 8 (`recover.py` puo' ricucire fino a 7 giorni indietro).
   Le viste sono Giorni, Mesi, Anni, Tabella; negli Anni un colore per anno.
 - **La stazione si apre in una finestra intera sotto la barra a schede.** Un pannello laterale e' stato provato
-  (2 novembre 2026) e tolto lo stesso giorno su richiesta dell'utente: si vedeva troppo poco.
+  (6 novembre 2026) e tolto lo stesso giorno su richiesta dell'utente: si vedeva troppo poco.
 - **Il vento.** L'etichetta (NNE...) dice da dove viene il vento; la freccia accanto mostra dove va.
 - **Nessuna chiave ne' token per nessuna fonte.** Solo fonti aperte e anonime. Se una fonte limita le richieste
   (la Lombardia risponde 429), lo scarico ritenta con pause e, se non basta, esce senza scrivere.

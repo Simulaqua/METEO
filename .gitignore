@@ -16,7 +16,7 @@ history_out/
 history_cache/
 .history.lock
 
-# --- spazio di lavoro dei piani (superpowers) e copie di lavoro separate ---
+# --- appunti di lavoro locali e copie di lavoro separate (non nel repository) ---
 .superpowers/
 .worktrees/
 
