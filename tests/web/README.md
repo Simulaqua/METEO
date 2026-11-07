@@ -18,7 +18,7 @@
     tests/web/run.sh "it_prod.html?suite=hoverradar"  # scheda col radar locale (SRI coi puntini, VMI senza)
     tests/web/run.sh "it_local.html?suite=stazione"   # variabile con cui si apre una stazione
     tests/web/run.sh "w.html?w=375&h=812&src=it_live.html%3Fsuite%3Dlayout"   # ingombri a 375 px
-    tests/web/run.sh "it_local.html?suite=storico"    # Storico: pulsante, viste, tabella mesi x anni con barre, riquadro al passaggio, nomi degli anni, "i", CSV, link H:VAR:VIEW
+    tests/web/run.sh "it_local.html?suite=storico"    # Storico: pulsante, viste (Giorni, Mesi, Anni, Tabella), zoom dei Giorni (rotellina, trascinamento, doppio clic, due dita), colori degli anni, tabella con barre, riquadro al passaggio, "i", CSV, link H:VAR:VIEW
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dstorico"   # lo stesso a 375 px (anche 320x640, 430x932, 1024x768)
     tests/web/run.sh "w.html?w=1024&h=768&src=it_local.html%3Fsuite%3Dschede"   # scheda su due righe: grafico entro 75 px, Confronti, Storico ×
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dschede"    # telefono (anche 320x640, 430x932): riga 2 che scorre, niente fuori pagina

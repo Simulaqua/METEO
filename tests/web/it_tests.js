@@ -931,6 +931,23 @@
               ...((isP ? raw.hp[i] : raw.ht[i]) < 20 ? ['incompleto'] : [])].join(' | '); };
     const dayWith = isP => { for(let i = nraw - 15; i > nraw - 30; i--) if(isP ? raw.p[i] != null : raw.tm[i] != null && raw.tn[i] != null && raw.tx[i] != null) return i; return -1; };
     const colorOf = css => { const s = document.createElement('span'); s.style.color = css; el('histview').appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; };
+    // colori "rgb(r, g, b)": distanza OKLab (x100, come la regola della tavolozza: >= 15 = si distinguono), croma (< 0.10 = grigio),
+    // contrasto WCAG sullo sfondo
+    const rgbOf = c => (String(c).match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    const linC = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const oklab = c => { const [r, g, b] = rgbOf(c).map(linC);
+      const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b),
+            s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+      return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s]; };
+    const dE = (a, b) => { const p = oklab(a), q = oklab(b); return 100 * Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); };
+    const chroma = c => { const p = oklab(c); return Math.hypot(p[1], p[2]); };
+    const lumC = c => { const [r, g, b] = rgbOf(c).map(linC); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const contrastC = (a, b) => { const x = lumC(a), y = lumC(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    // Giorni: tutto il periodo = dal primo all'ultimo giorno del file, mezza giornata di margine ai lati (le barre intere)
+    const nAll = Math.max(raw.p.length, (raw.tm || []).length), first = d0 / 1000, last = first + 86400 * (nAll - 1);
+    const FULL = { min:first - 43200, max:last + 43200 };
+    const litR = () => [...el('hvRange').querySelectorAll('.on')].map(b => b.dataset.r);
+    const hintWant = () => matchMedia('(pointer: coarse)').matches ? 'due dita: zoom' : 'rotellina: zoom · trascina: sposta';
 
     // Tabella: una riga per mese (gen..dic) e in fondo tot/media, una colonna per anno (dal piu' vecchio); pioggia in mm
     // interi, temperatura con un decimale; mese mancante = cella vuota; incompleto = piu' chiaro col perche' (title);
@@ -1000,7 +1017,7 @@
     // grafici: chiave fissa in alto a destra (sopra i dati) ed etichetta dove sta il puntatore (mouse; al tocco sul telefono)
     const okKey = (name, want) => {
       const k = el('hvChart').querySelector('.hv-key'), w = histU && histU.over.parentNode;
-      eq(name + ': chiave', k ? [...k.children].map(e => e.textContent.trim()) : null, want);
+      eq(name + ': chiave', k ? [...k.children].filter(e => !e.classList.contains('hv-hint')).map(e => e.textContent.trim()) : null, want);
       log(vis(k) && R(k).right <= R(w).right + 0.5 && R(k).right >= R(w).right - 60 && R(k).top >= R(w).top - 0.5 && R(k).bottom <= R(histU.over).top + 1,
           name + ': chiave in alto a destra, sopra i dati', k && JSON.stringify([R(k).left, R(k).top, R(k).right, R(k).bottom, R(histU.over).top, R(w).right]));
     };
@@ -1024,18 +1041,30 @@
       const a = tipIn(await tipAt(sx.max - dx, sy.max - dy)), b = tipIn(await tipAt(sx.min + dx, sy.min + dy));
       log(a && b, name + ': vicino ai bordi l\'etichetta resta dentro', JSON.stringify([a, b]));
     };
-    // Anni: nessuna legenda, il nome dell'anno in fondo alla sua linea; ultimo anno blu e piu' spesso, gli altri grigi, incompleti tratteggiati
+    // Anni: nessuna legenda, il nome dell'anno in fondo alla sua linea, del colore della linea; un colore ben distinto per
+    // anno (l'ultimo blu e il piu' spesso), linee piene, gli incompleti piu' sottili
+    const yearCols = () => histU.series.slice(1).map((s, k) => colorOf(typeof s.stroke === 'function' ? s.stroke(histU, k + 1) : s.stroke));
+    const okColors = (name, cols, yrs) => {
+      const bg = getComputedStyle(document.body).backgroundColor, pairs = [];
+      cols.forEach((a, i) => cols.slice(i + 1).forEach((b, j) => pairs.push([yrs[i] + '/' + yrs[i + 1 + j], +dE(a, b).toFixed(1)])));
+      log(cols.length >= 2 && pairs.every(p => p[1] >= 15) && cols.every(c => chroma(c) >= 0.1), name + ': un colore ben distinto per anno (niente grigi)',
+          JSON.stringify([cols, pairs, cols.map(c => +chroma(c).toFixed(3))]));
+      log(cols.every(c => contrastC(c, bg) >= 3), name + ': linee leggibili sullo sfondo (contrasto almeno 3)', JSON.stringify([bg, cols.map(c => +contrastC(c, bg).toFixed(2))]));
+    };
     const okYears = (name, isP) => {
-      const S = histU.series.slice(1), n = S.length, yrs = S.map(s => String(s.label));
-      const col = k => { const s = histU.series[k]; return typeof s.stroke === 'function' ? s.stroke(histU, k) : s.stroke; };
-      const rgb = c => (/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(c || '') || []).slice(1).map(h => parseInt(h, 16));
-      const grey = c => { const v = rgb(c); return v.length === 3 && Math.max(...v) - Math.min(...v) <= 40; };
-      const lv = rgb(col(n));
-      log(lv.length === 3 && lv[2] - lv[0] >= 60 && S.every((s, k) => k === n - 1 || (s.width < S[n - 1].width && grey(col(k + 1)))),
-          name + ': ultimo anno blu e più spesso, gli altri grigi', JSON.stringify(S.map((s, k) => [s.label, col(k + 1), s.width])));
-      eq(name + ': anni incompleti tratteggiati', S.filter(s => s.dash && s.dash.length).map(s => s.label), partYears(isP).map(String));
+      const S = histU.series.slice(1), n = S.length, yrs = S.map(s => String(s.label)), cols = yearCols();
+      okColors(name, cols, yrs);
+      const lv = rgbOf(cols[n - 1]);
+      log(lv.length === 3 && lv[2] - lv[0] >= 60 && S.every((s, k) => k === n - 1 || s.width < S[n - 1].width),
+          name + ': ultimo anno blu e il più spesso', JSON.stringify(S.map((s, k) => [s.label, cols[k], s.width])));
+      eq(name + ': linee piene, niente tratteggi', S.filter(s => s.dash && s.dash.length).map(s => s.label), []);
+      const part = partYears(isP).map(String), older = S.slice(0, n - 1);
+      const thin = older.filter(s => part.includes(String(s.label))).map(s => s.width), full = older.filter(s => !part.includes(String(s.label))).map(s => s.width);
+      log(thin.length > 0 && new Set(thin).size === 1 && new Set(full).size <= 1 && thin[0] < Math.min(S[n - 1].width, ...full),
+          name + ': anni incompleti più sottili (' + part.join(', ') + ')', JSON.stringify(S.map(s => [s.label, s.width])));
       const o = histU.over, w = o.parentNode, labs = [...w.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
       eq(name + ': il nome di ogni anno sul grafico', labs.map(l => l.textContent.trim()).sort(), yrs.slice().sort());
+      eq(name + ': il nome di ogni anno del colore della sua linea', yrs.map(y => { const l = labs.find(e => e.textContent.trim() === y); return l ? getComputedStyle(l).color : null; }), cols);
       const bad = [];
       S.forEach((s, k) => {
         const d = histU.data[k + 1], lab = labs.find(l => l.textContent.trim() === yrs[k]); let j = d.length - 1;
@@ -1059,8 +1088,9 @@
       if(!b || !box){ log(false, name + ': "i" del metodo', 'assente'); return; }
       log(b.tagName === 'BUTTON' && vis(b) && b.getAttribute('aria-expanded') === 'false' && !vis(box), name + ': "i" chiusa all\'inizio', b.outerHTML.slice(0, 160));
       b.click(); await sleep(50);
-      log(vis(box) && b.getAttribute('aria-expanded') === 'true' && ['giorno solare (UTC+1)', 'giorno completo = almeno 20 ore con dato', 'più chiaro o tratteggiato = incompleto',
-          'elaborazioni non ufficiali dei dati grezzi delle fonti'].every(s => box.innerText.includes(s)), name + ': "i" mostra il metodo', box.innerText);
+      log(vis(box) && b.getAttribute('aria-expanded') === 'true' && ['giorno solare (UTC+1)', 'giorno completo = almeno 20 ore con dato', 'più chiaro = incompleto',
+          'più sottile = anno incompleto', 'elaborazioni non ufficiali dei dati grezzi delle fonti'].every(s => box.innerText.includes(s)) && !/tratteggi/.test(box.innerText),
+          name + ': "i" mostra il metodo (più chiaro, più sottile; niente tratteggio)', box.innerText);
       noOverflow(name + ', metodo aperto');
       b.click(); await sleep(50);
       log(!vis(box) && b.getAttribute('aria-expanded') === 'false', name + ': "i" si richiude', '');
@@ -1082,6 +1112,22 @@
       if(has(V, v) && el('vars').querySelector('[data-var="' + v + '"]')){ drawVar(v); await sleep(100);
         log(vis(el('histbtn')), 'pulsante visibile con ' + v + ' aperta', ''); }
     }
+    // viste in ordine Giorni, Mesi, Anni, Tabella; dal pulsante (senza vista nel link) lo Storico si apre su Giorni, tutto il periodo
+    eq('viste in ordine: Giorni, Mesi, Anni, Tabella', [...el('hvView').children].map(b => b.dataset.w + ' ' + b.textContent.trim()),
+       ['giorni Giorni', 'mesi Mesi', 'anni Anni', 'tabella Tabella']);
+    el('histbtn').click(); await until(() => histMode && !!histU && histU.scales.x.min != null, 8000); await sleep(300);
+    {
+      const sx = histU && histU.scales.x, hint = el('hvChart').querySelector('.hv-hint'), key = el('hvChart').querySelector('.hv-key');
+      eq('dal pulsante lo Storico si apre su Giorni', histView, 'giorni');
+      log(!!sx && Math.abs(sx.min - FULL.min) < 3600 && Math.abs(sx.max - FULL.max) < 3600, 'Giorni si apre su tutto il periodo (dal primo all\'ultimo giorno)',
+          sx && JSON.stringify([(sx.min - FULL.min) / 3600, (sx.max - FULL.max) / 3600]));
+      eq('Giorni su tutto il periodo: acceso "Tutto"', litR(), ['0']);
+      if(innerWidth > 720) log(vis(hint) && hint.textContent.trim() === hintWant(), 'Giorni: suggerimento "' + hintWant() + '" accanto alla chiave', hint ? hint.textContent : 'assente');
+      log(!vis(hint) || (hint.textContent.trim() === hintWant() && R(hint).right <= R(key).left - 4 && R(hint).left >= R(histU.over).left - 1 && R(hint).bottom <= R(histU.over).top + 1),
+          'Giorni: suggerimento sopra il grafico, senza coprire la chiave (o nascosto se non ci sta)', hint && key ? JSON.stringify([R(hint).left, R(hint).right, R(key).left]) : 'assente');
+      noOverflow('Giorni, apertura');
+    }
+    await setHistMode(false);
     await setHistMode(true, 'PREC', 'mesi');                                        // con lo Storico aperto, una stazione senza pioggia/temperatura lo chiude
     await open(N);
     log(!histMode && !vis(el('histview')) && !vis(el('histbtn')), 'stazione senza PREC/TEMP: Storico chiuso', histMode);
@@ -1129,7 +1175,19 @@
       log(Math.abs(i - 300) <= 3, 'Pioggia/Anni: puntatore sul giorno 300', i);
       eq('Pioggia/Anni: etichetta al passaggio (ogni anno)', tipText(t), want.join(' | '));
       log(tipIn(t), 'Pioggia/Anni: etichetta dentro il grafico e lo schermo', '');
+      { const cols = yearCols(), byY = {}; histU.series.slice(1).forEach((s, k) => { byY[String(s.label)] = cols[k]; });
+        eq('Pioggia/Anni: nel riquadro ogni anno col segno del colore della sua linea', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopColor) : null,
+           yrs.slice().reverse().filter(y => cum(y) != null).map(y => byY[String(y)])); }
+      eq('Pioggia/Anni: niente trattini nella chiave e nel riquadro', [...el('histview').querySelectorAll('.sw')].filter(s => vis(s) && getComputedStyle(s).borderTopStyle === 'dashed').length, 0);
       noOverflow('Pioggia/Anni');
+      document.body.classList.add('dark'); await renderHist(); await sleep(100);       // tema scuro (il pulsante del tema ridisegna lo Storico cosi')
+      {
+        const yrsD = histU.series.slice(1).map(s => String(s.label)), colsD = yearCols(), o = histU.over;
+        const labs = [...o.parentNode.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
+        okColors('Pioggia/Anni, tema scuro', colsD, yrsD);
+        eq('Pioggia/Anni, tema scuro: il nome di ogni anno del colore della sua linea', yrsD.map(y => { const l = labs.find(e => e.textContent.trim() === y); return l ? getComputedStyle(l).color : null; }), colsD);
+      }
+      document.body.classList.remove('dark'); await renderHist(); await sleep(100);
     }
     histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni');
     okKey('Pioggia/Giorni', ['mm', 'incompleto']);
@@ -1142,6 +1200,106 @@
     el('hvRange').querySelector('[data-r="30"]').click(); await sleep(150);
     { const i = dayWith(true); await okTip('Pioggia/Giorni, ' + dayOf(i).toISOString().slice(0, 10), d0 / 1000 + 86400 * i, dayTxt(true, i)); }
     await tipEdges('Pioggia/Giorni');
+    // Giorni: zoom sul tempo. Rotellina attorno al puntatore, trascinare sposta, doppio clic torna a tutto il periodo; mai
+    // oltre tutto il periodo ne' sotto 3 giorni; acceso solo il periodo che corrisponde alla finestra. Telefono: due dita,
+    // un dito di lato, doppio tocco; in verticale il dito scorre la pagina
+    {
+      const MINW = 3 * 86400, W = s => s.max - s.min;
+      const S = () => ({ min:histU.scales.x.min, max:histU.scales.x.max });
+      const near = (a, b, tol) => Math.abs(a.min - b.min) <= tol && Math.abs(a.max - b.max) <= tol;
+      // i clientX degli eventi sono pixel interi: si misura nel punto vero dell'evento
+      const pt = fx => { const r = R(histU.over); return [Math.round(r.left + r.width * fx), Math.round(r.top + r.height / 2)]; };
+      const valX = x => { const s = S(), r = R(histU.over); return s.min + (x - r.left) / r.width * W(s); };
+      const wheel = async (fx, dy, more) => { const [x, y] = pt(fx);
+        const ev = new WheelEvent('wheel', Object.assign({ deltaY:dy, deltaMode:0, clientX:x, clientY:y, bubbles:true, cancelable:true }, more || {}));
+        histU.over.dispatchEvent(ev); await sleep(60); return ev; };
+      const ptr = (type, id, kind, x, y) => histU.over.dispatchEvent(new PointerEvent(type, { pointerId:id, pointerType:kind, isPrimary:true, button:0,
+        buttons:type === 'pointerup' ? 0 : 1, clientX:x, clientY:y, bubbles:true, cancelable:true }));
+      const days = s => JSON.stringify([s.min, s.max].map(v => +((v - FULL.min) / 86400).toFixed(2)));
+      el('hvRange').querySelector('[data-r="0"]').click(); await sleep(150);
+      log(near(S(), FULL, 60) && litR().join() === '0', 'Giorni: "Tutto" = tutto il periodo', days(S()));
+      {                                                              // rotellina in su a 3/4 del grafico
+        const s0 = S(), [x75] = pt(0.75), v = valX(x75), ev = await wheel(0.75, -300), s1 = S();
+        log(W(s1) < W(s0) * 0.8 && W(s1) >= MINW, 'Giorni: rotellina in su, zoom (periodo più stretto)', JSON.stringify([W(s0) / 86400, W(s1) / 86400]));
+        log(W(s1) < W(s0) * 0.8 && Math.abs(valX(x75) - v) < 3600, 'Giorni: zoom attorno al puntatore (sotto il puntatore lo stesso giorno)', (valX(x75) - v) / 3600 + ' h');
+        log(ev.defaultPrevented, 'Giorni: la rotellina sul grafico zooma e non fa scorrere la pagina', '');
+        eq('Giorni: dopo lo zoom nessun periodo acceso', litR(), []);
+        log(W(s1) < W(s0) && !vis(el('hvChart').querySelector('.hv-hint')), 'Giorni: dopo il primo zoom il suggerimento sparisce', '');
+        noOverflow('Pioggia/Giorni, dopo lo zoom');
+      }
+      {                                                              // trascinare col mouse: stessa larghezza, spostata di quanto si trascina (un decimo del grafico)
+        const [x, y] = pt(0.5), s = S(), px = Math.round(R(histU.over).width / 10), dt = px / R(histU.over).width * W(s);
+        ptr('pointerdown', 1, 'mouse', x, y); ptr('pointermove', 1, 'mouse', x + px / 2, y); ptr('pointermove', 1, 'mouse', x + px, y); ptr('pointerup', 1, 'mouse', x + px, y);
+        await sleep(60);
+        const s2 = S();
+        log(Math.abs(W(s2) - W(s)) < 60 && Math.abs((s.min - s2.min) - dt) < 3600, 'Giorni: trascinando a destra si va indietro nel tempo, stessa larghezza',
+            JSON.stringify([(s.min - s2.min) / 86400, dt / 86400, W(s) / 86400, W(s2) / 86400]));
+        ptr('pointerdown', 1, 'mouse', x, y); ptr('pointermove', 1, 'mouse', x + 5000, y); ptr('pointerup', 1, 'mouse', x + 5000, y); await sleep(60);
+        const s3 = S();
+        log(Math.abs(s3.min - FULL.min) < 60 && Math.abs(W(s3) - W(s)) < 60, 'Giorni: trascinando oltre l\'inizio ci si ferma al primo giorno', days(s3));
+        const [xa, ya] = pt(0.5);
+        histU.over.dispatchEvent(new MouseEvent('dblclick', { clientX:xa, clientY:ya, button:0, bubbles:true, cancelable:true })); await sleep(80);
+        log(near(S(), FULL, 60), 'Giorni: doppio clic, di nuovo tutto il periodo', days(S()));
+        eq('Giorni: dopo il doppio clic acceso "Tutto"', litR(), ['0']);
+      }
+      {                                                              // limiti: mai sotto 3 giorni, mai oltre tutto il periodo
+        for(let i = 0; i < 25; i++) await wheel(0.5, -500);
+        log(Math.abs(W(S()) - MINW) < 60, 'Giorni: zoom al massimo = 3 giorni', W(S()) / 86400);
+        const ev = await wheel(0.5, -500);
+        log(ev.defaultPrevented && Math.abs(W(S()) - MINW) < 60, 'Giorni: oltre i 3 giorni la rotellina in su non fa niente (e non scorre la pagina)', W(S()) / 86400);
+        for(let i = 0; i < 25; i++) await wheel(0.3, 500);
+        log(near(S(), FULL, 60), 'Giorni: zoom indietro al massimo = tutto il periodo, non oltre', days(S()));
+        eq('Giorni: tornati a tutto il periodo si riaccende "Tutto"', litR(), ['0']);
+        const ev2 = await wheel(0.5, 100);
+        log(!ev2.defaultPrevented && near(S(), FULL, 60), 'Giorni: su tutto il periodo la rotellina in giù lascia scorrere la pagina', '');
+        const ev3 = await wheel(0.5, 30, { ctrlKey:true });                   // pizzico del trackpad (rotellina con Ctrl): mai lo zoom della pagina
+        log(ev3.defaultPrevented, 'Giorni: il pizzico del trackpad resta al grafico', '');
+        const s4 = S(); await wheel(0.4, -20, { ctrlKey:true });
+        log(W(S()) < W(s4) * 0.9, 'Giorni: pizzico del trackpad (Ctrl + rotellina) che allarga: zoom', JSON.stringify([W(s4) / 86400, W(S()) / 86400]));
+      }
+      {                                                              // i periodi restano scorciatoie
+        el('hvRange').querySelector('[data-r="90"]').click(); await sleep(120);
+        log(near(S(), { min:last - 89 * 86400 - 43200, max:FULL.max }, 60) && litR().join() === '90', 'Giorni: "90 g" = gli ultimi 90 giorni, acceso', days(S()));
+        await wheel(0.5, -100);
+        eq('Giorni: zoom dopo "90 g": nessun periodo acceso', litR(), []);
+        el('hvRange').querySelector('[data-r="0"]').click(); await sleep(120);
+      }
+      {                                                              // telefono: due dita, un dito di lato, doppio tocco
+        const r = R(histU.over), y = Math.round(r.top + r.height / 2), X = f => Math.round(r.left + r.width * f), s = S();
+        const a0 = X(0.4), b0 = X(0.6), a1 = X(0.3), b1 = X(0.7), vm = valX((a0 + b0) / 2);
+        ptr('pointerdown', 11, 'touch', a0, y); ptr('pointerdown', 12, 'touch', b0, y); await sleep(20);
+        ptr('pointermove', 11, 'touch', a1, y); ptr('pointermove', 12, 'touch', b1, y); await sleep(20);
+        ptr('pointerup', 11, 'touch', a1, y); ptr('pointerup', 12, 'touch', b1, y); await sleep(80);
+        const s2 = S(), want = W(s) * (b0 - a0) / (b1 - a1);          // dita da (b0 - a0) a (b1 - a1): circa x2
+        log(Math.abs(W(s2) - want) < 3600 && Math.abs(valX((a1 + b1) / 2) - vm) < 3600, 'Giorni: due dita che si allargano, zoom x2 attorno al centro',
+            JSON.stringify([W(s) / 86400, W(s2) / 86400, want / 86400, (valX((a1 + b1) / 2) - vm) / 3600]));
+        const c0 = X(0.5), c1 = X(0.65);
+        ptr('pointerdown', 13, 'touch', c0, y); ptr('pointermove', 13, 'touch', X(0.575), y); ptr('pointermove', 13, 'touch', c1, y);
+        ptr('pointerup', 13, 'touch', c1, y); await sleep(80);
+        const s3 = S(), dt = (c1 - c0) / r.width * W(s2);
+        log(Math.abs(W(s3) - W(s2)) < 60 && Math.abs((s2.min - s3.min) - dt) < 3600, 'Giorni: un dito di lato sposta il periodo',
+            JSON.stringify([(s2.min - s3.min) / 86400, dt / 86400]));
+        const tip = histU.over.querySelector('.ctip');
+        log(vis(tip) && /\d{4}/.test(tipText(tip)), 'Giorni: al tocco il riquadro del giorno', tipText(tip));
+        for(const k of [0, 1]){ ptr('pointerdown', 14 + k, 'touch', X(0.5), y); ptr('pointerup', 14 + k, 'touch', X(0.5), y); await sleep(60); }
+        log(near(S(), FULL, 60), 'Giorni: doppio tocco, di nuovo tutto il periodo', days(S()));
+        log(getComputedStyle(histU.over).touchAction === 'pan-y', 'Giorni: in verticale il dito fa scorrere la pagina (touch-action pan-y)', getComputedStyle(histU.over).touchAction);
+        noOverflow('Pioggia/Giorni, dopo il pizzico');
+      }
+      for(const w of ['mesi', 'giorni', 'anni', 'giorni']){              // ridisegni: gli ascoltatori non si sommano
+        el('hvView').querySelector('[data-w="' + w + '"]').click(); await until(() => histView === w && !!histU, 8000); await sleep(200);
+      }
+      { const s = S(); await wheel(0.5, -100); const k = W(S()) / W(s);
+        log(k > 0.83 && k < 0.91, 'Giorni: dopo quattro cambi di vista uno scatto di rotellina zooma una volta sola', k.toFixed(3)); }
+      {                                                              // lo zoom resta passando per Mesi; chiuso e riaperto lo Storico, di nuovo tutto il periodo
+        const s = S();
+        for(const w of ['mesi', 'giorni']){ el('hvView').querySelector('[data-w="' + w + '"]').click(); await until(() => histView === w && !!histU, 8000); await sleep(200); }
+        log(W(s) < W(FULL) * 0.95 && near(S(), s, 60) && litR().length === 0, 'Giorni: lo zoom resta dopo un giro in Mesi', days(S()));
+        await setHistMode(false); await setHistMode(true, 'PREC', 'giorni'); await until(() => !!histU && histU.scales.x.min != null, 8000); await sleep(200);
+        log(near(S(), FULL, 60) && litR().join() === '0', 'Giorni: chiuso e riaperto lo Storico, di nuovo tutto il periodo', days(S()));
+      }
+      el('hvRange').querySelector('[data-r="0"]').click(); await sleep(120);
+    }
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
     okKey('Temperatura/Mesi', ['min–max', 'media']);
     {
@@ -1170,6 +1328,10 @@
       eq('Temperatura/Anni: etichetta al passaggio (ogni anno)', tipText(t),
          ['ago', ...yrs.slice().reverse().filter(y => mean(y, 7) != null).map(y => y + ' ' + f1(mean(y, 7)) + ' °C')].join(' | '));
       log(tipIn(t), 'Temperatura/Anni: etichetta dentro il grafico e lo schermo', '');
+      { const cols = yearCols(), byY = {}; histU.series.slice(1).forEach((s, k) => { byY[String(s.label)] = cols[k]; });
+        eq('Temperatura/Anni: nel riquadro ogni anno col segno del colore della sua linea', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopColor) : null,
+           yrs.slice().reverse().filter(y => mean(y, 7) != null).map(y => byY[String(y)])); }
+      eq('Temperatura/Anni: niente trattini nella chiave e nel riquadro', [...el('histview').querySelectorAll('.sw')].filter(s => vis(s) && getComputedStyle(s).borderTopStyle === 'dashed').length, 0);
       await tipEdges('Temperatura/Anni');
       noOverflow('Temperatura/Anni');
     }
@@ -1185,12 +1347,15 @@
     eq('clic su Mesi e Pioggia', [histView, histVar, currentVar], ['mesi', 'PREC', 'PREC']);
 
     // CSV: una riga per giorno
-    let csv = null; const oc = URL.createObjectURL, oclick = HTMLAnchorElement.prototype.click;
+    // il testo si prende quando nasce il Blob: leggerlo dopo (blob.text()) non lo segue il tempo virtuale di Chrome headless,
+    // l'orologio poteva saltare al giro del radar (120 s) e run.sh finiva il suo tempo senza risultato
+    let csv = null, csvText = null; const oc = URL.createObjectURL, oclick = HTMLAnchorElement.prototype.click, OB = window.Blob;
+    window.Blob = function(parts, o){ csvText = (parts || []).join(''); return new OB(parts, o); };
     URL.createObjectURL = b => { csv = b; return 'blob:test'; };
     HTMLAnchorElement.prototype.click = function(){ if(this.download) csv = csv || true; else oclick.call(this); };
     el('hvCsv').click(); await sleep(200);
-    URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = oclick;
-    const lines = csv && csv.text ? (await csv.text()).trim().split('\n') : [];
+    URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = oclick; window.Blob = OB;
+    const lines = csv && csvText != null ? csvText.trim().split('\n') : [];
     const days = lines.slice(1).map(l => l.split(';')[0]);
     eq('CSV: intestazione', lines[0], 'data;pioggia_mm;ore_pioggia;tmin;tmax;tmedia;ore_temp');
     eq('CSV: una riga per giorno con dati', lines.length - 1, nrow);
@@ -1343,10 +1508,14 @@
     log(histMode && vis(hb) && /Storico\s*×/.test(hb.innerText), 'Storico: "Storico ×"', hb.innerText);
     log(![...el('vars').children].some(vis), 'Storico: niente variabili', '');
     eq('Storico: azioni', acts(), ['hvCsv', 'copylink']);
-    eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    eq('Storico: si apre su Giorni', histView, 'giorni');
+    eq('Storico/Giorni (apertura): riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
     M.storico = gap('hvChart');
     if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
+    el('hvView').querySelector('[data-w="mesi"]').click(); await until(() => histView === 'mesi' && !!histU, 8000); await sleep(300);
+    eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    if(!phone) log(gap('hvChart') <= 75, 'Storico/Mesi: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
     el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
     eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
     log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
