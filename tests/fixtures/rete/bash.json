@@ -5,7 +5,7 @@
    "giro": "versione nuova",
    "righe": [
     "inizio versione 2026-11-02 (file uguali collegati a 2026-11-01)",
-    "fatto in Ns: versione 2026-11-02, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+    "fatto in Ns: versione 2026-11-02, N MB nuovi,        8 file,        2 versioni, liberi 50G"
    ],
    "stop": null,
    "versioni": {
@@ -36,8 +36,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -49,7 +47,7 @@
    "giro": "stesso giorno",
    "righe": [
     "inizio versione 2026-11-02 (file uguali collegati a 2026-11-02)",
-    "fatto in Ns: versione 2026-11-02, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+    "fatto in Ns: versione 2026-11-02, N MB nuovi,        8 file,        2 versioni, liberi 50G"
    ],
    "stop": null,
    "versioni": {
@@ -80,8 +78,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -94,7 +90,7 @@
    "righe": [
     "inizio versione 2026-11-03 (file uguali collegati a 2026-11-02)",
     "tolta la versione piu' vecchia: 2026-11-01",
-    "fatto in Ns: versione 2026-11-03, N MB nuovi,       10 file,        2 versioni, liberi 50G"
+    "fatto in Ns: versione 2026-11-03, N MB nuovi,        8 file,        2 versioni, liberi 50G"
    ],
    "stop": null,
    "versioni": {
@@ -107,8 +103,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -121,8 +115,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -132,8 +124,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -146,7 +136,7 @@
    "righe": [
     "inizio versione 2026-11-04 (file uguali collegati a 2026-11-03)",
     "ATTENZIONE: rotazione ferma -- 2026-11-04: archivio METEO sceso da        5 a        3 file, nessuna versione vecchia tolta. Se era voluto: rm <tmp>/usb/backup/.rotazione-ferma",
-    "fatto in Ns: versione 2026-11-04, N MB nuovi,        8 file,        3 versioni, liberi 50G"
+    "fatto in Ns: versione 2026-11-04, N MB nuovi,        6 file,        3 versioni, liberi 50G"
    ],
    "stop": [
     "2026-11-04: archivio METEO sceso da        5 a        3 file"
@@ -161,8 +151,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -175,8 +163,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -186,8 +172,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -198,8 +182,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -207,8 +189,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -234,8 +214,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -248,8 +226,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -259,8 +235,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -271,8 +245,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -280,8 +252,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -307,8 +277,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -321,8 +289,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -332,8 +298,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -344,8 +308,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json"
      ],
      "file": [
@@ -353,8 +315,6 @@
       "METEO/VEN/data-parsed/TEMP/TEMP-20261103.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261104.json",
       "METEO/VEN/data-parsed/TEMP/TEMP-20261105.json",
-      "METEO/history_cache/VEN.json",
-      "METEO/history_out/VEN/x.json",
       "arpav/live/data-parsed/TEMP/TEMP-20261101.json",
       "crontab.txt"
      ]
@@ -365,9 +325,7 @@
  "deploy": [
   "FVG/stazioni_coords.csv",
   "LOM/zero_idrometrici.json",
-  "PC_PIE/zero_idrometrici.json",
   "PC_PO/zero_idrometrici.json",
-  "PIE/zero_idrometrici.json",
   "VEN/zero_idrometrici.json",
   "comune.py",
   "crontab_regioni.txt",

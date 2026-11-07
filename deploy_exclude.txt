@@ -18,6 +18,10 @@ radar_out/
 history_cache/
 history_out/
 
+# Zeri idrometrici: li riscrive dati_pc.py sul Pi a ogni giro, la copia del Mac e' vecchia
+/PIE/zero_idrometrici.json
+/PC_PIE/zero_idrometrici.json
+
 # Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture)
 tests/
 .superpowers/

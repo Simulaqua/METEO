@@ -3,7 +3,8 @@
 # backup_usb.sh - backup notturno dell'archivio sulla chiavetta USB (/mnt/usb, ext4).
 #   - ogni notte una VERSIONE COMPLETA in /mnt/usb/backup/AAAA-MM-GG/:
 #       METEO/       il progetto senza cio' che si rigenera o e' gia' altrove
-#                    (site/ e radar_out/ sono su GitHub; log, grezzi, .git)
+#                    (site/, radar_out/, history_out/ e history_cache/: su GitHub o si rigenerano;
+#                    log, grezzi, .git)
 #       arpav/       il vecchio sistema ARPAV (dati dal 2022), senza log e grezzi
 #       crontab.txt  il crontab completo (anche le righe ARPAV, che non sono nel repo)
 #   - i file uguali alla versione precedente sono hard link: occupano spazio UNA volta sola
@@ -104,7 +105,8 @@ copy() {
 
 copy METEO "$SRC_METEO" \
     --exclude='/site/' --exclude='/logs/' --exclude='/*/logs/' --exclude='/*/data-downloaded/' \
-    --exclude='/.git/' --exclude='/radar_out/' --exclude='__pycache__/' --exclude='*.lock' --exclude='*.tmp'
+    --exclude='/.git/' --exclude='/radar_out/' --exclude='/history_out/' --exclude='/history_cache/' \
+    --exclude='__pycache__/' --exclude='*.lock' --exclude='*.tmp'
 copy arpav "$SRC_ARPAV" --exclude='/live/logs/' --exclude='/live/data-downloaded/'
 crontab -l > "$WORK/crontab.txt" 2>/dev/null
 rm -f "$DEST/.stats"
