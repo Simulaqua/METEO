@@ -5,6 +5,8 @@ qualita' dell'aria, maree, laghi, invasi, radar). Una mappa web mostra le stazio
 degli ultimi 7 giorni, e lo "Storico" riassume anni di pioggia e temperatura. Tutto gira su un Raspberry Pi, il
 sito e' su GitHub Pages.
 
+Per capire come e' fatto il sistema e perche': `docs/STORIA.md`.
+
 ## Programmi (cartella principale)
 ```
 dati_<fonte>.py      un downloader per fonte: veneto, trentino, altoadige, fvg, lombardia, emilia_romagna, liguria,
@@ -28,6 +30,8 @@ watchdog.yml, watchdog_backup.yml, watchdog_storico.yml
                      avvisi GitHub Actions (mail): dati fermi, backup, Storico; watchdog_mac.sh e' il guardiano lato Mac
 site/                pagina web (index.html, radar.js); site/<REG>/ e' generato e non sta nel repo
 tests/               solo Mac: giri registrati delle fonti (~45 MB) e prove di ogni programma
+docs/                documentazione, solo Mac: STORIA.md (come funziona e perche'), legenda_variabili.txt,
+                     Zero_idrometri_ARPAV_2011-2025.pdf (fonte degli zeri idrometrici)
 ```
 Gli script stanno tutti nella cartella principale e trovano da soli il progetto (percorsi relativi a `__file__`).
 I dati stanno nelle cartelle delle regioni (`VEN/`, `FVG/`, `PC_PO/`, ...): `data-parsed/` e `data-downloaded/`.

@@ -26,8 +26,9 @@ history_out/
 /old/
 .worktrees/
 
-# Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture)
+# Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture; docs/ e' solo documentazione)
 tests/
+docs/
 .superpowers/
 .claude/
 
