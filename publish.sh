@@ -121,9 +121,12 @@ fi
 #    file vecchi.
 # ---------------------------------------------------------------------------
 # i file della pagina sono quelli che index.html carica, scritti src="nome.js" o href="nome.css"
-# (gli URL dei CDN e favicon.ico?v=2 no). Se ne manca uno la pagina non si pubblica: i dati sono
-# gia' partiti, la pagina si riprova al prossimo giro
-PAGE_FILES="$(grep -oE '(src|href)="[a-z][a-z0-9_-]*\.(js|css)"' site/index.html \
+# (gli URL dei CDN e favicon.ico?v=2 no). I commenti di una riga non contano; in un commento di
+# index.html mai src=" o href=": uno su piu' righe, o con un >, si leggerebbe come markup.
+# LC_ALL=C e grep -a: un byte rovinato in index.html non deve far perdere file a grep.
+# Se ne manca uno la pagina non si pubblica: i dati sono gia' partiti, si riprova al prossimo giro
+PAGE_FILES="$(LC_ALL=C sed 's/<!--[^>]*-->//g' site/index.html \
+              | LC_ALL=C grep -aoE '(src|href)="[a-z][a-z0-9_-]*\.(js|css)"' \
               | awk -F'"' '{ print "site/" $2 }' || true)"
 for f in $PAGE_FILES; do
   if [ ! -f "$f" ]; then
@@ -146,7 +149,7 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
     rewrite+=(-e "s#(src|href)=\"${name%.*}\\.${name##*.}\"#\\1=\"${name}?v=${v}\"#g")
     cp "$f" "$TMP/$name"
   done
-  sed -E "${rewrite[@]}" site/index.html > "$TMP/index.html"
+  LC_ALL=C sed -E "${rewrite[@]}" site/index.html > "$TMP/index.html"
   # gli avvisi devono vivere sul branch DEFAULT (gh-pages) per girare a orario; siccome il branch
   # viene rigenerato da zero ad ogni push, vanno rimessi ogni volta
   mkdir -p "$TMP/.github/workflows"
