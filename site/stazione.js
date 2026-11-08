@@ -1,4 +1,6 @@
-// stazione.js: la scheda della stazione (apertura, chip delle variabili, modi, Confronti, Impilato, schede, link #...).
+// stazione.js: la scheda della stazione (apertura, chip delle variabili, modi e Confronti, Impilato, schede, link condivisibili).
+// Gli ascoltatori sono in buildStationControls(), chiamata da index.html.
+
 function resetPanel(){
   exitHist();
   el('stationName').textContent = 'Seleziona una stazione';
@@ -8,7 +10,7 @@ function resetPanel(){
   cmpClose();
   el('pact').hidden = true; el('pbar').hidden = true;
   document.body.classList.remove('rose-mode');
-  const wr = el('windrose'); if(wr) wr.innerHTML = '';
+  el('windrose').innerHTML = '';
 }
 // nota oraria (senza icona), mostrata in coda alla riga della fonte
 const TZNOTE = 'Orari in ora locale italiana (CET / CEST con ora legale).';
@@ -167,7 +169,7 @@ function drawVar(v){
   syncVarButtons();
   if(v === WROSE){ document.body.classList.add('rose-mode'); updateWindRose(); }   // mostra la rosa al posto del grafico
   else { document.body.classList.remove('rose-mode'); renderChart(v); }
-  if(typeof updateHash === 'function' && currentStation) updateHash();
+  if(currentStation) updateHash();
 }
 
 // ---- CLIMATOLOGIA (pagina "indici"): riassunto da site/<REGIONE>/climate.json ----------------------
@@ -342,7 +344,6 @@ function renderStackView(){
                                         onRemove: v => toggleStackVar(v) });
 }
 
-// ✕ (solo mobile): chiude l'overlay del grafico e torna alla mappa, mantenendo la stazione selezionata
 // ---- TAB BAR: [Mappa] + una scheda per ogni stazione aperta --------------------------------------
 let openTabs = [];                     // [{key, props}] in ordine di apertura
 const MAX_TABS = 8;
@@ -410,8 +411,8 @@ async function renderCompareView(){
     : 'Nessuna scheda aperta';
   el('source').innerHTML = TZNOTE + ' Dati in tempo reale non validati.';
   el('pact').hidden = false; el('pbar').hidden = false;
-  const wr = el('windrose'); if(wr) wr.innerHTML = '';
-  const cbx = el('climabox'); if(cbx){ cbx.style.display = 'none'; cbx.innerHTML = ''; }
+  el('windrose').innerHTML = '';
+  const cbx = el('climabox'); cbx.style.display = 'none'; cbx.innerHTML = '';
   el('chartstats').textContent = '';
   history.replaceState(null, '', '#confronto');
   await ensureTabTables();
@@ -537,7 +538,6 @@ async function applyHash(){
 let _rsT = null;
 function buildStationControls(){
   window.addEventListener('resize', () => {
-    if(map) map.invalidateSize();
     clearTimeout(_rsT);           // ridisegna il grafico con la nuova taglia (evita canvas troppo alti)
     _rsT = setTimeout(() => {
       if(currentStation && document.body.classList.contains('view-station') && currentVar && currentVar !== WROSE)
