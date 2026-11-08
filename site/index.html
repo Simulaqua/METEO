@@ -198,6 +198,7 @@
 const DATA_BASE = '.';
 const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/history') : './_HIST';
 </script>
+<!-- comune.js per primo: gli altri file usano le sue costanti mentre si caricano; la pagina parte quando tutti i file hanno girato (avvio); publish.sh pubblica e versiona i file scritti nei tag script e link di questa pagina -->
 <script src="comune.js"></script>
 <script>
 const DOT_COLOR   = '#2b6cb0';                 // colore di default (nessuna variabile selezionata)

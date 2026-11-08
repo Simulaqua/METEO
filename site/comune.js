@@ -1,4 +1,5 @@
-// comune.js: quello che usano tutti i file della pagina (stato, variabili, nomi, fonti, ore, lettura dei dati)
+// comune.js: quello che usano tutti i file della pagina (stato, variabili, nomi, fonti, ore, lettura dei dati).
+// Caricato per primo: gli altri file usano queste costanti. DATA_BASE e HIST_BASE sono in index.html.
 
 // CDN di riserva: se un file non arriva dalla base dati (es. il 400 da cache avvelenata di
 // raw.githubusercontent visto il 31/08 su PC_PIE), riprova da jsDelivr (stesso repo, branch data;
@@ -18,7 +19,7 @@ async function fdata(path, opts){
 let map, markersLayer, chart = null;
 let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
 let allFeatures = [], filterVar = '', selectedKey = '';
-let chartMode = 'week';   // 'week' | 'day' | 'compare'
+let chartMode = 'week';   // 'week' | 'day3' | 'day' (grafico principale) | 'compare' | 'compare30' | 'tabs' (confronti)
 
 // ogni voce geografica del menu carica PIU' cartelle-dati: meteo/idro + qualita' aria (AQ_) +
 // idrometria Protezione Civile (PC_). Le stazioni (tutte con lat/lon) convivono sulla stessa mappa.
@@ -44,7 +45,7 @@ const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','P
 
 const RAIN_VARS = ['PREC1','PREC3','PREC6','PREC12','PREC24','PREC48'];
 const isRain = v => RAIN_VARS.indexOf(v) >= 0;
-// pioggia (per intervallo e cumulate 1-48 h): in TUTTI i grafici barre verticali (vedi "PIOGGIA, VENTO, ZOOM")
+// pioggia (per intervallo e cumulate 1-48 h): in TUTTI i grafici barre verticali
 const isRainVar = v => v === 'PREC' || isRain(v);
 const isDirVar = v => v === 'DVENTO' || v === 'DVENTOMAX';     // direzione del vento: a puntini
 function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
@@ -161,7 +162,7 @@ const SOURCES = {
 const el = id => document.getElementById(id);
 const setStatus = m => { el('status').textContent = m || ''; };
 
-const PHONE = window.matchMedia ? matchMedia('(max-width:720px)') : { matches:false };
+const PHONE = matchMedia('(max-width:720px)');
 
 const _DIR16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
 const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
