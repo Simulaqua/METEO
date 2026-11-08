@@ -3,15 +3,13 @@
 body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
             --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
 /* override scuri (scoped: il tema chiaro resta intatto) */
-body.dark select, body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
+body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
 body.dark .btn, body.dark #vars button, body.dark #pbar .mode, body.dark #pact .act
   { background:var(--soft); color:var(--fg); border-color:var(--line); }
 body.dark .btn:hover { background:var(--soft2); }
 body.dark #tabbar { background:var(--bar); }
 body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); color:var(--muted); }
 body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
-body.dark #pages { background:var(--soft2); }
-body.dark #pages .pg.active { background:var(--card); color:var(--fg); box-shadow:none; }
 body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
 body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
 body.dark #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -35,15 +33,9 @@ html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,
 #tabbar .tab .x:hover { color:#d33; }
 #tabbar .brand { align-self:center; padding:0 10px 6px 4px; font-size:14px; font-weight:700; white-space:nowrap; }
 #views { flex:1 1 auto; position:relative; min-height:0; }
-select { padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; max-width:200px; }
 .btn { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#f7fafc;
        font-size:13px; cursor:pointer; color:var(--fg); }
 .btn:hover { background:#edf2f7; }
-/* tab delle 3 pagine: misure dirette / derivate / indici */
-#pages { display:flex; gap:2px; background:#eef2f7; border-radius:8px; padding:2px; }
-#pages .pg { padding:5px 12px; border:none; background:transparent; border-radius:6px; font-size:13px;
-             cursor:pointer; color:var(--muted); font-weight:500; }
-#pages .pg.active { background:#fff; color:var(--fg); box-shadow:0 1px 2px rgba(0,0,0,.12); }
 /* pannello climatologia (pagina indici) */
 #climabox { font-size:12px; line-height:1.5; margin-top:10px; }
 #climabox h4 { margin:0 0 4px; font-size:13px; }
@@ -119,7 +111,6 @@ body.dark .ctip .c1 { color:#63a4e8; } body.dark .ctip .c3 { color:#90cdf4; }
 .hint { color:var(--muted); font-size:13px; }
 #source { margin-top:12px; line-height:1.6; }
 #source a { color:var(--accent); }
-.marker-dot { }
 /* scheda Confronto: niente confronti, Impilato e Storico (aprirebbe quello dell'ultima stazione) */
 body.view-compare #refresh, body.view-compare #download, body.view-compare #exportpng, body.view-compare #stackbtn,
 body.view-compare #cmpBtn, body.view-compare #histbtn { display:none; }
