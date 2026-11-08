@@ -1,4 +1,5 @@
-// mappa.js: la mappa (sfondi, puntini e colori, legenda e plancia, Cursore, pulsanti, radar, scheda al passaggio e foglio basso).
+// mappa.js: la mappa (sfondi, puntini e colori, legenda e plancia, Cursore, pulsanti e menu del prodotto, radar, scheda
+// al passaggio, foglio basso). Gli ascoltatori sono in initMap() e buildMapControls(), chiamate all'avvio (comune.js).
 
 const DOT_COLOR   = '#2b6cb0';                 // colore di default (nessuna variabile selezionata)
 const NEUTRAL_COLOR = '#9aa5b1';               // grigio: valore non disponibile per quella variabile (comunque cliccabile)
@@ -81,6 +82,7 @@ if(typeof Radar === 'undefined') window.Radar = { on:false, state:'nd', index:-1
 // ------------------------------------------------------------------------------------------------
 // MAPPA
 // ------------------------------------------------------------------------------------------------
+let markersLayer;                 // strato dei puntini (lo crea initMap, lo ridisegna renderMarkers)
 function initMap(){
   // renderer CANVAS con 'tolerance': estende l'area di tap attorno a ogni puntino SENZA ingrandirlo
   // (fondamentale su cellulare, dove i puntini da 4px sono difficilissimi da centrare col dito).
@@ -88,7 +90,7 @@ function initMap(){
   map = L.map('map', { scrollWheelZoom:true, zoomAnimation:false, zoomSnap:0.5, wheelPxPerZoomLevel:120, renderer: L.canvas({ tolerance: isTouch ? 16 : 6 }) })
           .setView([46.0, 12.0], 8);
   // ricalcola la taglia della mappa ad ogni cambio di layout (schede, rotazione, mobile)
-  if(window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(el('map'));
+  new ResizeObserver(() => map.invalidateSize()).observe(el('map'));
   // sfondo a scelta (tutte fonti gratuite e anonime); la scelta resta memorizzata nel browser.
   const _esriImg = () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 18, attribution: 'Tiles © Esri' });
@@ -137,6 +139,7 @@ function initMap(){
   try { radarProd = localStorage.getItem('radarProd') || 'SRI'; } catch(e){}
   Radar.init({ map, onState: syncMapControls, onTime: radarTime, onFrames: radarFrames, product: radarProd,
                onBuffer: () => { if(snap.on && tsSrc === Radar.source) tsBuffer(); } });
+  // scheda al passaggio e foglio basso (piu' sotto): tipo di puntatore, scheda che segue la mappa, altezza e chiusura del foglio
   ['pointerdown', 'pointermove'].forEach(t => map.getContainer().addEventListener(t, e => { lastPointer = e.pointerType || 'mouse'; }, true));
   map.on('move', positionCard);
   window.addEventListener('resize', sheetFit);
@@ -192,7 +195,7 @@ function renderMarkers(){
   // colormap quando e' selezionata UNA regione (unita' coerente) OPPURE la variabile ha la stessa unita' ovunque
   // (UNIT_SAFE: temperatura, umidita', pioggia) E la variabile e' confrontabile nello spazio (cmVar). Colora con
   // l'ULTIMO valore disponibile, A PRESCINDERE dal ritardo. Livelli/acqua/marea/direzione: mai.
-  const singleRegion = el('region') && el('region').value !== 'ALL';
+  const singleRegion = el('region').value !== 'ALL';
   const cmVar = ((singleRegion || UNIT_SAFE.has(filterVar)) && canColormap(filterVar)) ? filterVar : null;
   const slide = !!(snap.on && cmVar && snap.var === cmVar);      // cursore del tempo attivo su questa variabile
   let vmin = null, vmax = null;
@@ -245,15 +248,13 @@ function renderMarkers(){
     bounds.push([p._lat, p._lon]);
   });
   if(bounds.length && _needFit && !selectedKey){ _needFit = false; map.invalidateSize(); map.fitBounds(bounds, { padding:[30,30] }); }
-  el('count').textContent = (Radar.on && !radarUi.stations) ? 'Stazioni nascoste'
-                          : list.length + ' stazioni' + (filterVar ? ' con ' + varLabel(filterVar) : '');
   el('stationQ').placeholder = 'Cerca fra ' + all.length + ' stazioni…';      // anche coi puntini nascosti dal radar
   if(sheetP){                                     // foglio aperto: resta (zoom, Cursore), si chiude se la stazione esce dall'elenco
     const r = markerRefs.find(x => x.p === sheetP);
     if(r){ sheetRing.setRadius(r.m.getRadius() + 5); drawSheet(); } else closeSheet();
   }
   updateColorbar(cmVar, vmin, vmax, slide ? snap.unit : refU);
-  if(typeof syncMapControls === 'function') syncMapControls();
+  syncMapControls();
   setStatus('');
 }
 
@@ -298,7 +299,6 @@ function scaleRange(bg, lo, hi, miniOnly){
 }
 function updateColorbar(varName, vmin, vmax, unitOverride){
   const cb = el('colorbar');
-  if(!cb) return;
   let name = '', unit = '', scale = '', menu = false, nd = true;
   if(Radar.on){                                               // il trasparente del radar ("meno di") = grigio della pioggia zero
     const lg = Radar.legend();
@@ -351,7 +351,7 @@ function snapVal(p){
   return m === 1 ? x : Math.round(x * m * 10) / 10;
 }
 // il cursore vale solo per variabili con fotogrammi E confrontabili sulla mappa (stessa unita' ovunque, o una sola regione)
-const snapCapable = v => !!v && SNAP_VARS.has(v) && canColormap(v) && (UNIT_SAFE.has(v) || (el('region') && el('region').value !== 'ALL'));
+const snapCapable = v => !!v && SNAP_VARS.has(v) && canColormap(v) && (UNIT_SAFE.has(v) || el('region').value !== 'ALL');
 
 // carica i fotogrammi della variabile per le regioni sulla mappa: true = caricati, false = nessun dato, null = richiesta superata
 async function snapLoad(v){
@@ -412,7 +412,6 @@ async function snapLoad(v){
 // PLANCIA: altezza in --dockh (il menu del prodotto si apre sopra), menu allineato al suo pulsante su desktop
 function dockLayout(){
   const d = el('dock'), m = el('prodMenu');
-  if(!d) return;
   document.documentElement.style.setProperty('--dockh', d.offsetHeight + 'px');
   if(m && m.classList.contains('open') && !PHONE.matches){
     const b = el('dkProd').getBoundingClientRect(), v = el('views').getBoundingClientRect();
@@ -422,7 +421,6 @@ function dockLayout(){
 // righe presenti: tempo (Cursore aperto), legenda (variabile o radar); senza nessuna delle due restano i soli crediti
 function dockSync(){
   const d = el('dock');
-  if(!d) return;
   const time = el('tsbar').style.display !== 'none', leg = el('colorbar').style.display !== 'none';
   d.classList.toggle('no-time', !time);
   d.classList.toggle('only-credits', !time && !leg);
@@ -454,7 +452,6 @@ function tsBuffer(){
 let tsTickSig = '';
 function tsTicks(){
   const s = tsSrc;
-  if(typeof s.civ !== 'function'){ tsTickSig = ''; el('tsTicks').innerHTML = ''; return; }   // radar.js vecchio in cache
   const a = s.min(), b = s.max(), sig = [s === snapSource, a, b, s.civ(a), s.civ(b)].join();
   if(sig === tsTickSig) return;
   tsTickSig = sig;
@@ -692,13 +689,12 @@ function buildMapControls(){
     if(snap.playing) snapPlay();                                          // riparte con la nuova cadenza
   });
   el('tsClose').addEventListener('click', closeSlider);
-  if(window.ResizeObserver) new ResizeObserver(dockLayout).observe(dock);
+  new ResizeObserver(dockLayout).observe(dock);
   window.addEventListener('resize', dockLayout);
   syncMapControls();
 }
 function syncMapControls(){
   const r = el('mcRain'), s = el('mcSnap');
-  if(!r) return;
   r.classList.toggle('on', isRain(filterVar) && !Radar.on);            // col radar la pioggia e' il radar stesso
   s.classList.toggle('on', snap.on);
   const sw = el('mcStations');

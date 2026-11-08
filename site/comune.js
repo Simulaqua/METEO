@@ -1,5 +1,5 @@
-// comune.js: quello che usano tutti i file della pagina (stato, variabili, nomi, fonti, ore, lettura dei dati).
-// Caricato per primo: gli altri file usano queste costanti. DATA_BASE e HIST_BASE sono in index.html.
+// comune.js: quello che usano tutti i file della pagina (stato, variabili, nomi, fonti, ore, lettura dei dati) e l'avvio.
+// Caricato prima di mappa.js e degli altri, che usano queste costanti. DATA_BASE e HIST_BASE sono in index.html.
 
 // CDN di riserva: se un file non arriva dalla base dati (es. il 400 da cache avvelenata di
 // raw.githubusercontent visto il 31/08 su PC_PIE), riprova da jsDelivr (stesso repo, branch data;
@@ -16,7 +16,7 @@ async function fdata(path, opts){
 // ------------------------------------------------------------------------------------------------
 // STATO
 // ------------------------------------------------------------------------------------------------
-let map, markersLayer, chart = null;
+let map, chart = null;
 let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
 let allFeatures = [], filterVar = '', selectedKey = '';
 let chartMode = 'week';   // 'week' | 'day3' | 'day' (grafico principale) | 'compare' | 'compare30' | 'tabs' (confronti)
