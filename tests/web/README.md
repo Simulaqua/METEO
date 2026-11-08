@@ -1,4 +1,4 @@
-# Prove nel browser del radar (site/radar.js e agganci in index.html)
+# Prove nel browser del radar (site/radar.js e agganci in mappa.js)
 
     python3 tests/web/setup.py            # crea site/_radar_test/ (pagine di prova + fotogrammi finti)
     # servire site/ sulla porta 8772 (configurazione "site" di .claude/launch.json)

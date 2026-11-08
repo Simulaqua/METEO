@@ -1,5 +1,5 @@
 // stazione.js: la scheda della stazione (apertura, chip delle variabili, modi e Confronti, Impilato, schede, link condivisibili).
-// Gli ascoltatori sono in buildStationControls(), chiamata da index.html.
+// Gli ascoltatori sono in buildStationControls(), chiamata dall'avvio (comune.js).
 
 function resetPanel(){
   exitHist();

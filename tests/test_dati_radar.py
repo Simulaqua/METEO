@@ -16,7 +16,7 @@ with open(FIXTURE, 'rb') as _fp:
     FIXTURE_BYTES = _fp.read()
 # valori grezzi letti SENZA il codice in prova (per ricavare a mano i risultati attesi)
 RAW = np.array(Image.open(io.BytesIO(FIXTURE_BYTES)), dtype=np.float32)
-PREC1_STEPS = (0.1, 0.5, 1, 2, 5, 10, 20, 30, 50)            # RAIN_STEPS.PREC1 di site/index.html
+PREC1_STEPS = (0.1, 0.5, 1, 2, 5, 10, 20, 30, 50)            # RAIN_STEPS.PREC1 di site/mappa.js
 PALETTE_HEX = ['#a9d6f2', '#6db3e6', '#3a8fd9', '#2a62c4', '#4b3fb8', '#8a2fb0', '#d0238c', '#e5412d', '#8e0b0b']
 
 

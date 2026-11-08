@@ -1,5 +1,5 @@
 // ricerca.js: la barra in alto (filtri a cascata, pillole e menu, ricerca delle stazioni, Note e Tema).
-// Gli ascoltatori sono in buildSearchControls(), chiamata da index.html.
+// Gli ascoltatori sono in buildSearchControls(), chiamata dall'avvio (comune.js).
 
 // ------------------------------------------------------------------------------------------------
 // FILTRI A CASCATA (regione -> stazione -> variabile)

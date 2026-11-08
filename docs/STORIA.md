@@ -24,7 +24,10 @@ su GitHub Pages. Il Mac serve per sviluppare, provare e installare sul Pi.
 - **Manutenzione**: `recover.py` riempie i buchi dopo un blackout; `check_updates.py` segnala stazioni nuove e
   variabili non mappate; `backup_usb.sh` fa il backup notturno su chiavetta (04:40, 30 versioni); `check_size.sh`
   mostra lo spazio usato.
-- **Pagina**: `site/index.html` (mappa Leaflet, grafici uPlot) e `site/radar.js` (radar). Legge i dati da GitHub.
+- **Pagina**: `site/index.html` e' solo la struttura (mappa Leaflet, grafici uPlot) e l'elenco dei file; lo stile e'
+  in `stile.css`; il programma e' diviso per argomento: `comune.js` (stato, variabili, nomi, ore, lettura dei dati e
+  l'avvio), `mappa.js`, `ricerca.js` (barra in alto), `stazione.js` (scheda della stazione), `grafici.js`,
+  `storico.js`, `stato.js` (dati fermi e Fonti) e `radar.js` (radar). Legge i dati da GitHub.
 - **Guardiani**: `watchdog.yml`, `watchdog_backup.yml`, `watchdog_storico.yml` sono avvisi GitHub Actions (mail:
   "Warning - meteo off", backup, storico) che leggono `status.json`; `watchdog_mac.sh` fa lo stesso dal Mac con una
   notifica, lanciato da launchd.
@@ -100,3 +103,8 @@ altre e passa da sola.
 - **Il vento.** L'etichetta (NNE...) dice da dove viene il vento; la freccia accanto mostra dove va.
 - **Nessuna chiave ne' token per nessuna fonte.** Solo fonti aperte e anonime. Se una fonte limita le richieste
   (la Lombardia risponde 429), lo scarico ritenta con pause e, se non basta, esce senza scrivere.
+- **La pagina e' fatta di file semplici, senza build.** Sono script normali caricati in ordine (`radar.js`, poi
+  `comune.js`, poi gli altri): il Pi pubblica i file cosi' come sono. Ogni file collega i propri ascoltatori in una
+  funzione sua e la pagina parte con `avvio`, in fondo a `comune.js`. Poiche' GitHub Pages tiene i file in cache 10
+  minuti, `publish.sh` scrive in `index.html` un `?v=` (le prime 8 cifre dello sha1 del file) dopo ogni nome: una
+  pagina nuova chiede sempre file nuovi, e quelli non cambiati restano in cache.

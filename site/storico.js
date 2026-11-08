@@ -1,5 +1,5 @@
 // storico.js: lo Storico (aggregati giornalieri dal ramo history): viste Giorni, Mesi, Anni e Tabella, zoom, CSV.
-// Gli ascoltatori sono in buildHistControls(), chiamata da index.html.
+// Gli ascoltatori sono in buildHistControls(), chiamata dall'avvio (comune.js).
 
 // ------------------------------------------------------------------------------------------------
 // STORICO LUNGO ("Storico" nella scheda stazione): aggregati giornalieri di pioggia e temperatura da tutto

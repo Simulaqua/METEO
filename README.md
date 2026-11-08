@@ -28,7 +28,8 @@ deploy.sh            dal Mac al Pi: copia il codice (esclusioni in deploy_exclud
 crontab_regioni.txt  le righe di cron del Pi, fra i marcatori METEO
 watchdog.yml, watchdog_backup.yml, watchdog_storico.yml
                      avvisi GitHub Actions (mail): dati fermi, backup, Storico; watchdog_mac.sh e' il guardiano lato Mac
-site/                pagina web (index.html, radar.js); site/<REG>/ e' generato e non sta nel repo
+site/                pagina web: index.html (struttura), stile.css, comune.js e un .js per argomento (mappa,
+                     ricerca, stazione, grafici, storico, stato), radar.js; site/<REG>/ e' generato e non sta nel repo
 tests/               solo Mac: giri registrati delle fonti (~45 MB) e prove di ogni programma
 docs/                documentazione, solo Mac: STORIA.md (come funziona e perche'), legenda_variabili.txt,
                      Zero_idrometri_ARPAV_2011-2025.pdf (fonte degli zeri idrometrici)

@@ -49,7 +49,7 @@ GRID = dict(lon0=6.0, lon1=14.5, lat0=43.3, lat1=47.3)   # Nord Italia, con marg
 TM_LON0, TM_LAT0 = 12.5, 42.0                        # proiezione del GeoTIFF DPC
 WGS84_A, WGS84_F = 6378137.0, 1 / 298.257223563
 
-# --- classi e colori: GLI STESSI della pioggia oraria in site/index.html (RAIN_STEPS.PREC1, RAIN_COLORS) ------
+# --- classi e colori: GLI STESSI della pioggia oraria in site/mappa.js (RAIN_STEPS.PREC1, RAIN_COLORS) ------
 # cosi' radar e puntini delle stazioni hanno la stessa scala. Classe 0 (sotto 0.1 mm/h) = trasparente.
 PREC1_STEPS = [0.1, 0.5, 1, 2, 5, 10, 20, 30, 50]
 RAIN_COLORS = ['#e3e9f0', '#a9d6f2', '#6db3e6', '#3a8fd9', '#2a62c4', '#4b3fb8', '#8a2fb0', '#d0238c', '#e5412d', '#8e0b0b']

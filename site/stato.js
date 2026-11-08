@@ -1,5 +1,5 @@
 // stato.js: lo stato del sito da STATUS/status.json (banner "dati fermi" e pannello Fonti con i semafori).
-// Gli ascoltatori e il controllo ogni 10 minuti sono in buildStatusControls(), chiamata da index.html.
+// Gli ascoltatori e il controllo ogni 10 minuti sono in buildStatusControls(), chiamata dall'avvio (comune.js).
 
 // ---- WATCHDOG "dati fermi": STATUS/status.json (scritto dal publish) contiene il timestamp della
 // misura piu' recente fra TUTTE le regioni. Se supera STALE_HOURS -> banner rosso. Silenzioso se il

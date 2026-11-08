@@ -1,5 +1,5 @@
 // grafici.js: come si disegnano i grafici (uPlot): rosa dei venti, grafico principale e confronti (Confronto 7 e 30 giorni,
-// fra schede), pila "Impilato", PNG. Gli ascoltatori sono in buildChartControls(), chiamata da index.html.
+// fra schede), pila "Impilato", PNG. Gli ascoltatori sono in buildChartControls(), chiamata dall'avvio (comune.js).
 
 // ---- ROSA DEI VENTI + VENTO MEDIO VETTORIALE (dal _table: DVENTO direzione + VVENTO velocita') ----
 const _WR_CLASSES = [                                    // classi di velocita' (m/s) -> colore (debole->forte)
