@@ -1,4 +1,5 @@
-// grafici.js: i grafici (uPlot), la rosa dei venti e il PNG.
+// grafici.js: come si disegnano i grafici (uPlot): rosa dei venti, grafico principale e confronti (Confronto 7 e 30 giorni,
+// fra schede), pila "Impilato", PNG. Gli ascoltatori sono in buildChartControls(), chiamata da index.html.
 
 // ---- ROSA DEI VENTI + VENTO MEDIO VETTORIALE (dal _table: DVENTO direzione + VVENTO velocita') ----
 const _WR_CLASSES = [                                    // classi di velocita' (m/s) -> colore (debole->forte)
@@ -15,7 +16,6 @@ function windObsCount(t){                        // n. di coppie (direzione,velo
 }
 function updateWindRose(){
   const box = el('windrose');
-  if(!box) return;
   const t = currentStation && currentStation._table;
   const dirs = t && t.cols['DVENTO'], sps = t && t.cols['VVENTO'];
   if(!dirs || !sps){ box.innerHTML = ''; return; }
@@ -175,9 +175,9 @@ function renderCompareTabs(label, unit){
 // GRAFICO (uPlot)
 // ------------------------------------------------------------------------------------------------
 function clearChart(){ if(chart){ chart.destroy(); chart = null; }
-  if(typeof stackObj !== 'undefined' && stackObj){ stackObj.destroy(); stackObj = null; }
+  if(stackObj){ stackObj.destroy(); stackObj = null; }
   el('chart').innerHTML='';
-  const cs = el('chartstats'); if(cs) cs.textContent = ''; }
+  el('chartstats').textContent = ''; }
 
 // larghezza = colonna del grafico (a sinistra della legenda); altezza = tutto il contenitore
 // (la legenda uPlot integrata e' disattivata -> usiamo quella nostra a destra, in colonna).
@@ -199,7 +199,7 @@ function renderLegend(u){
   const box = el('chartlegend'); box.innerHTML = ''; box._idle = null; box._rows = null;
   if(chartMode === 'compare30') return;                     // 30 giorni: niente elenco (troppi giorni)
   if(!isCompareMode()){
-    // modi a variabile singola: valore/i e ora in un'etichetta accanto al cursore (vedi tipCursor)
+    // modi a variabile singola: valore/i e ora in un'etichetta accanto al cursore (legendCursor)
     u._tip = document.createElement('div'); u._tip.className = 'ctip'; u.over.appendChild(u._tip);
     return;
   }
@@ -248,7 +248,7 @@ function legendCursor(u){
 function placeTip(u, tip){
   tip.style.display = 'block';
   const l = u.cursor.left, t = u.cursor.top, W = u.over.clientWidth, H = u.over.clientHeight;
-  const w = tip.offsetWidth, h = tip.offsetHeight, touch = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+  const w = tip.offsetWidth, h = tip.offsetHeight, touch = matchMedia('(pointer:coarse)').matches;
   let x = l + 14, y = touch ? t - h - 40 : t + 16;
   if(x + w > W - 2) x = l - 14 - w;
   if(x < 2) x = Math.min(2, W - w - 2);
@@ -826,12 +826,11 @@ function renderCompare(t, label, unit){
 
 // ------------------------------------------------------------------------------------------------
 // PILA DI GRAFICI ("Impilato"): un pannello uPlot per variabile, asse del tempo condiviso, cursore e
-// zoom sincronizzati. Il motore (createStack) non dipende dalla scheda stazione: lo usera' anche la griglia.
+// zoom sincronizzati. Il motore (createStack) non dipende dalla scheda stazione.
 // ------------------------------------------------------------------------------------------------
 const STACK_COLORS = ['#2b6cb0', '#e53e3e', '#2f9e44', '#f59f00', '#7048e8', '#0ca678'];
 const STACK_MAX = 4;
 let _stackSeq = 0;
-const isBarVar = isRainVar;                    // pioggia (anche cumulate 1-48 h): barre
 const isSumVar = v => v === 'PREC';            // pioggia per intervallo: totale e curva cumulata (le cumulate 1-48 h no)
 const STACK_RGUT = 50;                         // spazio a destra per l'asse della cumulata (uguale in tutti i pannelli)
 
@@ -848,7 +847,7 @@ function stackWindow(t, mode, vars){
 }
 // altezza del grafico di ogni pannello (px): meno pannelli = piu' alti; su cellulare piu' bassi
 function stackPanelH(n){
-  const mob = window.matchMedia && matchMedia('(max-width:720px)').matches;
+  const mob = matchMedia('(max-width:720px)').matches;
   return mob ? (n <= 2 ? 150 : 128) : (n === 1 ? 300 : (n === 2 ? 210 : 165));
 }
 
@@ -890,7 +889,7 @@ function stackPanelOpts(p, o){
   };
 }
 
-// cfg = { station, table, vars:[...], mode:'week'|'day3'|'day', onRemove?:fn(v) }
+// cfg = { station, table, vars:[...], mode:'week'|'day3'|'day', onRemove:fn(v) }
 function createStack(host, cfg){
   const st = cfg.station, t = cfg.table, units = unitsByRegion[st._region] || {};
   const vars = cfg.vars, n = vars.length, hourly = (cfg.mode || 'week') !== 'day';
@@ -901,7 +900,7 @@ function createStack(host, cfg){
   const win = (hourly && vars.some(isRainVar)) ? [Math.floor((win0[0] - 1) / HOUR) * HOUR, win0[1]] : win0;
   const rgut = vars.some(isSumVar) ? STACK_RGUT : 0;
   const sync = uPlot.sync('stk' + (++_stackSeq)).key;
-  const ph = cfg.panelH || stackPanelH(n), AX = 30;
+  const ph = stackPanelH(n), AX = 30;
   const root = document.createElement('div'); root.className = 'stk'; host.appendChild(root);
   const timeEl = document.createElement('div'); timeEl.className = 'stk-time'; root.appendChild(timeEl);
   const panels = []; let ready = false, zooming = false;
@@ -945,7 +944,7 @@ function createStack(host, cfg){
     let npts = 0; for(let k = 0; k < ys.length; k++) if(ys[k] != null && t.x[k] >= win[0] && t.x[k] <= win[1]) npts++;
     const unit = varUnit(v, st, units);
     const p = { v, label: varLabel(v), unit, color, kind: isRainVar(v) ? 'bars' : (isDirVar(v) ? 'dots' : 'line'),
-                isBar: isBarVar(v), isSum: isSumVar(v), npts, lastTxt:'', statTxt:'', gaps: [], cum: false };
+                isSum: isSumVar(v), npts, lastTxt:'', statTxt:'', gaps: [], cum: false };
     if(isRainVar(v)){            // pioggia: barre orarie (7 e 3 giorni), buchi tratteggiati, cumulata per PREC
       p.rs = rainSeries(t.x, ys, v, win0[0], win0[1], hourly);
       p.gaps = p.rs.gaps; p.sx = p.rs.x; p.sy = p.rs.y;
@@ -955,13 +954,13 @@ function createStack(host, cfg){
     } else { const ls = lineSeries(t.x, ys, win[0], win[1]); p.sx = ls.x; p.sy = ls.y; p.data = [ls.x, ls.y]; }
     const box = document.createElement('div'); box.className = 'stk-p';
     box.innerHTML = '<div class="stk-h"><i class="sw"></i><b></b><span class="un"></span><span class="stk-v idle"></span>'
-                  + '<span class="stk-s"></span>' + (cfg.onRemove ? '<button class="stk-x" title="Rimuovi">×</button>' : '') + '</div>'
+                  + '<span class="stk-s"></span><button class="stk-x" title="Rimuovi">×</button></div>'
                   + '<div class="stk-c"></div>';
     box.querySelector('.sw').style.background = color;
     box.querySelector('b').textContent = p.label;
     box.querySelector('.un').textContent = unit ? '(' + unit + ')' : '';
     p.hv = box.querySelector('.stk-v'); p.hs = box.querySelector('.stk-s');
-    if(cfg.onRemove) box.querySelector('.stk-x').onclick = () => cfg.onRemove(v);
+    box.querySelector('.stk-x').onclick = () => cfg.onRemove(v);
     root.appendChild(box);
     const opts = stackPanelOpts(p, { w:width(), h: ph + (last ? AX : 0), last, win, sync, rgut,
                                      hooks:{ drawClear:[dayBands, gapBands(p.gaps)], setCursor:[onCursor], setScale:[onScale] } });
@@ -1068,7 +1067,7 @@ function closePngSheet(){
 // Desktop: download normale + avviso col nome del file.
 async function deliverPNG(blob, fname){
   if(!blob) throw new Error('immagine non generata');
-  const touch = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+  const touch = matchMedia('(pointer:coarse)').matches;
   const file = (typeof File === 'function') ? new File([blob], fname, { type:'image/png' }) : null;
   if(touch){
     if(file && navigator.canShare && navigator.canShare({ files:[file] })){
