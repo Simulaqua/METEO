@@ -224,3 +224,11 @@ function civSec(s){
   const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(s || '');
   return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) / 1000 : null;
 }
+
+// ------------------------------------------------------------------------------------------------
+// AVVIO
+// ------------------------------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  buildChartControls(); initMap(); buildStationControls(); buildSearchControls(); buildHistControls(); buildStatusControls();
+  loadRegions(REGIONS_ALL).then(() => applyHash());   // default: Tutte (+ eventuale link condiviso)
+});
