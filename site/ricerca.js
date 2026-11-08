@@ -1,4 +1,5 @@
-// ricerca.js: la barra in alto (filtri a cascata, pillole e menu, ricerca delle stazioni).
+// ricerca.js: la barra in alto (filtri a cascata, pillole e menu, ricerca delle stazioni, Note e Tema).
+// Gli ascoltatori sono in buildSearchControls(), chiamata da index.html.
 
 // ------------------------------------------------------------------------------------------------
 // FILTRI A CASCATA (regione -> stazione -> variabile)
@@ -133,7 +134,6 @@ function closeMenu(){
 }
 function syncPills(){
   const rp = el('regPill'), vp = el('varPill');
-  if(!rp) return;
   const pg = document.querySelector('#pages .pg.active'), r = el('region'), ro = r.options[r.selectedIndex];
   const set = (b, what, txt) => { b.querySelector('span').textContent = txt; b.setAttribute('aria-label', what + ': ' + txt); };
   set(el('pgPill'), 'Pagina', pg ? pg.textContent : 'Misure dirette');
