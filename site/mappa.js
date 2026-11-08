@@ -413,10 +413,10 @@ async function snapLoad(v){
 function dockLayout(){
   const d = el('dock'), m = el('prodMenu');
   document.documentElement.style.setProperty('--dockh', d.offsetHeight + 'px');
-  if(m && m.classList.contains('open') && !PHONE.matches){
+  if(m.classList.contains('open') && !PHONE.matches){
     const b = el('dkProd').getBoundingClientRect(), v = el('views').getBoundingClientRect();
     m.style.left = Math.max(12, Math.min(b.left - v.left, v.width - m.offsetWidth - 12)) + 'px';
-  } else if(m) m.style.left = '';
+  } else m.style.left = '';
 }
 // righe presenti: tempo (Cursore aperto), legenda (variabile o radar); senza nessuna delle due restano i soli crediti
 function dockSync(){
@@ -502,7 +502,7 @@ function setFrame(k){
 }
 function snapPause(){
   snap.playing = false; clearInterval(snap.timer); snap.timer = null;
-  const b = el('tsPlay'); if(b){ b.innerHTML = ICON.play; b.setAttribute('aria-label', 'Riproduci'); }
+  const b = el('tsPlay'); b.innerHTML = ICON.play; b.setAttribute('aria-label', 'Riproduci');
 }
 function snapStep(){
   const k = tsSrc.next(tsK);
@@ -635,7 +635,6 @@ function closeProdMenu(){
 // prima di "Fonti", e gli angoli alti della mappa (sfondi) scendono sotto la barra in alto
 function placeTools(){
   const d = document.querySelector('.mapctl');
-  if(!d || !map) return;
   const corners = map.getContainer().querySelectorAll('.leaflet-top');
   if(PHONE.matches){
     el('pillRow').insertBefore(d, el('srcinfo'));
@@ -950,7 +949,7 @@ function renderCard(){
 function showCard(p, m){ cardP = p; cardM = m; renderCard(); }
 function hideCard(){
   clearTimeout(cardTimer); cardP = cardM = null;
-  const c = el('hoverCard'); if(c) c.hidden = true;
+  el('hoverCard').hidden = true;
 }
 // solo col mouse, dopo 80 ms; un altro puntino annulla l'attesa; uscendo, sparisce (60 ms: niente sfarfallio fra vicini)
 function cardHover(p, m){
@@ -975,7 +974,7 @@ function sheetFit(){
   s.style.maxHeight = Math.max(160, v.bottom - parseFloat(getComputedStyle(s).bottom) - t.bottom - 8) + 'px';
 }
 // col foglio aperto la plancia si nasconde: i crediti della mappa (obbligatori) passano nel foglio e poi tornano
-function mapCredits(){ return map && map.attributionControl && map.attributionControl.getContainer(); }
+function mapCredits(){ return map.attributionControl.getContainer(); }
 function openSheet(p, m){
   hideCard();
   sheetP = p;
@@ -983,13 +982,13 @@ function openSheet(p, m){
   sheetRing = L.circleMarker([p._lat, p._lon], { radius:(m ? m.getRadius() : 4) + 5, color:'#c05621', weight:2.5, fill:false,
                                                 interactive:false }).addTo(map);
   el('sheet').hidden = false; document.body.classList.add('sheet-open');
-  if(mapCredits()) el('sheet').querySelector('.sh-cred').appendChild(mapCredits());
+  el('sheet').querySelector('.sh-cred').appendChild(mapCredits());
   drawSheet();
 }
 function closeSheet(){
   sheetP = null;
   if(sheetRing) map.removeLayer(sheetRing);
   el('sheet').hidden = true; document.body.classList.remove('sheet-open');
-  if(mapCredits() && el('sheet').contains(mapCredits())) el('dkCredits').appendChild(mapCredits());
+  if(el('sheet').contains(mapCredits())) el('dkCredits').appendChild(mapCredits());
 }
 let shY0 = null;                                         // trascinamento in giu' dalla linguetta: chiude
