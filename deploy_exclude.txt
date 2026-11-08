@@ -7,7 +7,7 @@ data-downloaded
 logs
 .tracking
 
-# Export del sito: lo rigenera export_web sul Pi; si copia solo site/index.html
+# Export del sito: lo rigenera export_web sul Pi; si copiano solo i file della pagina, in cima a site/
 site/*/
 
 # Stato che tiene il Pi (cache di PC_PO, log di check_updates, repository di radar e storico)

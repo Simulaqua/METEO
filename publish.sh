@@ -38,7 +38,7 @@ python3 status.py || echo "ATTENZIONE: status.json non aggiornato"
 #      dice perche' servono.
 #    Repo assente/non nostro, o 3 errori di fila -> si ricrea: un push completo, come prima.
 # ---------------------------------------------------------------------------
-# tutti i file dati (cartelle regione) escluso site/index.html (profondita' 1) ed eventuale .git
+# tutti i file dati (cartelle regione) esclusi i file della pagina (profondita' 1) ed eventuale .git
 DATA_HASH="$(find site -mindepth 2 -type f -not -path '*/.git/*' 2>/dev/null | sort \
              | xargs cat 2>/dev/null | sha1sum | cut -d' ' -f1)"
 DATA_GIT="$BASE/site/.git"
@@ -59,7 +59,7 @@ data_push() {
   dgit config remote.origin.url "$REMOTE" || return 1
   # sotto flock nessun altro usa il repo: un lock git rimasto e' di un run ucciso (es. riavvio 05:50)
   rm -f "$DATA_GIT"/*.lock; find "$DATA_GIT/refs" -name '*.lock' -type f -delete 2>/dev/null || true
-  # come il vecchio 'git add */': solo le cartelle di primo livello (niente index.html & co.)
+  # come il vecchio 'git add */': solo le cartelle di primo livello (niente file della pagina)
   mkdir -p "$DATA_GIT/info" && printf '/*\n!/*/\n/.*\n*.tmp\n' > "$DATA_GIT/info/exclude" || return 1
   dgit add -A || return 1
   tree="$(dgit write-tree)" || return 1
@@ -116,15 +116,37 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3) PAGINA -> branch 'gh-pages' (solo se la pagina o gli avvisi sono cambiati). Innesca il deploy
-#    Pages. Riscrive DATA_BASE con l'URL raw del branch 'data'.
+#    Pages. Riscrive DATA_BASE con l'URL raw del branch 'data' e da' a ogni file della pagina un
+#    ?v=<impronta>: Pages tiene HTML e JS in cache 10 min, cosi' una pagina nuova non gira mai con
+#    file vecchi.
 # ---------------------------------------------------------------------------
-# l'hash comprende site/radar.js e gli avvisi: una loro modifica deve arrivare su gh-pages anche se
-# index.html non cambia
-PAGE_HASH="$(for f in site/index.html site/radar.js "${WATCHDOGS[@]}"; do
+# i file della pagina sono quelli che index.html carica, scritti src="nome.js" o href="nome.css"
+# (gli URL dei CDN e favicon.ico?v=2 no). Se ne manca uno la pagina non si pubblica: i dati sono
+# gia' partiti, la pagina si riprova al prossimo giro
+PAGE_FILES="$(grep -oE '(src|href)="[a-z][a-z0-9_-]*\.(js|css)"' site/index.html \
+              | awk -F'"' '{ print "site/" $2 }' || true)"
+for f in $PAGE_FILES; do
+  if [ ! -f "$f" ]; then
+    echo "ERRORE: index.html carica ${f#site/}, che non c'e' in site/: pagina non pubblicata."
+    exit 1
+  fi
+done
+# l'hash comprende i file della pagina e gli avvisi: una loro modifica deve arrivare su gh-pages anche
+# se index.html non cambia
+PAGE_HASH="$(for f in site/index.html $PAGE_FILES "${WATCHDOGS[@]}"; do
                [ -f "$f" ] && cat "$f" || true; done | sha1sum | cut -d' ' -f1)"
 if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; then
   TMP="$(mktemp -d)"
-  sed -E "s#const DATA_BASE = .*#const DATA_BASE = '$RAW_BASE';#" site/index.html > "$TMP/index.html"
+  # i file vanno su gh-pages come sono; in index.html ognuno prende ?v= con i primi 8 caratteri del
+  # suo sha1, nella stessa passata di DATA_BASE
+  rewrite=(-e "s#const DATA_BASE = .*#const DATA_BASE = '$RAW_BASE';#")
+  for f in $PAGE_FILES; do
+    name="${f#site/}"
+    v="$(sha1sum "$f" | cut -c1-8)"
+    rewrite+=(-e "s#(src|href)=\"${name%.*}\\.${name##*.}\"#\\1=\"${name}?v=${v}\"#g")
+    cp "$f" "$TMP/$name"
+  done
+  sed -E "${rewrite[@]}" site/index.html > "$TMP/index.html"
   # gli avvisi devono vivere sul branch DEFAULT (gh-pages) per girare a orario; siccome il branch
   # viene rigenerato da zero ad ogni push, vanno rimessi ogni volta
   mkdir -p "$TMP/.github/workflows"
@@ -136,8 +158,6 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
   echo "meteo.simulaqua.it" > "$TMP/CNAME"
   # favicon trasparente (via la goccia anche dalle cache-icone piu' testarde)
   [ -f "$BASE/favicon_site.ico" ] && cp "$BASE/favicon_site.ico" "$TMP/favicon.ico"
-  # layer Radar-DPC (caricato da index.html): i fotogrammi stanno sul branch 'radar', il codice qui
-  [ -f "$BASE/site/radar.js" ] && cp "$BASE/site/radar.js" "$TMP/radar.js"
   ( cd "$TMP"
     git init -q
     git checkout -q -b gh-pages

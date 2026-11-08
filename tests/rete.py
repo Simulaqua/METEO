@@ -36,7 +36,7 @@ BROKEN = {'LAGHI/data-parsed/LIVLAGO/LIVLAGO-20261101.json': b'',
 PROGRAMS = ['*.py', '*.sh', 'site/index.html', 'site/radar.js', 'watchdog*.yml', 'favicon_site.ico',
             'crontab_regioni.txt']
 # ingressi e non uscite: l'impronta proverebbe solo la copia, e il lavoro sull'interfaccia le cambia
-PAGES = ['site/index.html', 'site/radar.js']
+PAGES = ['site/index.html', 'site/radar.js', 'site/stile.css', 'site/comune.js']
 OUTPUTS = ['site', 'history_out', 'history_cache']
 EXPORT = ['export_web.py', '-r', 'all', '--site-dir', 'site']
 HISTORY = ['history.py', '--out', 'history_out', '--cache', 'history_cache']
@@ -71,6 +71,7 @@ BACKUP_OTHERS = ['site/index.html', 'logs/x.log', 'VEN/data-downloaded/x.csv', '
 ARPAV_ARCHIVE = ['live/data-parsed/TEMP/TEMP-20261101.json']
 ARPAV_OTHERS = ['live/logs/x.log', 'live/data-downloaded/x.csv']
 DEPLOY_TREE = ['dati_veneto.py', 'comune.py', 'publish.sh', 'crontab_regioni.txt', 'site/index.html', 'site/radar.js',
+               'site/stile.css', 'site/comune.js',
                'site/VEN/stations.geojson', 'site/.git/HEAD', 'VEN/zero_idrometrici.json', 'LOM/zero_idrometrici.json',
                'PC_PO/zero_idrometrici.json', 'PIE/zero_idrometrici.json', 'PC_PIE/zero_idrometrici.json',
                'VEN/data-parsed/TEMP/x.json', 'VEN/data-downloaded/x', 'VEN/logs/x.log', 'logs/x.log',
@@ -138,7 +139,7 @@ def run(args, cwd, epoch=EPOCH, env=None):
 
 
 def fingerprints(folder, subdirs):
-    """{percorso relativo a folder: sha1} dei file nelle sottocartelle subdirs, senza le due pagine."""
+    """{percorso relativo a folder: sha1} dei file nelle sottocartelle subdirs, senza i file della pagina."""
     found = {}
     for subdir in subdirs:
         for path in files_in(os.path.join(folder, subdir)):
@@ -406,8 +407,9 @@ def publish_run(root, name, **extra):
 
 def publish_scenarios():
     """I giri di publish.sh, in fila sullo stesso progetto: primo; invariato; dato nuovo (data-inc); pagina cambiata;
-    lock occupato; tre con il remoto che non risponde (al terzo si rifà il repository dei dati); remoto di nuovo al
-    suo posto (push completo); status.py che si ferma."""
+    stile cambiato (solo un file che index.html carica); un file della pagina mancante; lock occupato; tre con il
+    remoto che non risponde (al terzo si rifà il repository dei dati); remoto di nuovo al suo posto (push completo);
+    status.py che si ferma."""
     with tempfile.TemporaryDirectory() as root:
         project = bash_project(root)
         runs = [publish_run(root, 'primo giro'), publish_run(root, 'invariato')]
@@ -416,6 +418,15 @@ def publish_scenarios():
         with open(os.path.join(project, 'site', 'index.html'), 'a', encoding='utf-8') as fp:
             fp.write('<!-- pagina cambiata -->\n')
         runs.append(publish_run(root, 'pagina cambiata'))
+        with open(os.path.join(project, 'site', 'stile.css'), 'a', encoding='utf-8') as fp:
+            fp.write('/* stile cambiato */\n')
+        runs.append(publish_run(root, 'stile cambiato'))
+        # senza un file che index.html carica publish.sh si ferma prima della pagina e gh-pages resta com'era; il
+        # file torna, uguale, prima del giro dopo
+        missing = os.path.join(project, 'site', 'comune.js')
+        os.remove(missing)
+        runs.append(publish_run(root, 'file della pagina mancante'))
+        copy(os.path.join(BASH_FIXTURES, 'comune.js'), missing)
         add_reading(project, *NEW_DATA)
         runs.append(publish_run(root, 'lock occupato', FLOCK_EXIT='1'))
         move_remote(root)

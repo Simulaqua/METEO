@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Prepara (o toglie con --clean) le prove nel browser del radar in site/_radar_test/ (NON pubblicata: deploy.sh
-# esclude site/*/ e publish.sh copia solo index.html e radar.js):
+# esclude site/*/ e publish.sh copia solo index.html e i file che carica):
 #   test.html       prove di site/radar.js con dati locali (73 fotogrammi finti dal GeoTIFF di tests/fixtures)
 #   it_local.html   la pagina vera con i dati locali di site/<REG>/   (?suite=cursor|hash)
 #   it_live.html    la pagina vera con i dati e il radar veri da GitHub (?suite=radar|layout[&dark=1][&noradar=1])

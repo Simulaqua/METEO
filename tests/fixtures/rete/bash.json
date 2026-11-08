@@ -331,8 +331,10 @@
   "crontab_regioni.txt",
   "dati_veneto.py",
   "publish.sh",
+  "site/comune.js",
   "site/index.html",
-  "site/radar.js"
+  "site/radar.js",
+  "site/stile.css"
  ],
  "publish": [
   {
@@ -430,9 +432,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob c1238236ca509c12a65f82ce4b8267c12dd071da\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob 97be1b4326082cd3919d58c9f2c19b50467f7c49\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -478,7 +482,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "3380d8af265a40dcf8650680c07c9ca7b100491e"
+    "last_page_hash": "9a9bfbaa8d53adc96aa6f29238f9a2248e4a9bc1"
    },
    "uguale_al_sito": true
   },
@@ -577,9 +581,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob c1238236ca509c12a65f82ce4b8267c12dd071da\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob 97be1b4326082cd3919d58c9f2c19b50467f7c49\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -625,7 +631,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "3380d8af265a40dcf8650680c07c9ca7b100491e"
+    "last_page_hash": "9a9bfbaa8d53adc96aa6f29238f9a2248e4a9bc1"
    },
    "uguale_al_sito": true
   },
@@ -724,9 +730,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob 7959bcf6c225799578b799e83412e92c2ce5edd8\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob c1238236ca509c12a65f82ce4b8267c12dd071da\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob 97be1b4326082cd3919d58c9f2c19b50467f7c49\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -772,7 +780,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "3380d8af265a40dcf8650680c07c9ca7b100491e"
+    "last_page_hash": "9a9bfbaa8d53adc96aa6f29238f9a2248e4a9bc1"
    },
    "uguale_al_sito": true
   },
@@ -871,9 +879,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob 2a573d77e76cbe940f6f342a7362693a51fbb452\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob 97be1b4326082cd3919d58c9f2c19b50467f7c49\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -919,7 +929,304 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "607d9fdae0561ca02bc8dba8b916c4b46ef9f691"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 0,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "stile cambiato",
+   "pagina": [
+    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
+    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
+    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI invariati: nessun push.",
+    "PAGINA aggiornata su gh-pages (deploy Pages).",
+    "Fatto. Repo: git@github.com:Simulaqua/METEO.git"
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "history": {
+     "last": ""
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
+   },
+   "uguale_al_sito": true
+  },
+  {
+   "codice": 1,
+   "data": [
+    "INV_ER/series/CONCA.csv",
+    "INV_ER/series/RIDRACOLI.csv",
+    "INV_ER/stations.geojson",
+    "INV_ER/units.json",
+    "LAGHI/series/Lago_Maggiore.csv",
+    "LAGHI/series/Lago_d_Idro.csv",
+    "LAGHI/series/Lago_d_Iseo.csv",
+    "LAGHI/series/Lago_di_Como.csv",
+    "LAGHI/series/Lago_di_Garda.csv",
+    "LAGHI/stations.geojson",
+    "LAGHI/units.json",
+    "MAR_ER/series/Bellocchio.csv",
+    "MAR_ER/series/Bocca_Scanno.csv",
+    "MAR_ER/series/Calipso.csv",
+    "MAR_ER/series/Faro.csv",
+    "MAR_ER/series/Gorino_2.csv",
+    "MAR_ER/series/Logonovo.csv",
+    "MAR_ER/series/Manufatto.csv",
+    "MAR_ER/series/Nausicaa_2.csv",
+    "MAR_ER/series/Po_di_Goro.csv",
+    "MAR_ER/series/Porto_Garibaldi.csv",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv",
+    "MAR_ER/series/Punta_Volano.csv",
+    "MAR_ER/snap/TEMP.json",
+    "MAR_ER/snap/UMID.json",
+    "MAR_ER/snap/VVENTO.json",
+    "MAR_ER/stations.geojson",
+    "MAR_ER/units.json",
+    "MAR_FVG/series/CURRISO.csv",
+    "MAR_FVG/series/DWRG1.csv",
+    "MAR_FVG/series/DWRG2.csv",
+    "MAR_FVG/series/DWRG3.csv",
+    "MAR_FVG/series/MAMBO1.csv",
+    "MAR_FVG/series/PIEZTAG.csv",
+    "MAR_FVG/snap/PRESS.json",
+    "MAR_FVG/snap/TEMP.json",
+    "MAR_FVG/snap/UMID.json",
+    "MAR_FVG/snap/VVENTO.json",
+    "MAR_FVG/stations.geojson",
+    "MAR_FVG/units.json",
+    "STATUS/status.json"
+   ],
+   "data_inc": "invariato",
+   "delta": {
+    "INV_ER/series/CONCA.csv": "shkfiv",
+    "INV_ER/series/RIDRACOLI.csv": "hh7uf8",
+    "INV_ER/stations.geojson": "46ocy9",
+    "INV_ER/units.json": "gtgiwn",
+    "LAGHI/series/Lago_Maggiore.csv": "tahui9",
+    "LAGHI/series/Lago_d_Idro.csv": "x6vmzj",
+    "LAGHI/series/Lago_d_Iseo.csv": "m6s9ih",
+    "LAGHI/series/Lago_di_Como.csv": "ekqjeg",
+    "LAGHI/series/Lago_di_Garda.csv": "ajt0yc",
+    "LAGHI/stations.geojson": "zts1zk",
+    "LAGHI/units.json": "e5cazr",
+    "MAR_ER/series/Bellocchio.csv": "oo1b9f",
+    "MAR_ER/series/Bocca_Scanno.csv": "llp7lq",
+    "MAR_ER/series/Calipso.csv": "fxo8d9",
+    "MAR_ER/series/Faro.csv": "6cb5li",
+    "MAR_ER/series/Gorino_2.csv": "wei6bz",
+    "MAR_ER/series/Logonovo.csv": "b49ptp",
+    "MAR_ER/series/Manufatto.csv": "yoiv7z",
+    "MAR_ER/series/Nausicaa_2.csv": "s0nykm",
+    "MAR_ER/series/Po_di_Goro.csv": "fvw5mo",
+    "MAR_ER/series/Porto_Garibaldi.csv": "75ut8y",
+    "MAR_ER/series/Porto_Garibaldi_Encoder.csv": "21z2w8",
+    "MAR_ER/series/Punta_Volano.csv": "el60x1",
+    "MAR_ER/snap/TEMP.json": "so738t",
+    "MAR_ER/snap/UMID.json": "nf0uxy",
+    "MAR_ER/snap/VVENTO.json": "51n8sy",
+    "MAR_ER/stations.geojson": "10idzk",
+    "MAR_ER/units.json": "b9awkd",
+    "MAR_FVG/series/CURRISO.csv": "3fghi2",
+    "MAR_FVG/series/DWRG1.csv": "9wgmwu",
+    "MAR_FVG/series/DWRG2.csv": "4a3868",
+    "MAR_FVG/series/DWRG3.csv": "ooh3tj",
+    "MAR_FVG/series/MAMBO1.csv": "jgcoth",
+    "MAR_FVG/series/PIEZTAG.csv": "t0f6cg",
+    "MAR_FVG/snap/PRESS.json": "tulrfk",
+    "MAR_FVG/snap/TEMP.json": "g4h661",
+    "MAR_FVG/snap/UMID.json": "dmpqjn",
+    "MAR_FVG/snap/VVENTO.json": "tp7ftt",
+    "MAR_FVG/stations.geojson": "x2wh71",
+    "MAR_FVG/units.json": "liyn59",
+    "STATUS/status.json": "9onevr"
+   },
+   "giro": "file della pagina mancante",
+   "pagina": [
+    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
+    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
+    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
+    "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
+   ],
+   "repo_dati": true,
+   "righe": [
+    "DATI invariati: nessun push.",
+    "ERRORE: index.html carica comune.js, che non c'e' in site/: pagina non pubblicata."
+   ],
+   "status": {
+    "backup": {
+     "info": "ERRORE: x -- y",
+     "last": "",
+     "warn": [
+      "x"
+     ]
+    },
+    "history": {
+     "last": ""
+    },
+    "latest": "2026-11-05T09:40",
+    "regions": {
+     "INV_ER": {
+      "latest": "2026-11-04T23:05",
+      "n": 2,
+      "old": 0
+     },
+     "LAGHI": {
+      "latest": "2026-11-04T22:30",
+      "n": 5,
+      "old": 0
+     },
+     "MAR_ER": {
+      "latest": "2026-11-05T09:40",
+      "n": 12,
+      "old": 0
+     },
+     "MAR_FVG": {
+      "latest": "2026-11-05T09:40",
+      "n": 6,
+      "old": 0
+     }
+    }
+   },
+   "tracking": {
+    "data_push_fails": null,
+    "last_data_hash": true,
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": true
   },
@@ -1018,9 +1325,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -1066,7 +1375,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": false,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": false
   },
@@ -1165,9 +1474,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -1213,7 +1524,7 @@
    "tracking": {
     "data_push_fails": "1",
     "last_data_hash": false,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": false
   },
@@ -1312,9 +1623,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -1360,7 +1673,7 @@
    "tracking": {
     "data_push_fails": "2",
     "last_data_hash": false,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": false
   },
@@ -1417,9 +1730,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": false,
    "righe": [
@@ -1465,7 +1780,7 @@
    "tracking": {
     "data_push_fails": "3",
     "last_data_hash": false,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": false
   },
@@ -1564,9 +1879,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob acd400b27648d499331680a9b6355c89c80cf1ae\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob ba082fca8c9296d1cb69a6c3e3c0b8b8a156a39f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -1612,7 +1929,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "5110c5c41f3814b2a7fd3810662dc8ba52d16bd6"
+    "last_page_hash": "2e85af5a598fa0396a6dab355e7107fd74843ca0"
    },
    "uguale_al_sito": true
   },
@@ -1713,9 +2030,11 @@
     "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
     "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
+    "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
-    "100644 blob d28c031013a29042e37433357f36bc593aa7c24f\tindex.html",
-    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js"
+    "100644 blob e049f9358bf0d11958c0d83206f781e75d36792f\tindex.html",
+    "100644 blob f2fa1a0161b2d7c37d716bdc02ceabbdc004a25a\tradar.js",
+    "100644 blob bad1ad21597db9d915579eddd38de0984876fb99\tstile.css"
    ],
    "repo_dati": true,
    "righe": [
@@ -1762,7 +2081,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "19d586c57a2bc5694c80a563dcf10c70ea910ecd"
+    "last_page_hash": "fcdcf512f25d1264adc5af3167479fc3d2962b7a"
    },
    "uguale_al_sito": true
   }
