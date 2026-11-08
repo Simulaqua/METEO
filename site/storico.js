@@ -1,4 +1,5 @@
-// storico.js: lo Storico, aggregati dal ramo history
+// storico.js: lo Storico (aggregati giornalieri dal ramo history): viste Giorni, Mesi, Anni e Tabella, zoom, CSV.
+// Gli ascoltatori sono in buildHistControls(), chiamata da index.html.
 
 // ------------------------------------------------------------------------------------------------
 // STORICO LUNGO ("Storico" nella scheda stazione): aggregati giornalieri di pioggia e temperatura da tutto
@@ -105,7 +106,7 @@ function hvTableHtml(months, v){
 }
 
 function hvW(){ return Math.max(260, el('hvChart').clientWidth || (el('panel').clientWidth - 32)); }
-function hvH(){ return (window.matchMedia && matchMedia('(max-width:720px)').matches) ? 250 : 330; }
+function hvH(){ return matchMedia('(max-width:720px)').matches ? 250 : 330; }
 const hvBars = () => uPlot.paths.bars({ size:[0.75, 60] });
 const hvMonLabel = ts => MESI_BR[new Date(ts * 1000).getUTCMonth()] + ' ' + new Date(ts * 1000).getUTCFullYear();
 const hvDayLabel = ts => { const d = new Date(ts * 1000); return d.getUTCDate() + ' ' + MESI_BR[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
