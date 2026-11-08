@@ -118,11 +118,11 @@ fi
 # 3) PAGINA -> branch 'gh-pages' (solo se la pagina o gli avvisi sono cambiati). Innesca il deploy
 #    Pages. Riscrive DATA_BASE con l'URL raw del branch 'data' e da' a ogni file della pagina un
 #    ?v=<impronta>: Pages tiene HTML e JS in cache 10 min, cosi' una pagina nuova non gira mai con
-#    file vecchi.
+#    file vecchi. Una pagina che cita un file locale che non va su gh-pages non si pubblica.
 # ---------------------------------------------------------------------------
 # i file della pagina sono quelli che index.html carica, scritti src="nome.js" o href="nome.css"
 # (gli URL dei CDN e favicon.ico?v=2 no). I commenti di una riga non contano; in un commento di
-# index.html mai src=" o href=": uno su piu' righe, o con un >, si leggerebbe come markup.
+# index.html mai src= o href=: uno su piu' righe, o con un >, si leggerebbe come markup.
 # LC_ALL=C e grep -a: un byte rovinato in index.html non deve far perdere file a grep.
 # Se ne manca uno la pagina non si pubblica: i dati sono gia' partiti, si riprova al prossimo giro
 PAGE_FILES="$(LC_ALL=C sed 's/<!--[^>]*-->//g' site/index.html \
@@ -135,9 +135,11 @@ for f in $PAGE_FILES; do
   fi
 done
 # l'hash comprende i file della pagina e gli avvisi: una loro modifica deve arrivare su gh-pages anche
-# se index.html non cambia
+# se index.html non cambia. Una riga "nome sha1" per file: anche un testo passato dalla fine di un file
+# all'inizio del successivo cambia l'hash
 PAGE_HASH="$(for f in site/index.html $PAGE_FILES "${WATCHDOGS[@]}"; do
-               [ -f "$f" ] && cat "$f" || true; done | sha1sum | cut -d' ' -f1)"
+               [ -f "$f" ] && printf '%s %s\n' "$f" "$(sha1sum < "$f" | cut -d' ' -f1)" || true
+             done | sha1sum | cut -d' ' -f1)"
 if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; then
   TMP="$(mktemp -d)"
   # i file vanno su gh-pages come sono; in index.html ognuno prende ?v= con i primi 8 caratteri del
@@ -161,6 +163,23 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
   echo "meteo.simulaqua.it" > "$TMP/CNAME"
   # favicon trasparente (via la goccia anche dalle cache-icone piu' testarde)
   [ -f "$BASE/favicon_site.ico" ] && cp "$BASE/favicon_site.ico" "$TMP/favicon.ico"
+  # prima del push: ogni file locale che la pagina cita deve essere fra quelli pronti per gh-pages.
+  # Contano tutti gli src= e href= (maiuscole o minuscole; virgolette doppie, semplici o nessuna), non
+  # URL, #, data:, mailto:, javascript: e tel:; ?..., #... e un ./ iniziale si tolgono. Cosi' si ferma
+  # anche un file scritto in una forma che PAGE_FILES non legge (./x.js, js/x.js, 'x.js', X.js,
+  # x.js?v=1), che sul sito mancherebbe. Niente push e niente last_page_hash: si riprova al prossimo giro
+  LOCAL_REFS="$(LC_ALL=C sed 's/<!--[^>]*-->//g' "$TMP/index.html" \
+                | LC_ALL=C grep -aoiE "(src|href)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]\"'>]+)" \
+                | LC_ALL=C sed -E "s/^[^=]*=[[:space:]]*//; s/^[\"'](.*)[\"']\$/\\1/" \
+                | LC_ALL=C grep -aviE '^(https?:|//|#|data:|mailto:|javascript:|tel:)' || true)"
+  while IFS= read -r ref; do
+    file="${ref%%[?#]*}"; file="${file#./}"
+    if [ -n "$file" ] && [ ! -e "$TMP/$file" ]; then
+      rm -rf "$TMP"
+      echo "ERRORE: index.html cita $ref, che non si pubblica: pagina non pubblicata."
+      exit 1
+    fi
+  done <<< "$LOCAL_REFS"
   ( cd "$TMP"
     git init -q
     git checkout -q -b gh-pages

@@ -268,6 +268,17 @@ def add_reading(project, path, station, minutes):
         json.dump(data, fp, ensure_ascii=False, separators=(',', ':'))
 
 
+def move_last_line(source, target):
+    """L'ultima riga del file source passa in testa al file target: source e target, uno dopo l'altro, restano gli
+    stessi byte."""
+    with open(source, 'rb') as fp:
+        lines = fp.read().splitlines(keepends=True)
+    with open(target, 'rb') as fp:
+        rest = fp.read()
+    write(source, b''.join(lines[:-1]))
+    write(target, lines[-1] + rest)
+
+
 def remote_git(root, *args):
     """git sul repository nudo di root, dovunque sia, con le variabili dei bash."""
     bare = os.path.join(root, MOVED)
@@ -407,9 +418,10 @@ def publish_run(root, name, **extra):
 
 def publish_scenarios():
     """I giri di publish.sh, in fila sullo stesso progetto: primo; invariato; dato nuovo (data-inc); pagina cambiata;
-    stile cambiato (solo un file che index.html carica); un file della pagina mancante; lock occupato; tre con il
-    remoto che non risponde (al terzo si rifà il repository dei dati); remoto di nuovo al suo posto (push completo);
-    status.py che si ferma."""
+    stile cambiato (solo un file che index.html carica); un file della pagina mancante; testo spostato da un file
+    della pagina al successivo; un file locale citato in una forma che publish.sh non pubblica; lock occupato; tre con
+    il remoto che non risponde (al terzo si rifà il repository dei dati); remoto di nuovo al suo posto (push
+    completo); status.py che si ferma."""
     with tempfile.TemporaryDirectory() as root:
         project = bash_project(root)
         runs = [publish_run(root, 'primo giro'), publish_run(root, 'invariato')]
@@ -427,6 +439,20 @@ def publish_scenarios():
         os.remove(missing)
         runs.append(publish_run(root, 'file della pagina mancante'))
         copy(os.path.join(BASH_FIXTURES, 'comune.js'), missing)
+        # l'ultima riga di stile.css passa in testa a radar.js, il file che la pagina carica dopo: i due file di
+        # seguito sono gli stessi byte, ma sono cambiati tutti e due e la pagina si ripubblica
+        move_last_line(os.path.join(project, 'site', 'stile.css'), os.path.join(project, 'site', 'radar.js'))
+        runs.append(publish_run(root, 'testo spostato fra due file'))
+        # un file citato in un'altra forma (./extra.js) publish.sh non lo pubblica, anche se c'è in site/: si ferma
+        # prima del push, gh-pages e last_page_hash restano com'erano; poi la pagina torna com'era
+        index, extra = os.path.join(project, 'site', 'index.html'), os.path.join(project, 'site', 'extra.js')
+        with open(index, 'rb') as fp:
+            page = fp.read()
+        write(extra, b'// extra.js, citato come ./extra.js\n')
+        write(index, page + b'<script src="./extra.js"></script>\n')
+        runs.append(publish_run(root, 'riferimento locale non pubblicato'))
+        write(index, page)
+        os.remove(extra)
         add_reading(project, *NEW_DATA)
         runs.append(publish_run(root, 'lock occupato', FLOCK_EXIT='1'))
         move_remote(root)

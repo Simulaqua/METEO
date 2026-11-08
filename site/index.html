@@ -196,7 +196,8 @@
 const DATA_BASE = '.';
 const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/history') : './_HIST';
 </script>
-<!-- radar.js, poi comune.js (gli altri usano le sue costanti mentre si caricano), poi un file per argomento; la pagina parte quando tutti hanno girato (avvio, in fondo a comune.js); publish.sh pubblica e versiona i file scritti nei tag script e link di questa pagina -->
+<!-- radar.js, poi comune.js (gli altri usano le sue costanti mentre si caricano), poi un file per argomento; la pagina parte quando tutti hanno girato (avvio, in fondo a comune.js) -->
+<!-- publish.sh pubblica e versiona i file dei tag script e link scritti col solo nome (minuscolo, finito in .js o .css, fra virgolette doppie; niente cartelle, niente ?); un altro file locale citato dalla pagina che publish.sh non pubblica (favicon.ico si') ferma la pubblicazione -->
 <script src="radar.js"></script>
 <script src="comune.js"></script>
 <script src="mappa.js"></script>
