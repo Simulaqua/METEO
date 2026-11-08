@@ -23,7 +23,7 @@ import quality
 
 # le cartelle del sito, nell'ordine dell'export. Le reti AQ_, PC_, MAR_... sono archivi a sé, che il sito raggruppa
 # sotto la voce geografica. PC_PO (AIPO) si pubblica intero, anche con le stazioni che hanno già ER e LOM (scelta
-# dell'utente). CB_AE, ritirato il 2026-10-23 (copie di stazioni ARPAV già in VEN), ha ancora l'archivio sul Pi.
+# dell'utente).
 REGIONS = ['VEN', 'TN', 'BZ', 'FVG', 'LOM', 'ER', 'AQ_VEN', 'AQ_TN', 'AQ_BZ', 'AQ_LOM', 'AQ_ER', 'PC_FVG', 'PC_TN',
            'MAR_VEN', 'MAR_ER', 'MAR_FVG', 'ACQ_VEN', 'INV_ER', 'LIG', 'PC_PO', 'PC_PIE', 'PIE', 'LAGHI']
 # i campi di stazioni.json con nome, latitudine e longitudine, dove non sono NOME, LAT e LON. In VEN X e Y sono lon e
