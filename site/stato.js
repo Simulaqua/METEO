@@ -1,4 +1,5 @@
-// stato.js: lo stato del sito (banner "dati fermi" e pannello Fonti con i semafori).
+// stato.js: lo stato del sito da STATUS/status.json (banner "dati fermi" e pannello Fonti con i semafori).
+// Gli ascoltatori e il controllo ogni 10 minuti sono in buildStatusControls(), chiamata da index.html.
 
 // ---- WATCHDOG "dati fermi": STATUS/status.json (scritto dal publish) contiene il timestamp della
 // misura piu' recente fra TUTTE le regioni. Se supera STALE_HOURS -> banner rosso. Silenzioso se il
@@ -38,15 +39,13 @@ async function checkStale(){
     if(!r.ok) throw 0;
     const s = _lastStatus = await r.json();
     const ageMin = (nowRome() - isoCivil(s.latest)) / 60000;
-    if(b){
-      if(ageMin > STALE_HOURS * 60){
-        const txt = ageMin >= 48*60 ? Math.round(ageMin/1440) + ' giorni' : Math.round(ageMin/60) + ' ore';
-        b.textContent = '⚠ Dati non aggiornati da ' + txt + ' (ultimo dato: ' + s.latest.replace('T',' ') + ')';
-        b.style.display = 'block';
-      } else b.style.display = 'none';
-    }
+    if(ageMin > STALE_HOURS * 60){
+      const txt = ageMin >= 48*60 ? Math.round(ageMin/1440) + ' giorni' : Math.round(ageMin/60) + ' ore';
+      b.textContent = '⚠ Dati non aggiornati da ' + txt + ' (ultimo dato: ' + s.latest.replace('T',' ') + ')';
+      b.style.display = 'block';
+    } else b.style.display = 'none';
     updateSrcUI();
-  } catch(e){ if(b) b.style.display = 'none'; }   // status assente/illeggibile: niente banner
+  } catch(e){ b.style.display = 'none'; }   // status assente/illeggibile: niente banner
 }
 
 // pallino accanto alla "i" = stato peggiore fra tutte le fonti
@@ -54,7 +53,6 @@ const TL_COLOR = { g:'#2f9e44', y:'#f0a800', r:'#d33' };
 function updateSrcUI(){
   const dot = el('srcdot');
   const regs = _lastStatus && _lastStatus.regions;
-  if(!dot) return;
   if(!regs){ dot.style.background = '#9aa5b1'; return; }
   const nowIt = nowRome();
   let worst = 'g';
@@ -65,7 +63,7 @@ function updateSrcUI(){
   }
   dot.style.background = TL_COLOR[worst];
   const p = el('srcpanel');
-  if(p && p.style.display === 'block') renderSrcPanel();   // pannello aperto: aggiorna i semafori
+  if(p.style.display === 'block') renderSrcPanel();   // pannello aperto: aggiorna i semafori
 }
 
 function renderSrcPanel(){
