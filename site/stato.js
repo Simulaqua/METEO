@@ -100,20 +100,20 @@ function renderSrcPanel(){
 }
 
 function buildStatusControls(){
-el('srcinfo').addEventListener('click', (e) => {
-  e.stopPropagation();                           // il clic non arriva al documento: chiudi qui menu, ricerca e Note
-  closeMenu(); closeSearch(); el('notepanel').style.display = 'none';
-  const p = el('srcpanel');
-  if(p.style.display === 'block'){ p.style.display = 'none'; return; }
-  renderSrcPanel();
-  p.style.display = 'block';
-  if(!_lastStatus) checkStale();          // primo click prima del fetch: carica e ridisegna
-});
-document.addEventListener('click', (e) => {
-  const p = el('srcpanel');
-  if(p.style.display === 'block' && !p.contains(e.target)) p.style.display = 'none';
-});
+  el('srcinfo').addEventListener('click', (e) => {
+    e.stopPropagation();                           // il clic non arriva al documento: chiudi qui menu, ricerca e Note
+    closeMenu(); closeSearch(); el('notepanel').style.display = 'none';
+    const p = el('srcpanel');
+    if(p.style.display === 'block'){ p.style.display = 'none'; return; }
+    renderSrcPanel();
+    p.style.display = 'block';
+    if(!_lastStatus) checkStale();          // primo click prima del fetch: carica e ridisegna
+  });
+  document.addEventListener('click', (e) => {
+    const p = el('srcpanel');
+    if(p.style.display === 'block' && !p.contains(e.target)) p.style.display = 'none';
+  });
 
-checkStale();
-setInterval(checkStale, 10*60*1000);
+  checkStale();
+  setInterval(checkStale, 10*60*1000);
 }

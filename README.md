@@ -52,7 +52,9 @@ scrivono in `logs/` della cartella principale. Dati, log e cache sono in `.gitig
 `publish.sh` gira dal cron ogni 10 minuti sul Pi e separa i dati dalla pagina:
 - `data`: i dati del sito (e lo stato), letti dalla pagina via raw.githubusercontent.com. Il push e' incrementale
   (repository locale persistente in `site/.git`, solo i file cambiati), cosi' pesa poche centinaia di KB a giro.
-- `gh-pages`: la pagina (GitHub Pages) e gli avvisi, pushata solo quando cambia.
+- `gh-pages`: la pagina (GitHub Pages: `index.html`, `stile.css` e i `.js`) e gli avvisi, pushata solo quando cambia.
+  L'`index.html` pubblicato differisce da quello del repo solo per `DATA_BASE` (l'indirizzo raw del branch `data`) e
+  per il `?v=` (le prime 8 cifre dello sha1 del file) dopo il nome di ogni file.
 - `history`: lo storico lungo, ricreato ogni giorno alle 07:20 da `publish_history.sh`.
 - `radar`: i fotogrammi del radar, scritti da `dati_radar.py`.
 

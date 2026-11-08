@@ -583,11 +583,11 @@ function setMapVar(v){
   if(v){
     if(currentPage !== varCat(v)){
       if(currentPage !== 'indici') mapPrevPage = currentPage;
-      const b = document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]'); if(b) b.click();
+      document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]').click();
     }
     if(isRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
   } else if(currentPage === 'indici' && mapPrevPage !== 'indici'){
-    const b = document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]'); if(b) b.click();
+    document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]').click();
   }
   const sel = el('varFilter');
   if(!v || [...sel.options].some(o => o.value === v)){

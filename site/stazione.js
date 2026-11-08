@@ -439,7 +439,7 @@ function showMapView(){
   document.body.classList.remove('view-station', 'view-compare');
   renderTabbar(null);
   history.replaceState(null, '', location.pathname + location.search);
-  if(map) setTimeout(() => map.invalidateSize(), 40);
+  setTimeout(() => map.invalidateSize(), 40);
 }
 function closeTab(key){
   openTabs = openTabs.filter(t => t.key !== key);

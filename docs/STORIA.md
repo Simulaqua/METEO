@@ -104,7 +104,8 @@ altre e passa da sola.
 - **Nessuna chiave ne' token per nessuna fonte.** Solo fonti aperte e anonime. Se una fonte limita le richieste
   (la Lombardia risponde 429), lo scarico ritenta con pause e, se non basta, esce senza scrivere.
 - **La pagina e' fatta di file semplici, senza build.** Sono script normali caricati in ordine (`radar.js`, poi
-  `comune.js`, poi gli altri): il Pi pubblica i file cosi' come sono. Ogni file collega i propri ascoltatori in una
-  funzione sua e la pagina parte con `avvio`, in fondo a `comune.js`. Poiche' GitHub Pages tiene i file in cache 10
-  minuti, `publish.sh` scrive in `index.html` un `?v=` (le prime 8 cifre dello sha1 del file) dopo ogni nome: una
-  pagina nuova chiede sempre file nuovi, e quelli non cambiati restano in cache.
+  `comune.js`, poi gli altri), per due ragioni: il Pi pubblica i file cosi' come sono, e le prove nel browser usano
+  per nome le funzioni e le variabili della pagina (con i moduli non le vedrebbero). Ogni file collega i propri
+  ascoltatori in una funzione sua e la pagina parte con `avvio`, in fondo a `comune.js`. Poiche' GitHub Pages tiene
+  i file in cache 10 minuti, `publish.sh` scrive in `index.html` un `?v=` (le prime 8 cifre dello sha1 del file)
+  dopo ogni nome: una pagina nuova chiede sempre file nuovi, e quelli non cambiati restano in cache.

@@ -25,6 +25,7 @@
     python3 tests/web/setup.py --clean    # toglie site/_radar_test/
 
 Serve Chrome (headless). Le suite sono in it_tests.js; ogni pagina stampa "RISULTATO: n/n".
+Le pagine caricano stile.css e i .js di site/: il server deve servire pagina e dati dalla stessa radice.
 setup.py importa dati_radar (numpy + Pillow): sul Mac usare /usr/bin/python3.
 
 Storico: i file di tests/web/storico/ sono VERI, usciti da history.py sull'archivio vero il 2026-11-05 (index.json ridotto

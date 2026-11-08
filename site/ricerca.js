@@ -249,7 +249,7 @@ function buildSearchControls(){
   });
   document.addEventListener('click', (e) => {
     const n = el('notepanel');
-    if(n && n.style.display === 'block' && !n.contains(e.target)) n.style.display = 'none';
+    if(n.style.display === 'block' && !n.contains(e.target)) n.style.display = 'none';
   });
   // tema chiaro/scuro (persistito); al cambio ridisegna il grafico per aggiornare griglia e assi
   try { if(localStorage.getItem('theme') === 'dark'){ document.body.classList.add('dark'); } } catch(e){}
