@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 
-# dati_radar.py - RADAR METEO NAZIONALE della Protezione Civile (piattaforma Radar-DPC) per la mappa del sito.
-#   Prodotto SRI (Surface Rainfall Intensity, mm/h): mosaico radar corretto coi pluviometri, ogni 5 minuti,
-#   griglia 1 km su tutta Italia. Licenza CC BY-SA 4.0 (citare "Radar-DPC").
-#
-#   Accesso (API REST documentata, https://dpc-radar.readthedocs.io/it/latest/api.html), anonimo:
-#     GET  https://radar-api.protezionecivile.it/findLastProductByType?type=SRI -> ultimo istante (ms UTC)
-#     POST https://radar-api.protezionecivile.it/downloadProduct {"productType","productDate"} -> URL S3 firmato
-#          (scade dopo 300 s) del GeoTIFF Float32 1200x1400.
-#   Il GeoTIFF e' in una Transverse Mercator "custom" (lat0 42, lon0 12.5, k 1, WGS84), origine
-#   (-600000, 650000), pixel 1000 m; -9999 = fuori copertura (senza tag NoData).
-#
-# Cosa fa ogni giro (cron ogni 5 min): tiene le ULTIME 6 ORE (72 fotogrammi), riproiettate su una griglia
-# Web Mercator fissa del Nord Italia e salvate come PNG a palette con le classi della pioggia oraria del sito,
-# piu' un indice index.json; poi pubblica tutto sul branch GitHub 'radar' (letto da site/radar.js).
-#
+# dati_radar.py - radar meteo nazionale della Protezione Civile (Radar-DPC, CC BY-SA 4.0: citare "Radar-DPC").
+# Ogni giro (cron ogni 5 min) tiene le ultime 6 ore di 23 prodotti (SRI, cumulate, riflettivita', nuvole,
+# temperatura...), riproiettate su una griglia Web Mercator fissa del Nord Italia e salvate come PNG a
+# palette, piu' index.json; poi pubblica tutto sul branch GitHub 'radar' (letto da site/radar.js).
+# API REST anonima (https://dpc-radar.readthedocs.io/it/latest/api.html):
+#   GET  https://radar-api.protezionecivile.it/findLastProductByType?type=SRI -> ultimo istante (ms UTC)
+#   POST https://radar-api.protezionecivile.it/downloadProduct {"productType","productDate"} -> URL S3 firmato
+#        (scade dopo 300 s) del GeoTIFF Float32
+# Il GeoTIFF SRI (mm/h, 1200x1400, pixel 1000 m) e' in una Transverse Mercator "custom" (lat0 42, lon0 12.5,
+# k 1, WGS84), origine (-600000, 650000); -9999 = fuori copertura (senza tag NoData).
 # Uso:  python3 dati_radar.py [--out radar_out] [--no-push] [--remote URL]
 
 import argparse, glob, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time
@@ -28,14 +23,14 @@ import comune
 _BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 
 PRODUCT = 'SRI'
-STEP_S = 300                                         # un fotogramma ogni 5 minuti
+STEP_S = 300
 WINDOW_N = 72                                        # = ultime 6 ore
 SOURCE = 'Radar-DPC – Dipartimento della Protezione Civile'
 LICENSE = 'CC BY-SA 4.0'
 API = 'https://radar-api.protezionecivile.it'
-ORIGIN = 'https://radar.protezionecivile.it'          # la documentazione chiede l'header origin
+ORIGIN = 'https://radar.protezionecivile.it'         # la documentazione chiede l'header origin
 USER_AGENT = 'meteo.simulaqua.it radar (+https://meteo.simulaqua.it)'
-REMOTE = 'git@github.com:Simulaqua/METEO.git'         # stesso repo e deploy key di publish.sh
+REMOTE = 'git@github.com:Simulaqua/METEO.git'        # stesso repo e deploy key di publish.sh
 BRANCH = 'radar'
 LICENSE_TXT = ('Fotogrammi derivati da Radar-DPC - Dipartimento della Protezione Civile (prodotto SRI, mm/h),\n'
                'licenza CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/deed.it\n'
@@ -44,63 +39,81 @@ LICENSE_TXT = ('Fotogrammi derivati da Radar-DPC - Dipartimento della Protezione
 # --- geometria -------------------------------------------------------------------------------------------
 R_MERC = 6378137.0                                   # sfera di Web Mercator
 RES = 2 * math.pi * R_MERC / 256 / 128               # m/pixel di Leaflet a zoom 7 (~0.87 km a 45N)
-GRID = dict(lon0=6.0, lon1=14.5, lat0=43.3, lat1=47.3)   # Nord Italia, con margine attorno alle regioni del sito
+GRID = dict(lon0=6.0, lon1=14.5, lat0=43.3, lat1=47.3)   # Nord Italia, con margine attorno alle regioni
 
 TM_LON0, TM_LAT0 = 12.5, 42.0                        # proiezione del GeoTIFF DPC
 WGS84_A, WGS84_F = 6378137.0, 1 / 298.257223563
 
-# --- classi e colori: GLI STESSI della pioggia oraria in site/mappa.js (RAIN_STEPS.PREC1, RAIN_COLORS) ------
+# --- classi e colori: gli stessi della pioggia oraria in site/mappa.js (RAIN_STEPS.PREC1, RAIN_COLORS) ------
 # cosi' radar e puntini delle stazioni hanno la stessa scala. Classe 0 (sotto 0.1 mm/h) = trasparente.
 PREC1_STEPS = [0.1, 0.5, 1, 2, 5, 10, 20, 30, 50]
-RAIN_COLORS = ['#e3e9f0', '#a9d6f2', '#6db3e6', '#3a8fd9', '#2a62c4', '#4b3fb8', '#8a2fb0', '#d0238c', '#e5412d', '#8e0b0b']
-RAIN_STEPS = {'PREC1': PREC1_STEPS, 'PREC3': [0.1, 1, 2, 5, 10, 20, 40, 60, 80], 'PREC6': [0.2, 1, 3, 6, 12, 25, 50, 75, 100],
-              'PREC12': [0.2, 2, 5, 10, 20, 40, 70, 100, 150], 'PREC24': [0.2, 2, 5, 10, 25, 50, 100, 150, 200],
+RAIN_COLORS = ['#e3e9f0', '#a9d6f2', '#6db3e6', '#3a8fd9', '#2a62c4',
+               '#4b3fb8', '#8a2fb0', '#d0238c', '#e5412d', '#8e0b0b']
+RAIN_STEPS = {'PREC1': PREC1_STEPS,
+              'PREC3': [0.1, 1, 2, 5, 10, 20, 40, 60, 80],
+              'PREC6': [0.2, 1, 3, 6, 12, 25, 50, 75, 100],
+              'PREC12': [0.2, 2, 5, 10, 20, 40, 70, 100, 150],
+              'PREC24': [0.2, 2, 5, 10, 25, 50, 100, 150, 200],
               'PREC48': [0.2, 5, 10, 25, 50, 100, 150, 200, 300]}
 
-# --- palette degli altri prodotti: classe i = n. di soglie <= valore; colors ha una voce in piu' delle soglie,
-# '' = trasparente. Sulla mappa la classe 0 della pioggia e' trasparente (sui puntini e' il grigio chiaro).
+# --- palette degli altri prodotti: classe i = n. di soglie <= valore; colors ha una voce in piu' delle
+# soglie, '' = trasparente. Sulla mappa la classe 0 della pioggia e' trasparente (sui puntini, grigio chiaro).
 RAIN_MAP = [''] + RAIN_COLORS[1:]
 DBZ = ([10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60],
-       ['', '#04e9e7', '#019ff4', '#0300f4', '#02fd02', '#01c501', '#008e00', '#fdf802', '#e5bc00', '#fd9500', '#fd0000', '#bc0000'])
+       ['', '#04e9e7', '#019ff4', '#0300f4', '#02fd02', '#01c501', '#008e00',
+        '#fdf802', '#e5bc00', '#fd9500', '#fd0000', '#bc0000'])
 VIL = ([0.5, 1, 2, 5, 10, 20, 30, 45, 60],
-       ['', '#c6e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#fed976', '#fd8d3c', '#e31a1c', '#800026'])
-ETM = ([2, 3, 4, 5, 6, 8, 10, 12], ['', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#fdae6b', '#e6550d', '#a63603'])
+       ['', '#c6e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8',
+        '#fed976', '#fd8d3c', '#e31a1c', '#800026'])
+ETM = ([2, 3, 4, 5, 6, 8, 10, 12],
+       ['', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#fdae6b', '#e6550d', '#a63603'])
 POH = ([10, 30, 50, 70, 90], ['', '#fee391', '#fec44f', '#fe9929', '#d95f0e', '#993404'])
-IR108 = ([-60, -50, -40, -30, -20, -10, 0],            # cime fredde colorate, nuvole in grigio, sopra 0 gradi trasparente
+IR108 = ([-60, -50, -40, -30, -20, -10, 0],            # cime fredde colorate, nuvole in grigio, oltre 0 nulla
          ['#c51b8a', '#e31a1c', '#fd8d3c', '#ffffff', '#e0e0e0', '#bdbdbd', '#969696', ''])
 TEMP = (list(range(-10, 37, 2)),                       # tutte opache: anche il freddo e' un'informazione
-        ['#313695', '#3a4fa3', '#4467b1', '#4f80bf', '#5b98cb', '#6fb0d8', '#87c4e2', '#a1d6ec', '#bce5f1', '#d6eff5',
-         '#ecf7ee', '#f6f8d9', '#fff2b8', '#fee59a', '#fed27c', '#fdbd63', '#fca54f', '#f88b42', '#f27038', '#e7562f',
+        ['#313695', '#3a4fa3', '#4467b1', '#4f80bf', '#5b98cb', '#6fb0d8', '#87c4e2', '#a1d6ec',
+         '#bce5f1', '#d6eff5', '#ecf7ee', '#f6f8d9', '#fff2b8', '#fee59a', '#fed27c', '#fdbd63',
+         '#fca54f', '#f88b42', '#f27038', '#e7562f',
          '#d93d29', '#c72825', '#b11a22', '#981222', '#7f0d22'])
 
-# --- griglie sorgente del DPC (georeferenziazione attesa, controllata a ogni file) -------------------------------
-GRIDS = {'tm':   dict(kind='tm', w=1200, h=1400, x0=-600000.0, y0=650000.0, px=1000.0),       # radar e satellite, 1 km
-         'll01': dict(kind='ll', w=1341, h=1233, x0=5.6, y0=47.58, px=0.01),                   # cumulate (EPSG:4326)
-         'temp': dict(kind='ll', w=631, h=576, x0=6.0, y0=47.50026321411133, px=0.019983009747110096)}   # temperatura
+# --- griglie sorgente del DPC (georeferenziazione attesa, controllata a ogni file) -----------------------
+GRIDS = {
+    'tm':   dict(kind='tm', w=1200, h=1400, x0=-600000.0, y0=650000.0, px=1000.0),   # radar e satellite, 1 km
+    'll01': dict(kind='ll', w=1341, h=1233, x0=5.6, y0=47.58, px=0.01),              # cumulate (EPSG:4326)
+    'temp': dict(kind='ll', w=631, h=576, x0=6.0, y0=47.50026321411133,
+                 px=0.019983009747110096)                                              # temperatura
+}
 
 
-def _prod(key, api, step, pal, unit, group, label, grid='tm', dots=None, scale=1, vmin=None, vmax=None, combine=None):
+def _prod(key, api, step, pal, unit, group, label, grid='tm', dots=None, scale=1, vmin=None, vmax=None,
+          combine=None):
     return dict(key=key, api=api, step=step, steps=list(pal[0]), colors=list(pal[1]), unit=unit, group=group,
                 label=label, grid=grid, dots=dots, scale=scale, vmin=vmin, vmax=vmax, combine=combine)
 
 
-# I 23 prodotti, nell'ordine del menu del sito. step = passo dei fotogrammi (quote e nuvole campionate a 10 e 15 min sui
-# 5 nativi); dots = variabile delle stazioni con la stessa scala; vmin/vmax = valori fisicamente impossibili -> nessun
-# dato (nel DPC si vedono pixel spuri, es. 857 mm in 3 h); combine = secondi da sommare (48 h = 24 h + 24 h prima).
-PRODUCTS = ([_prod('SRI', 'SRI', 300, (PREC1_STEPS, RAIN_MAP), 'mm/h', 'Pioggia', 'Adesso', dots='PREC1', vmax=300),
-             _prod('SRT1', 'SRT1', 300, (PREC1_STEPS, RAIN_MAP), 'mm', 'Pioggia', '1 h', dots='PREC1', vmax=300)]
-            + [_prod('CUM%d' % h, 'CUM%d' % h, 1800, (RAIN_STEPS['PREC%d' % h], RAIN_MAP), 'mm', 'Pioggia', '%d h' % h,
-                     grid='ll01', dots='PREC%d' % h, vmax=vm) for h, vm in ((3, 400), (6, 500), (12, 700), (24, 1000))]
-            + [_prod('CUM48', 'CUM24', 1800, (RAIN_STEPS['PREC48'], RAIN_MAP), 'mm', 'Pioggia', '48 h', grid='ll01',
-                     dots='PREC48', vmax=1500, combine=86400),
+# I 23 prodotti, nell'ordine del menu del sito. step = passo dei fotogrammi (quote e nuvole campionate a 10 e
+# 15 min sui 5 nativi); dots = variabile delle stazioni con la stessa scala; vmin/vmax = valori
+# fisicamente impossibili -> nessun dato (il DPC ha pixel spuri, es. 857 mm in 3 h); combine = secondi da
+# sommare (48 h = 24 h + 24 h prima).
+PRODUCTS = ([_prod('SRI', 'SRI', 300, (PREC1_STEPS, RAIN_MAP), 'mm/h', 'Pioggia', 'Adesso',
+                   dots='PREC1', vmax=300),
+             _prod('SRT1', 'SRT1', 300, (PREC1_STEPS, RAIN_MAP), 'mm', 'Pioggia', '1 h',
+                   dots='PREC1', vmax=300)]
+            + [_prod('CUM%d' % h, 'CUM%d' % h, 1800, (RAIN_STEPS['PREC%d' % h], RAIN_MAP), 'mm', 'Pioggia',
+                     '%d h' % h, grid='ll01', dots='PREC%d' % h, vmax=vm)
+               for h, vm in ((3, 400), (6, 500), (12, 700), (24, 1000))]
+            + [_prod('CUM48', 'CUM24', 1800, (RAIN_STEPS['PREC48'], RAIN_MAP), 'mm', 'Pioggia', '48 h',
+                     grid='ll01', dots='PREC48', vmax=1500, combine=86400),
                _prod('VMI', 'VMI', 300, DBZ, 'dBZ', 'Radar', 'Riflettività', vmax=80)]
-            + [_prod('CAPPI%d' % i, 'CAPPI_%d' % i, 600, DBZ, 'dBZ', 'Radar', 'Riflettività a %d km' % i, vmax=80)
+            + [_prod('CAPPI%d' % i, 'CAPPI_%d' % i, 600, DBZ, 'dBZ', 'Radar', 'Riflettività a %d km' % i,
+                     vmax=80)
                for i in range(1, 11)]
             + [_prod('VIL', 'VIL', 300, VIL, 'kg/m²', 'Radar', 'Acqua in colonna', vmax=150),
                _prod('ETM', 'ETM', 300, ETM, 'km', 'Radar', 'Altezza temporali', scale=0.001, vmax=20),
                _prod('POH', 'POH', 300, POH, '%', 'Radar', 'Grandine', scale=100, vmax=100),
                _prod('IR108', 'IR_108', 900, IR108, '°C', 'Altro', 'Nuvole', vmin=-100, vmax=60),
-               _prod('TEMP', 'TEMP', 3600, TEMP, '°C', 'Altro', 'Temperatura', grid='temp', dots='TEMP', vmin=-40, vmax=50)])
+               _prod('TEMP', 'TEMP', 3600, TEMP, '°C', 'Altro', 'Temperatura', grid='temp', dots='TEMP',
+                     vmin=-40, vmax=50)])
 _BY_KEY = dict((p['key'], p) for p in PRODUCTS)
 
 
@@ -109,7 +122,7 @@ def product(key):
 
 
 def tm_forward(lon, lat):
-    ''' lon/lat (gradi, scalari o array) -> x/y in metri della Transverse Mercator del DPC (formule di Snyder). '''
+    ''' lon/lat (gradi, scalari o array) -> x/y in metri della Transverse Mercator del DPC (Snyder). '''
     a, f = WGS84_A, WGS84_F
     e2 = 2 * f - f * f; ep2 = e2 / (1 - e2); e4, e6 = e2 * e2, e2 ** 3
 
@@ -132,8 +145,8 @@ def _merc_y(lat):
 
 
 def merc_grid(lon0=GRID['lon0'], lon1=GRID['lon1'], lat0=GRID['lat0'], lat1=GRID['lat1'], res=RES):
-    ''' Griglia Web Mercator con angolo in alto a sinistra in (lon0, lat1): lon/lat dei CENTRI dei pixel (2D),
-        dimensioni e bordi esterni ESATTI [[sud, ovest], [nord, est]] per L.imageOverlay. '''
+    ''' Griglia Web Mercator con angolo in alto a sinistra in (lon0, lat1): lon/lat dei centri dei pixel (2D),
+        dimensioni e bordi esterni esatti [[sud, ovest], [nord, est]] per L.imageOverlay. '''
     x0, x1 = R_MERC * math.radians(lon0), R_MERC * math.radians(lon1)
     y0, y1 = _merc_y(lat0), _merc_y(lat1)
     w, h = int((x1 - x0) / res), int((y1 - y0) / res)
@@ -142,7 +155,8 @@ def merc_grid(lon0=GRID['lon0'], lon1=GRID['lon1'], lat0=GRID['lat0'], lat1=GRID
     gx, gy = np.meshgrid(xs, ys)
     east = math.degrees((x0 + w * res) / R_MERC)
     south = math.degrees(2 * math.atan(math.exp((y1 - h * res) / R_MERC)) - math.pi / 2)
-    return {'lon': np.degrees(gx / R_MERC), 'lat': np.degrees(2 * np.arctan(np.exp(gy / R_MERC)) - math.pi / 2),
+    return {'lon': np.degrees(gx / R_MERC),
+            'lat': np.degrees(2 * np.arctan(np.exp(gy / R_MERC)) - math.pi / 2),
             'width': w, 'height': h, 'bounds': [[south, lon0], [lat1, east]],
             'x0': x0, 'y1': y1, 'res': res, 'key': (lon0, lon1, lat0, lat1, res)}
 
@@ -155,12 +169,12 @@ def grid_pixel(grid, lon, lat):
 
 
 def build_lut(grid, src='tm'):
-    ''' Per ogni pixel della griglia (in ordine riga per riga) l'indice piatto del pixel del GeoTIFF sorgente
-        (griglia GRIDS[src]) che lo contiene (vicino piu' prossimo), -1 se cade fuori dal GeoTIFF. '''
+    ''' Per ogni pixel della griglia (riga per riga) l'indice piatto del pixel del GeoTIFF sorgente (griglia
+        GRIDS[src]) che lo contiene (vicino piu' prossimo), -1 se cade fuori. '''
     s = GRIDS[src]
     if s['kind'] == 'tm':
         x, y = tm_forward(grid['lon'], grid['lat'])
-    else:                                                # EPSG:4326: gradi
+    else:                                            # gradi (EPSG:4326)
         x, y = grid['lon'], grid['lat']
     col = np.floor((x - s['x0']) / s['px'])
     row = np.floor((s['y0'] - y) / s['px'])
@@ -170,8 +184,9 @@ def build_lut(grid, src='tm'):
 
 
 def load_or_build_lut(cache_dir, grid, src='tm'):
-    ''' Come build_lut, ma messa in cache su disco (~1.3 s sul Pi): .lut-<chiave di griglia e sorgente>.npy. '''
-    key = hashlib.md5(repr((grid['key'], sorted(GRIDS[src].items()), TM_LON0, TM_LAT0)).encode()).hexdigest()[:12]
+    ''' Come build_lut, ma in cache su disco (~1.3 s sul Pi): .lut-<chiave di griglia e sorgente>.npy. '''
+    key = hashlib.md5(
+        repr((grid['key'], sorted(GRIDS[src].items()), TM_LON0, TM_LAT0)).encode()).hexdigest()[:12]
     path = os.path.join(cache_dir, '.lut-%s.npy' % key)
     if os.path.exists(path):
         return np.load(path)
@@ -194,9 +209,11 @@ def check_georef(scale, tie, src='tm'):
     s = GRIDS[src]
     near = lambda a, b: abs(a - b) <= 1e-6 * max(1.0, abs(b))
     ok = (scale is not None and tie is not None and len(scale) >= 2 and len(tie) >= 5
-          and near(scale[0], s['px']) and near(scale[1], s['px']) and near(tie[3], s['x0']) and near(tie[4], s['y0']))
+          and near(scale[0], s['px']) and near(scale[1], s['px'])
+          and near(tie[3], s['x0']) and near(tie[4], s['y0']))
     if not ok:
-        raise GeorefError('georeferenziazione inattesa per %s: scala %r, punto di aggancio %r' % (src, scale, tie))
+        raise GeorefError(
+            'georeferenziazione inattesa per %s: scala %r, punto di aggancio %r' % (src, scale, tie))
 
 
 def read_grid(tif_bytes, src):
@@ -218,16 +235,16 @@ def read_sri(tif_bytes):
 
 
 def classify(values):
-    ''' mm/h -> classe 0..9 con la semantica di rainClass del sito (n. di soglie <= valore). NaN e
-        sentinelle negative -> 0. (np.where e non nan_to_num(nan=...), che numpy 1.16 non ha.) '''
+    ''' mm/h -> classe 0..9 come rainClass del sito (n. di soglie <= valore). NaN e sentinelle negative -> 0.
+        (np.where e non nan_to_num(nan=...), che numpy 1.16 non ha.) '''
     v = np.asarray(values, dtype=np.float32)
     v = np.where(np.isfinite(v), v, -1.0)
     return np.digitize(v, PREC1_STEPS).astype(np.uint8)
 
 
 def encode_png(indices2d, colors=None):
-    ''' Indici 2D -> PNG a palette: indice i = colors[i] ('' = trasparente). Se la classe 0 e' colorata, l'indice
-        len(colors) e' il "nessun dato" trasparente. Default = pioggia: indice 0 trasparente (layout del rilascio 1). '''
+    ''' Indici 2D -> PNG a palette: indice i = colors[i] ('' = trasparente). Se la classe 0 e' colorata,
+        l'indice len(colors) e' il "nessun dato" trasparente. Default = pioggia: indice 0 trasparente. '''
     colors = RAIN_MAP if colors is None else colors
     pal, alpha = [], []
     for hx in colors:
@@ -254,8 +271,8 @@ def apply_bounds(v, prod):
 
 
 def prepare(raw, prod):
-    ''' Valori grezzi del DPC -> valori del prodotto: sentinelle (<= -9000) e non finiti -> NaN, poi unita' del sito
-        (ETM m -> km, POH 0-1 -> %) e limiti fisici. '''
+    ''' Valori grezzi del DPC -> valori del prodotto: sentinelle (<= -9000) e non finiti -> NaN, poi unita'
+        del sito (ETM m -> km, POH 0-1 -> %) e limiti fisici. '''
     v = np.asarray(raw, dtype=np.float32)
     with np.errstate(invalid='ignore'):
         v = np.where(np.isfinite(v) & (v > -9000), v * np.float32(prod.get('scale', 1)), np.nan)
@@ -277,20 +294,20 @@ def render_values(vals2d, prod):
 
 
 def frame_values(tif_bytes, lut, grid, prod):
-    ''' GeoTIFF -> valori del prodotto sulla griglia della mappa (vicino piu' prossimo via tabella di indici). '''
+    ''' GeoTIFF -> valori del prodotto sulla griglia della mappa (vicino piu' prossimo, via tabella). '''
     src = read_grid(tif_bytes, prod['grid']).ravel()
     vals = np.where(lut >= 0, src[np.maximum(lut, 0)], np.nan)
     return prepare(vals, prod).reshape(grid['height'], grid['width'])
 
 
 def render_frame(tif_bytes, lut, grid, prod=None):
-    ''' GeoTIFF -> PNG della griglia (default: SRI, come nel rilascio 1). '''
+    ''' GeoTIFF -> PNG della griglia (default: SRI). '''
     prod = prod or product('SRI')
     return render_values(frame_values(tif_bytes, lut, grid, prod), prod)
 
 
 # --- finestra delle ultime 6 ore, buchi, potatura, indice ----------------------------------------------
-# Tutto parte dall'ultimo istante dichiarato dall'API, MAI dall'orologio del Pi (senza RTC: dopo un riavvio
+# Tutto parte dall'ultimo istante dichiarato dall'API, mai dall'orologio del Pi (senza RTC: dopo un riavvio
 # puo' segnare il 1970 finche' l'NTP non si sincronizza).
 def frame_times(last_ms, n=WINDOW_N, step_s=STEP_S):
     ''' Gli n istanti (epoch s UTC, crescenti) che finiscono nell'ultimo, allineato al passo. '''
@@ -326,18 +343,21 @@ def prune(out_dir, keep, key=PRODUCT):
 
 
 def write_manifest(out_dir, windows, grid, updated):
-    ''' index.json letto dal sito: per ogni prodotto (nell'ordine del menu) metadati, palette e fotogrammi presenti.
-        windows = {chiave: istanti della finestra}. products.SRI conserva i campi del rilascio 1. '''
+    ''' index.json letto dal sito: per ogni prodotto (nell'ordine del menu) metadati, palette e fotogrammi
+        presenti. windows = {chiave: istanti della finestra}. '''
     size = [grid['width'], grid['height']]
     bounds = [[round(v, 6) for v in corner] for corner in grid['bounds']]
     order = [p['key'] for p in PRODUCTS if p['key'] in windows]
     prods = {}
     for k in order:
         p = product(k)
-        prods[k] = {'group': p['group'], 'label': p['label'], 'unit': p['unit'], 'step': p['step'], 'size': size,
-                    'bounds': bounds, 'steps': p['steps'], 'colors': p['colors'], 'dots': p['dots'],
-                    'frames': [t for t in windows[k] if os.path.exists(os.path.join(out_dir, frame_name(t, k)))]}
-    m = {'v': 2, 'updated': int(updated), 'source': SOURCE, 'license': LICENSE, 'order': order, 'products': prods}
+        prods[k] = {'group': p['group'], 'label': p['label'], 'unit': p['unit'], 'step': p['step'],
+                    'size': size, 'bounds': bounds, 'steps': p['steps'], 'colors': p['colors'],
+                    'dots': p['dots'],
+                    'frames': [t for t in windows[k]
+                               if os.path.exists(os.path.join(out_dir, frame_name(t, k)))]}
+    m = {'v': 2, 'updated': int(updated), 'source': SOURCE, 'license': LICENSE, 'order': order,
+         'products': prods}
     comune.save_json(m, os.path.join(out_dir, 'index.json'))
     return m
 
@@ -368,9 +388,9 @@ def http_bytes(url):
 
 # --- un giro ------------------------------------------------------------------------------------------------
 def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, products=None):
-    ''' Aggiorna out_dir alle ultime 6 ore di ogni prodotto. A turno fra i prodotti, prima il fotogramma mancante piu'
-        recente di ciascuno; il primo si prova sempre, gli altri finche' resta budget (la cadenza e' 5 min). Un
-        fotogramma (o un prodotto) che fallisce resta mancante e si riprova al giro dopo; gli altri vanno avanti. '''
+    ''' Aggiorna out_dir alle ultime 6 ore di ogni prodotto. A turno fra i prodotti, prima il fotogramma
+        mancante piu' recente di ciascuno; il primo si prova sempre, gli altri finche' resta budget (cadenza
+        5 min). Un fotogramma (o un prodotto) che fallisce resta mancante e si riprova al giro dopo. '''
     start = clock()
     prods = PRODUCTS if products is None else products
     grid = merc_grid()
@@ -378,7 +398,8 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
     for p in prods:
         try:
             if p['api'] not in lasts:                 # CUM48 usa l'ultimo istante di CUM24
-                lasts[p['api']] = fetch_json(API + '/findLastProductByType?type=' + p['api'])['lastProducts'][0]['time']
+                lasts[p['api']] = fetch_json(
+                    API + '/findLastProductByType?type=' + p['api'])['lastProducts'][0]['time']
         except Exception as e:
             errors.append('%s: ultimo istante non disponibile (%s)' % (p['key'], e))
             continue
@@ -387,7 +408,7 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
         todo[p['key']] = missing_frames(out_dir, windows[p['key']], p['key'])
     if not windows:
         raise RuntimeError('nessun prodotto disponibile: ' + '; '.join(errors[:3]))
-    reuse = set(p['api'] for p in prods if p.get('combine'))   # in memoria solo cio' che serve due volte (CUM24)
+    reuse = set(p['api'] for p in prods if p.get('combine'))   # in memoria solo cio' che serve due volte
     cache, luts, got = {}, {}, [0]
 
     def tif(api, t):
@@ -401,7 +422,8 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
         return data
 
     queue = [(p, t) for rank in range(max([len(v) for v in todo.values()] or [0]))
-             for p in prods if p['key'] in todo and rank < len(todo[p['key']]) for t in [todo[p['key']][rank]]]
+             for p in prods if p['key'] in todo and rank < len(todo[p['key']])
+             for t in [todo[p['key']][rank]]]
     new = 0
     for i, (p, t) in enumerate(queue):
         if i and clock() - start >= budget_s:
@@ -411,9 +433,12 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
                 luts[p['grid']] = load_or_build_lut(out_dir, grid, p['grid'])
             vals = frame_values(tif(p['api'], t), luts[p['grid']], grid, p)
             if p.get('combine'):                      # 48 h = 24 h fino a t + 24 h fino a t-24 h
-                vals = apply_bounds(combine_sum(vals, frame_values(tif(p['api'], t - p['combine']), luts[p['grid']], grid, p)), p)
+                vals = apply_bounds(
+                    combine_sum(vals, frame_values(
+                        tif(p['api'], t - p['combine']), luts[p['grid']], grid, p)),
+                    p)
             png = render_values(vals, p)
-        except Exception as e:                        # rete, 404, GeoTIFF inatteso: si riprova al prossimo giro
+        except Exception as e:                        # rete, 404, GeoTIFF inatteso: si riprova al giro dopo
             errors.append('%s: %s' % (frame_name(t, p['key']), e))
             continue
         fn = os.path.join(out_dir, frame_name(t, p['key']))
@@ -422,8 +447,10 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
         os.replace(fn + '.tmp', fn)
         new += 1
     step = dict((p['key'], p['step']) for p in prods)
-    for k in windows:                                 # un fotogramma in piu' prima della finestra: l'indice puo' restare
-        prune(out_dir, [windows[k][0] - step[k]] + windows[k], k)       # in cache su raw fino a 5 min e citarlo ancora
+    for k in windows:
+        # un fotogramma in piu' prima della finestra: l'indice puo' restare in cache su raw fino a 5 min
+        # e citarlo ancora
+        prune(out_dir, [windows[k][0] - step[k]] + windows[k], k)
     lic = os.path.join(out_dir, 'LICENSE.txt')
     if not os.path.exists(lic):
         with open(lic, 'w', encoding='utf-8') as fp:
@@ -445,9 +472,9 @@ def _git(work, *args):
 
 
 def publish(out_dir, remote, branch=BRANCH, squash=False):
-    ''' Pubblica out_dir sul branch con un repo git PERSISTENTE in out_dir: un commit per giro con genitore il
-        precedente, cosi' il push manda solo i fotogrammi nuovi (un commit orfano li rimanderebbe tutti, vedi il push
-        incrementale del branch data). squash=True: repo rifatto da zero, un solo commit (compattazione).
+    ''' Pubblica out_dir sul branch con un repo git persistente in out_dir: un commit per giro con genitore il
+        precedente, cosi' il push manda solo i fotogrammi nuovi (un commit orfano li rimanderebbe tutti).
+        squash=True: repo rifatto da zero, un solo commit (compattazione).
         -> quanto e' stato inviato (es. '12.3 KiB') se il push e' riuscito, False altrimenti. '''
     gitdir = os.path.join(out_dir, '.git')
     if squash and os.path.isdir(gitdir):
@@ -464,7 +491,8 @@ def publish(out_dir, remote, branch=BRANCH, squash=False):
         if r.returncode != 0:
             print('ERRORE git %s: %s' % (cmd[0], r.stderr.decode('utf-8', 'replace').strip()[:300]))
             return False
-    if _git(out_dir, 'diff', '--cached', '--quiet').returncode != 0 or _git(out_dir, 'rev-parse', '-q', '--verify', 'HEAD').returncode != 0:
+    if _git(out_dir, 'diff', '--cached', '--quiet').returncode != 0 or _git(
+            out_dir, 'rev-parse', '-q', '--verify', 'HEAD').returncode != 0:
         r = _git(out_dir, '-c', 'user.email=cron@localhost', '-c', 'user.name=radar', 'commit', '-qm',
                  'radar ' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
         if r.returncode != 0:
@@ -476,12 +504,12 @@ def publish(out_dir, remote, branch=BRANCH, squash=False):
         print('ERRORE git push: %s' % err.strip()[-300:])
         return False
     m = re.findall(r'Writing objects: 100% \(\d+/\d+\), ([\d.]+ (?:bytes|KiB|MiB|GiB))', err)
-    return m[-1] if m else '0 bytes'                  # quanto e' viaggiato davvero (niente oggetti nuovi: 0)
+    return m[-1] if m else '0 bytes'                  # quanto e' viaggiato davvero (niente di nuovo: 0)
 
 
 def publish_if_changed(out_dir, remote, branch=BRANCH):
-    ''' Pubblica se i fotogrammi sono cambiati dall'ultimo push RIUSCITO (.state.json). Compatta (squash) alla prima
-        pubblicazione del giorno UTC e dopo 3 push falliti di fila; un push fallito si ripete al giro dopo.
+    ''' Pubblica se i fotogrammi sono cambiati dall'ultimo push riuscito (.state.json). Compatta (squash) alla
+        prima pubblicazione del giorno UTC e dopo 3 push falliti di fila; un push fallito si ripete.
         -> 'si' | 'no' | 'errore' '''
     with open(os.path.join(out_dir, 'index.json'), encoding='utf-8') as fp:
         prods = json.load(fp)['products']
@@ -508,7 +536,8 @@ def publish_if_changed(out_dir, remote, branch=BRANCH):
 
 
 def main(argv=None, fetch_json=dpc_json, fetch_bytes=http_bytes, products=None):
-    ap = argparse.ArgumentParser(description='Radar DPC: ultime 6 ore dei prodotti in PNG + pubblicazione sul branch radar')
+    ap = argparse.ArgumentParser(
+        description='Radar DPC: ultime 6 ore dei prodotti in PNG + pubblicazione sul branch radar')
     ap.add_argument('--out', default=os.path.join(_BASE_DIR, 'radar_out'), help='cartella di lavoro')
     ap.add_argument('--no-push', action='store_true', help='non pubblicare su GitHub (prove)')
     ap.add_argument('--remote', default=REMOTE, help='repo git di destinazione')
@@ -520,16 +549,17 @@ def main(argv=None, fetch_json=dpc_json, fetch_bytes=http_bytes, products=None):
         print('%s ERRORE giro radar: %s' % (stamp, e))
         return 1
     push = 'no' if a.no_push else publish_if_changed(a.out, a.remote)
-    if push == 'si':                                  # KPI: quanto e' viaggiato verso GitHub
+    if push == 'si':
         try:
             with open(os.path.join(a.out, '.state.json'), encoding='utf-8') as fp:
                 push += ' (%s)' % json.load(fp).get('sent', '?')
         except (OSError, ValueError):
             pass
-    inc = ' (incompleti: %s)' % ', '.join(s['incomplete'][:6]) if s['incomplete'] and len(s['incomplete']) < len(PRODUCTS) else ''
+    inc = ' (incompleti: %s)' % ', '.join(
+        s['incomplete'][:6]) if s['incomplete'] and len(s['incomplete']) < len(PRODUCTS) else ''
     print('%s %s ultimo %s · nuovi %d · mancanti %d%s · errori %d · scaricati %.1f MB · push %s · %.1f s' % (
-        stamp, PRODUCT, time.strftime('%H:%M', time.gmtime(s['last'])), s['new'], s['missing'], inc, s['failed'],
-        s['mb'], push, s['seconds']))
+        stamp, PRODUCT, time.strftime('%H:%M', time.gmtime(s['last'])), s['new'], s['missing'], inc,
+        s['failed'], s['mb'], push, s['seconds']))
     for err in s['errors'][:5]:
         print('   ' + err)
     return 0

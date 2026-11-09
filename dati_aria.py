@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# dati_aria.py - qualità dell'aria, ogni rete regionale come una regione a sé con codice AQ_<RETE>
-# (AQ_VEN, AQ_TN, AQ_BZ, AQ_LOM, AQ_ER): stesso schema degli altri script,
-#   AQ_<RETE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json  +  AQ_<RETE>/data-parsed/stazioni.json
-# così export_web.py la esporta senza modifiche (basta aggiungerla a REGIONS) e la mappa la mostra.
+# dati_aria.py - qualità dell'aria, ogni rete regionale come regione a sé (AQ_VEN, AQ_TN, AQ_BZ, AQ_LOM,
+# AQ_ER), con lo stesso schema degli altri script:
+# AQ_<RETE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json + stazioni.json.
 # Sigle comuni degli inquinanti: PM10, PM25, NO2, O3, SO2, CO, C6H6 (benzene).
-# Ogni stazione ha sempre lat/lon (senza coordinate valide si scarta). Gli istanti sono in ora solare (UTC+1).
+# Una stazione senza coordinate valide si scarta. Gli istanti sono in ora solare (UTC+1).
 # Uso: python3 dati_aria.py [-r all | -r VEN|TN|BZ|LOM|ER] [--debug]   (una rete per volta)
 import argparse
 import csv
@@ -21,8 +20,7 @@ POLLUTANTS = {
     'GAMMA': 'µSv/h',                    # radioattività, dose gamma (BZ)
 }
 
-# identificativo nella fonte -> sigla comune. Sono a livello di modulo perché check_updates.py li legge
-# per segnalare gli inquinanti nuovi non ancora mappati.
+# identificativo nella fonte -> sigla comune. Letti da check_updates.py per segnalare gli inquinanti nuovi.
 VEN_POLLMAP = {'pm10': 'PM10', 'ozono': 'O3', 'biossido_azoto': 'NO2',
                'biossido_zolfo': 'SO2', 'monossido_carbonio': 'CO', 'benzene': 'C6H6', 'pm25': 'PM25'}
 LOM_TYPEMAP = {'Biossido di Azoto': 'NO2', 'Biossido di Zolfo': 'SO2', 'Monossido di Carbonio': 'CO',
@@ -38,13 +36,13 @@ VEN_BASE = 'https://www2.arpa.veneto.it/aria-json/exported/aria/'
 LOM_ANAGRAFICA = 'https://www.dati.lombardia.it/resource/ib47-atvt.json'
 LOM_DATI = 'https://www.dati.lombardia.it/resource/nicp-bhqi.json'
 
-# BZ: i valori vengono da dati.retecivica.bz.it. L'endpoint delle stazioni dà coordinate 0,0, quindi le
-# coordinate si prendono dall'Open Data Hub Sudtirol (sorigin APPABZ), unendo per scode.
+# BZ: i valori vengono da dati.retecivica.bz.it, ma l'endpoint delle stazioni dà coordinate 0,0: si prendono
+# dall'Open Data Hub Sudtirol (sorigin APPABZ), unendo per scode.
 BZ_ODH = 'https://mobility.api.opendatahub.com/v2/flat/EnvironmentStation'
 BZ_AIRQUALITY = 'https://dati.retecivica.bz.it/services/airquality'
 
-# ER (ARPAE, CKAN): coordinate e sigle dai due fogli di anagrafica. Si unisce station_id con Cod_staz senza
-# punti, variable_id con IdParametro.
+# ER (ARPAE, CKAN): coordinate e sigle dai due fogli di anagrafica; si unisce station_id con Cod_staz senza
+# punti e variable_id con IdParametro.
 ER_DATA = 'https://dati.arpae.it/api/3/action/datastore_search'
 ER_RESOURCE = '4dc855a1-6298-4b71-a1ae-d80693d43dcb'
 ER_STATIONS_CSV = 'https://docs.google.com/spreadsheets/d/1-4wgZ8JeLeg0bODTSFUrshPY-_y9mERUu0FJtSFr78s/export?format=csv'
@@ -52,8 +50,8 @@ ER_PARAMETERS_CSV = 'https://docs.google.com/spreadsheets/d/1K6vRcShjje2CDnvnk39
 ER_PAGE = 32000
 ER_MAX_PAGES = 6
 
-# TN: il feed non dà le coordinate e le 8 stazioni sono fisse, quindi una tabella (geocodifica OSM degli
-# indirizzi ufficiali, correggibile). Il codice stazione è lo slug del nome.
+# TN: il feed non dà le coordinate e le 8 stazioni sono fisse: tabella (geocodifica OSM degli indirizzi
+# ufficiali). Il codice stazione è lo slug del nome.
 TN_URL = 'https://bollettino.appa.tn.it/aria/opendata/json/last/2,4,6,8,9,15,22,23'
 TN_COORDS = {
     'Parco S. Chiara':  (46.0633, 11.1262), 'Via Bolzano':     (46.0957, 11.1130),
@@ -203,8 +201,9 @@ def download_er(debug=False, days=5):
     offset, stop = 0, False
     # i record più recenti stanno in fondo al datastore: si legge dal fondo finché non si esce dalla finestra
     while not stop and offset < ER_PAGE * ER_MAX_PAGES:
-        res = comune.get_json(ER_DATA, {'resource_id': ER_RESOURCE, 'limit': str(ER_PAGE), 'offset': str(offset),
-                                        'sort': '_id desc'})['result']['records']
+        res = comune.get_json(
+            ER_DATA, {'resource_id': ER_RESOURCE, 'limit': str(ER_PAGE), 'offset': str(offset),
+                      'sort': '_id desc'})['result']['records']
         if not res:
             break
         oldest_in_batch = None

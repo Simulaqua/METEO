@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-# dati_laghi.py - livelli dei grandi laghi regolati, come una regione a sé (codice LAGHI): Maggiore, Como, Iseo, Idro e
-# Garda da laghi.net, la piattaforma degli enti regolatori dei laghi. Ogni giro legge le serie degli ultimi 3 giorni.
-# laghi.net è un CMS a widget in ASP.NET: serve prima la home, per i cookie di sessione, poi
-#   POST /MappaConSegnaposti/BootWidgetData (config=370): i laghi, ognuno con le sue serie (id_sensore, id_funzione)
-#   POST /GraficoMultiserie/GetSerieData: i punti di una serie, ['AAAA-MM-GG hh:mm' già in ora solare, 'valore', ...]
+# dati_laghi.py - livelli dei grandi laghi regolati (LAGHI): Maggiore, Como, Iseo, Idro, Garda, da laghi.net.
+# Ogni giro legge le serie degli ultimi 3 giorni. Prima la home (cookie di sessione), poi
+#   POST /MappaConSegnaposti/BootWidgetData (config=370): i laghi con le loro serie (id_sensore, id_funzione)
+#   POST /GraficoMultiserie/GetSerieData: i punti di una serie, ['AAAA-MM-GG hh:mm' in ora solare, 'valore', ...]
 # Uso: python3 dati_laghi.py [--debug]
 import argparse
 import datetime
@@ -17,12 +16,12 @@ BASE_URL = 'https://laghi.net'
 MAP_CONFIG = '370'
 UNITS = {'LIVLAGO': 'm', 'AFFLUSSO': 'm³/s', 'DEFLUSSO': 'm³/s'}
 SERIES = {'Livello': 'LIVLAGO', 'Afflusso': 'AFFLUSSO', 'Deflusso': 'DEFLUSSO'}
-# questi laghi danno il livello in cm sullo zero idrometrico: si porta in metri; l'Idro dà già la quota in m s.l.m.
+# questi laghi danno il livello in cm sullo zero idrometrico (si porta in metri); l'Idro in m s.l.m.
 LEVEL_IN_CM = {'Lago Maggiore', 'Lago di Como', "Lago d'Iseo", 'Lago di Garda'}
 # i segnaposti di laghi.net stanno sul punto di regolazione, sulla terraferma: la mappa usa il centro del lago
 LAKE_CENTER = {
     'Lago Maggiore': (45.9300, 8.6000),
-    'Lago di Como': (46.0000, 9.2600),     # tratto centrale (Menaggio-Varenna), non il promontorio di Bellagio
+    'Lago di Como': (46.0000, 9.2600),     # tratto centrale (Menaggio-Varenna)
     "Lago d'Iseo": (45.7100, 10.0500),     # acqua a ovest di Monte Isola
     "Lago d'Idro": (45.7900, 10.5100),
     'Lago di Garda': (45.6000, 10.6300),
@@ -39,7 +38,7 @@ def download(debug=False):
     """Stazioni (una per lago) e letture: sigla -> {codice del lago -> [(istante, valore), ...]}."""
     session = requests.Session()
     session.headers['User-Agent'] = comune.USER_AGENT
-    session.get(BASE_URL + '/', timeout=60).raise_for_status()          # per i cookie di sessione
+    session.get(BASE_URL + '/', timeout=60).raise_for_status()      # per i cookie di sessione
     boot = post_json(session, '/MappaConSegnaposti/BootWidgetData', {'config': MAP_CONFIG})
     markers = boot['config']['segnaposti']
     now = comune.now_solar()
@@ -56,17 +55,20 @@ def download(debug=False):
         marker = markers[i] if i < len(markers) else {}
         code = comune.slug(name, 'lago')
         center = LAKE_CENTER.get(name)
-        stations[code] = {'NOME': name,
-                          'LAT': center[0] if center else marker.get('lat'),
-                          'LON': center[1] if center else marker.get('lng')}
+        stations[code] = {
+            'NOME': name,
+            'LAT': center[0] if center else marker.get('lat'),
+            'LON': center[1] if center else marker.get('lng')
+        }
         for series in tooltip.get('series', []):
             var = SERIES.get(series.get('nome'))
             if not var:
                 continue
             try:
-                answer = post_json(session, '/GraficoMultiserie/GetSerieData',
-                                   {'idSensore': series['id_sensore'], 'idFunzione': series['id_funzione'],
-                                    'from': since, 'to': until})
+                answer = post_json(
+                    session, '/GraficoMultiserie/GetSerieData',
+                    {'idSensore': series['id_sensore'], 'idFunzione': series['id_funzione'],
+                     'from': since, 'to': until})
             except Exception as e:
                 print('WARN: serie non letta (%s/%s): %s' % (name, series.get('nome'), e))
                 continue
@@ -104,7 +106,8 @@ def main():
     ap = argparse.ArgumentParser(description='Livelli dei grandi laghi regolati (laghi.net).')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== LAGHI (laghi.net) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print('\n=== LAGHI (laghi.net) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     try:
         stations, readings = download(debug=args.debug)
         comune.write_parsed('LAGHI', stations, readings, UNITS)

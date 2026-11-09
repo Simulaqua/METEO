@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-# dati_emilia_romagna.py - stazioni ARPAE dell'Emilia-Romagna (codice ER), dall'API della mappa "Allerta Meteo" della
-# Regione (JSON). Una variabile si chiede con il suo descrittore (un codice BUFR, quelli della mappa ufficiale):
-#   API_URL + get-time-series             la serie di una stazione: [{'t': epoch in ms UTC, 'v': valore}, ...]
-#   API_URL + get-sensor-values-no-time   tutte le stazioni di una variabile con il valore a un istante, il nome e le
-#                                         coordinate (gradi WGS84 per 100000); in testa {'time': epoch in ms UTC},
-#                                         l'istante dei valori, un'ora prima del time chiesto (visto a novembre 2026)
-# Ogni giro chiede come time l'ultimo campione del livello di REF_STATION arrotondato per difetto al quarto d'ora,
-# scarica in ER/data-downloaded/dati/ la risposta di ogni variabile, ne aggiunge i valori al file del giorno
-# (ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) all'istante dell'intestazione e poi cancella i file
-# scaricati: la serie cresce di un punto a giro, per questo il cron lo lancia ogni 15 minuti.
+# dati_emilia_romagna.py - stazioni ARPAE dell'Emilia-Romagna (ER), API della mappa "Allerta Meteo" (JSON).
+# Per ogni variabile (descrittore BUFR) una chiamata dà tutte le stazioni a un istante; in testa alla risposta
+# {'time': epoch in ms UTC} è l'istante dei valori, un'ora prima del time chiesto.
+# Ogni giro aggiunge i valori a ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json (ora solare): un punto a giro,
+# quindi il cron lo lancia ogni 15 minuti.
 # Uso: python3 dati_emilia_romagna.py [--debug]
 import argparse
 import datetime
@@ -34,7 +29,7 @@ VARIABLES = {
     'PRESS': ('254,0,0/1,-,-,-/B10004', 'hPa'),
     'LIVIDRO': ('254,0,0/1,-,-,-/B13215', 'm'),            # livello idrometrico
 }
-# l'istante del giro è l'ultimo campione del livello di questa stazione (Cesenatico porto, un idrometro affidabile),
+# l'istante del giro è l'ultimo campione di livello di questa stazione (Cesenatico porto, affidabile),
 # arrotondato per difetto al quarto d'ora
 REF_STATION = '5444'
 # il feed dà la temperatura in kelvin e la pressione in pascal
@@ -45,7 +40,7 @@ VALUE_CONV = {
 
 
 def call(endpoint, params, timeout, debug=False):
-    """La risposta di API_URL + endpoint; requests.RequestException su un errore di rete o uno stato HTTP di errore."""
+    """La risposta di API_URL + endpoint; requests.RequestException su errore di rete o di HTTP."""
     if debug:
         print(API_URL + endpoint, params)
     r = comune.get(API_URL + endpoint, params=params, timeout=timeout)
@@ -54,14 +49,13 @@ def call(endpoint, params, timeout, debug=False):
 
 
 def quarter_hour(ms):
-    """Epoch in ms arrotondato per difetto al quarto d'ora: quasi tutte le stazioni misurano ogni 15 minuti, a un
-    istante di 5 minuti ne risponderebbero pochissime."""
+    """Epoch in ms arrotondato per difetto al quarto d'ora: le stazioni misurano ogni 15 minuti."""
     return ms - ms % (15 * 60 * 1000)
 
 
 def reference_time(debug=False):
-    """L'istante del giro (epoch in ms UTC): l'ultimo campione del livello di REF_STATION, o l'ora attuale se la serie è
-    vuota o non si legge, arrotondato per difetto al quarto d'ora. Un errore di rete o di HTTP ferma il giro."""
+    """Istante del giro (epoch in ms UTC): ultimo campione di REF_STATION, o l'ora attuale se la serie è vuota
+    o illeggibile, al quarto d'ora. Un errore di rete o di HTTP ferma il giro."""
     params = {'stazione': REF_STATION, 'variabile': VARIABLES['LIVIDRO'][0]}
     try:
         r = call('get-time-series', params, 60, debug)
@@ -71,28 +65,29 @@ def reference_time(debug=False):
         series = json.loads(r.content.decode('utf-8', 'replace'))
         if series:
             return quarter_hour(int(series[-1]['t']))
-    except Exception:                       # non JSON, o una forma diversa da [{'t': ...}, ...]
+    except Exception:                       # non JSON, o forma diversa da [{'t': ...}, ...]
         pass
-    return quarter_hour(int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000))
+    return quarter_hour(
+        int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000))
 
 
 def download(debug=False):
-    """La risposta per l'istante del giro (i valori di un'ora prima), una variabile per file, in DOWNLOAD_DIR/dati/ con
-    il prefisso del giro AAAAMMGG-HHMMSS (restituito). Una variabile che non arriva si salta."""
+    """Scarica la risposta di ogni variabile in DOWNLOAD_DIR/dati/ (un file ciascuna); restituisce il
+    prefisso del giro AAAAMMGG-HHMMSS. Una variabile che non arriva si salta."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
-    # tutte e due le cartelle subito: anche un giro che si ferma alla prima chiamata le lascia
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     ref_ms = reference_time(debug)
     print('Istante di riferimento (UTC ms): %d  (%s UTC)'
           % (ref_ms, datetime.datetime.utcfromtimestamp(ref_ms / 1000).strftime('%Y-%m-%d %H:%M')))
-    # time=istante del giro: la risposta ha i valori di un'ora prima, di tutte le stazioni. Un'ora più tardi (provato
-    # il 2026-11-05) i valori sono freschi, ma dal 3 al 9% non è ancora arrivato e non si richiederebbe più
+    # time = istante del giro: la risposta ha i valori di un'ora prima. Un'ora più tardi darebbero valori
+    # freschi, ma il 3-9% non è ancora arrivato e non si recupererebbe più
     for var in sorted(VARIABLES):
         name = stamp + '-' + var + '.json'
         try:
-            r = call('get-sensor-values-no-time', {'variabile': VARIABLES[var][0], 'time': str(ref_ms)}, 90, debug)
+            r = call('get-sensor-values-no-time',
+                     {'variabile': VARIABLES[var][0], 'time': str(ref_ms)}, 90, debug)
         except requests.RequestException as error:
             print('SKIP %s (%s)' % (name, error))
             continue
@@ -102,8 +97,7 @@ def download(debug=False):
 
 
 def answer_time(readings):
-    """L'istante dei valori di una risposta di get-sensor-values-no-time (epoch in ms UTC), dalla sua intestazione
-    {'time': ...}; None se manca o non si legge."""
+    """Istante dei valori di una risposta (epoch in ms UTC), da {'time': ...} in testa; None se manca."""
     try:
         return int(readings[0]['time'])
     except (IndexError, KeyError, TypeError, ValueError):
@@ -111,7 +105,7 @@ def answer_time(readings):
 
 
 def solar_moment(ms):
-    """Epoch in ms (UTC) -> AAAAMMGGhhmm in ora solare (UTC+1), come tutto l'archivio, arrotondato ai 15 minuti."""
+    """Epoch in ms (UTC) -> AAAAMMGGhhmm in ora solare (UTC+1), ai 15 minuti."""
     moment = datetime.datetime.utcfromtimestamp(ms / 1000)
     moment = moment.replace(minute=moment.minute // 15 * 15, second=0, microsecond=0)
     return comune.utc_to_solar(moment)
@@ -127,18 +121,16 @@ def coordinate(value):
 
 
 def parse(stamp, debug=False):
-    """Per ogni variabile, il valore di ogni stazione va nel file del giorno all'istante della risposta (la sua
-    intestazione), se è più recente dell'ultimo già salvato; una risposta senza l'istante si salta, con un avviso.
-    In stazioni.json entrano le stazioni con un valore, con il nome e le coordinate di quando compaiono la prima
-    volta."""
-    for var in sorted(VARIABLES):           # tutte le cartelle, anche delle variabili senza valori in questo giro
+    """Il valore di ogni stazione va nel file del giorno all'istante della risposta, se più recente
+    dell'ultimo salvato; una risposta senza istante si salta, con un avviso.
+    In stazioni.json entrano le stazioni con un valore, con nome e coordinate della prima apparizione."""
+    for var in sorted(VARIABLES):
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
     moments = set()
     added = 0
-    # in ordine alfabetico, ogni variabile salvata prima della successiva: se un file rotto ferma il giro, restano
-    # scritte le variabili che vengono prima nell'alfabeto
+    # in ordine alfabetico: se un file rotto ferma il giro, restano scritte le variabili precedenti
     for var in sorted(VARIABLES):
         path = os.path.join(folder, stamp + '-' + var + '.json')
         if not os.path.exists(path):
@@ -158,8 +150,8 @@ def parse(stamp, debug=False):
                 continue                    # il primo elemento è l'intestazione {'time': ...}
             value = item.get('value')
             if value is None or item.get('precedente') == 'S':
-                # la stazione non ha un campione a quell'istante; con 'precedente' S ripete un valore di prima: la
-                # pioggia di 30 minuti chiesta alle :15 e alle :45 si conterebbe due volte nelle somme di derive.py
+                # nessun campione a quell'istante; con 'precedente' S è un valore ripetuto: la pioggia di
+                # 30 minuti alle :15 e alle :45 si conterebbe due volte nelle somme di derive.py
                 continue
             if var in VALUE_CONV:
                 try:
@@ -171,15 +163,19 @@ def parse(stamp, debug=False):
             if code not in stations:
                 stations[code] = {'SCODE': code, 'NOME': item.get('nomestaz'), 'LAT': lat, 'LON': lon}
             elif stations[code].get('LAT') is None and lat is not None:
-                # una stazione salvata senza coordinate prende quelle del primo valore che le ha; nei record creati in
-                # questo giro STAZIONE è lo stesso dizionario, quindi le prendono anche loro
+                # prende le coordinate del primo valore che le ha; STAZIONE è lo stesso dizionario,
+                # quindi le prendono anche i record creati in questo giro
                 stations[code]['LAT'] = lat
                 stations[code]['LON'] = lon
             if code not in archive:
-                archive[code] = {'STAZIONE': stations[code], 'UM': unit, 'MISURE': {'ISTANTE': [], 'VALORE': []}}
+                archive[code] = {
+                    'STAZIONE': stations[code],
+                    'UM': unit,
+                    'MISURE': {'ISTANTE': [], 'VALORE': []}
+                }
             measures = archive[code]['MISURE']
             if measures['ISTANTE'] and int(moment) <= int(measures['ISTANTE'][-1]):
-                continue                    # già salvato: la stazione non ha ancora un valore più recente
+                continue
             measures['ISTANTE'].append(moment)
             measures['VALORE'].append(value)
             added += 1
@@ -194,11 +190,11 @@ def main():
     ap = argparse.ArgumentParser(description="Stazioni ARPAE dell'Emilia-Romagna (mappa Allerta Meteo).")
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== EMILIA-ROMAGNA (ARPAE) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print('\n=== EMILIA-ROMAGNA (ARPAE) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     stamp = download(debug=args.debug)
     parse(stamp, debug=args.debug)
-    # solo dopo un parse riuscito (un errore esce prima): i file di un giro fallito restano, li toglie la pulizia
-    # notturna del cron
+    # solo dopo un parse riuscito: i file di un giro fallito restano, li toglie la pulizia notturna
     comune.delete_downloaded(DOWNLOAD_DIR, [RAW_SUBDIR], stamp, debug=args.debug)
 
 

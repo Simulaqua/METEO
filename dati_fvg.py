@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-# dati_fvg.py - stazioni OSMER / ARPA FVG del Friuli Venezia Giulia (codice FVG). La fonte non ha un elenco delle
-# stazioni e ogni stazione dà solo la sua ultima osservazione oraria:
-#   HOME_URL                     la pagina principale: i codici delle stazioni dai link .../xml/stazioni/<CODICE>.xml
-#   STATION_URL + <CODICE>.xml   una stazione: il blocco <meteo_data> con l'istante in UTC e un tag per misura; i tag
-#                                cambiano da stazione a stazione, quelli che mancano si saltano
-# Ogni giro scarica tutto in FVG/data-downloaded/dati/, aggiunge l'osservazione di ogni stazione al file del suo giorno
-# (FVG/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) e poi cancella i file scaricati: la serie cresce di un
-# punto a giro, per questo il cron lo lancia ogni ora.
+# dati_fvg.py - stazioni OSMER / ARPA FVG del Friuli Venezia Giulia (FVG). Non c'è un elenco delle stazioni:
+# i codici si leggono dai link della pagina principale, poi un XML per stazione con l'ultima osservazione
+# oraria (<meteo_data>, istante in UTC; i tag cambiano da stazione a stazione).
+# Ogni giro aggiunge le osservazioni a FVG/data-parsed/<VAR>/<VAR>-AAAAMMGG.json (ora solare): un punto a
+# giro, quindi il cron lo lancia ogni ora.
 # Uso: python3 dati_fvg.py [--debug]
 import argparse
 import datetime
@@ -46,16 +43,15 @@ META_TAGS = {'observation_time', 'observation_date', 'observation_hour',
 
 
 def download():
-    """La pagina principale e il file di ogni stazione in DOWNLOAD_DIR/dati/, con il prefisso del giro
-    AAAAMMGG-HHMMSS (restituito)."""
+    """Scarica la pagina principale e il file di ogni stazione in DOWNLOAD_DIR/dati/;
+    restituisce il prefisso del giro AAAAMMGG-HHMMSS."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
-    # le cartelle subito: un giro fermato a metà le lascia comunque tutte (recover.py cerca i buchi in data-parsed)
+    # le cartelle subito: recover.py cerca i buchi in data-parsed
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     home = comune.save_url(HOME_URL, os.path.join(folder, stamp + '-home.html'))
-    # codici di cifre o di lettere e cifre (101, G201, A009); i link <codice>_week.xml (gli aggregati giornalieri)
-    # restano fuori perché '_' non è fra i caratteri ammessi
+    # codici come 101, G201, A009; i link <codice>_week.xml (aggregati giornalieri) restano fuori per il '_'
     codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', home.decode('utf-8', 'replace'))))
     print('Pagina principale: %d stazioni' % len(codes))
     for code in codes:
@@ -64,17 +60,17 @@ def download():
 
 
 def solar_moment(text):
-    """'GG/MM/AAAA hh.mm UTC' -> AAAAMMGGhhmm in ora solare (UTC+1), come tutto l'archivio; None se non si legge."""
+    """'GG/MM/AAAA hh.mm UTC' -> AAAAMMGGhhmm in ora solare (UTC+1); None se non si legge."""
     try:
         moment = datetime.datetime.strptime(text.strip().replace(' UTC', ''), '%d/%m/%Y %H.%M')
         return comune.utc_to_solar(moment)
-    except (ValueError, TypeError, AttributeError):         # tag vuoto o mancante, formato diverso
+    except (ValueError, TypeError, AttributeError):     # tag vuoto o mancante, formato diverso
         return None
 
 
 def read_observation(path):
-    """L'osservazione di un file di stazione: istante, dati della stazione, valore e unità di ogni tag di misura.
-    None se il file non è XML (una pagina di errore) o non ha il blocco <meteo_data>."""
+    """Osservazione di un file di stazione: istante, dati della stazione, valore e unità di ogni tag.
+    None se il file non è XML (una pagina di errore) o manca <meteo_data>."""
     try:
         block = ET.parse(path).getroot().find('meteo_data')
     except ET.ParseError:
@@ -83,8 +79,11 @@ def read_observation(path):
         return None
     moment = solar_moment(block.findtext('observation_time'))
     altitude = block.find('station_altitude')
-    station = {'station_id': block.findtext('station_id'), 'station_name': block.findtext('station_name'),
-               'station_altitude': None if altitude is None else altitude.text}
+    station = {
+        'station_id': block.findtext('station_id'),
+        'station_name': block.findtext('station_name'),
+        'station_altitude': None if altitude is None else altitude.text
+    }
     values, units = {}, {}
     for element in block:
         if element.tag in META_TAGS:
@@ -96,9 +95,9 @@ def read_observation(path):
 
 
 def parse(stamp, debug=False):
-    """Per ogni variabile, l'osservazione del giro di ogni stazione che la misura va nel file del suo giorno, se è più
-    recente dell'ultima già salvata. I dati delle stazioni lette si aggiornano in stazioni.json."""
-    for var in sorted(VARIABLES):           # tutte le cartelle subito, anche per le variabili senza letture
+    """L'osservazione di ogni stazione va nel file del suo giorno, se più recente dell'ultima salvata.
+    I dati delle stazioni lette si aggiornano in stazioni.json."""
+    for var in sorted(VARIABLES):
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
@@ -115,7 +114,7 @@ def parse(stamp, debug=False):
         observations[code] = obs
         stations[code] = obs['station']
     added = 0
-    # in ordine alfabetico: se un file rotto ferma il giro, restano scritte sempre le stesse variabili
+    # in ordine alfabetico: se un file rotto ferma il giro, restano scritte le variabili precedenti
     for var in sorted(VARIABLES):
         tag, extra = VARIABLES[var], EXTRA.get(var, {})
         day_files = {}                      # percorso -> contenuto, letto la prima volta che serve
@@ -127,13 +126,16 @@ def parse(stamp, debug=False):
                 day_files[path] = comune.load_json(path)
             archive = day_files[path]
             if code not in archive:
-                archive[code] = {'STAZIONE': obs['station'], 'UM': obs['units'].get(tag),
-                                 'MISURE': {'ISTANTE': [], 'VALORE': []}}
+                archive[code] = {
+                    'STAZIONE': obs['station'],
+                    'UM': obs['units'].get(tag),
+                    'MISURE': {'ISTANTE': [], 'VALORE': []}
+                }
                 for label in extra:
                     archive[code]['MISURE'][label] = []
             measures = archive[code]['MISURE']
             if measures['ISTANTE'] and int(obs['moment']) <= int(measures['ISTANTE'][-1]):
-                continue                    # già salvata: la stazione non ha ancora un'osservazione nuova
+                continue
             measures['ISTANTE'].append(obs['moment'])
             measures['VALORE'].append(obs['values'][tag])
             for label, extra_tag in extra.items():
@@ -151,11 +153,11 @@ def main():
     ap = argparse.ArgumentParser(description='Stazioni OSMER / ARPA FVG del Friuli Venezia Giulia.')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== FRIULI VENEZIA GIULIA (OSMER) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print('\n=== FRIULI VENEZIA GIULIA (OSMER) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     stamp = download()
     parse(stamp, debug=args.debug)
-    # solo dopo un parse riuscito (un errore esce prima): i file di un giro fallito restano, li toglie la pulizia
-    # notturna del cron
+    # solo dopo un parse riuscito: i file di un giro fallito restano, li toglie la pulizia notturna
     comune.delete_downloaded(DOWNLOAD_DIR, [RAW_SUBDIR], stamp, debug=args.debug)
 
 

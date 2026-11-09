@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-# dati_pc.py - idrometria (e affini) delle reti di Protezione Civile e vicine, ogni rete come una regione a sé:
-#   FVG  PC_FVG       Protezione Civile del Friuli Venezia Giulia (monitor.protezionecivile.fvg.it/api):
-#                     measures/latest è un'istantanea con lat/lon per misura, la serie si costruisce accumulando a
-#                     ogni giro; la mappa sensore -> codice si costruisce una volta e resta in PC_FVG/sensors_map.json
-#   TN   PC_TN        Ufficio Dighe della Provincia di Trento (floods.it): index.json è il catalogo con le
-#                     coordinate, ogni serie <id>.json porta ~7 giorni (istanti epoch UTC + valori)
+# dati_pc.py - idrometria (e affini) delle reti di Protezione Civile e vicine, ogni rete come regione a sé:
+#   FVG  PC_FVG       Protezione Civile FVG (monitor.protezionecivile.fvg.it/api): measures/latest è
+#                     un'istantanea con lat/lon, la serie si accumula a ogni giro; la mappa sensore -> codice
+#                     resta in PC_FVG/sensors_map.json
+#   TN   PC_TN        Ufficio Dighe di Trento (floods.it): catalogo con coordinate, ogni serie ha ~7 giorni
 #   PO   PC_PO        AIPO, bacino del Po (API AEGIS/datascapeA)
 #   PIE  PIE, PC_PIE  ARPA Piemonte: un solo scarico per due regioni
-# Stesso schema degli altri script: <REGIONE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json + stazioni.json. Ogni stazione
-# ha lat/lon. Gli istanti sono in ora solare (UTC+1).
+# Stesso schema degli altri script: <REGIONE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json + stazioni.json.
+# Ogni stazione ha lat/lon. Gli istanti sono in ora solare (UTC+1).
 # Uso: python3 dati_pc.py [-r all | -r FVG | -r TN | -r PO | -r PIE] [--full] [--debug]
 import argparse
 import datetime
@@ -22,8 +21,7 @@ import requests
 import comune
 
 
-# codice della fonte -> sigla. FVG_MAP e TN_MAP sono a livello di modulo perché check_updates.py li legge per
-# segnalare le grandezze nuove non ancora mappate.
+# codice della fonte -> sigla. FVG_MAP e TN_MAP sono letti da check_updates.py (grandezze nuove).
 FVG_API = 'https://monitor.protezionecivile.fvg.it/api'
 FVG_MAP = {'IDRO': 'LIVIDRO', 'NIVO': 'LIVNEVE', 'T': 'TEMP', 'U': 'UMID', 'Vv': 'VVENTO',
            'VvMax': 'VVENTOMAX', 'Dv': 'DVENTO', 'B': 'PRESS', 'RG': 'RADSOL', 'P_1h': 'PREC'}
@@ -34,26 +32,23 @@ TN_BASE = 'https://www.floods.it/api/v1/monitoring/'
 TN_MAP = {'gage height': 'LIVIDRO', 'discharge': 'PORTATA'}
 TN_UNITS = {'LIVIDRO': 'm', 'PORTATA': 'm³/s'}
 
-# PO: feed idrometrico del bacino del Po. Aggrega reti regionali (ARPA Lombardia, Regione ER, ...) più le stazioni
-# proprie di AIPO e si scarica tutto: i doppioni con ER/LOM restano (sulla mappa sono puntini vicini).
-# Accesso anonimo pubblico; il certificato SSL del sito è incompleto, quindi verify=False, solo per questo
-# host. Le coordinate sono in /v3/locations (x = lon, y = lat). PC_PO/elements_map.json tiene in cache
-# stazione -> elementId del livello.
+# PO: feed idrometrico del bacino del Po. Aggrega reti regionali più le stazioni proprie di AIPO e si scarica
+# tutto: i doppioni con ER/LOM restano (sulla mappa sono puntini vicini).
+# Accesso anonimo; il certificato SSL del sito è incompleto, quindi verify=False solo per questo host.
+# Coordinate in /v3/locations (x = lon, y = lat). PC_PO/elements_map.json: cache stazione -> elementId.
 PO_BASE = 'https://idrometri.agenziapo.it/datascapeA'
 
-# PIE: ARPA Piemonte, rete meteoidrografica. Un solo scarico orario per due regioni:
-#   PIE    = tutte le ~374 stazioni, meteo e livelli insieme (voce "Piemonte" del sito);
-#   PC_PIE = i soli ~107 idrometri del bacino del Po a monte (Po + Tanaro/Ticino/Dora/Sesia/Scrivia...),
-#            per la voce "Po (AIPO + Piemonte)".
-# API FastAPI anonima documentata (OpenAPI):
+# PIE: ARPA Piemonte, un solo scarico orario per due regioni:
+#   PIE    = tutte le ~374 stazioni, meteo e livelli insieme
+#   PC_PIE = i soli ~107 idrometri del bacino del Po a monte, per la voce "Po (AIPO + Piemonte)"
+# API FastAPI anonima:
 #   /pie_anag  anagrafica (lat/lng, river_name, basin, hydrometric_zero in m s.m.m.)
-#   /data_pie  misure orarie degli ultimi 3 giorni; senza station_code è uno scarico unico paginato (page/page_size)
-# Campi verificati il 2026-11-02 contro ItaliaMeteo (stesse stazioni, ora UTC): cum_rain_1h è la pioggia dell'ora
-# che finisce all'istante; wind e gust_of_wind sono in km/h (rapporto 3.57). Le cumulate 3-24 h della fonte non
-# servono (derive.py calcola le nostre). Gli istanti hanno l'offset esplicito ('+01:00' / '+02:00').
-# Finestra: le ultime 7 ore (scarico leggero); nel giro delle 03 i 3 giorni interi, così un buco (Pi spento, fonte
-# ferma) si richiude entro la notte successiva. Si salvano PIE/ e PC_PIE/zero_idrometrici.json: il sito mostra il
-# LIVIDRO in quota assoluta (come per il Veneto).
+#   /data_pie  misure orarie degli ultimi 3 giorni; senza station_code è uno scarico unico paginato
+# cum_rain_1h è la pioggia dell'ora che finisce all'istante; wind e gust_of_wind sono in km/h. Le cumulate
+# 3-24 h della fonte non servono (derive.py calcola le nostre). Istanti con offset esplicito.
+# Finestra: le ultime 7 ore; nel giro delle 03 i 3 giorni interi, così un buco (Pi spento, fonte ferma) si
+# richiude entro la notte. Si salvano PIE/ e PC_PIE/zero_idrometrici.json: il sito mostra il LIVIDRO in quota
+# assoluta (come per il Veneto).
 PIE_BASE = 'https://utility.arpa.piemonte.it/api_realtime'
 # campo dell'API -> (sigla, unità, fattore sul valore)
 PIE_FIELDS = [('air_temperature',   'TEMP',      '°C',    1.0),
@@ -77,7 +72,7 @@ def is_number(x):
 
 
 def fvg_sensor_codes(debug=False):
-    """sensor_id -> codice del sensore: si costruisce scorrendo i sensori di ogni stazione e resta in cache."""
+    """sensor_id -> codice del sensore: si costruisce scorrendo le stazioni e resta in cache."""
     cache = os.path.join(comune.region_dir('PC_FVG'), 'sensors_map.json')
     cached = comune.load_json(cache)
     if cached:
@@ -103,8 +98,8 @@ def download_fvg(debug=False):
         var = FVG_MAP.get(codes.get(m.get('sensor_id')))
         if var is None:
             continue
-        # gli invasi artificiali (Barcis, Ravedis, Ca' Zul, Ca' Selva, Tramonti) riportano la quota assoluta
-        # dell'invaso in m s.l.m., non un livello idrometrico: si classificano livello di lago
+        # gli invasi artificiali (Barcis, Ravedis, Ca' Zul, Ca' Selva, Tramonti) danno la quota assoluta in
+        # m s.l.m., non un livello idrometrico: si classificano livello di lago
         if var == 'LIVIDRO' and 'invaso' in str(m.get('station_name') or '').lower():
             var = 'LIVLAGO'
         lat, lon = comune.to_float(m.get('lat')), comune.to_float(m.get('lon'))
@@ -154,7 +149,8 @@ def download_tn(debug=False):
         for t, v in zip(times, values):
             value = comune.to_float(v)
             if value is not None:
-                points.append((comune.utc_to_solar(datetime.datetime.utcfromtimestamp(int(t))), value))
+                points.append(
+                    (comune.utc_to_solar(datetime.datetime.utcfromtimestamp(int(t))), value))
         if points:
             readings.setdefault(var, {}).setdefault(sc, []).extend(points)
             units[var] = md.get('uom') or TN_UNITS.get(var)
@@ -164,7 +160,7 @@ def download_tn(debug=False):
 
 
 def download_po(debug=False, days=7):
-    # senza verifica del certificato (vedi PO_BASE) ogni richiesta stamperebbe l'avviso «Unverified HTTPS request»
+    # senza verifica del certificato (vedi PO_BASE) ogni richiesta stamperebbe «Unverified HTTPS request»
     warnings.filterwarnings('ignore', message='Unverified HTTPS request')
     answer = requests.post(PO_BASE + '/connect/token', timeout=60, verify=False,
                            headers={'User-Agent': comune.USER_AGENT},
@@ -187,10 +183,12 @@ def download_po(debug=False, days=7):
         element_id = element_ids.get(sid)
         if element_id is None:
             try:
-                elements = comune.get_json(PO_BASE + '/v3/elements?station_id=' + sid, headers=headers, verify=False)
+                elements = comune.get_json(PO_BASE + '/v3/elements?station_id=' + sid,
+                                           headers=headers, verify=False)
             except Exception:
                 continue
-            levels = [e for e in elements if e.get('measUnit') == 'm' and 'evel' in (e.get('elementName') or '')]
+            levels = [e for e in elements
+                      if e.get('measUnit') == 'm' and 'evel' in (e.get('elementName') or '')]
             if not levels:
                 continue
             element_id = levels[0]['elementId']
@@ -232,7 +230,7 @@ def download_pie(full=False, debug=False):
         if lat is None or lon is None:
             continue
         sc = 'PIE' + code
-        name = (r.get('name') or sc).title()                           # 'COLLE LOMBARDA' -> 'Colle Lombarda'
+        name = (r.get('name') or sc).title()                    # 'COLLE LOMBARDA' -> 'Colle Lombarda'
         # idrometri veri: river_name valorizzato e zero idrometrico numerico -> nome "Fiume a Comune"
         if r.get('river_name') not in ('-', '', None) and is_number(r.get('hydrometric_zero')):
             river = (r.get('river_name') or '').title()
@@ -242,15 +240,15 @@ def download_pie(full=False, debug=False):
             hydrometers.add(code)
             zeros[sc] = {'zero': round(float(r.get('hydrometric_zero')), 3)}
         meta[code] = {'sc': sc, 'NOME': name, 'LAT': lat, 'LON': lon}
-    full = full or datetime.datetime.now().hour == 3                  # ora locale del Pi (cron alle hh:22)
+    full = full or datetime.datetime.now().hour == 3            # ora locale del Pi (cron alle hh:22)
     window = datetime.timedelta(days=3) if full else datetime.timedelta(hours=7)
     since = (comune.now_solar() - window).strftime('%Y-%m-%dT%H:%M')
     stations, readings = {}, {}
     po_stations, po_readings = {}, {'LIVIDRO': {}}
     page = 1
     while True:
-        answer = comune.get_json(PIE_BASE + '/data_pie', {'date_from': since, 'page': page, 'page_size': 5000},
-                                 timeout=90)
+        answer = comune.get_json(PIE_BASE + '/data_pie',
+                                 {'date_from': since, 'page': page, 'page_size': 5000}, timeout=90)
         records = answer if isinstance(answer, list) else answer.get('data', [])
         if not records:
             break
@@ -279,7 +277,7 @@ def download_pie(full=False, debug=False):
         if page >= total_pages:
             break
         page += 1
-    # zeri idrometrici delle stazioni presenti, in entrambe le regioni: il sito mostra il livello in quota assoluta
+    # zeri idrometrici delle stazioni presenti, in entrambe le regioni
     for region, present in (('PIE', stations), ('PC_PIE', po_stations)):
         if present:
             comune.save_json({sc: zeros[sc] for sc in present if sc in zeros},
@@ -288,7 +286,8 @@ def download_pie(full=False, debug=False):
         print('  finestra da %s%s | stazioni PIE %d (idrometri PC_PIE %d) | variabili: %s' % (
               since, ' (3 giorni)' if full else '', len(stations), len(po_stations),
               ', '.join('%s %d' % (var, len(readings.get(var, {}))) for _, var, _, _ in PIE_FIELDS)))
-    return {'PIE': (stations, readings, PIE_UNITS), 'PC_PIE': (po_stations, po_readings, {'LIVIDRO': 'm'})}
+    return {'PIE': (stations, readings, PIE_UNITS),
+            'PC_PIE': (po_stations, po_readings, {'LIVIDRO': 'm'})}
 
 
 # ogni rete restituisce {codice della regione: (stazioni, letture, unità)}
@@ -298,7 +297,8 @@ NETWORKS = {'FVG': download_fvg, 'TN': download_tn, 'PO': download_po, 'PIE': do
 def main():
     ap = argparse.ArgumentParser(description='Idrometria Protezione Civile (stazioni con coordinate).')
     ap.add_argument('-r', '--region', default='all', help='FVG/TN/PO/PIE/all')
-    ap.add_argument('--full', action='store_true', help='PIE: scarica i 3 giorni interi (di norma solo nel giro delle 03)')
+    ap.add_argument('--full', action='store_true',
+                    help='PIE: scarica i 3 giorni interi (di norma solo nel giro delle 03)')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
     names = list(NETWORKS) if args.region.lower() == 'all' else [args.region.upper()]
@@ -309,7 +309,7 @@ def main():
             print('Rete PC non disponibile: ' + name)
             continue
         try:
-            if name == 'PIE':                                          # --full vale solo per il Piemonte
+            if name == 'PIE':                                   # --full vale solo per il Piemonte
                 regions = download_pie(full=args.full, debug=args.debug)
             else:
                 regions = NETWORKS[name](debug=args.debug)

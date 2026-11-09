@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
-# dati_liguria.py - LIGURIA (ARPAL, portale OMIRL) come regione LIG.
-#
-#   Endpoint REST anonimi del portale OMIRL (https://omirl.regione.liguria.it/Omirl/rest/):
-#     stations/<Classe>             -> ultimo valore di ogni stazione della classe, con coordinate (istantanea)
-#     charts/csv/<Codice>/<Classe>  -> serie della stazione, CSV 'gg/mm/aaaa hh:mm;valore;...;'
-#                                      (pioggia oraria ~2,5 giorni; vento 10 min ~7 giorni = velocita' + raffica;
-#                                      le altre classi 30 min ~15 giorni)
-#     charts/<Codice>/Vento         -> grafico XML: l'unica fonte della DIREZIONE del vento (oraria, ~640 KB)
-#   ORA: tutti i tempi OMIRL sono UTC (verificato il 2026-11-02 contro ItaliaMeteo, stesse stazioni: temperatura
-#   949/951 valori uguali, pioggia oraria 17/17) -> ora solare = UTC + 1 h. Fino al 2026-11-02 lo script li leggeva
-#   come ora italiana: l'archivio e' stato corretto in quella data (+2 h prima del 25/10, +1 h dopo).
-#   Classi -> sigle: Termo TEMP °C, Igro UMID %, Idro LIVIDRO m, Vento VVENTO e VVENTOMAX (raffica) km/h -> m/s,
-#   Radio RADSOL W/m², Neve LIVNEVE cm, Press PRESS hPa, Foglie BAGNATURA %, Elio SOLEGG min, Boa ONDE m (boa di
-#   Capo Mele), Pluvio PREC mm = pioggia dell'ora che FINISCE all'istante. La pioggia viene SOLO dalla serie
-#   oraria: il 'value' dell'istantanea e' una cumulata mobile di un'ora e campionarla non da' ore sommabili.
-#   Ogni giro (cron :14 e :44): istantanee di tutte le classi + serie oraria della pioggia (~200 CSV da 1,6 KB).
-#   Ogni 3 ore: serie del vento (raffiche). Nel giro delle 03: serie complete di tutte le classi + direzione del
-#   vento -> chiude i buchi (Pi spento, fonte ferma) e porta la risoluzione piena (vento 10 min, livelli 15 min).
-#
+# dati_liguria.py - Liguria (ARPAL, portale OMIRL), regione LIG, REST anonimo.
+# Endpoint (https://omirl.regione.liguria.it/Omirl/rest/):
+#   stations/<Classe>             ultimo valore di ogni stazione della classe, con coordinate
+#   charts/csv/<Codice>/<Classe>  serie della stazione, CSV 'gg/mm/aaaa hh:mm;valore;...;' (pioggia oraria
+#                                 ~2,5 giorni; vento 10 min ~7 giorni = velocita' + raffica; resto 30 min ~15 giorni)
+#   charts/<Codice>/Vento         grafico XML: unica fonte della DIREZIONE del vento (oraria, ~640 KB)
+# Tutti i tempi OMIRL sono UTC: ora solare = UTC + 1 h.
+# Pluvio PREC mm = pioggia dell'ora che FINISCE all'istante. Viene SOLO dalla serie oraria: il 'value'
+# dell'istantanea e' una cumulata mobile di un'ora e campionarla non da' ore sommabili.
+# Ogni giro (cron :14 e :44): istantanee + serie oraria della pioggia (~200 CSV da 1,6 KB).
+# Ogni 3 ore: serie del vento (raffiche). Nel giro delle 03: serie complete di tutte le classi + direzione del
+# vento, per chiudere i buchi (Pi spento, fonte ferma) e avere la risoluzione piena.
 # Uso: python3 dati_liguria.py [--full] [--debug]
 import argparse
 import datetime
@@ -49,12 +42,13 @@ def snapshot(cls):
     """Istantanea di una classe: [(scode, codice, nome, lat, lon, istante solare, valore)]."""
     out = []
     for s in comune.get_json(BASE_URL + 'stations/' + cls):
-        lat, lon, value = comune.to_float(s.get('lat')), comune.to_float(s.get('lon')), comune.to_float(s.get('value'))
+        lat, lon, value = comune.to_float(s.get('lat')), comune.to_float(s.get('lon')), comune.to_float(
+            s.get('value'))
         code = s.get('shortCode')
         if lat is None or lon is None or not code:
             continue
         try:
-            dt = datetime.datetime.strptime(str(s.get('refDate'))[:16], '%Y-%m-%dT%H:%M')     # UTC
+            dt = datetime.datetime.strptime(str(s.get('refDate'))[:16], '%Y-%m-%dT%H:%M')   # UTC
         except (ValueError, TypeError):
             dt = None
         out.append(('LIG' + str(code), str(code), s.get('name') or code, lat, lon,
@@ -161,14 +155,16 @@ def download(full=False, wind=False, debug=False):
 
 def main():
     ap = argparse.ArgumentParser(description='Liguria (ARPAL OMIRL): idro + meteo, REST anonimo.')
-    ap.add_argument('--full', action='store_true', help='serie complete di tutte le classi (di norma nel giro delle 03)')
+    ap.add_argument('--full', action='store_true',
+                    help='serie complete di tutte le classi (di norma nel giro delle 03)')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    now = datetime.datetime.now()                         # ora locale del Pi (cron alle :14 e :44)
+    now = datetime.datetime.now()                       # ora locale del Pi (cron alle :14 e :44)
     full = args.full or (now.hour == 3 and now.minute < 30)
     wind = full or (now.hour % 3 == 0 and now.minute < 30)
-    print('\n=== LIGURIA (OMIRL) %s%s ===' % (now.strftime('%Y-%m-%d %H:%M:%S'),
-                                             ' - serie complete' if full else (' + vento' if wind else '')))
+    print('\n=== LIGURIA (OMIRL) %s%s ===' % (
+        now.strftime('%Y-%m-%d %H:%M:%S'),
+        ' - serie complete' if full else (' + vento' if wind else '')))
     try:
         stations, readings = download(full=full, wind=wind, debug=args.debug)
         comune.write_parsed('LIG', stations, readings, UNITS)

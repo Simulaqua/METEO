@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-# dati_altoadige.py - stazioni meteo e idrometriche della Provincia di Bolzano / Alto Adige (codice BZ), dagli Open
-# Data della Provincia in JSON. Per tutta la rete bastano due chiamate:
-#   STATIONS_URL   l'anagrafica delle stazioni (GeoJSON): SCODE, nomi in italiano e in tedesco, quota, coordinate
-#   SENSORS_URL    l'ultima lettura di ogni sensore: SCODE, TYPE (la grandezza), UNIT, DATE ('AAAA-MM-GGThh:mm:ss'
-#                  in ora locale seguita dal fuso, CET o CEST), VALUE
-# Ogni giro scarica i due file in BZ/data-downloaded/dati/, aggiunge ogni lettura nuova al file del suo giorno
-# (BZ/data-parsed/<VAR>/<VAR>-AAAAMMGG.json, in ora solare) e poi cancella i file scaricati: la serie cresce di un
-# punto per sensore a giro, per questo il cron lo lancia ogni 10 minuti.
+# dati_altoadige.py - stazioni meteo e idrometriche di Bolzano (BZ), Open Data della Provincia.
+# Due chiamate per tutta la rete: anagrafica (GeoJSON) e ultima lettura di ogni sensore (DATE in CET o CEST).
+# Ogni giro aggiunge le letture nuove a BZ/data-parsed/<VAR>/<VAR>-AAAAMMGG.json (ora solare): un punto per
+# sensore a giro, quindi il cron lo lancia ogni 10 minuti.
 # Uso: python3 dati_altoadige.py [--debug]
 import argparse
 import datetime
@@ -21,7 +17,7 @@ DOWNLOAD_DIR = os.path.join(comune.region_dir('BZ'), 'data-downloaded')
 RAW_SUBDIR = 'dati'
 PARSE_DIR = os.path.join(comune.region_dir('BZ'), 'data-parsed')
 STATIONS_JSON = os.path.join(PARSE_DIR, 'stazioni.json')
-# i campi che si tengono di una stazione dell'anagrafica, più 'coordinates' (il punto del GeoJSON, in metri UTM)
+# campi dell'anagrafica che si tengono, più 'coordinates' (punto del GeoJSON, in metri UTM)
 STATION_FIELDS = ('SCODE', 'NAME_I', 'NAME_D', 'ALT', 'LONG', 'LAT')
 # variabile -> TYPE dei suoi sensori (l'unità di misura è nel campo UNIT di ogni lettura)
 VARIABLES = {
@@ -44,9 +40,8 @@ VARIABLES = {
 
 
 def download():
-    """L'anagrafica e le letture in DOWNLOAD_DIR/dati/, con il prefisso del giro AAAAMMGG-HHMMSS (restituito)."""
+    """Scarica anagrafica e letture; restituisce il prefisso del giro (AAAAMMGG-HHMMSS)."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
-    # tutte e due le cartelle subito: anche un giro che si ferma all'anagrafica le lascia
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -56,9 +51,8 @@ def download():
 
 
 def solar_moment(text):
-    """'AAAA-MM-GGThh:mm:ss' seguito dal fuso, CET o CEST -> AAAAMMGGhhmm in ora solare (CET), come tutto l'archivio;
-    None se manca o non si legge. Conta il fuso scritto dalla fonte, non la regola dell'ora legale: la notte in cui
-    l'ora legale finisce, le letture fra le 02:00 e le 03:00 arrivano due volte, prima in CEST e poi in CET."""
+    """'AAAA-MM-GGThh:mm:ss' + fuso (CET o CEST) -> AAAAMMGGhhmm in ora solare; None se manca o non si legge.
+    Conta il fuso scritto dalla fonte: a fine ora legale 02:00-03:00 arriva prima in CEST, poi in CET."""
     try:
         text = text.strip()
         zone = re.search(r'[A-Za-z]+$', text)
@@ -66,15 +60,14 @@ def solar_moment(text):
         if zone and zone.group(0).upper() == 'CEST':
             moment -= datetime.timedelta(hours=1)
         return moment.strftime('%Y%m%d%H%M')
-    except (ValueError, TypeError, AttributeError):         # campo mancante, vuoto o in un altro formato
+    except (ValueError, TypeError, AttributeError):     # campo mancante, vuoto o in un altro formato
         return None
 
 
 def parse(stamp, debug=False):
-    """Ogni lettura del giro va nel file del suo giorno, se è più recente dell'ultima già salvata per quella stazione.
-    L'anagrafica scaricata si fonde in stazioni.json: i dati di una stazione si aggiornano, le stazioni che escono
-    dall'anagrafica restano."""
-    for var in VARIABLES:                   # tutte le cartelle, anche delle variabili senza letture in questo giro
+    """Salva nel file del suo giorno ogni lettura più recente dell'ultima della stazione.
+    L'anagrafica si fonde in stazioni.json: le stazioni uscite dall'anagrafica restano."""
+    for var in VARIABLES:
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
@@ -87,7 +80,8 @@ def parse(stamp, debug=False):
         stations[station['SCODE']] = station
     readings = comune.load_json(os.path.join(folder, stamp + '-sensors.json'))
     var_of_type = {sensor_type: var for var, sensor_type in VARIABLES.items()}
-    day_files = {var: {} for var in VARIABLES}  # variabile -> {percorso: contenuto}, letto la prima volta che serve
+    # variabile -> {percorso: contenuto}, letto la prima volta che serve
+    day_files = {var: {} for var in VARIABLES}
     added = 0
     for reading in readings:
         var = var_of_type.get(reading.get('TYPE'))
@@ -102,16 +96,18 @@ def parse(stamp, debug=False):
             day_files[var][path] = comune.load_json(path)
         archive = day_files[var][path]
         if code not in archive:
-            archive[code] = {'STAZIONE': stations.get(code, {'SCODE': code}), 'UM': reading.get('UNIT'),
-                             'MISURE': {'ISTANTE': [], 'VALORE': []}}
+            archive[code] = {
+                'STAZIONE': stations.get(code, {'SCODE': code}),
+                'UM': reading.get('UNIT'),
+                'MISURE': {'ISTANTE': [], 'VALORE': []}
+            }
         measures = archive[code]['MISURE']
         if measures['ISTANTE'] and int(moment) <= int(measures['ISTANTE'][-1]):
-            continue                        # già salvata: il sensore non ha ancora una lettura nuova
+            continue
         measures['ISTANTE'].append(moment)
         measures['VALORE'].append(reading.get('VALUE'))
         added += 1
-    # in ordine alfabetico: se una scrittura si ferma (disco pieno, permessi), restano scritte le variabili che vengono
-    # prima nell'alfabeto
+    # in ordine alfabetico: se una scrittura si ferma (disco pieno), restano scritte le variabili precedenti
     for var in sorted(VARIABLES):
         for path, archive in day_files[var].items():
             comune.save_json(archive, path)
@@ -125,11 +121,11 @@ def main():
     ap = argparse.ArgumentParser(description='Stazioni meteo e idrometriche della Provincia di Bolzano.')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== ALTO ADIGE (Provincia di Bolzano) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print('\n=== ALTO ADIGE (Provincia di Bolzano) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     stamp = download()
     parse(stamp, debug=args.debug)
-    # solo dopo un parse riuscito (un errore esce prima): i file di un giro fallito restano, li toglie la pulizia
-    # notturna del cron
+    # solo dopo un parse riuscito: i file di un giro fallito restano, li toglie la pulizia notturna
     comune.delete_downloaded(DOWNLOAD_DIR, [RAW_SUBDIR], stamp, debug=args.debug)
 
 

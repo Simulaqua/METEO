@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-# dati_invasi.py - invasi artificiali (dighe) con API pubblica anonima, ognuno come una regione a sé (codice INV_<sigla>).
-#   INV_ER = Romagna Acque - Società delle Fonti (Forlì-Cesena / Rimini). Endpoint JSON anonimo del widget
-#     "acqua in diretta" (trovato ispezionando la pagina /acqua-in-diretta/, 2026-08):
-#     GET https://www.romagnacque.it/datidiretta/index2.php
-#     -> diga di RIDRACOLI: livelloInvaso, volumeInvaso, apporto, deflusso, temperaturaAcqua, con il timestamp
-#        direttaDt+direttaOra in ora civile italiana (aggiornamento ogni 30-60 min)
-#     -> traversa del CONCA (concaDati): livello, volume, apporto, portataus, senza timestamp proprio: usa quello generale
-# Livelli in m (Ridracoli = quota assoluta s.l.m.), volumi in Mm³ (milioni di m³). Coordinate fisse, sulle dighe.
-# Una lettura per giro: il merge per istante evita i doppioni.
+# dati_invasi.py - invasi artificiali (dighe) con API anonima, ognuno come regione a sé (INV_<sigla>).
+# INV_ER = Romagna Acque: un JSON con la diga di RIDRACOLI (timestamp direttaDt+direttaOra in ora civile,
+# aggiornato ogni 30-60 min) e la traversa del CONCA (senza timestamp proprio: usa quello generale).
+# Livelli in m (Ridracoli = quota s.l.m.), volumi in Mm³. Una lettura per giro: il merge per istante evita
+# i doppioni.
 # Uso: python3 dati_invasi.py [-r ER|all] [--debug]
 import argparse
 import datetime
@@ -35,7 +31,7 @@ def download(debug=False):
         readings.setdefault(var, {}).setdefault(code, []).append((moment, round(value, 3)))
         units[var] = unit
 
-    # Diga di Ridracoli (Bagno di Romagna, FC) - livello = quota assoluta s.l.m.
+    # Ridracoli: il livello è la quota assoluta s.l.m.
     stations['RIDRACOLI'] = {'NOME': 'Diga di Ridracoli', 'LAT': 43.9711, 'LON': 11.8261}
     put('RIDRACOLI', 'LIVLAGO', 'm', d.get('livelloInvaso'))
     volume = comune.to_float(d.get('volumeInvaso'))
@@ -43,7 +39,7 @@ def download(debug=False):
     put('RIDRACOLI', 'AFFLUSSO', 'm³/s', d.get('apporto'))
     put('RIDRACOLI', 'DEFLUSSO', 'm³/s', d.get('deflusso'))
     put('RIDRACOLI', 'TEMPACQUA', '°C', d.get('temperaturaAcqua'))
-    # Traversa del Conca (San Giovanni in Marignano / Misano, RN) - coordinate approssimative
+    # Conca: coordinate approssimative
     conca = d.get('concaDati') or {}
     if conca:
         stations['CONCA'] = {'NOME': 'Invaso del Conca', 'LAT': 43.9400, 'LON': 12.6720}
@@ -69,7 +65,8 @@ def main():
     ap.add_argument('-r', '--region', default='all', help='ER/all')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== INVASI (Romagna Acque) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print('\n=== INVASI (Romagna Acque) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     regions = list(SOURCES) if args.region.lower() == 'all' else [args.region.upper()]
     for reg in regions:
         if reg not in SOURCES:

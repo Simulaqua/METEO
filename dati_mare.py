@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# dati_mare.py - maree e dati marini, ognuna delle quattro reti come una regione a sé (codice MAR_<RETE>, ACQ_VEN):
-#   VEN     MAR_VEN  CPSM, Centro Previsioni e Segnalazioni Maree del Comune di Venezia (dati.venezia.it): un file JSON
-#                    per grandezza (livello, onde, vento, temperature, umidità, pressione, radiazione), dato ogni ~5 min;
-#                    i 'valore' sono stringhe con l'unità, se ne leggono i numeri; le coordinate si uniscono per ID
-#   ER      MAR_ER   ARPAE-SIMC, boe Nausicaa/Calipso e mareografi, da realtime.jsonl (codici BUFR)
-#   ACQVEN  ACQ_VEN  ARPAV, qualità delle acque: boe automatiche del Delta del Po e delle lagune (REST JSON)
+# dati_mare.py - maree e dati marini, ogni rete come regione a sé (MAR_<RETE>, ACQ_VEN):
+#   VEN     MAR_VEN  CPSM Venezia (dati.venezia.it): un JSON per grandezza, dato ogni ~5 min; i 'valore' sono
+#                    stringhe con l'unità, se ne leggono i numeri; le coordinate si uniscono per ID
+#   ER      MAR_ER   ARPAE-SIMC, boe e mareografi, da realtime.jsonl (codici BUFR)
+#   ACQVEN  ACQ_VEN  ARPAV, qualità delle acque: boe del Delta del Po e delle lagune (REST JSON)
 #   FVG     MAR_FVG  OGS Trieste (ERDDAP): boe e sensori del Golfo di Trieste e della costa
 # Ogni stazione ha lat/lon. Gli istanti sono in ora solare (UTC+1).
 # Uso: python3 dati_mare.py [-r all | -r VEN,ER,...] [--debug]
@@ -26,8 +25,8 @@ CPSM_SCALAR = [('livello', 'MAREA'), ('onde_mare', 'ONDE'), ('onde_laguna', 'OND
                ('tempacqua', 'TEMPACQUA'), ('temparia', 'TEMP'), ('umidita', 'UMID'),
                ('pressione', 'PRESS'), ('radiazione', 'RADSOL')]
 
-# ER: codice B -> (sigla, in kelvin?). Livello del mare, altezza d'onda significativa, temperature del mare e dell'aria
-# (kelvin), umidità, vento. Le coordinate sono nei campi B05001 (lat) e B06001 (lon), le date di primo livello in UTC.
+# ER: codice B -> (sigla, in kelvin?). Coordinate nei campi B05001 (lat) e B06001 (lon); le date di primo
+# livello sono in UTC.
 ER_URL = 'https://dati-simc.arpae.it/opendata/osservati/meteo/realtime/realtime.jsonl'
 ER_NETWORKS = ('boa', 'marefe')          # solo boe e mareografi
 ER_CODES = {'B22037': ('MAREA', False), 'B22070': ('ONDE', False), 'B22043': ('TEMPACQUA', True),
@@ -35,15 +34,16 @@ ER_CODES = {'B22037': ('MAREA', False), 'B22070': ('ONDE', False), 'B22043': ('T
 
 # ACQVEN: parametro ARPAV -> sigla
 ACQUE_BASE = 'https://api.arpa.veneto.it/REST/v1'
-ACQUE_PARAMETERS = {'Temperatura acqua': 'TEMPACQUA', 'Salinità': 'SALINITA', 'Ossigeno disciolto': 'OSSIGENO',
-                    'pH misurato a campo': 'PH', 'Clorofilla a': 'CLOROFILLA',
-                    'Conducibilità elettrica': 'CONDUCIBILITA', 'Ossigeno disciolto al prel.': 'OSSIGENO_SAT'}
+ACQUE_PARAMETERS = {
+    'Temperatura acqua': 'TEMPACQUA', 'Salinità': 'SALINITA', 'Ossigeno disciolto': 'OSSIGENO',
+    'pH misurato a campo': 'PH', 'Clorofilla a': 'CLOROFILLA',
+    'Conducibilità elettrica': 'CONDUCIBILITA', 'Ossigeno disciolto al prel.': 'OSSIGENO_SAT'
+}
 
 # FVG: ERDDAP tabledap, un dataset '<ID>_TS' per piattaforma. Il time è UTC con la 'Z' finale, tolta prima di
-# leggerlo. Le coordinate sono fisse (ancoraggi e pozzetti, confermate dall'actual_range del .das): scritte qui
-# invece di una query per riga. Il dataset di MAMBO1 mette più strumenti sullo stesso istante (righe doppie quasi
-# tutte nulle): innocuo, i valori nulli si scartano per colonna. La portata RVFL alla foce dell'Isonzo può essere
-# negativa (la marea risale): è un valore vero, passa com'è.
+# leggerlo. Coordinate fisse, scritte qui invece di una query per riga. MAMBO1 ha righe doppie sullo stesso
+# istante, quasi tutte nulle: i valori nulli si scartano per colonna. La portata RVFL alla foce dell'Isonzo
+# può essere negativa (la marea risale): è un valore vero, passa com'è.
 OGS_BASE = 'https://nodc.ogs.it/erddap/tabledap/'
 OGS_STATIONS = [
     # dataset ERDDAP, sigla stazione, nome, lat, lon, [(variabile OGS, sigla comune), ...]
@@ -74,7 +74,7 @@ def first_number(text):
 
 
 def download_ven(debug=False):
-    # prima le coordinate e il nome di ogni stazione, da tutti i file che li hanno
+    # prima nome e coordinate di ogni stazione, da tutti i file che li hanno
     coords, names = {}, {}
     files = {}
     for name, _ in CPSM_SCALAR + [('vento', None)]:
@@ -191,8 +191,7 @@ def download_acque_ven(debug=False):
 
 
 def download_fvg(debug=False):
-    # finestra di 2 giorni: recupera un'interruzione del Pi senza riscaricare la storia (write_parsed scarta
-    # le letture già note)
+    # finestra di 2 giorni: recupera un'interruzione del Pi (write_parsed scarta le letture già note)
     since = (datetime.datetime.utcnow() - datetime.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
     stations, readings, units = {}, {}, {}
     for dataset_id, sc, name, lat, lon, colmap in OGS_STATIONS:
@@ -229,11 +228,14 @@ NETWORKS = {'VEN': ('MAR_VEN', download_ven), 'ER': ('MAR_ER', download_er),
 
 def main():
     ap = argparse.ArgumentParser(description='Dati meteo-marini / maree (stazioni con coordinate).')
-    ap.add_argument('-r', '--region', default='all', help="all | una o più reti separate da virgola, es. VEN,ER")
+    ap.add_argument('-r', '--region', default='all',
+                    help="all | una o più reti separate da virgola, es. VEN,ER")
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
-    print('\n=== MARE (maree e dati marini) %s ===' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    names = list(NETWORKS) if args.region.lower() == 'all' else [r.strip().upper() for r in args.region.split(',') if r.strip()]
+    print('\n=== MARE (maree e dati marini) %s ===' %
+          datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    names = list(NETWORKS) if args.region.lower() == 'all' else [
+        r.strip().upper() for r in args.region.split(',') if r.strip()]
     for name in names:
         if name not in NETWORKS:
             print('Rete maree non disponibile: ' + name)
