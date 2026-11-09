@@ -1507,7 +1507,7 @@ function buildChartControls(){
   new ResizeObserver(() => {
     if(chart) chart.setSize({ width: chartWidth(), height: chartHeight() });
     if(stackObj) stackObj.resize();
-    if(histMode && histU) histU.setSize({ width: hvW(), height: hvH() });
+    if(histMode && histU) histU.setSize({ width: histWidth(), height: histHeight() });
   }).observe(el('panel'));
   el('exportpng').addEventListener('click', exportChartPNG);
   el('pngclose').addEventListener('click', closePngSheet);
