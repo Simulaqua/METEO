@@ -23,7 +23,7 @@ const MESI_BR = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','no
 let histMode = false, histVar = 'PREC', histView = 'giorni', histRange = 0,
     histU = null, histData = null, histWin = null, hvHint = true;
 const histCache = {};
-let _histIndexP = null;                    // index.json del ramo 'history' (una richiesta per sessione)
+let _histIndexP = null;
 function histIndex(){
   if(!_histIndexP) _histIndexP = fhist('index.json').then(r => r.ok ? r.json() : null).catch(() => null);
   return _histIndexP;
@@ -201,7 +201,6 @@ const hvTempOpts = (w, days) => hvBase({
     { stroke:AXTX(), width:w, points:{ show:false } }
   ]
 }, days);
-// segno della chiave e dell'etichetta: rettangolino (barre, banda) o trattino (linee; sottile = incompleto)
 const hvSw = (c, line, thin) =>
   '<span class="sw' + (line ? ' ln' : '') + (thin ? ' thin' : '') + '" style="' +
   (line ? 'border-color:' : 'background:') + c + '"></span>';
@@ -258,7 +257,7 @@ const hvYearColor = age => {
 };
 function hvYearsView(h, v){
   const isP = v === 'PREC', val = isP ? h.p : h.tm, hrs = isP ? h.hp : h.ht;
-  const yrs = {};                                                  // anno -> accumulatori
+  const yrs = {};
   for(let i = 0; i < h.n; i++){
     const d = new Date(h.x[i] * 1000), y = d.getUTCFullYear(), mo = d.getUTCMonth();
     const Y = yrs[y] || (yrs[y] = {
@@ -306,7 +305,7 @@ function hvYearsView(h, v){
     // incompleto (piu' sottile): dati da dopo il 10 gennaio o meno del 90% dei giorni completi
     part:Y.first > 10 || Y.have < 0.9 * (Y.last - Y.first + 1)
   }));
-  const ends = [];                                 // l'ultimo punto di ogni linea, per il nome
+  const ends = [];
   lines.forEach(o => {
     let j = nx - 1;
     while(j >= 0 && o.Y.arr[j] == null) j--;
@@ -401,7 +400,6 @@ function hvDecorate(u, r){
   });
   if(r.days) hvZoom(u);
 }
-// suggerimento dello zoom a sinistra sopra i dati; se toccherebbe la chiave non si mostra
 function hvHintFit(u){
   const h = u._hint;
   if(!h) return;
@@ -420,7 +418,6 @@ function hvHintFit(u){
 const HV_MINW = 3 * 86400;
 const hvKey = st => st ? st._region + '|' + st.scode : '';
 const hvFull = h => ({ min:h.x[0] - 43200, max:h.x[h.n - 1] + 43200 }); // mezza giornata ai lati
-// gli ultimi r giorni (30, 90, 365); 0 = tutto
 function hvRangeWin(h, r){
   const last = h.x[h.n - 1], lo = r ? Math.max(h.x[0], last - (r - 1) * 86400) : h.x[0];
   return { min:lo - 43200, max:last + 43200 };
@@ -470,7 +467,7 @@ function hvZoom(u){
     const f = hvFull(histData), fw = f.max - f.min;
     return Math.min(fw, Math.max(Math.min(HV_MINW, fw), w));
   };
-  const val = x => win().min + x / W() * (win().max - win().min);               // istante sotto il pixel x
+  const val = x => win().min + x / W() * (win().max - win().min);
   const zoomAt = (x, k) => {
     const v = val(x), w = clampW((win().max - win().min) * k), mn = v - x / W() * w;
     return hvSetWin(u, mn, mn + w, true);
@@ -479,7 +476,7 @@ function hvZoom(u){
     const s = win(), d = px / W() * (s.max - s.min);
     return hvSetWin(u, s.min + d, s.max + d, true);
   };
-  let gest = null;                                                             // pizzico di Safari sul Mac
+  let gest = null;
   // Un gesto della rotellina (scatti a meno di 300 ms l'uno dall'altro) resta di chi l'ha preso: il grafico
   // se ha zoomato o spostato, se no la pagina. Cosi' ai limiti (tutto il periodo in giu', 3 giorni in su) un
   // gesto nuovo fa scorrere la pagina, la coda di uno zoom non finisce nella pagina e un gesto partito
@@ -490,7 +487,7 @@ function hvZoom(u){
     if(!e.cancelable) return;                     // la pagina scorre gia' (Chrome: non si annulla piu')
     if(gest && e.ctrlKey){ e.preventDefault(); return; }
     const t = e.timeStamp, inGesture = t - Math.max(lastChart, lastPage) < 300;
-    if(!e.ctrlKey && inGesture && lastPage > lastChart){ lastPage = t; return; }    // gesto della pagina
+    if(!e.ctrlKey && inGesture && lastPage > lastChart){ lastPage = t; return; }
     const keep = () => { e.preventDefault(); lastChart = t; };
     const px = e.deltaMode === 1 ? 16 : e.deltaMode ? W() : 1, dy = e.deltaY;
     if(!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(dy)){     // di lato: sposta, senza "indietro" del browser
@@ -504,7 +501,6 @@ function hvZoom(u){
     const q = dy / 4.000244140625;
     if(!e.ctrlKey && !e.deltaMode && dy && Math.abs(q - Math.round(q)) < 1e-6)
       z = Math.sign(dy) * Math.max(0.2, Math.abs(z));
-    // il pizzico (Ctrl) resta sempre al grafico: mai lo zoom della pagina
     if(zoomAt(lx(e), Math.pow(2, Math.max(-1, Math.min(1, z)))) || e.ctrlKey || inGesture) keep();
     else lastPage = t;
   }, { passive:false });
@@ -541,7 +537,7 @@ function hvZoom(u){
       const g = two();
       u._pinch = { d:g.d, w:win(), v:val(g.m) };
       drag = null;
-      u.setCursor({ left:-10, top:-10 });                      // niente riquadro mentre si allarga
+      u.setCursor({ left:-10, top:-10 });
     } else if(pts.size === 1) drag = { id:e.pointerId, x:e.clientX, w:win() };
   });
   o.addEventListener('pointermove', e => {
@@ -561,14 +557,14 @@ function hvZoom(u){
     if(!p) return;
     pts.delete(e.pointerId);
     if(e.type === 'pointerup' && !p.multi &&
-       Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10 && e.timeStamp - p.t < 300){       // un tocco
+       Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10 && e.timeStamp - p.t < 300){
       if(lastTap && e.timeStamp - lastTap.t < 350 && Math.abs(e.clientX - lastTap.x) < 30){
         lastTap = null;
         hvReset(u);
       }
       else lastTap = { t:e.timeStamp, x:e.clientX };
     }
-    if(pts.size === 1){                                        // resta un dito: sposta da li'
+    if(pts.size === 1){
       const [id, q] = [...pts.entries()][0];
       u._pinch = null;
       drag = { id, x:q.x, w:win() };
@@ -594,7 +590,6 @@ function hvZoom(u){
   });
   o.addEventListener('gestureend', e => { e.preventDefault(); gest = null; });
 }
-// il riquadro sta in alto, accanto alla linea del cursore (a sinistra vicino al bordo destro)
 function hvCursor(u){
   const tip = u._tip, i = u.cursor.idx, l = u.cursor.left;
   if(!tip) return;
@@ -662,7 +657,7 @@ async function renderHist(){
     return;
   }
   histData = h;
-  if(histWin && histWin.key !== hvKey(st)) histWin = null;      // lo zoom vale per la sua stazione
+  if(histWin && histWin.key !== hvKey(st)) histWin = null;
   if(histVar === 'PREC' && !h.hasP && h.hasT) histVar = 'TEMP';
   if(histVar === 'TEMP' && !h.hasT && h.hasP) histVar = 'PREC';
   hvSync(h);
@@ -687,7 +682,6 @@ async function renderHist(){
   hvNoteSet(h);
   updateHash();
 }
-// riga sotto la vista: "Dati dal ... al ..." e la "i" che apre il metodo; senza dati solo il messaggio
 function hvNoteSet(h, msg){
   const d = ts => {
     const t = new Date(ts * 1000);
@@ -709,8 +703,8 @@ function exitHist(){
   b.classList.remove('active');
   b.setAttribute('aria-pressed', 'false');
   if(histU){ histU.destroy(); histU = null; }
-  hvInfo(false);                                           // la prossima volta il metodo parte chiuso
-  histWin = null;                                          // e i Giorni senza lo zoom di prima
+  hvInfo(false);
+  histWin = null;
 }
 async function setHistMode(on, v, w){
   if(!on){
@@ -725,7 +719,7 @@ async function setHistMode(on, v, w){
   exitStack();
   document.body.classList.remove('rose-mode');
   histVar = hv.includes(v) ? v : (hv.includes(currentVar) ? currentVar : hv[0]);
-  currentVar = histVar;                                    // la pillola della variabile resta coerente
+  currentVar = histVar;
   if(w) histView = w;
   histMode = true;
   document.body.classList.add('hist-mode');

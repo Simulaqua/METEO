@@ -13,12 +13,8 @@ function resetPanel(){
   document.body.classList.remove('rose-mode');
   el('windrose').innerHTML = '';
 }
-// nota oraria (senza icona), mostrata in coda alla riga della fonte
 const TZNOTE = 'Orari in ora locale italiana (CET / CEST con ora legale).';
 
-// ------------------------------------------------------------------------------------------------
-// SELEZIONE STAZIONE -> SERIE
-// ------------------------------------------------------------------------------------------------
 // variabile con cui si apre una stazione, se la mappa non ne ha scelta una
 const OPEN_ORDER = ['TEMP', 'PREC', 'LIVIDRO'];
 // Accanto al nome: "234 · ultimo dato 14:30" se e' di oggi, se no "11/10 14:30" (l'anno solo se diverso).
@@ -35,12 +31,12 @@ function setMeta(code, c){
   el('stationMeta').textContent = code + (when ? ' · ultimo dato ' + when : '');
 }
 async function selectStation(props){
-  snapPause();                                   // il cursore del tempo si ferma
-  closeSheet();                                  // il foglio basso (ricerca, link, schede) si chiude
+  snapPause();
+  closeSheet();
   currentStation = props;
   selectedKey = props._region + '|' + props.scode;
   const region = props._region;
-  openStationTab(props);                         // scheda nella tab bar + vista stazione
+  openStationTab(props);
   if(props._lat != null) map.panTo([props._lat, props._lon]);
   currentUnits = unitsByRegion[region] || {};
   el('panel').scrollTop = 0;            // su telefono: la stazione si vede dall'inizio
@@ -71,15 +67,14 @@ async function selectStation(props){
   el('pact').hidden = false;
   el('pbar').hidden = false;
 
-  // chip delle variabili: solo quelle della pagina attiva (dirette / derivate / indici)
   const allVars = ((props.variables && props.variables.length) ? props.variables
                 : table.header.slice(1)).slice();
   if(windObsCount(table) >= 10) allVars.push(WROSE);   // chip "Rosa dei venti" fra le derivate
   const vars = allVars.filter(v => varCat(v) === currentPage).sort(natVars);
-  currentVar2 = null;                     // nuova stazione: via la 2ª variabile di prima
-  document.body.classList.remove('rose-mode');         // e si riparte dal grafico
+  currentVar2 = null;
+  document.body.classList.remove('rose-mode');
   buildVarButtons(vars);
-  updateClimaBox();                       // climatologia (solo pagina "indici")
+  updateClimaBox();
   const hasHist = stationHistVars(props).length > 0;
   el('histbtn').style.display = 'none';   // "Storico": solo con pioggia/temperatura E storico pubblicato
   if(hasHist) histIndex().then(ix => {
@@ -87,13 +82,13 @@ async function selectStation(props){
       el('histbtn').style.display = '';
   });
   if(histMode && !hasHist) exitHist();
-  if(histMode && hasHist){                // "Storico" resta attivo sulla nuova stazione
+  if(histMode && hasHist){
     if(!['PREC', 'TEMP'].includes(histVar) || !stationHistVars(props).includes(histVar))
       histVar = stationHistVars(props)[0];
     currentVar = histVar;
     syncVarButtons();
     renderHist();
-  } else if(stackMode){                   // "Impilato" resta attivo: l'intersezione con la nuova stazione
+  } else if(stackMode){
     const eff = effectiveStack();
     if(eff.length){
       currentVar = eff[0];
@@ -107,7 +102,7 @@ async function selectStation(props){
                : (OPEN_ORDER.find(v => vars.includes(v)) || vars[0]);
     drawVar(pick);
   } else {
-    clearChart();                         // questa stazione non ha variabili per la pagina attiva
+    clearChart();
   }
   setStatus('');
 
@@ -134,7 +129,7 @@ function buildVarButtons(vars){
                   + `<span class="vadd" title="Aggiungi come 2ª variabile (asse destro)">＋</span>`;
       b.onclick = (e) => {
         if(e.target.classList.contains('vadd')) toggleVar2(v);
-        else if(stackMode) toggleStackVar(v);       // Impilato: la pillola aggiunge o toglie un pannello
+        else if(stackMode) toggleStackVar(v);
         else drawVar(v);
       };
     }
@@ -148,18 +143,17 @@ function syncVarButtons(){
   const compare = isCompareMode();
   [...el('vars').children].forEach(b => {
     const v = b.dataset.var;
-    if(stackMode){                                  // Impilato: attive = variabili nella pila, niente '+'
+    if(stackMode){
       const si = effectiveStack().indexOf(v);
       b.classList.toggle('active', si >= 0);
       b.classList.remove('active2');
-      // la pillola prende il colore della sua fascia
       b.style.background = si >= 0 ? STACK_COLORS[si % STACK_COLORS.length] : '';
       b.style.borderColor = si >= 0 ? STACK_COLORS[si % STACK_COLORS.length] : '';
       const ad = b.querySelector('.vadd');
       if(ad) ad.style.display = 'none';
       return;
     }
-    b.style.background = '';                                 // fuori da Impilato: stile normale
+    b.style.background = '';
     b.style.borderColor = '';
     b.classList.toggle('active',  v === currentVar);
     b.classList.toggle('active2', !compare && v === currentVar2);
@@ -178,11 +172,11 @@ function drawVar(v){
       renderHist();
       return;
     }
-    exitHist();                               // altra variabile: si torna al grafico normale
+    exitHist();
   }
-  if(v === WROSE && stackMode) exitStack();   // la rosa sostituisce il grafico: si esce da "Impilato"
+  if(v === WROSE && stackMode) exitStack();
   currentVar = v;
-  if(stackMode){                               // Impilato: la variabile entra nella pila (max STACK_MAX)
+  if(stackMode){
     currentVar2 = null;
     const cur = effectiveStack();
     if(!cur.includes(v)){
@@ -192,7 +186,7 @@ function drawVar(v){
     stackVars = cur;
   } else if(currentVar2 === v) currentVar2 = null;   // principale e secondaria non possono coincidere
   syncVarButtons();
-  if(v === WROSE){                                   // la rosa prende il posto del grafico
+  if(v === WROSE){
     document.body.classList.add('rose-mode');
     updateWindRose();
   }
@@ -255,7 +249,6 @@ async function updateClimaBox(){
   box.innerHTML = html;
 }
 
-// aggiunge o toglie la 2ª variabile (linea rossa, asse destro); solo nei modi a variabile singola
 function toggleVar2(v){
   if(isCompareMode() || v === currentVar) return;
   currentVar2 = (currentVar2 === v) ? null : v;
@@ -263,7 +256,6 @@ function toggleVar2(v){
   renderChart(currentVar);
 }
 
-// scarica le serie mancanti delle schede aperte, per il confronto fra schede
 async function ensureTabTables(){
   for(const t of openTabs){
     if(t.props._table) continue;
@@ -275,7 +267,6 @@ async function ensureTabTables(){
   }
 }
 
-// ricarica i dati della stazione aperta e ridisegna il grafico
 async function refreshStation(){
   if(!currentStation) return;
   const region = currentStation._region;
@@ -288,7 +279,7 @@ async function refreshStation(){
     const t = parseCSV(csv);
     currentStation._table = t;
     const vars = t.header.slice(1);
-    if(currentVar === WROSE) updateWindRose();                       // resta sulla rosa, con i dati freschi
+    if(currentVar === WROSE) updateWindRose();
     else drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
     // Ultimo dato MISURATO: salta le righe con sole derivate/indici (GDD/ET0 alle 12:00 solari, la mattina
     // sono "nel futuro").
@@ -304,7 +295,6 @@ async function refreshStation(){
   btn.disabled = false;
 }
 
-// ---- modo "Impilato" ----
 let stackMode = false, stackVars = [], stackObj = null;
 // variabili "compagne" proposte attivando Impilato con una sola variabile (max 3 pannelli iniziali)
 const STACK_COMPANIONS = {
@@ -315,7 +305,6 @@ const STACK_COMPANIONS = {
   MAREA:['ONDE','VVENTO','PRESS'], ONDE:['MAREA','VVENTO'],
   PM10:['PM25','NO2','O3'], PM25:['PM10','NO2'], NO2:['O3','PM10'], O3:['NO2','PM10']
 };
-// variabili della stazione aperta (tutte le pagine, senza la rosa dei venti)
 function stationVarsAll(){
   if(!currentStation) return [];
   const t = currentStation._table;
@@ -342,7 +331,7 @@ function stackSuggest(v){
   });
   return out;
 }
-function exitStack(){               // spegne il modo senza ridisegnare (lo fa chi chiama)
+function exitStack(){
   if(!stackMode) return;
   stackMode = false;
   document.body.classList.remove('stacked');
@@ -412,17 +401,16 @@ function renderStackView(){
   });
 }
 
-// ---- barra delle schede: [Mappa] + una scheda per ogni stazione aperta ----
-let openTabs = [];                     // [{key, props}] in ordine di apertura
+let openTabs = [];
 const MAX_TABS = 8;
 const tabKeyOf = p => p._region + '|' + p.scode;
 function openStationTab(props){
   const key = tabKeyOf(props);
   const t = openTabs.find(x => x.key === key);
-  if(t) t.props = props;                            // riferimento nuovo dopo il ricaricamento delle regioni
+  if(t) t.props = props;
   else {
     openTabs.push({key, props});
-    if(openTabs.length > MAX_TABS) openTabs.shift();  // oltre il limite chiude la piu' vecchia
+    if(openTabs.length > MAX_TABS) openTabs.shift();
   }
   document.body.classList.add('view-station');
   document.body.classList.remove('view-compare');
@@ -471,7 +459,7 @@ function closeCompare(){
 // vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
 async function renderCompareView(){
   exitHist();
-  exitStack();                                    // il confronto fra schede e' a variabile singola
+  exitStack();
   document.body.classList.add('view-station', 'view-compare');
   document.body.classList.remove('rose-mode');
   el('panel').scrollTop = 0;
@@ -532,7 +520,6 @@ function closeTab(key){
   );
 }
 
-// carica su richiesta la serie a 30 giorni (series30/) per il "Confronto 30 giorni" e la tiene in cache
 async function ensureTable30(){
   if(!currentStation) return false;
   if(currentStation._table30) return true;
@@ -549,12 +536,12 @@ async function ensureTable30(){
 
 // modi grafico: 7 g / 3 g / 24 h e, nel menu "Confronti", Confronto 7 giorni / 30 giorni / schede
 async function pickMode(mode){
-  if(mode === 'tabs'){ openCompareTab(); return; }   // scheda dedicata, non un modo
+  if(mode === 'tabs'){ openCompareTab(); return; }
   chartMode = mode;
   syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
-  if(chartMode === 'compare' || chartMode === 'compare30') exitStack();   // confronti: variabile singola
-  syncVarButtons();                        // nasconde il '+' nei confronti, lo mostra nei modi singoli
+  if(chartMode === 'compare' || chartMode === 'compare30') exitStack();
+  syncVarButtons();
   if(!currentStation || !currentVar) return;
   if(chartMode === 'compare30'){
     const ok = await ensureTable30();
@@ -598,8 +585,8 @@ function cmpClose(refocus){
 function updateHash(){
   if(!currentStation) return;
   const parts = [currentStation._region, currentStation.scode, currentVar || ''];
-  if(stackMode) parts.push('S:' + effectiveStack().join(','));  // 4a parte: variabili della pila
-  else if(histMode) parts.push('H:' + histVar + ':' + histView);   // 4a parte: storico (variabile e vista)
+  if(stackMode) parts.push('S:' + effectiveStack().join(','));
+  else if(histMode) parts.push('H:' + histVar + ':' + histView);
   const enc = p => encodeURIComponent(p).replace(/%3A/gi, ':').replace(/%2C/gi, ',');   // ':' e ',' leggibili
   history.replaceState(null, '', '#' + parts.map(enc).join('/'));
 }
@@ -629,7 +616,7 @@ async function applyHash(){
     const [, hv, hw] = sp.split(':');
     await setHistMode(true, hv, ['mesi', 'anni', 'giorni', 'tabella'].includes(hw) ? hw : undefined);
   }
-  syncPills();                                                   // il link puo' cambiare la pagina
+  syncPills();
 }
 
 let _rsT = null;
