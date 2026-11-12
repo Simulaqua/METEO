@@ -428,9 +428,9 @@
    },
    "giro": "primo giro",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -482,7 +482,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "46a725983eade72b0b380239393c71457224ce84"
+    "last_page_hash": "ae5d6c57c901682c0d4a904404ba87b9c7554114"
    },
    "uguale_al_sito": true
   },
@@ -577,9 +577,9 @@
    },
    "giro": "invariato",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -631,7 +631,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "46a725983eade72b0b380239393c71457224ce84"
+    "last_page_hash": "ae5d6c57c901682c0d4a904404ba87b9c7554114"
    },
    "uguale_al_sito": true
   },
@@ -726,9 +726,9 @@
    },
    "giro": "dato nuovo",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -780,7 +780,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "46a725983eade72b0b380239393c71457224ce84"
+    "last_page_hash": "ae5d6c57c901682c0d4a904404ba87b9c7554114"
    },
    "uguale_al_sito": true
   },
@@ -875,9 +875,9 @@
    },
    "giro": "pagina cambiata",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -929,7 +929,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "655e60583c673bdde8bacecaea6a5cb045e67ce7"
+    "last_page_hash": "6db62106badae00724b382aaf79c2efb9a6b3061"
    },
    "uguale_al_sito": true
   },
@@ -1024,9 +1024,9 @@
    },
    "giro": "stile cambiato",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1078,7 +1078,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "93f2225dd630128f373694d373fc14e394ee4630"
+    "last_page_hash": "c408a9cbeba26a849c0318cd70755e12e8f7be26"
    },
    "uguale_al_sito": true
   },
@@ -1173,9 +1173,9 @@
    },
    "giro": "file della pagina mancante",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1226,7 +1226,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "93f2225dd630128f373694d373fc14e394ee4630"
+    "last_page_hash": "c408a9cbeba26a849c0318cd70755e12e8f7be26"
    },
    "uguale_al_sito": true
   },
@@ -1321,9 +1321,9 @@
    },
    "giro": "testo spostato fra due file",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1375,7 +1375,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": true
   },
@@ -1470,9 +1470,9 @@
    },
    "giro": "riferimento locale non pubblicato",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1523,7 +1523,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": true
   },
@@ -1618,9 +1618,9 @@
    },
    "giro": "lock occupato",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1672,7 +1672,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": false,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": false
   },
@@ -1767,9 +1767,9 @@
    },
    "giro": "remoto spostato 1",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1821,7 +1821,7 @@
    "tracking": {
     "data_push_fails": "1",
     "last_data_hash": false,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": false
   },
@@ -1916,9 +1916,9 @@
    },
    "giro": "remoto spostato 2",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -1970,7 +1970,7 @@
    "tracking": {
     "data_push_fails": "2",
     "last_data_hash": false,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": false
   },
@@ -2023,9 +2023,9 @@
    "delta": null,
    "giro": "remoto spostato 3",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -2077,7 +2077,7 @@
    "tracking": {
     "data_push_fails": "3",
     "last_data_hash": false,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": false
   },
@@ -2172,9 +2172,9 @@
    },
    "giro": "remoto rimesso",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -2226,7 +2226,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "9ac2ebb4664cdd85b9997f1e1fa48cea04e51cd6"
+    "last_page_hash": "e25d96ba4e9bd2269b759b9a781775cac90bc7f3"
    },
    "uguale_al_sito": true
   },
@@ -2323,9 +2323,9 @@
    },
    "giro": "status.py fermo",
    "pagina": [
-    "100644 blob 112b26fce192594a545942975682c85c9287d4cb\t.github/workflows/watchdog.yml",
-    "100644 blob b1e5ca8900857ad24e2ccc25615a26d1271967c5\t.github/workflows/watchdog_backup.yml",
-    "100644 blob b18741a779dcca9147d801e542744b5e76a12ff6\t.github/workflows/watchdog_storico.yml",
+    "100644 blob 28d7c61329f6a6c5fb9ad2af0bfc71ab4454283d\t.github/workflows/watchdog.yml",
+    "100644 blob 76a4d28239e1f797fe7cddb04e66ce5581a40375\t.github/workflows/watchdog_backup.yml",
+    "100644 blob 302f17a75146c8171d2f6c014afa4ec6fc009f89\t.github/workflows/watchdog_storico.yml",
     "100644 blob 1061af38bb51f188a01417d7697cafa19f061926\tCNAME",
     "100644 blob 282aff82946c1fc38c0429d625bcb01cf1fa4bfc\tcomune.js",
     "100644 blob 7e73e788d596c128d6c6b25e00b47d3b856949a9\tfavicon.ico",
@@ -2378,7 +2378,7 @@
    "tracking": {
     "data_push_fails": null,
     "last_data_hash": true,
-    "last_page_hash": "6c33a44e6aba838f9040543633372f6c284f01b8"
+    "last_page_hash": "c7555cfe98506abaf3cd3c3c9a298e5dc9190efe"
    },
    "uguale_al_sito": true
   }
