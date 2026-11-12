@@ -41,8 +41,9 @@ const REGION_GROUPS = {
 const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PIE');
 
 // Categoria di ogni variabile = le 3 pagine (misure dirette, derivate, indici).
+const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (derivate): velocita' con le frecce
 const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
-const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE]);
+const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WARROW, WROSE]);
 const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48',
                               'GDD','HDD','CDD','ET0']);
 
@@ -62,7 +63,8 @@ const natCode = (a, b) => {                                     // codici: ordin
   return x < y ? -1 : (x > y ? 1 : 0);
 };
 const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
-const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || natCode(a, b);   // la rosa in coda
+const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || ((a === WARROW) - (b === WARROW))
+  || natCode(a, b);   // la rosa in coda
 // Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
 const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
 function fmtNum(v, vr){
@@ -101,7 +103,8 @@ const VAR_LABELS = {
   PREC24:'Pioggia 24 h', PREC48:'Pioggia 48 h',
   GDD:'Gradi-giorno crescita', HDD:'Gradi-giorno riscaldamento', CDD:'Gradi-giorno raffrescamento',
   ET0:'Evapotraspirazione ET₀',
-  // pseudo-variabile
+  // pseudo-variabili
+  FRECCEVENTO:'Vento',
   ROSAVENTO:'Rosa dei venti'
 };
 const varLabel = v => VAR_LABELS[v] || v;

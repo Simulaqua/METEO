@@ -69,7 +69,7 @@ async function selectStation(props){
 
   const allVars = ((props.variables && props.variables.length) ? props.variables
                 : table.header.slice(1)).slice();
-  if(windObsCount(table) >= 10) allVars.push(WROSE);   // chip "Rosa dei venti" fra le derivate
+  if(windObsCount(table) >= 10) allVars.push(WARROW, WROSE);   // chip "Vento" e "Rosa dei venti" fra le derivate
   const vars = allVars.filter(v => varCat(v) === currentPage).sort(natVars);
   currentVar2 = null;
   document.body.classList.remove('rose-mode');
@@ -122,6 +122,9 @@ function buildVarButtons(vars){
       b.classList.add('vrose');
       b.innerHTML = `<span class="vnm">🧭 ${varLabel(v)}</span>`;
       b.onclick = () => drawVar(WROSE);
+    } else if(v === WARROW){                // velocita' con le frecce della direzione: niente 2ª variabile
+      b.innerHTML = `<span class="vnm">${varLabel(v)}</span>`;
+      b.onclick = () => drawVar(WARROW);
     } else {
       // Clic sul nome: variabile principale (blu); sul '+': 2ª variabile (rossa, asse destro).
       // Niente unita' nel nome: e' gia' sull'asse Y, nei pannelli di "Impilato" e nell'etichetta del cursore.
@@ -174,7 +177,11 @@ function drawVar(v){
     }
     exitHist();
   }
-  if(v === WROSE && stackMode) exitStack();
+  if((v === WROSE || v === WARROW) && stackMode) exitStack();
+  if(v === WARROW && isCompareMode()){             // i confronti sono per una variabile vera
+    chartMode = 'week';
+    syncModes();
+  }
   currentVar = v;
   if(stackMode){
     currentVar2 = null;
@@ -311,7 +318,7 @@ function stationVarsAll(){
   const base = (currentStation.variables && currentStation.variables.length)
     ? currentStation.variables
     : (t ? t.header.slice(1) : []);
-  return base.filter(v => v !== WROSE && (!t || t.cols[v]));
+  return base.filter(v => v !== WROSE && v !== WARROW && (!t || t.cols[v]));
 }
 // Pila effettiva = scelta dell'utente (stackVars) ∩ variabili della stazione aperta; se vuota, una sola
 // variabile. Cambiando stazione la scelta non viene toccata: tornando su una stazione completa riappare.
@@ -479,7 +486,7 @@ async function renderCompareView(){
   await ensureTabTables();
   const set = new Set();
   openTabs.forEach(t => (t.props.variables || []).forEach(v => {
-    if(v !== WROSE) set.add(v);
+    if(v !== WROSE && v !== WARROW) set.add(v);
   }));
   const vars = [...set].sort((a,b) => natLabel(varLabel(a), varLabel(b)));
   if(!compareVar || !set.has(compareVar)) compareVar = set.has(currentVar) ? currentVar : vars[0];

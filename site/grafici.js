@@ -275,6 +275,8 @@ function legendCursor(u){
     if(gi == null || u.cursor.left == null || u.cursor.left < 0){ tip.style.display = 'none'; return; }
     const parts = [], v = val(1);
     if(v != null) parts.push('<b class="c1">' + v + un(m.unit1) + '</b>');
+    const dw = m.wind && m.wind.dirs[at(1)];
+    if(dw != null) parts.push('<span>da ' + windDirHtml(dw) + '</span>');
     if(m.iV2){
       const v2 = val(m.iV2);
       if(v2 != null) parts.push('<b class="c2">' + v2 + un(m.unit2) + '</b>');
@@ -705,6 +707,62 @@ function fitDailyCum(u, daily){
   const r = cumY(() => top).range(u, sc.min, sc.max);
   u.setScale('cum', { min: r[0], max: r[1] });
 }
+// Frecce del vento: dove va (provenienza + 180°) e quanto forte. Nelle 24 h e in MN una per lettura; su 3 e
+// 7 giorni una per ora, con la velocita' media e la direzione media vettoriale dell'ora, a meta' ora. Con la
+// calma (velocita' 0) la direzione non vale: niente freccia.
+function windArrows(xs, sp, dir, from, to, hourly){
+  const out = [], hours = new Map();
+  for(let i = 0; i < xs.length; i++){
+    const x = xs[i], s = sp[i], d = dir[i];
+    if(x == null || x < from || x > to || s == null || d == null || !(s > 0)) continue;
+    if(!hourly){
+      out.push({ x, s, d });
+      continue;
+    }
+    const h = Math.floor((x - 1) / HOUR) * HOUR, r = d * Math.PI / 180;
+    const a = hours.get(h) || { n: 0, s: 0, e: 0, nn: 0 };
+    a.n++;
+    a.s += s;
+    a.e += s * Math.sin(r);
+    a.nn += s * Math.cos(r);
+    hours.set(h, a);
+  }
+  hours.forEach((a, h) => out.push({
+    x: h + HOUR / 2, s: a.s / a.n, d: (Math.atan2(a.e, a.nn) * 180 / Math.PI + 360) % 360
+  }));
+  return out.sort((p, q) => p.x - q.x);
+}
+function drawArrows(arrows, color, hi, dense){
+  return u => {
+    const ctx = u.ctx, bb = u.bbox, pr = devicePixelRatio || 1, sx = u.scales.x;
+    const n = (hi ? (dense ? 8 : 11) : (dense ? 4.5 : 6.5)) * pr;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bb.left, bb.top, bb.width, bb.height);
+    ctx.clip();
+    ctx.strokeStyle = ctx.fillStyle = color;
+    ctx.lineWidth = (hi ? 2.2 : 1.4) * pr;
+    ctx.lineCap = 'round';
+    arrows.forEach(a => {
+      if(a.x < sx.min || a.x > sx.max) return;
+      ctx.save();
+      ctx.translate(u.valToPos(a.x, 'x', true), u.valToPos(a.s, 'y', true));
+      ctx.rotate((a.d + 180) * Math.PI / 180);
+      ctx.beginPath();
+      ctx.moveTo(0, n);
+      ctx.lineTo(0, -n);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -n - pr);
+      ctx.lineTo(-n * 0.55, -n * 0.25);
+      ctx.lineTo(n * 0.55, -n * 0.25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
+  };
+}
 function addDailyHooks(hooks, daily, color, hi){
   const add = (k, f) => { hooks[k] = (hooks[k] || []).concat(f); };
   add('draw', drawDaily(daily, color, hi));
@@ -911,7 +969,11 @@ function renderChart(label){
   mainStats(chart);
 }
 function mainModel(st, v, v2, mode){
-  const t = st._table;
+  const t = st._table, arrows = v === WARROW;
+  if(arrows){
+    v = 'VVENTO';
+    v2 = null;
+  }
   let lo = Infinity, hi = -Infinity;
   for(const x of t.x) if(x != null && !isNaN(x)){
     if(x < lo) lo = x;
@@ -936,6 +998,16 @@ function mainModel(st, v, v2, mode){
   const cum = (!s2 && v === 'PREC') ? rainCum(s1.rs, to) : null;
   // in MN la linea del giorno coinciderebbe con la cumulata
   const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
+  let wind = null;
+  if(arrows){
+    const dir = t.cols.DVENTO || [], at = new Map();
+    t.x.forEach((x, i) => { if(x != null && dir[i] != null) at.set(x, dir[i]); });
+    const sp = applyOff(t.cols.VVENTO || [], varOffset(v, st), varScale(v, st));
+    wind = {
+      arrows: windArrows(t.x, sp, dir, from, to, !rawMode(mode)), dense: rawMode(mode),
+      dirs: s1.x.map(x => at.has(x) ? at.get(x) : null)
+    };
+  }
   const tabs = [[s1.x, s1.y]];
   if(s2) tabs.push([s2.x, s2.y]);
   if(cum) tabs.push([cum.x, cum.y]);
@@ -945,7 +1017,7 @@ function mainModel(st, v, v2, mode){
   if(mode === 'mn' && !data[0].length) data = [[from, to]].concat(data.slice(1).map(() => [null, null]));
   const X = data[0];
   return {
-    st, v, v2, s1, s2, cum, daily, data,
+    st, v, v2, s1, s2, cum, daily, wind, data,
     win: mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null),
     gaps: [].concat(s1.rs ? s1.rs.gaps : [], s2 && s2.rs ? s2.rs.gaps : []),
     iV2: s2 ? 2 : null, iCum: cum ? (s2 ? 3 : 2) : null,
@@ -971,13 +1043,19 @@ function mainOpts(m, o){
     if(right) a.side = 1;
     return isDirVar(s.v) ? dirAxis(a) : a;
   };
-  const series = [{ value: (u, ts) => ts == null ? '--' : fmtFull(ts) }, ser(m.s1, C1, 'y')];
+  const s1 = m.wind
+    ? mkSeries({
+        label: varLabel(m.v), color: withAlpha(C1, 0.45), scale: 'y', pts: false, width: hi ? 1.6 : 1
+      }, hi)
+    : ser(m.s1, C1, 'y');
+  const series = [{ value: (u, ts) => ts == null ? '--' : fmtFull(ts) }, s1];
   const axes = [
     Object.assign({ grid:{ stroke: grid }, stroke: ax, values: (u, ticks) => ticks.map(fmtAxis) },
                   hi ? { size: 46 } : {}, fnt),
     yAxis(m.s1, 'y', (hi && !m.s2 && !m.cum) ? '#33475a' : C1, m.unit1, false)
   ];
-  const scales = { y: yScaleFor(m.v) };
+  const windY = { range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.15)] };
+  const scales = { y: m.wind ? windY : yScaleFor(m.v) };
   if(m.s2){
     series.push(ser(m.s2, C2, 'y2'));
     axes.push(yAxis(m.s2, 'y2', C2, m.unit2, true));
@@ -1000,6 +1078,7 @@ function mainOpts(m, o){
                    : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor],
                        setScale: [(u, key) => { if(key === 'x') mainStats(u); }] };
   if(m.daily) addDailyHooks(hooks, m.daily, CC, hi);
+  if(m.wind) hooks.draw = (hooks.draw || []).concat(drawArrows(m.wind.arrows, C1, hi, m.wind.dense));
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
     cursor: hi ? { show:false }

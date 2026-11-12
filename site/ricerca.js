@@ -413,7 +413,7 @@ function buildSearchControls(){
     const sf = selectedFeature();
     if(sf){
       const base = (sf.properties.variables || []).slice();
-      if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WROSE);
+      if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WARROW, WROSE);
       const vars = base.filter(v => varCat(v) === currentPage).sort(natVars);
       buildVarButtons(vars);
       updateClimaBox();

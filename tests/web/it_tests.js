@@ -884,6 +884,35 @@
     document.querySelector('#modes [data-mode="week"]').click(); await sleep(400);
     setStackMode(false); await sleep(200);
     await mode('week');
+    // "Vento": velocita' con le frecce della direzione, se la stazione ha direzione e velocita'
+    const WV = pick(p => has(p, 'DVENTO') && has(p, 'VVENTO'));
+    log(!!WV, 'stazione con direzione e velocità del vento', '');
+    if(WV){
+      await open(WV);
+      const pg = document.querySelector('#pages .pg[data-page="' + varCat(WARROW) + '"]');
+      if(pg) pg.click();
+      await sleep(400);
+      const chip = document.querySelector('#vars [data-var="' + WARROW + '"]');
+      log(!!chip && !chip.querySelector('.vadd'), 'Vento: chip fra le derivate, senza "+"', chip ? chip.outerHTML.slice(0, 80) : '');
+      drawVar(WARROW);
+      await until(() => chart && chart._m && chart._m.wind); await sleep(300);
+      const ar = chart._m.wind.arrows;
+      log(ar.length > 0 && ar.every(a => a.s > 0 && a.d >= 0 && a.d < 360), 'Vento 7 g: frecce sulla velocità', ar.length);
+      log(chart.scales.y.min === 0, 'Vento: asse della velocità da zero', chart.scales.y.min);
+      const ora = ar.every(a => (a.x % HOUR) === HOUR / 2);
+      log(ora, 'Vento 7 g: una freccia all\'ora, a metà ora', '');
+      await mode('day');
+      const ar24 = chart._m.wind.arrows;
+      log(ar24.length > 0 && ar24.every(a => currentStation._table.x.includes(a.x)), 'Vento 24 h: una freccia per lettura', ar24.length);
+      const k = chart._m.wind.dirs.findIndex(d => d != null);
+      if(k >= 0){
+        chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 20 }); await sleep(200);
+        log(/da <span class="wdir"/.test(chart._tip ? chart._tip.innerHTML : ''), 'Vento: l\'etichetta del cursore dice da dove viene', chart._tip ? chart._tip.textContent : '');
+      }
+      await mode('week');
+      document.querySelector('#pages .pg[data-page="' + varCat('TEMP') + '"]').click();
+      await sleep(300);
+    }
     showMapView(); setMapVar('');
     eq('errori JS', window.__errs, []);
     finish();
