@@ -1,9 +1,10 @@
-// comune.js: quello che usano tutti i file della pagina (stato, variabili, nomi, fonti, ore, lettura dei dati) e l'avvio.
-// Caricato prima di mappa.js e degli altri, che usano queste costanti. DATA_BASE e HIST_BASE sono in index.html.
+// comune.js: quello che usano tutti i file (stato, variabili, nomi, fonti, ore, lettura dei dati) e l'avvio.
+// Va caricato prima di mappa.js e degli altri, che usano queste costanti.
+// DATA_BASE e HIST_BASE sono in index.html.
 
-// CDN di riserva: se un file non arriva dalla base dati (es. il 400 da cache avvelenata di
-// raw.githubusercontent visto il 31/08 su PC_PIE), riprova da jsDelivr (stesso repo, branch data;
-// al piu' ~12h di ritardo). Attiva solo online: in locale (DATA_BASE '.') nessun fallback.
+// CDN di riserva: se un file non arriva dalla base dati (raw.githubusercontent puo' dare un 400 da
+// cache), riprova da jsDelivr (stesso repo, branch data; fino a ~12 h di ritardo).
+// Solo online: in locale (DATA_BASE '.') nessun fallback.
 const DATA_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@data';
 async function fdata(path, opts){
   try {
@@ -19,10 +20,11 @@ async function fdata(path, opts){
 let map, chart = null;
 let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
 let allFeatures = [], filterVar = '', selectedKey = '';
-let chartMode = 'week';   // 'week' | 'day3' | 'day' | 'mn' (grafico principale) | 'compare' | 'compare30' | 'tabs' (confronti)
+// grafico principale: 'week' | 'day3' | 'day' | 'mn'; confronti: 'compare' | 'compare30' | 'tabs'
+let chartMode = 'week';
 
-// ogni voce geografica del menu carica PIU' cartelle-dati: meteo/idro + qualita' aria (AQ_) +
-// idrometria Protezione Civile (PC_). Le stazioni (tutte con lat/lon) convivono sulla stessa mappa.
+// Ogni voce geografica del menu carica piu' cartelle-dati: meteo/idro, qualita' dell'aria (AQ_),
+// idrometria Protezione Civile (PC_)... Le stazioni hanno tutte lat/lon e stanno sulla stessa mappa.
 const REGION_GROUPS = {
   VEN: ['VEN','AQ_VEN','MAR_VEN','ACQ_VEN'],
   LOM: ['LOM','AQ_LOM'],
@@ -30,35 +32,44 @@ const REGION_GROUPS = {
   TN:  ['TN','AQ_TN','PC_TN'],
   BZ:  ['BZ','AQ_BZ'],
   FVG: ['FVG','PC_FVG','MAR_FVG'],
-  PIE: ['PIE'],                  // ARPA Piemonte: tutte le stazioni, meteo + livelli
+  PIE: ['PIE'],
   LIG: ['LIG'],
-  PO:  ['PC_PO','PC_PIE'],        // bacino del Po: AIPO (valle) + ARPA Piemonte (monte), cross-regionale
-  LAGHI: ['LAGHI'],              // grandi laghi regolati (Maggiore/Como/Iseo/Idro/Garda)
+  PO:  ['PC_PO','PC_PIE'],        // bacino del Po: AIPO (valle) + ARPA Piemonte (monte)
+  LAGHI: ['LAGHI'],              // Maggiore, Como, Iseo, Idro, Garda
 };
-// "Tutte" senza PC_PIE: sono gli stessi idrometri gia' dentro PIE (stesso scarico, stesse sigle) -> niente doppioni
+// "Tutte" senza PC_PIE: sono gli stessi idrometri gia' dentro PIE, niente doppioni.
 const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PIE');
 
-// categoria di ogni variabile -> le 3 "pagine" del portale (misure dirette / derivate / indici)
-const WROSE = 'ROSAVENTO';                       // pseudo-variabile (gruppo derivate): apre la rosa dei venti
+// Categoria di ogni variabile = le 3 pagine (misure dirette, derivate, indici).
+const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
 const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE]);
-const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48','GDD','HDD','CDD','ET0']);
+const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48',
+                              'GDD','HDD','CDD','ET0']);
 
 const RAIN_VARS = ['PREC1','PREC3','PREC6','PREC12','PREC24','PREC48'];
 const isRain = v => RAIN_VARS.indexOf(v) >= 0;
-// pioggia (per intervallo e cumulate 1-48 h): in TUTTI i grafici barre verticali
+// la pioggia (per intervallo e cumulate 1-48 h) e' sempre a barre verticali
 const isRainVar = v => v === 'PREC' || isRain(v);
-const isDirVar = v => v === 'DVENTO' || v === 'DVENTOMAX';     // direzione del vento: a puntini
+// la direzione del vento e' a puntini
+const isDirVar = v => v === 'DVENTO' || v === 'DVENTOMAX';
 function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
-let currentPage = 'dirette';                    // pagina attiva
+let currentPage = 'dirette';
 
-// ordine naturale dei numeri dentro i nomi (1 h, 3 h, 6 h, 12 h, 24 h... e non 1, 12, 24, 3, 48, 6); per il resto l'ordine non cambia
+// Ordine naturale dei numeri nei nomi (1 h, 3 h, 12 h, 24 h e non 1, 12, 24, 3).
 const padNum = s => String(s).replace(/\d+/g, m => m.padStart(4, '0'));
-const natCode = (a, b) => { const x = padNum(a), y = padNum(b); return x < y ? -1 : (x > y ? 1 : 0); };     // codici (ordine ASCII come l'export)
-const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));                                              // etichette (come prima)
-const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || natCode(a, b);                                  // la rosa dei venti resta in coda
-// livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m., non 109)
+const natCode = (a, b) => {                                     // codici: ordine ASCII come l'export
+  const x = padNum(a), y = padNum(b);
+  return x < y ? -1 : (x > y ? 1 : 0);
+};
+const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
+const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || natCode(a, b);   // la rosa in coda
+// Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
 const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
-function fmtNum(v, vr){ const a = Math.abs(v); const d = CM_VARS.has(vr) ? 2 : (a >= 100 ? 0 : (a >= 1 ? 1 : 2)); return (+v).toFixed(d); }
+function fmtNum(v, vr){
+  const a = Math.abs(v);
+  const d = CM_VARS.has(vr) ? 2 : (a >= 100 ? 0 : (a >= 1 ? 1 : 2));
+  return (+v).toFixed(d);
+}
 
 // nomi leggibili delle variabili (sigla comune -> nome esteso)
 const VAR_LABELS = {
@@ -82,34 +93,36 @@ const VAR_LABELS = {
   LIVLAGO:'Livello lago', AFFLUSSO:'Afflusso', DEFLUSSO:'Deflusso', VOLINVASO:'Volume invasato',
   // grandezze DERIVATE (calcolate)
   TDEW:'Punto di rugiada', TAPP:'Temperatura percepita', VPD:'Deficit press. vapore',
-  QSPEC:'Umidità specifica', PSLM:'Pressione al livello mare', UWND:'Vento (comp. Est)', VWND:'Vento (comp. Nord)',
+  QSPEC:'Umidità specifica', PSLM:'Pressione al livello mare',
+  UWND:'Vento (comp. Est)', VWND:'Vento (comp. Nord)',
   // INDICI
   EAQI:'Indice qualità aria (EAQI)', O3_8H:'Ozono (media 8h)',
   PREC1:'Pioggia 1 h', PREC3:'Pioggia 3 h', PREC6:'Pioggia 6 h', PREC12:'Pioggia 12 h',
   PREC24:'Pioggia 24 h', PREC48:'Pioggia 48 h',
-  GDD:'Gradi-giorno crescita', HDD:'Gradi-giorno riscaldamento', CDD:'Gradi-giorno raffrescamento', ET0:'Evapotraspirazione ET₀',
+  GDD:'Gradi-giorno crescita', HDD:'Gradi-giorno riscaldamento', CDD:'Gradi-giorno raffrescamento',
+  ET0:'Evapotraspirazione ET₀',
   // pseudo-variabile
   ROSAVENTO:'Rosa dei venti'
 };
 const varLabel = v => VAR_LABELS[v] || v;
 
-// nomi stazione: alcune fonti (es. Bolzano) sono TUTTE MAIUSCOLE -> Title Case all'italiana
-// (solo prima lettera maiuscola; preposizioni/articoli minuscoli, es. "ADIGE A SALORNO" -> "Adige a Salorno")
-const NAME_SMALL = new Set(['a','ad','al','allo','alla','ai','agli','alle','da','dal','dalla','dai','dagli','dalle',
-  'di','del','dello','della','dei','degli','delle','in','nel','nello','nella','nei','negli','nelle','e','ed','con',
+// Alcune fonti (Bolzano) scrivono i nomi TUTTI MAIUSCOLI: si porta a Title Case all'italiana, con
+// preposizioni e articoli minuscoli ("ADIGE A SALORNO" -> "Adige a Salorno").
+const NAME_SMALL = new Set(['a','ad','al','allo','alla','ai','agli','alle','da','dal','dalla','dai','dagli',
+  'dalle','di','del','dello','della','dei','degli','delle','in','nel','nello','nella','nei','negli','nelle',
+  'e','ed','con',
   'su','sul','sulla','sui','sugli','sulle','per','il','lo','la','i','gli','le','tra','fra','presso']);
 function prettyName(name){
-  if(!name || name !== name.toUpperCase()) return name;   // trasforma SOLO i nomi tutti maiuscoli
+  if(!name || name !== name.toUpperCase()) return name;
   return name.toLowerCase().split(' ').map((w, i) => {
     if(!w) return w;
-    if(i > 0 && NAME_SMALL.has(w)) return w;               // preposizioni/articoli (non la prima parola)
+    if(i > 0 && NAME_SMALL.has(w)) return w;
     return w.split('-').map(p => p ? p[0].toUpperCase() + p.slice(1) : p).join('-');
   }).join(' ');
 }
 
-// fonte del dato per regione (nome + sito web di origine)
-// url = sito istituzionale (riga "Fonte:" del pannello stazione); data = pagina/servizio SPECIFICO
-// dei dati (usata dai nomi cliccabili nel pannello stato fonti). URL verificate il 18/08/2026.
+// Fonte del dato per regione: url = sito istituzionale (riga "Fonte:" del pannello stazione),
+// data = pagina o servizio dei dati (nomi cliccabili del pannello stato fonti).
 const SOURCES = {
   VEN: { name:'ARPA Veneto',                         url:'https://www.arpa.veneto.it',
          data:'https://www.arpa.veneto.it/dati-ambientali/dati-in-diretta' },
@@ -124,7 +137,8 @@ const SOURCES = {
   FVG: { name:'OSMER – ARPA FVG',                    url:'https://www.meteo.fvg.it',
          data:'https://www.osmer.fvg.it/archivio.php?ln=&p=dati' },
   // qualita' dell'aria
-  AQ_VEN: { name:'ARPA Veneto – Qualità dell\'aria',      url:'https://www.arpa.veneto.it/temi-ambientali/aria',
+  AQ_VEN: { name:'ARPA Veneto – Qualità dell\'aria',
+            url:'https://www.arpa.veneto.it/temi-ambientali/aria',
             data:'https://www2.arpa.veneto.it/aria-json/exported/aria/data.json' },
   AQ_LOM: { name:'ARPA Lombardia – Qualità dell\'aria',   url:'https://www.dati.lombardia.it',
             data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-aria/nicp-bhqi' },
@@ -139,12 +153,15 @@ const SOURCES = {
   PC_FVG: { name:'Protezione Civile FVG',                url:'https://monitor.protezionecivile.fvg.it' },
   PC_TN:  { name:'Ufficio Dighe – Provincia di Trento',  url:'https://www.floods.it' },
   // maree e bacino del Po
-  MAR_VEN:{ name:'CPSM – Comune di Venezia (maree)',     url:'https://www.comune.venezia.it/it/content/le-previsioni',
+  MAR_VEN:{ name:'CPSM – Comune di Venezia (maree)',
+            url:'https://www.comune.venezia.it/it/content/le-previsioni',
             data:'https://www.comune.venezia.it/it/content/centro-previsioni-e-segnalazioni-maree' },
-  MAR_ER: { name:'ARPAE Emilia-Romagna – Meteo-marino',  url:'https://allertameteo.regione.emilia-romagna.it' },
+  MAR_ER: { name:'ARPAE Emilia-Romagna – Meteo-marino',
+            url:'https://allertameteo.regione.emilia-romagna.it' },
   MAR_FVG:{ name:'OGS Trieste – Meteo-marino (Golfo di Trieste)', url:'https://www.ogs.it',
             data:'https://nodc.ogs.it/erddap/index.html' },
-  ACQ_VEN:{ name:'ARPA Veneto – Acque marino-costiere',  url:'https://www.arpa.veneto.it/temi-ambientali/acqua',
+  ACQ_VEN:{ name:'ARPA Veneto – Acque marino-costiere',
+            url:'https://www.arpa.veneto.it/temi-ambientali/acqua',
             data:'https://api.arpa.veneto.it/REST/v1' },
   PC_PO:  { name:'AIPO – Agenzia Interregionale per il fiume Po', url:'https://www.agenziapo.it',
             data:'https://idrometri.agenziapo.it' },
@@ -166,25 +183,34 @@ const PHONE = matchMedia('(max-width:720px)');
 
 const _DIR16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
 const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
-// sigla + freccia piccola: la sigla e' la PROVENIENZA (NNE = da nord-nord-est), la freccia (↓ ruotata dei gradi misurati)
-// va DOVE VA il vento: da N punta in giu', da E a sinistra. Unico punto che scrive una direzione del vento in HTML
+// Sigla + freccia piccola. La sigla e' la PROVENIENZA (NNE = da nord-nord-est); la freccia (↓ ruotata
+// dei gradi misurati) va dove VA il vento: da N punta in giu', da E a sinistra.
+// Unico punto che scrive una direzione del vento in HTML.
 function windDirHtml(deg){
   const d = ((+deg % 360) + 360) % 360, n = _dirName(d), t = 'vento da ' + n;
   return `<span class="wdir" role="img" aria-label="${t}" title="${t}">${n}<i class="wd-ar" aria-hidden="true" style="transform:rotate(${Math.round(d * 10) / 10}deg)">↓</i></span>`;
 }
 
-const escHtml = t => String(t).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+const escHtml = t => String(t).replace(/[&<>"]/g,
+  c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
 
-// formattazione orari 24h. Il CSV ha l'ORA LOCALE ITALIANA come testo "naive"; parseCSV la porta all'istante vero
-// (epoch UTC), cosi' l'asse resta crescente anche quando l'ora 02:00-02:59 dell'ultima domenica di ottobre si ripete.
-// Per mostrarla civT riporta l'istante all'ora civile "come UTC" e i formattatori leggono le cifre con getUTC*:
-// 24h esatte a prescindere dal fuso del browser.
+// Orari 24 h. Il CSV ha l'ORA LOCALE ITALIANA come testo senza fuso; parseCSV la porta all'istante
+// vero (epoch UTC), cosi' l'asse resta crescente anche quando l'ora 02:00-02:59 dell'ultima domenica
+// di ottobre si ripete. Per mostrarla civT riporta l'istante all'ora civile "come UTC" e i
+// formattatori leggono le cifre con getUTC*: 24 h esatte a prescindere dal fuso del browser.
 const pad = n => String(n).padStart(2,'0');
 // ora legale europea: dall'ultima domenica di marzo all'ultima di ottobre, alle 01:00 UTC
-const _lastSun1 = (y, m) => { const d = new Date(Date.UTC(y, m + 1, 0, 1)); return d.getTime() / 1000 - d.getUTCDay() * 86400; };
-const romeOffset = ts => { const y = new Date(ts * 1000).getUTCFullYear(); return ts >= _lastSun1(y, 2) && ts < _lastSun1(y, 9) ? 7200 : 3600; };
+const _lastSun1 = (y, m) => {
+  const d = new Date(Date.UTC(y, m + 1, 0, 1));
+  return d.getTime() / 1000 - d.getUTCDay() * 86400;
+};
+const romeOffset = ts => {
+  const y = new Date(ts * 1000).getUTCFullYear();
+  return ts >= _lastSun1(y, 2) && ts < _lastSun1(y, 9) ? 7200 : 3600;
+};
 const civT = ts => ts + romeOffset(ts);
-// ora civile "come UTC" -> istante vero. Nell'ora che si ripete: la prima volta (CEST) se viene dopo prev, se no la seconda
+// Ora civile "come UTC" -> istante vero. Nell'ora che si ripete vale la prima volta (CEST) se viene
+// dopo prev, altrimenti la seconda.
 function civToUtc(c, prev){
   const a = c - 7200, b = c - 3600, okA = romeOffset(a) === 7200, okB = romeOffset(b) === 3600;
   return okA && (!okB || prev == null || a > prev) ? a : b;
@@ -192,8 +218,11 @@ function civToUtc(c, prev){
 
 let _toastT = null;
 function toast(msg, ms){
-  const t = el('toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(_toastT); _toastT = setTimeout(() => t.classList.remove('show'), ms || 3500);
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('show'), ms || 3500);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -208,12 +237,12 @@ function parseCSV(text){
   for(let i=1;i<lines.length;i++){
     if(!lines[i]) continue;
     const cells = lines[i].split(',');
-    const t = civToUtc(Date.parse(cells[0] + 'Z') / 1000, prev);   // ora locale IT (righe in ordine di tempo) -> istante
+    const t = civToUtc(Date.parse(cells[0] + 'Z') / 1000, prev);
     x.push(t);
     if(!isNaN(t)) prev = t;
     for(let j=1;j<header.length;j++){
       const raw = cells[j], nv = (raw === '' || raw === undefined) ? NaN : Number(raw);
-      cols[header[j]].push(isNaN(nv) ? null : nv);       // testo non numerico (es. '>>') = buco, non NaN
+      cols[header[j]].push(isNaN(nv) ? null : nv);       // testo non numerico (es. '>>'): buco, non NaN
     }
   }
   return { header, cols, x };
@@ -229,6 +258,11 @@ function civSec(s){
 // AVVIO
 // ------------------------------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-  buildChartControls(); initMap(); buildStationControls(); buildSearchControls(); buildHistControls(); buildStatusControls();
-  loadRegions(REGIONS_ALL).then(() => applyHash());   // default: Tutte (+ eventuale link condiviso)
+  buildChartControls();
+  initMap();
+  buildStationControls();
+  buildSearchControls();
+  buildHistControls();
+  buildStatusControls();
+  loadRegions(REGIONS_ALL).then(() => applyHash());
 });
