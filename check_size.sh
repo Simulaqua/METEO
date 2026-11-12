@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# ===========================================================================================
-# check_size.sh - fotografia rapida dello spazio occupato dal progetto sul Pi.
+# check_size.sh - spazio occupato dal progetto sul Pi.
 # Uso:  ~/METEO/check_size.sh
-# Evidenzia le voci che DEVONO restare piccole (data-downloaded, logs) e quelle che
-# crescono lentamente per scelta (data-parsed = archivio storico).
-# ===========================================================================================
+# Mostra le voci che devono restare piccole (data-downloaded, logs) e quelle che crescono piano
+# (data-parsed, l'archivio).
 BASE="$(cd "$(dirname "$0")" && pwd)"
 cd "$BASE"
 

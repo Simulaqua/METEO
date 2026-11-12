@@ -1,34 +1,29 @@
 #!/usr/bin/env bash
-# ===========================================================================================
 # backup_usb.sh - backup notturno dell'archivio sulla chiavetta USB (/mnt/usb, ext4).
-#   - ogni notte una VERSIONE COMPLETA in /mnt/usb/backup/AAAA-MM-GG/:
-#       METEO/       il progetto senza cio' che si rigenera o e' gia' altrove
-#                    (site/, radar_out/, history_out/ e history_cache/: su GitHub o si rigenerano;
-#                    log, grezzi, .git)
-#       arpav/       il vecchio sistema ARPAV (dati dal 2022), senza log e grezzi
+#   - ogni notte una versione completa in /mnt/usb/backup/AAAA-MM-GG/:
+#       METEO/       il progetto, senza cio' che si rigenera o sta altrove (site/, radar_out/,
+#                    history_out/, history_cache/, log, grezzi, .git)
+#       arpav/       il sistema ARPAV (dati dal 2022), senza log e grezzi
 #       crontab.txt  il crontab completo (anche le righe ARPAV, che non sono nel repo)
-#   - i file uguali alla versione precedente sono hard link: occupano spazio UNA volta sola
-#   - tiene le ultime KEEP versioni (30). Togliere la piu' vecchia NON cancella dati: ogni versione
-#     contiene l'archivio intero dal primo giorno; si perde solo com'erano i file 30+ giorni fa.
-#   - la nuova versione compare solo se la copia riesce; solo allora si tolgono le vecchie.
+#   - i file uguali alla versione precedente sono hard link: occupano spazio una volta sola
+#   - tiene le ultime KEEP versioni (30); ognuna contiene l'archivio intero, togliere la piu'
+#     vecchia non cancella dati
+#   - la nuova versione compare solo se la copia riesce; solo allora si tolgono le vecchie
 # Protezioni:
-#   - chiavetta NON montata -> esce senza scrivere: /mnt/usb sarebbe una cartella della SD
-#   - data non sincronizzata (il Pi non ha orologio interno) -> esce
-#   - l'ARCHIVIO di una sorgente (METEO: solo */data-parsed/, il resto va e viene; arpav: tutto)
-#     scende sotto il 90% dei file della versione precedente (cancellazione per errore?) -> scrive
-#     /mnt/usb/backup/.rotazione-ferma e da li' in poi NON toglie piu' versioni vecchie, finche'
-#     qualcuno non controlla e cancella quel file
-#   - copia parziale (rsync 23, es. un file illeggibile) -> la versione si salva lo stesso, ma
-#     quella notte non si tolgono versioni vecchie
+#   - chiavetta non montata: esce senza scrivere (/mnt/usb sarebbe una cartella della SD)
+#   - data non sincronizzata (il Pi non ha orologio interno): esce
+#   - l'archivio di una sorgente (METEO: solo */data-parsed/; arpav: tutto) scende sotto il 90% dei
+#     file della versione precedente: scrive /mnt/usb/backup/.rotazione-ferma e non toglie piu'
+#     versioni vecchie finche' qualcuno non controlla e cancella quel file
+#   - copia parziale (rsync 23): la versione si salva, ma quella notte non si tolgono le vecchie
 #   - mai due backup insieme (flock)
 # Righe d'avviso nel log: 'ERRORE|ATTENZIONE: <etichetta> -- <dettagli>'. publish.sh porta solo
-# l'etichetta (corta, stile SMS) nell'avviso GitHub 'Warning - backup off'.
+# l'etichetta nell'avviso GitHub 'Warning - backup off'.
 #
 # Uso:        ~/METEO/backup_usb.sh   (cron 04:40, vedi crontab_regioni.txt)
 # Test:       BACKUP_MNT, BACKUP_DEST, BACKUP_METEO, BACKUP_ARPAV, BACKUP_KEEP, BACKUP_DAY
 #             sostituiscono i valori qui sotto.
-# Ripristino: le versioni sono cartelle normali: cp -a / rsync -a da /mnt/usb/backup/<giorno>/
-# ===========================================================================================
+# Ripristino: cp -a / rsync -a da /mnt/usb/backup/<giorno>/
 set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")" && pwd)"
@@ -42,7 +37,7 @@ STOP="$DEST/.rotazione-ferma"
 
 log() { echo "$(date '+%F %T') $*"; }
 nfile() { find "$1" -type f 2>/dev/null | wc -l; }
-# file d'archivio di <versione>/<sorgente> per il controllo anti-cancellazione
+# file d'archivio di <versione>/<sorgente>, per il controllo anti-cancellazione
 narch() { if [ "$2" = METEO ]; then find "$1/METEO" -path '*/data-parsed/*' -type f 2>/dev/null | wc -l
           else nfile "$1/$2"; fi; }
 
@@ -66,21 +61,21 @@ fi
 
 mkdir -p "$DEST" || exit 1
 WORK="$DEST/.in-corso"
-rm -rf "$WORK"                     # resto di un run interrotto (es. dal riavvio)
+rm -rf "$WORK"                     # resto di un run interrotto
 mkdir -p "$WORK" || exit 1
 
-# versione precedente (anche quella di oggi, se e' un secondo run): i suoi conteggi si leggono ORA,
-# perche' a fine run la versione di oggi viene sostituita
+# Versione precedente (anche quella di oggi, se e' un secondo run): i conteggi si leggono ora,
+# perche' a fine run quella di oggi viene sostituita.
 PREV=$(ls -1d "$DEST"/20??-??-?? 2>/dev/null | tail -1)
 PREV_METEO=""; PREV_arpav=""
 [ -d "$PREV/METEO" ] && PREV_METEO=$(narch "$PREV" METEO)
 [ -d "$PREV/arpav" ] && PREV_arpav=$(narch "$PREV" arpav)
 log "inizio versione $DAY${PREV:+ (file uguali collegati a ${PREV##*/})}"
 
-NEWB=0          # byte copiati davvero (gli hard link non contano): solo per il log
+NEWB=0          # byte copiati davvero (gli hard link non contano), per il log
 PARTIAL=0
-# copy <nome> <sorgente> [esclusioni rsync]. Codice 24 = file spariti durante la copia (es. appena
-# compressi dal gzip notturno): la copia vale. 23 = qualche file non copiato: versione parziale.
+# copy <nome> <sorgente> [esclusioni rsync]. rsync 24 = file spariti durante la copia (compressi dal
+# gzip notturno): la copia vale. 23 = qualche file non copiato: versione parziale.
 copy() {
     local name=$1 src=$2 rc b
     shift 2
@@ -111,10 +106,10 @@ copy arpav "$SRC_ARPAV" --exclude='/live/logs/' --exclude='/live/data-downloaded
 crontab -l > "$WORK/crontab.txt" 2>/dev/null
 rm -f "$DEST/.stats"
 
-rm -rf "$DEST/$DAY"                # secondo run nello stesso giorno: sostituisce quella di oggi
+rm -rf "$DEST/$DAY"                # secondo run nello stesso giorno: sostituisce la versione
 mv "$WORK" "$DEST/$DAY" || exit 1
 
-# anti-cancellazione: l'archivio di ogni sorgente deve avere almeno il 90% dei file della versione precedente
+# anti-cancellazione: l'archivio di ogni sorgente deve avere almeno il 90% dei file di prima
 NF=$(nfile "$DEST/$DAY")
 for s in METEO arpav; do
     n=$(narch "$DEST/$DAY" "$s")
@@ -124,7 +119,7 @@ for s in METEO arpav; do
     fi
 done
 
-# tiene le ultime KEEP versioni: esce la piu' vecchia (i suoi dati restano in quelle dopo)
+# tiene le ultime KEEP versioni: esce la piu' vecchia (i dati restano nelle successive)
 if [ -f "$STOP" ]; then
     log "ATTENZIONE: rotazione ferma -- $(tail -1 "$STOP"), nessuna versione vecchia tolta. Se era voluto: rm $STOP"
 elif [ $PARTIAL -eq 1 ]; then

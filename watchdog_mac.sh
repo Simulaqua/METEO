@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# ===========================================================================================
-# watchdog_mac.sh - guardiano LATO MAC del sistema METEO (niente servizi esterni).
-# Controlla DALL'ESTERNO (GitHub, branch data) l'eta' dell'ultimo dato pubblicato: se supera
-# la soglia, notifica macOS con suono. Cosi' l'avviso funziona anche se il Pi e' spento o la
-# sua rete e' giu' (il Pi non deve "chiamare" nessuno).
+# watchdog_mac.sh - guardiano lato Mac del sistema METEO.
+# Legge da GitHub (branch data) l'eta' dell'ultimo dato pubblicato e, oltre la soglia, notifica
+# macOS con suono: funziona anche se il Pi o la sua rete sono fermi.
 # Lanciato da launchd ogni 30 min: ~/Library/LaunchAgents/com.meteo.watchdog.plist
 # Test manuale:   ./watchdog_mac.sh            (silenzioso se tutto ok)
-#                 THRESH_MIN=0 ./watchdog_mac.sh   (forza la notifica, per prova)
-# ===========================================================================================
-THRESH_MIN="${THRESH_MIN:-180}"     # soglia in minuti (default 3 ore)
+#                 THRESH_MIN=0 ./watchdog_mac.sh   (forza la notifica)
+THRESH_MIN="${THRESH_MIN:-180}"     # soglia in minuti (3 ore)
 URL="https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json"
 LOG="$HOME/.meteo_watchdog.log"
 
@@ -16,7 +13,7 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 
 J=$(curl -fsS -m 20 "$URL?cb=$(date +%s)" 2>/dev/null)
 if [ -z "$J" ]; then
-    # Mac offline o GitHub giu': niente notifica (sarebbe rumore), solo log.
+    # Mac offline o GitHub giu': solo log, una notifica sarebbe rumore
     echo "$(ts) WARN: status.json non raggiungibile" >> "$LOG"
     exit 0
 fi

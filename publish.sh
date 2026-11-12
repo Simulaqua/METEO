@@ -1,53 +1,45 @@
 #!/usr/bin/env bash
-# ===========================================================================================
-# publish.sh - rigenera i dati e pubblica su GitHub, separando DATI e PAGINA:
-#   - DATI  -> branch 'data'      (letto dal sito via raw.githubusercontent.com, NIENTE deploy Pages)
-#   - PAGINA-> branch 'gh-pages'  (GitHub Pages) pushata SOLO quando la pagina o gli avvisi cambiano
-# Cosi' puoi lanciarlo anche ogni 10 min: i dati si aggiornano (~5 min di cache raw) senza
-# innescare deploy di Pages ad ogni run. Change-detection: salta i push se nulla e' cambiato.
-# ===========================================================================================
+# publish.sh - rigenera i dati e pubblica su GitHub, separando dati e pagina:
+#   - dati   -> branch 'data' (letto dal sito via raw.githubusercontent.com, nessun deploy Pages)
+#   - pagina -> branch 'gh-pages' (Pages), solo quando la pagina o gli avvisi cambiano
+# Si puo' lanciare ogni 10 minuti: salta i push se nulla e' cambiato.
 set -euo pipefail
 BASE="$(cd "$(dirname "$0")" && pwd)"
 cd "$BASE"
 
-# SSH con la deploy key del Pi (~/.ssh/meteo_github): non scade
+# SSH con la deploy key del Pi (~/.ssh/meteo_github)
 REMOTE="git@github.com:Simulaqua/METEO.git"
-# slug 'utente/repo' e URL raw del branch dati (per riscrivere DATA_BASE nella pagina)
+# slug 'utente/repo' e URL raw del branch dati (DATA_BASE nella pagina)
 SLUG="$(printf '%s' "$REMOTE" | sed -E 's#(git@github.com:|https?://github.com/)##; s#\.git$##')"
 RAW_BASE="https://raw.githubusercontent.com/$SLUG/data"
-# avvisi GitHub (workflow), pubblicati su gh-pages in .github/workflows/ con il loro nome
+# avvisi GitHub (workflow), pubblicati su gh-pages in .github/workflows/
 WATCHDOGS=(watchdog.yml watchdog_backup.yml watchdog_storico.yml)
 
 mkdir -p "$BASE/.tracking"
 
-# 1) rigenera i dati web (CSV rolling 7gg + geojson + units) per tutte le regioni
+# 1) dati web (CSV a 7 giorni, geojson, units) per tutte le regioni
 python3 export_web.py -r all --site-dir site
 
-# 1b) stato per il banner "dati fermi" della pagina e per gli avvisi -> site/STATUS/status.json
+# 1b) site/STATUS/status.json: banner "dati fermi" e avvisi
 python3 status.py || echo "ATTENZIONE: status.json non aggiornato"
 
-# ---------------------------------------------------------------------------
-# 2) DATI -> branch 'data' (solo se cambiati). Non innesca deploy Pages.
-#    Push INCREMENTALE: il repo resta in site/.git fra un run e l'altro, cosi' git sa cosa c'e' gia' su
-#    GitHub e invia solo i file cambiati, come delta sulla versione precedente (col repo rifatto da zero
-#    ad ogni run partivano ~52 MB ogni 10 min). 'data' resta UN commit orfano: la storia su GitHub non
-#    cresce. git 2.20 cerca le basi dei delta solo nel commit GENITORE, da qui due accorgimenti:
-#    - branch tecnico 'data-inc' = stesso albero, genitore = il 'data' precedente (un commit orfano da
-#      solo rispedirebbe tutto);
-#    - .delta/ = gli stessi file (stessi blob: zero spazio in piu') con i nomi di delta_names.py, che
-#      dice perche' servono.
-#    Repo assente/non nostro, o 3 errori di fila -> si ricrea: un push completo, come prima.
-# ---------------------------------------------------------------------------
-# tutti i file dati (cartelle regione) esclusi i file della pagina (profondita' 1) ed eventuale .git
+# 2) Dati -> branch 'data', solo se cambiati.
+#    Push incrementale: il repo resta in site/.git fra un run e l'altro, cosi' git invia solo i file
+#    cambiati, come delta. 'data' resta un commit orfano. git 2.20 cerca le basi dei delta solo nel
+#    commit genitore, da qui due accorgimenti:
+#    - branch tecnico 'data-inc': stesso albero, genitore = il 'data' precedente;
+#    - .delta/: gli stessi blob con i nomi di delta_names.py.
+#    Repo assente o non nostro, o 3 errori di fila: si ricrea (push completo).
+# L'hash copre i file delle cartelle regione, non quelli della pagina (profondita' 1) ne' .git.
 DATA_HASH="$(find site -mindepth 2 -type f -not -path '*/.git/*' 2>/dev/null | sort \
              | xargs cat 2>/dev/null | sha1sum | cut -d' ' -f1)"
 DATA_GIT="$BASE/site/.git"
 dgit() { git --git-dir="$DATA_GIT" --work-tree="$BASE/site" "$@" 9>&-; }   # 9>&-: il lock resta al publish
-# 0 = pubblicato, 1 = errore, 2 = saltato (un altro publish sta ancora pushando: un run dura ~8 min)
+# 0 = pubblicato, 1 = errore, 2 = saltato (un altro publish sta ancora pushando)
 data_push() {
   local tree delta root msg new prev="" inc err sent nchg=""
   if command -v flock >/dev/null && ! flock -n 9; then return 2; fi
-  if [ "$(dgit config --get meteo.datarepo 2>/dev/null)" != 1 ]; then   # assente o avanzo del vecchio metodo
+  if [ "$(dgit config --get meteo.datarepo 2>/dev/null)" != 1 ]; then   # assente o non nostro
     rm -rf "$DATA_GIT"
     git init -q "$BASE/site" &&
       dgit config core.logAllRefUpdates false &&     # niente reflog: i vecchi snapshot si potano subito
@@ -57,9 +49,9 @@ data_push() {
       dgit config meteo.datarepo 1 || return 1
   fi
   dgit config remote.origin.url "$REMOTE" || return 1
-  # sotto flock nessun altro usa il repo: un lock git rimasto e' di un run ucciso (es. riavvio 05:50)
+  # sotto flock nessun altro usa il repo: un lock git rimasto e' di un run ucciso
   rm -f "$DATA_GIT"/*.lock; find "$DATA_GIT/refs" -name '*.lock' -type f -delete 2>/dev/null || true
-  # come il vecchio 'git add */': solo le cartelle di primo livello (niente file della pagina)
+  # solo le cartelle di primo livello (niente file della pagina)
   mkdir -p "$DATA_GIT/info" && printf '/*\n!/*/\n/.*\n*.tmp\n' > "$DATA_GIT/info/exclude" || return 1
   dgit add -A || return 1
   tree="$(dgit write-tree)" || return 1
@@ -75,8 +67,8 @@ data_push() {
   fi
   err="$(mktemp)" || return 1
   if LC_ALL=C dgit push --progress -f origin "$@" 2>"$err"; then inc=""; else inc="rifiutato"; fi
-  # riuscito = GitHub ha accettato 'data' (git aggiorna refs/remotes/origin/data solo in quel caso),
-  # anche se il solo 'data-inc', tecnico, fosse stato rifiutato
+  # riuscito = GitHub ha accettato 'data' (solo allora git aggiorna refs/remotes/origin/data),
+  # anche se 'data-inc' fosse stato rifiutato
   if [ "$(dgit rev-parse -q --verify refs/remotes/origin/data)" != "$new" ]; then
     tr '\r' '\n' < "$err" | grep -v '%' >&2; rm -f "$err"; return 1
   fi
@@ -94,7 +86,7 @@ if [ "$DATA_HASH" != "$(cat .tracking/last_data_hash 2>/dev/null || true)" ]; th
   exec 9>>"$BASE/.tracking/data_push.lock"
   data_push || rc=$?
   if [ "$rc" != 2 ] && [ -d "$DATA_GIT" ]; then
-    dgit prune --expire=now || true                   # snapshot vecchi: gia' su GitHub o mai partiti
+    dgit prune --expire=now || true                   # snapshot vecchi: su GitHub o mai partiti
   fi
   exec 9>&-
   case "$rc" in
@@ -105,7 +97,7 @@ if [ "$DATA_HASH" != "$(cat .tracking/last_data_hash 2>/dev/null || true)" ]; th
     *) n="$(cat .tracking/data_push_fails 2>/dev/null || true)"
        case "$n" in ''|*[!0-9]*) n=0 ;; esac
        n=$((n + 1)); echo "$n" > .tracking/data_push_fails
-       # 3 di fila: forse e' il repo locale (es. oggetto troncato da un blackout) -> si ricrea
+       # 3 di fila: forse e' il repo locale (oggetto troncato da un blackout): si ricrea
        if [ "$n" = 3 ]; then rm -rf "$DATA_GIT"; fi
        echo "ERRORE: push dati fallito ($n di fila)."
        exit 1 ;;
@@ -114,17 +106,14 @@ else
   echo "DATI invariati: nessun push."
 fi
 
-# ---------------------------------------------------------------------------
-# 3) PAGINA -> branch 'gh-pages' (solo se la pagina o gli avvisi sono cambiati). Innesca il deploy
-#    Pages. Riscrive DATA_BASE con l'URL raw del branch 'data' e da' a ogni file della pagina un
-#    ?v=<impronta>: Pages tiene HTML e JS in cache 10 min, cosi' una pagina nuova non gira mai con
-#    file vecchi. Una pagina che cita un file locale che non va su gh-pages non si pubblica.
-# ---------------------------------------------------------------------------
-# i file della pagina sono quelli che index.html carica, scritti src="nome.js" o href="nome.css"
-# (gli URL dei CDN e favicon.ico?v=2 no). I commenti di una riga non contano; in un commento di
-# index.html mai src= o href=: uno su piu' righe, o con un >, si leggerebbe come markup.
+# 3) Pagina -> branch 'gh-pages', solo se la pagina o gli avvisi sono cambiati (innesca il deploy
+#    Pages). Riscrive DATA_BASE con l'URL raw di 'data' e da' a ogni file della pagina un ?v=<impronta>:
+#    Pages tiene HTML e JS in cache 10 minuti.
+# I file della pagina sono quelli che index.html carica, scritti src="nome.js" o href="nome.css"
+# (CDN e favicon.ico?v=2 no). I commenti di una riga non contano; in un commento di index.html mai
+# src= o href=: uno su piu' righe, o con un >, si leggerebbe come markup.
 # LC_ALL=C e grep -a: un byte rovinato in index.html non deve far perdere file a grep.
-# Se ne manca uno la pagina non si pubblica: i dati sono gia' partiti, si riprova al prossimo giro
+# Se ne manca uno la pagina non si pubblica (i dati sono gia' partiti): si riprova al prossimo giro.
 PAGE_FILES="$(LC_ALL=C sed 's/<!--[^>]*-->//g' site/index.html \
               | LC_ALL=C grep -aoE '(src|href)="[a-z][a-z0-9_-]*\.(js|css)"' \
               | awk -F'"' '{ print "site/" $2 }' || true)"
@@ -134,16 +123,14 @@ for f in $PAGE_FILES; do
     exit 1
   fi
 done
-# l'hash comprende i file della pagina e gli avvisi: una loro modifica deve arrivare su gh-pages anche
-# se index.html non cambia. Una riga "nome sha1" per file: anche un testo passato dalla fine di un file
-# all'inizio del successivo cambia l'hash
+# L'hash comprende i file della pagina e gli avvisi, anche se index.html non cambia. Una riga
+# "nome sha1" per file: anche un testo passato da un file al successivo cambia l'hash.
 PAGE_HASH="$(for f in site/index.html $PAGE_FILES "${WATCHDOGS[@]}"; do
                [ -f "$f" ] && printf '%s %s\n' "$f" "$(sha1sum < "$f" | cut -d' ' -f1)" || true
              done | sha1sum | cut -d' ' -f1)"
 if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; then
   TMP="$(mktemp -d)"
-  # i file vanno su gh-pages come sono; in index.html ognuno prende ?v= con i primi 8 caratteri del
-  # suo sha1, nella stessa passata di DATA_BASE
+  # In index.html ogni file prende ?v= con i primi 8 caratteri del suo sha1, nella passata di DATA_BASE.
   rewrite=(-e "s#const DATA_BASE = .*#const DATA_BASE = '$RAW_BASE';#")
   for f in $PAGE_FILES; do
     name="${f#site/}"
@@ -152,22 +139,21 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
     cp "$f" "$TMP/$name"
   done
   LC_ALL=C sed -E "${rewrite[@]}" site/index.html > "$TMP/index.html"
-  # gli avvisi devono vivere sul branch DEFAULT (gh-pages) per girare a orario; siccome il branch
-  # viene rigenerato da zero ad ogni push, vanno rimessi ogni volta
+  # Gli avvisi devono stare sul branch default (gh-pages) per girare a orario; il branch si rigenera
+  # da zero ad ogni push, quindi vanno rimessi ogni volta.
   mkdir -p "$TMP/.github/workflows"
   for f in "${WATCHDOGS[@]}"; do
     if [ -f "$BASE/$f" ]; then cp "$BASE/$f" "$TMP/.github/workflows/$f"; fi
   done
-  # dominio personalizzato (meteo.simulaqua.it): gh-pages viene rigenerato da zero, senza questo
-  # file il dominio si stacca ad ogni push della pagina
+  # dominio personalizzato: senza questo file si stacca ad ogni push della pagina
   echo "meteo.simulaqua.it" > "$TMP/CNAME"
-  # favicon trasparente (via la goccia anche dalle cache-icone piu' testarde)
+  # favicon trasparente
   [ -f "$BASE/favicon_site.ico" ] && cp "$BASE/favicon_site.ico" "$TMP/favicon.ico"
-  # prima del push: ogni file locale che la pagina cita deve essere fra quelli pronti per gh-pages.
-  # Contano tutti gli src= e href= (maiuscole o minuscole; virgolette doppie, semplici o nessuna), non
-  # URL, #, data:, mailto:, javascript: e tel:; ?..., #... e un ./ iniziale si tolgono. Cosi' si ferma
-  # anche un file scritto in una forma che PAGE_FILES non legge (./x.js, js/x.js, 'x.js', X.js,
-  # x.js?v=1), che sul sito mancherebbe. Niente push e niente last_page_hash: si riprova al prossimo giro
+  # Prima del push ogni file locale citato dalla pagina deve essere fra quelli pronti per gh-pages.
+  # Contano tutti gli src= e href= (maiuscole o minuscole; virgolette doppie, semplici o nessuna),
+  # esclusi URL, #, data:, mailto:, javascript: e tel:; ?..., #... e un ./ iniziale si tolgono. Si ferma
+  # anche un file scritto in una forma che PAGE_FILES non legge (./x.js, js/x.js, X.js, x.js?v=1).
+  # Niente push e niente last_page_hash: si riprova al prossimo giro.
   LOCAL_REFS="$(LC_ALL=C sed 's/<!--[^>]*-->//g' "$TMP/index.html" \
                 | LC_ALL=C grep -aoiE "(src|href)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]\"'>]+)" \
                 | LC_ALL=C sed -E "s/^[^=]*=[[:space:]]*//; s/^[\"'](.*)[\"']\$/\\1/" \
@@ -184,8 +170,8 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
     git init -q
     git checkout -q -b gh-pages
     git add -A
-    # identita' = account GitHub reale: i run schedulati del workflow "agiscono" come l'ultimo autore
-    # del file -> le mail di run fallito arrivano all'account (con cron@localhost non arriverebbero)
+    # identita' = account GitHub reale: i run schedulati dei workflow agiscono come l'ultimo autore
+    # e le mail di run fallito arrivano a quell'account
     git -c user.email="Simulaqua@users.noreply.github.com" -c user.name="Simulaqua" \
         commit -qm "page $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     git push -qf "$REMOTE" gh-pages )
