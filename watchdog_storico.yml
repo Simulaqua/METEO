@@ -1,19 +1,14 @@
-# ===========================================================================================
-# AVVISO 'Warning - storico off' (GitHub Actions) - ogni mattina: mail se l'ultimo giro riuscito
-# dello Storico (publish_history.sh, alle 07:20 sul Pi) ha 2+ giorni (una notte saltata non basta)
-# o se non ce n'e' nessuno.
-# SCHEMA COMUNE DEGLI AVVISI (watchdog.yml = meteo, watchdog_backup.yml = backup,
-# watchdog_storico.yml = storico):
-#   - leggono site/STATUS/status.json dal branch 'data' (scritto da publish.sh sul Pi)
-#   - esito = UNA annotazione stile SMS nel riepilogo del run (e nella mail):
+# AVVISO 'Warning - storico off' (GitHub Actions): ogni mattina, mail se l'ultimo giro riuscito dello
+# Storico (publish_history.sh, 07:20 sul Pi) ha 2+ giorni (una notte saltata non basta) o manca.
+# Schema comune (watchdog.yml = meteo, watchdog_backup.yml = backup, watchdog_storico.yml = storico):
+#   - legge site/STATUS/status.json dal branch 'data' (scritto da publish.sh sul Pi)
+#   - esito = una annotazione breve nel riepilogo del run e nella mail:
 #       ok  titolo '<area> ok'   testo 'ultimo giro: oggi'
-#       ko  titolo '<area> off'  testo '<motivo> | <motivo>'      -> job fallito = mail
-#   - oggetto della mail = nome del workflow ('Warning - <area> off')
-#   - status.json illeggibile = avviso anche lui
-#   - prova: Actions -> il workflow -> Run workflow con 'prova' spuntato
-#   - la parte 'comune' del codice e' identica nei tre file; cambia solo la parte 'specifica'
-# Vive in .github/workflows/watchdog_storico.yml su gh-pages: ce lo rimette publish.sh a ogni push pagina.
-# ===========================================================================================
+#       ko  titolo '<area> off'  testo '<motivo> | <motivo>'   (job fallito = mail)
+#   - oggetto della mail = nome del workflow ('Warning - <area> off'); status.json illeggibile = avviso
+#   - prova: Actions, il workflow, Run workflow con 'prova' spuntato
+#   - la parte 'comune' del codice e' identica nei tre file, cambia solo la 'specifica'
+# Su gh-pages in .github/workflows/watchdog_storico.yml: lo rimette publish.sh a ogni push pagina.
 name: 'Warning - storico off'
 on:
   schedule:

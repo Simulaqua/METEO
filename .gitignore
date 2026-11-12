@@ -1,26 +1,26 @@
-# --- dati grezzi e archivio (rigenerati dagli script dati_*.py) ---
+# --- dati grezzi e archivio (script dati_*.py) ---
 */data-downloaded/
 */data-parsed/
 
-# --- dati web generati (pubblicati su gh-pages via publish.sh, non nel repo sorgente) ---
+# --- dati web generati da export_web.py (pubblicati da publish.sh) ---
 site/*/
 */sensors_map.json
 */elements_map.json
 
-# --- radar DPC: fotogrammi generati sul Pi (pubblicati sul branch 'radar' da dati_radar.py) ---
+# --- radar DPC: fotogrammi generati sul Pi (branch 'radar') ---
 radar_out/
 .radar.lock
 
-# --- storico lungo: generato sul Pi (pubblicato sul branch 'history' da publish_history.sh) ---
+# --- storico lungo: generato sul Pi (branch 'history') ---
 history_out/
 history_cache/
 .history.lock
 
-# --- appunti di lavoro locali e copie di lavoro separate (non nel repository) ---
+# --- appunti di lavoro e worktree ---
 .superpowers/
 .worktrees/
 
-# --- stato di tracking (check_updates.py); nei giri registrati delle prove è un file di partenza o atteso ---
+# --- stato di check_updates.py (le fixture dei test lo contengono) ---
 .tracking/
 tracking.log
 !tests/fixtures/**/.tracking/

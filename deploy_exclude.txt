@@ -1,5 +1,5 @@
 # Cosa deploy.sh NON copia sul Pi (rsync --exclude-from). Una riga per modello.
-# Per il CODICE vince sempre il Mac (niente --update): il deploy e' prevedibile.
+# Per il codice vince sempre il Mac (niente --update).
 
 # Dati e log: restano quelli del Pi
 data-parsed
@@ -10,7 +10,7 @@ logs
 # Export del sito: lo rigenera export_web sul Pi; si copiano solo i file della pagina, in cima a site/
 site/*/
 
-# Stato che tiene il Pi (cache di PC_PO, log di check_updates, repository di radar e storico)
+# Stato che tiene il Pi (cache di PC_PO, log di check_updates, radar e storico)
 sensors_map.json
 elements_map.json
 tracking.log
@@ -18,15 +18,15 @@ radar_out/
 history_cache/
 history_out/
 
-# Zeri idrometrici: li riscrive dati_pc.py sul Pi a ogni giro, la copia del Mac e' vecchia
+# Zeri idrometrici: li riscrive dati_pc.py sul Pi a ogni giro
 /PIE/zero_idrometrici.json
 /PC_PIE/zero_idrometrici.json
 
-# Il vecchio sistema ARPAV dell'utente (old/, sul Pi ~/METEO/old) non si tocca mai; i worktree di git non servono
+# Il sistema ARPAV (old/, sul Pi ~/METEO/old) non si tocca mai; i worktree di git non servono
 /old/
 .worktrees/
 
-# Cartelle che il Pi non usa mai (tests/ ha circa 45 MB di fixture; docs/ e' solo documentazione)
+# Cartelle che il Pi non usa (tests/ ha ~45 MB di fixture; docs/ e' documentazione)
 tests/
 docs/
 .superpowers/
