@@ -850,6 +850,40 @@
     eq('la variabile della stazione di prima non passa alla successiva', await open(A2), 'TEMP');
     setMapVar('UMID'); await until(() => filterVar === 'UMID');
     eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
+
+    // pioggia: linee cumulate giornaliere (da zero a ogni mezzanotte; il primo giorno dal valore vero) e modo MN
+    eq('modi: 7 g, 3 g, 24 h, MN', [...document.querySelectorAll('#modes .mode[data-mode]')].map(b => b.dataset.mode),
+       ['week', 'day3', 'day', 'mn']);
+    await open(B);
+    const mode = async m => {
+      document.querySelector('#modes [data-mode="' + m + '"]').click();
+      await until(() => chartMode === m && chart && chart._m); await sleep(300);
+    };
+    const midOf = ts => civMidnight(civDay(ts));
+    const T = currentStation._table, P = T.cols.PREC || [];
+    for(const m of ['week', 'day3', 'day']){
+      await mode(m);
+      const dl = chart._m.daily || [];
+      log(dl.length >= 1, m + ': linee giornaliere', dl.length);
+      if(!dl.length) continue;
+      log(dl.slice(1).every(s => s.y[0] === 0 && s.x[0] === midOf(s.x[0] + 1)), m + ': ogni giorno da zero a mezzanotte',
+          JSON.stringify(dl.slice(1, 3).map(s => [s.x[0], s.y[0]])));
+      log(dl.every(s => s.y.every((v, i) => !i || v >= s.y[i - 1] - 1e-9)), m + ': ogni linea sale soltanto', '');
+      const s0 = dl[0], mid0 = midOf(s0.x[1] - 1);
+      let vero = 0;
+      T.x.forEach((x, i) => { if(x > mid0 && x <= s0.x[0] && P[i] != null) vero += P[i]; });
+      eq(m + ': il primo giorno parte dal valore vero', s0.y[0], Math.round(vero * 100) / 100);
+      const top = Math.max(...dl.flatMap(s => s.y.filter((v, i) => s.x[i] >= chart.scales.x.min && s.x[i] <= chart.scales.x.max)));
+      log(chart.scales.cum.max - chart.scales.cum.min >= top - 1e-9, m + ": l'asse destro contiene le linee giornaliere",
+          JSON.stringify([chart.scales.cum.min, chart.scales.cum.max, top]));
+    }
+    await mode('mn');
+    log(chart._m.daily == null, 'MN: niente linee giornaliere (coinciderebbero con la cumulata)', '');
+    eq('MN: dalla mezzanotte di oggi', chart.scales.x.min, midOf(Date.now() / 1000));
+    setStackMode(true); await until(() => stackObj); await sleep(400);
+    document.querySelector('#modes [data-mode="week"]').click(); await sleep(400);
+    setStackMode(false); await sleep(200);
+    await mode('week');
     showMapView(); setMapVar('');
     eq('errori JS', window.__errs, []);
     finish();
@@ -1138,6 +1172,7 @@
     log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');
+    log(!!histU && histU.series.some(s => s.scale === 'cum') === true, 'Pioggia/Mesi: cumulata sull\'asse destro', histU && histU.series.map(s => s.scale).join(','));
     okKey('Pioggia/Mesi', ['mm', 'incompleto']);
     await okTip('Pioggia/Mesi, agosto 2025', Date.UTC(2025, 7, 1) / 1000, monTxt(true, EP['2025-7']));
     await okTip('Pioggia/Mesi, settembre 2025 (incompleto)', Date.UTC(2025, 8, 1) / 1000, monTxt(true, EP['2025-8']));
@@ -1158,6 +1193,7 @@
     histView = 'mesi'; await renderHist();
     log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
+    log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Pioggia/Anni: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
     {                                                                // cumulata: a fine 2025 il totale dell'anno; al passaggio la cumulata di ogni anno
       const yrs = [...new Set(Object.values(EP).map(c => c.y))], k = yrs.indexOf(2025) + 1;
       const tot = r1(raw.p.reduce((a, x, i) => a + (dayOf(i).getUTCFullYear() === 2025 && x != null ? x : 0), 0));
@@ -1190,6 +1226,7 @@
       document.body.classList.remove('dark'); await renderHist(); await sleep(100);
     }
     histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni');
+    log(!!histU && histU.series.some(s => s.scale === 'cum') === true, 'Pioggia/Giorni: cumulata sull\'asse destro', histU && histU.series.map(s => s.scale).join(','));
     okKey('Pioggia/Giorni', ['mm', 'incompleto']);
     log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
     for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
@@ -1316,6 +1353,7 @@
       el('hvRange').querySelector('[data-r="0"]').click(); await sleep(120);
     }
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
+    log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Temperatura/Mesi: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
     okKey('Temperatura/Mesi', ['min–max', 'media']);
     {
       const S = histU.series, big = k => { try { return !!S[k].points.show(histU, k, 0, histU.data[0].length - 1) && S[k].points.size > 3; } catch(e){ return true; } };
@@ -1443,7 +1481,7 @@
     else log(sameRow([name, ...acts().map(el)]) && R(meta).top >= R(name).bottom - 1, 'riga 1 (telefono): nome e azioni, sotto codice e ultimo dato',
              JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
     const c2 = ctl2();
-    eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'cmpBtn', 'stackbtn', 'histbtn']);
+    eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'mode:mn', 'cmpBtn', 'stackbtn', 'histbtn']);
     log(sameRow(c2) && stacked(c2, 'chart'), 'riga 2: tutta su una riga, fra la prima e il grafico',
         JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
     M.normale = gap('chart');
