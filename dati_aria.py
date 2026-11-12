@@ -9,6 +9,7 @@ import argparse
 import csv
 import datetime
 import io
+import unicodedata
 
 import comune
 
@@ -41,14 +42,12 @@ LOM_DATI = 'https://www.dati.lombardia.it/resource/nicp-bhqi.json'
 BZ_ODH = 'https://mobility.api.opendatahub.com/v2/flat/EnvironmentStation'
 BZ_AIRQUALITY = 'https://dati.retecivica.bz.it/services/airquality'
 
-# ER (ARPAE, CKAN): coordinate e sigle dai due fogli di anagrafica; si unisce station_id con Cod_staz senza
-# punti e variable_id con IdParametro.
-ER_DATA = 'https://dati.arpae.it/api/3/action/datastore_search'
-ER_RESOURCE = '4dc855a1-6298-4b71-a1ae-d80693d43dcb'
+# ER (ARPAE, portale Opendatasoft): ultimi 50 giorni di dati orari e giornalieri, aggiornati una volta
+# al giorno; reftime e' in UTC. Codice e coordinate delle stazioni vengono dal foglio di anagrafica, unito
+# per nome (maiuscole, accenti e punteggiatura non contano): le stazioni tengono i codici di prima.
+ER_DATA = ('https://dati.arpae.it/api/explore/v2.1/catalog/datasets/dati_qualita_aria_er_giornaliero/'
+           'exports/json')
 ER_STATIONS_CSV = 'https://docs.google.com/spreadsheets/d/1-4wgZ8JeLeg0bODTSFUrshPY-_y9mERUu0FJtSFr78s/export?format=csv'
-ER_PARAMETERS_CSV = 'https://docs.google.com/spreadsheets/d/1K6vRcShjje2CDnvnk39o3jkU4ihgpA7rfsdAV1S-yXU/export?format=csv'
-ER_PAGE = 32000
-ER_MAX_PAGES = 6
 
 # TN: il feed non dà le coordinate e le 8 stazioni sono fisse: tabella (geocodifica OSM degli indirizzi
 # ufficiali). Il codice stazione è lo slug del nome.
@@ -182,54 +181,40 @@ def download_bz(debug=False, days=7):
     return stations, readings, units
 
 
+def _er_name(name):
+    return ''.join(c for c in unicodedata.normalize('NFD', (name or '').upper()) if c.isalnum())
+
+
 def download_er(debug=False, days=5):
-    # Cod_staz senza punti -> nome e coordinate
     sta = {}
     for r in csv.DictReader(io.StringIO(comune.get_text(ER_STATIONS_CSV))):
         code = (r.get('Cod_staz') or '').replace('.', '')
         lat, lon = comune.to_float(r.get('LAT_GEO')), comune.to_float(r.get('LON_GEO'))
         if code and lat is not None and lon is not None:
-            sta[code] = {'nome': r.get('Stazione'), 'lat': lat, 'lon': lon}
-    # IdParametro -> sigla
-    par = {}
-    for r in csv.DictReader(io.StringIO(comune.get_text(ER_PARAMETERS_CSV))):
-        sig = pollutant_symbol(r.get('PARAMETRO'))
-        if sig:
-            par[str(r.get('IdParametro'))] = sig
-    cutoff = comune.now_solar() - datetime.timedelta(days=days)
-    stations, readings, units = {}, {}, {}
-    offset, stop = 0, False
-    # i record più recenti stanno in fondo al datastore: si legge dal fondo finché non si esce dalla finestra
-    while not stop and offset < ER_PAGE * ER_MAX_PAGES:
-        res = comune.get_json(
-            ER_DATA, {'resource_id': ER_RESOURCE, 'limit': str(ER_PAGE), 'offset': str(offset),
-                      'sort': '_id desc'})['result']['records']
-        if not res:
-            break
-        oldest_in_batch = None
-        for r in res:
-            var = par.get(str(r.get('variable_id')))
-            st = sta.get(str(r.get('station_id')))
-            if var is None or st is None:
-                continue
-            try:
-                dt = datetime.datetime.strptime(r.get('reftime'), '%m/%d/%Y %H:%M')
-            except (ValueError, TypeError):
-                continue
-            if oldest_in_batch is None or dt < oldest_in_batch:
-                oldest_in_batch = dt
-            if dt < cutoff:
-                continue
-            val = comune.to_float(r.get('value'))
-            if val is None or val < 0:
-                continue
-            sc = str(r.get('station_id'))
-            stations[sc] = {'NOME': st['nome'], 'LAT': st['lat'], 'LON': st['lon']}
-            readings.setdefault(var, {}).setdefault(sc, []).append((comune.civil_to_solar(dt), val))
-            units.setdefault(var, POLLUTANTS.get(var))
-        if oldest_in_batch is not None and oldest_in_batch < cutoff:
-            stop = True
-        offset += ER_PAGE
+            sta[_er_name(r.get('Stazione'))] = {'sc': code, 'nome': r.get('Stazione'), 'lat': lat, 'lon': lon}
+    since = (comune.now_solar() - datetime.timedelta(days=days)).strftime('%Y-%m-%d')
+    records = comune.get_json(ER_DATA, {
+        'where': "reftime >= date'%s'" % since,
+        'select': 'nome_stazione,nome_parametro,reftime,value'})
+    stations, readings, units, missing = {}, {}, {}, set()
+    for r in records:
+        var = pollutant_symbol(r.get('nome_parametro'))
+        val = comune.to_float(r.get('value'))
+        if var is None or val is None or val < 0:
+            continue
+        st = sta.get(_er_name(r.get('nome_stazione')))
+        if st is None:
+            missing.add(r.get('nome_stazione'))
+            continue
+        try:
+            utc = datetime.datetime.strptime((r.get('reftime') or '')[:19], '%Y-%m-%dT%H:%M:%S')
+        except ValueError:
+            continue
+        stations[st['sc']] = {'NOME': st['nome'], 'LAT': st['lat'], 'LON': st['lon']}
+        readings.setdefault(var, {}).setdefault(st['sc'], []).append((comune.utc_to_solar(utc), val))
+        units.setdefault(var, POLLUTANTS.get(var))
+    for name in sorted(n for n in missing if n):
+        print('WARN: [ER] stazione non in anagrafica: %s' % name)
     return stations, readings, units
 
 
