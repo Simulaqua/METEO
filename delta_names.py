@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 # delta_names.py - i nomi dei file di .delta/ sul ramo 'data' (push incrementale di publish.sh).
-# git 2.20 cerca le basi dei delta nel commit genitore e ne prende una sola per "name hash" (~ultimi 16
-# caratteri del percorso): .delta/ = gli stessi file con nomi corti a name hash unico (stessi blob: zero spazio
-# in piu'), senza i quali circa meta' dei byte cambiati partirebbe intera.
-# stdin = 'git ls-files -s -z', argv[1] = mappa percorso->nome (chi c'era tiene il suo nome, cioe' ritrova la
-# base del giro prima), stdout = righe per 'git mktree'.
+# git 2.20 cerca le basi dei delta nel commit genitore e ne prende una sola per "name hash" (ultimi
+# ~16 caratteri del percorso): .delta/ ha gli stessi blob con nomi corti a name hash unico, senza i
+# quali circa meta' dei byte cambiati partirebbe intera.
+# stdin = 'git ls-files -s -z'; argv[1] = mappa percorso->nome (chi c'era tiene il nome, e ritrova la
+# base del giro prima); stdout = righe per 'git mktree'.
 #
 # Uso (da publish.sh):   git ls-files -s -z | python3 delta_names.py MAPPA | git mktree
 
@@ -31,7 +31,7 @@ for rec in sys.stdin.buffer.read().split(b'\0'):
         meta, p = rec.split(b'\t', 1)
         m, s = meta.split(b' ')[:2]
         ent.append((m.decode(), s.decode(), p.decode('utf-8', 'surrogateescape')))
-used = {0, nh('.delta')}                      # hash gia' visti prima dei blob: radice, .delta, cartelle
+used = {0, nh('.delta')}                      # hash occupati: radice, .delta, cartelle
 for _, _, p in ent:
     d = os.path.dirname(p)
     while d:

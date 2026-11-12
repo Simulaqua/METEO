@@ -1,26 +1,15 @@
 #!/usr/bin/env python3
 
-# derive.py - GRANDEZZE DERIVATE e INDICI calcolati AL VOLO dall'export (dalle misure grezze della
-# finestra pubblicata). NON si archivia nulla in data-parsed: le derivate vivono solo in site/
-# (finestra a dimensione costante) -> nessuna crescita del disco sul Pi.
-#
-# Contiene:
-#   FASE 1 (grandezze derivate istantanee): TDEW punto di rugiada, TAPP temperatura percepita,
-#           VPD deficit di pressione di vapore, QSPEC umidita' specifica, PSLM pressione al livello
-#           mare, UWND/VWND componenti del vento.
-#   FASE 4 (indici qualita' aria): EAQI indice europeo, O3_8H media mobile 8h dell'ozono.
-#   FASE 2 (accumuli): PREC1/3/6/12/24/48 pioggia cumulata (finestra mobile (t-W, t], valida solo se piena
-#           almeno al 70%: dopo un buco di dati restano vuote invece di sottostimare), GDD gradi-giorno, HDD/CDD gradi-giorno
-#           riscaldamento/raffrescamento, ET0 evapotraspirazione di riferimento (Penman-Monteith
-#           FAO-56 dove ci sono tutti gli input T/umidita'/radiazione/vento, altrimenti Hargreaves).
-# derive_station(per_var, meta) -> dict {sigla_derivata: {istante: valore}} da unire a per_var.
+# derive.py - grandezze derivate e indici calcolati al volo dall'export, dalle misure grezze della
+# finestra pubblicata. Nulla finisce in data-parsed: le derivate vivono solo in site/.
+# derive_station(per_var, meta) -> {sigla_derivata: {istante: valore}} da unire a per_var.
 
 import datetime
 import math
 
 from comune import to_float
 
-# --- unita' delle grandezze derivate/indici (per il front-end) ------------------------------------
+# --- unita' delle grandezze derivate e degli indici (per il front-end)
 DERIVED_UM = {
     'TDEW': '°C', 'TAPP': '°C', 'VPD': 'kPa', 'QSPEC': 'g/kg', 'PSLM': 'hPa',
     'UWND': 'm/s', 'VWND': 'm/s',
@@ -30,14 +19,14 @@ DERIVED_UM = {
 }
 # finestre (ore) delle cumulate di pioggia -> sigla
 ACC_WINDOWS = ((1, 'PREC1'), (3, 'PREC3'), (6, 'PREC6'), (12, 'PREC12'), (24, 'PREC24'), (48, 'PREC48'))
-ACC_MIN_COVER = 0.7        # frazione minima di letture attese nella finestra perche' l'accumulo sia valido
+ACC_MIN_COVER = 0.7        # frazione minima di letture attese nella finestra
 
 def _es(T):
     ''' pressione di vapore saturo (kPa), T in gradi C (Tetens/FAO-56). '''
     return 0.6108 * math.exp(17.27 * T / (T + 237.3))
 
 def _first_number(meta, keys):
-    ''' Primo valore numerico di meta sotto una delle chiavi (None se meta non e' un dict o non c'e'). '''
+    ''' Primo valore numerico di meta sotto una delle chiavi (None se manca). '''
     if not isinstance(meta, dict):
         return None
     for k in keys:
@@ -53,15 +42,12 @@ def put(out, name, ist, val):
     if val is not None:
         out.setdefault(name, {})[ist] = val
 
-#===========================================================================================================
-# FASE 1 - grandezze derivate istantanee (per istante, dove esistono gli input concomitanti)
-#===========================================================================================================
+# --- Grandezze derivate istantanee: per istante, dove esistono gli input concomitanti
 def _derive_instant(per_var, meta):
     out = {}
     T  = per_var.get('TEMP', {}); RH = per_var.get('UMID', {})
     WS = per_var.get('VVENTO', {}); WD = per_var.get('DVENTO', {}); P = per_var.get('PRESS', {})
     alt = _first_number(meta, ALT_KEYS)
-
 
     # punto di rugiada (Magnus) e VPD: servono T + RH
     for ist in T:
@@ -73,7 +59,7 @@ def _derive_instant(per_var, meta):
         put(out, 'TDEW', ist, round(243.12 * g / (17.62 - g), 1))
         es = _es(t)
         put(out, 'VPD', ist, round(es * (1 - rh / 100.0), 3))
-        # temperatura percepita (Australian BOM apparent temperature): T + RH + vento
+        # temperatura percepita (Australian BOM): T + RH + vento
         ws = to_float(WS.get(ist))
         if ws is not None:
             e = (rh / 100.0) * 6.105 * math.exp(17.27 * t / (237.7 + t))   # hPa
@@ -104,11 +90,9 @@ def _derive_instant(per_var, meta):
         put(out, 'VWND', ist, round(-ws * math.cos(th), 2))
     return out
 
-#===========================================================================================================
-# FASE 4 - indici qualita' dell'aria
-#===========================================================================================================
-# soglie EAQI (indice europeo, EEA): per ogni inquinante i limiti superiori delle 6 classi
-# 1 Buona / 2 Discreta / 3 Mediocre / 4 Scarsa / 5 Molto scarsa / 6 Pessima (>ultimo limite).
+# --- Indici qualita' dell'aria
+# Soglie EAQI (EEA): per inquinante i limiti superiori delle classi 1 Buona ... 5 Molto scarsa;
+# oltre l'ultimo limite e' la 6 Pessima.
 _EAQI_BANDS = {
     'PM25': [10, 20, 25, 50, 75], 'PM10': [20, 40, 50, 100, 150],
     'NO2':  [40, 90, 120, 230, 340], 'O3': [50, 100, 130, 240, 380],
@@ -125,9 +109,8 @@ def _eaqi_subindex(poll, val):
 
 def _derive_airquality(per_var):
     out = {}
-    # EAQI = peggior sotto-indice fra gli inquinanti disponibili, per istante.
-    # NB: l'EAQI ufficiale usa medie specifiche (PM su 24h, gas orari); qui e' applicato ai valori
-    #     riportati -> indice "near-real-time" indicativo (vedi report).
+    # EAQI = peggior sotto-indice fra gli inquinanti disponibili, per istante. Applicato ai valori
+    # riportati, non alle medie ufficiali (PM su 24h): e' un indice indicativo.
     ists = set()
     for p in _EAQI_BANDS:
         ists |= set(per_var.get(p, {}).keys())
@@ -138,21 +121,19 @@ def _derive_airquality(per_var):
             if si is not None:
                 worst = si if worst is None else max(worst, si)
         put(out, 'EAQI', ist, worst)
-    # O3 media mobile 8 ore (indice classico per l'ozono)
+    # O3: media mobile 8 ore
     o3 = per_var.get('O3', {})
     if o3:
         keys = sorted(o3.keys())
-        # finestra 8h = 480 min; gli istanti sono 'YYYYMMDDHHMM'
         ep = [(datetime.datetime.strptime(k, '%Y%m%d%H%M'), to_float(o3[k]), k) for k in keys]
         for i in range(len(ep)):
-            t_i = ep[i][0]; window = [v for (t, v, k) in ep if v is not None and 0 <= (t_i - t).total_seconds() <= 8*3600]
+            t_i = ep[i][0]; window = [v for (t, v, k) in ep
+                                      if v is not None and 0 <= (t_i - t).total_seconds() <= 8*3600]
             if len(window) >= 4:                                  # almeno 4 valori nelle 8h
                 put(out, 'O3_8H', ep[i][2], round(sum(window) / len(window), 1))
     return out
 
-#===========================================================================================================
-# FASE 2 - accumuli e indici cumulati (pioggia 24/48h, gradi-giorno, ET0 giornaliera)
-#===========================================================================================================
+# --- Accumuli e indici cumulati: pioggia, gradi-giorno, ET0 giornaliera
 def _Ra(lat_deg, doy):
     ''' radiazione extraterrestre giornaliera Ra (MJ/m2/giorno), FAO-56. '''
     phi = math.radians(lat_deg)
@@ -200,16 +181,15 @@ def _daily_agg(per_var, varname):
 def _derive_accumulations(per_var, meta):
     out = {}
 
-    # PREC1/3/6/12/24/48: pioggia cumulata mobile (PREC assunta = mm per intervallo di misura che TERMINA
-    # all'istante). Finestra (t-W, t]: la lettura esattamente a t-W NON conta (prima contava: con dati a
-    # 10 min la PREC1 sarebbe stata la somma di 7 letture invece di 6).
+    # PREC1..48: pioggia cumulata mobile (PREC = mm dell'intervallo che TERMINA all'istante).
+    # Finestra (t-W, t]: la lettura esattamente a t-W non conta.
     PR = per_var.get('PREC', {})
-    items = sorted((ist, to_float(v)) for ist, v in PR.items() if to_float(v) is not None)  # ordine cronologico
+    items = sorted((ist, to_float(v)) for ist, v in PR.items()
+                   if to_float(v) is not None)           # ordine cronologico
     if items:
         ep = [(datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, v) for ist, v in items]
-        # cadenza tipica della stazione (mediana dei passi): una finestra e' valida solo se e' quasi piena (ACC_MIN_COVER)
-        # e piu' lunga della cadenza (da una serie giornaliera non si ricava la pioggia dell'ultima ora). Dopo un
-        # buco di dati (stazione ferma) le finestre brevi restano vuote invece di sottostimare la pioggia.
+        # Cadenza della stazione = mediana dei passi. Una finestra vale solo se e' quasi piena
+        # (ACC_MIN_COVER) e piu' lunga della cadenza: dopo un buco restano vuote, non sottostimano.
         steps = sorted((ep[i + 1][0] - ep[i][0]).total_seconds() for i in range(len(ep) - 1))
         step = steps[len(steps) // 2] if steps else 0
         for win_h, name in ACC_WINDOWS:
@@ -224,11 +204,11 @@ def _derive_accumulations(per_var, meta):
                 if right - left + 1 < need:
                     continue
                 v = round(run, 1)
-                put(out, name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0": la somma scorrevole lascia residui ~1e-16
+                put(out, name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0" (residui ~1e-16)
 
-    # gradi-giorno (GDD base 10, HDD base 18, CDD base 21) + ET0: valori GIORNALIERI, marcati alle
-    # 12:00 del giorno. ET0 con Penman-Monteith FAO-56 dove ci sono TUTTI gli input concomitanti
-    # (T, umidita', radiazione solare, vento); altrimenti fallback a Hargreaves (sola temperatura).
+    # Gradi-giorno (GDD base 10, HDD base 18, CDD base 21) ed ET0: valori giornalieri marcati alle 12:00.
+    # ET0 Penman-Monteith dove ci sono tutti gli input (T, umidita', radiazione, vento), altrimenti
+    # Hargreaves (sola temperatura).
     Td = _daily_agg(per_var, 'TEMP')
     RHd = _daily_agg(per_var, 'UMID')
     RAd = _daily_agg(per_var, 'RADSOL')
@@ -264,9 +244,7 @@ def _derive_accumulations(per_var, meta):
             put(out, 'ET0', stamp, round(max(0.0, et0), 2))
     return out
 
-#===========================================================================================================
-# API pubblica
-#===========================================================================================================
+# --- API pubblica
 def derive_station(per_var, meta):
     ''' Ritorna {sigla_derivata: {istante: valore}} da unire a per_var. Calcola solo dove esistono
         gli input; non tocca l'archivio. '''

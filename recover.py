@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
 
-# recover.py - RIEMPIMENTO BUCHI (blackout / mancanza corrente) per tutte le regioni che espongono
-# uno storico. Da lanciare @reboot (quando torna la corrente il Pi riparte) e poche volte al giorno.
+# recover.py - riempimento dei buchi (blackout) per le regioni che espongono uno storico.
+# Da lanciare @reboot e poche volte al giorno.
 #
-# Come funziona:
-#   1) per ogni regione, con un controllo LEGGERO sull'archivio locale (data-parsed) cerca BUCHI INTERNI
-#      nella finestra recente (--days, default 7). Dopo un blackout lo snapshot riprende, quindi l'ultimo
-#      dato e' recente e il buco e' "in mezzo": per questo NON si guarda l'ultimo timestamp ma la
-#      continuita' della serie.
-#   2) SOLO se trova un buco, scarica dalla FONTE lo storico della finestra e lo fonde nell'archivio
-#      (merge ordinato con dedup: inserisce i punti mancanti anche se piu' vecchi dell'ultimo salvato).
+# 1) Per ogni regione cerca buchi nell'archivio locale (data-parsed), nella finestra --days (7). Dopo un
+#    blackout l'ultimo dato e' recente e il buco e' in mezzo: si guarda la continuita' della serie,
+#    non l'ultimo timestamp.
+# 2) Solo se c'e' un buco scarica dalla fonte lo storico della finestra e lo fonde nell'archivio,
+#    anche con punti piu' vecchi dell'ultimo salvato.
 #
-# Capacita' per regione (verificata sulle fonti reali):
-#   VEN  - dump giornaliero completo: si richiama lo script con -date <giorno> per ogni giorno della finestra.
+# Cosa offre ogni fonte:
+#   VEN  - dump giornaliero completo: si richiama lo script con -date <giorno> per ogni giorno.
 #   BZ   - endpoint /timeseries (serie a 10 min): una chiamata per coppia stazione-sensore.
-#   ER   - endpoint get-time-series (serie ~ ultimi 2-3 giorni): una chiamata per stazione-variabile.
+#   ER   - endpoint get-time-series (ultimi 2-3 giorni): una chiamata per stazione-variabile.
 #   LOM  - Socrata storico: query a chunk temporali (<50000 righe/richiesta).
-#   TN   - la fonte espone solo ieri e oggi: dopo un buco il primo giro riprende da dove si era fermato (fino a ieri).
-#   FVG  - la fonte espone solo l'ultima osservazione oraria: NESSUNO storico, buchi non recuperabili.
-# Indirizzi, variabili e conversioni delle fonti vengono dagli script di scarico, importati come moduli (salvo
-# BZ_TIMESERIES_URL, la serie storica che dati_altoadige.py non chiede): un nome sparito da uno script ferma la sua
-# regione con ERRORE.
+#   TN   - solo ieri e oggi: dopo un buco il primo giro riprende da dove si era fermato.
+#   FVG  - solo l'ultima osservazione oraria: nessuno storico, buchi non recuperabili.
+# Indirizzi, variabili e conversioni vengono dagli script di scarico, importati come moduli (salvo
+# BZ_TIMESERIES_URL, che dati_altoadige.py non chiede): un nome sparito ferma la regione con ERRORE.
 #
 # Uso:  python3 recover.py -r all                (tutte; salta dove non c'e' buco)
 #       python3 recover.py -r LOM --days 2        (una regione, finestra 2 giorni)
@@ -36,19 +33,19 @@ import sys
 
 import comune
 
-# cadenza nominale (minuti) di ogni fonte: serve al gate per capire cos'e' un "buco"
+# cadenza nominale (minuti) di ogni fonte: il gate la usa per decidere cos'e' un buco
 CADENCE = {'VEN': 30, 'TN': 15, 'BZ': 10, 'FVG': 60, 'LOM': 10, 'ER': 15}
 
-# quanto storico riesce davvero a servire ogni fonte (giorni): oltre, un buco e' irrecuperabile e
-# NON deve triggerare fetch inutili. ER (get-time-series) tiene solo ~2-3 giorni; le altre di piu'.
+# Giorni di storico che la fonte serve davvero: oltre, un buco e' irrecuperabile e non deve
+# far partire scarichi inutili.
 SOURCE_MAX_DAYS = {'ER': 3}
 
 REGION_MODULE = {'VEN': 'dati_veneto', 'TN': 'dati_trentino', 'BZ': 'dati_altoadige',
                  'FVG': 'dati_fvg', 'LOM': 'dati_lombardia', 'ER': 'dati_emilia_romagna'}
 
-# LAYER AGGIUNTIVI (aria AQ_*, idrometria PC_*): i loro fetcher scaricano gia' una finestra multi-giorno,
-# quindi per ricucire un buco basta RI-ESEGUIRE il fetcher. code -> (script, argomento -r, cadenza min).
-# (PC_FVG e' a snapshot: ri-eseguirlo non fa vero backfill, ma riprende subito la serie.)
+# Aria (AQ_*) e idrometria (PC_*): i loro fetcher scaricano gia' una finestra di piu' giorni, basta
+# rieseguirli. code -> (script, argomento -r, cadenza min). PC_FVG e' a snapshot: non recupera il
+# passato, ma riprende la serie.
 EXTRA = {
     'AQ_VEN': ('dati_aria.py', 'VEN', 60), 'AQ_LOM': ('dati_aria.py', 'LOM', 60),
     'AQ_BZ':  ('dati_aria.py', 'BZ', 60),  'AQ_TN':  ('dati_aria.py', 'TN', 60),
@@ -56,14 +53,12 @@ EXTRA = {
     'PC_TN':  ('dati_pc.py', 'TN', 60),     'PC_FVG': ('dati_pc.py', 'FVG', 30),
 }
 
-# la serie di un sensore di BZ: dati_altoadige.py chiede solo l'ultima lettura, quindi l'indirizzo non e' suo
+# serie di un sensore di BZ: dati_altoadige.py chiede solo l'ultima lettura
 BZ_TIMESERIES_URL = 'https://geoservices.buergernetz.bz.it/services/meteo/v1/timeseries'
 
-#-----------------------------------------------------------------------------------------------------------
-# GATE: cerca un buco interno nell'archivio recente (leggendo solo i file gia' presenti, niente rete)
-#-----------------------------------------------------------------------------------------------------------
+# --- Gate: cerca un buco nell'archivio recente, solo dai file gia' presenti (niente rete)
 def collect_archive_istanti(parse_dir, variables, days):
-    ''' Unione di tutti gli ISTANTE (YYYYMMDDHHMM) presenti nell'archivio nella finestra [ora-days, ora]. '''
+    ''' Unione degli istanti (YYYYMMDDHHMM) nell'archivio, nella finestra [ora-days, ora]. '''
     floor = (comune.now_solar() - datetime.timedelta(days=days)).strftime('%Y%m%d%H%M')
     seen = set()
     for var in variables:
@@ -80,10 +75,9 @@ def biggest_gap_minutes(istanti):
     return max([(b - a).total_seconds() / 60.0 for a, b in zip(moments, moments[1:])], default=0.0)
 
 def has_hole(parse_dir, variables, days, cadence_min):
-    ''' True se l'unione degli istanti d'archivio ha un buco > 3x cadenza (indice di blackout).
-        Conta anche il buco IN CODA (ultimo campione -> adesso): se il Pi resta spento e la raccolta
-        non riparte, la serie finisce di colpo senza buchi interni e prima sfuggiva al controllo.
-        Soglia coda piu' larga (>= 6 h) per non scattare sui ritardi fisiologici delle fonti. '''
+    ''' True se l'unione degli istanti d'archivio ha un buco > 3x cadenza (blackout). Conta anche il
+        buco in coda (ultimo campione -> adesso), con soglia piu' larga (6 h) per non scattare sui
+        ritardi normali delle fonti. '''
     ist = collect_archive_istanti(parse_dir, variables, days)
     if not ist:
         return True, 'archivio vuoto nella finestra'
@@ -95,12 +89,10 @@ def has_hole(parse_dir, variables, days, cadence_min):
         return True, f'buco massimo {gap:.0f} min (> {3*cadence_min})'
     return False, f'continuo (buco max {gap:.0f} min)'
 
-#-----------------------------------------------------------------------------------------------------------
-# MERGE: fonde punti {var: {scode: [(istante, value)]}} nei file giornalieri, ordinato e dedup
-#-----------------------------------------------------------------------------------------------------------
+# --- Merge dei punti {var: {scode: [(istante, value)]}} nei file giornalieri
 def flush_points(parse_dir, points, station_records, um_map):
-    ''' Inserisce i punti mancanti (un istante gia' salvato tiene il suo valore) e aggiunge a stazioni.json le
-        stazioni di station_records che non ha. Ritorna i punti inseriti. '''
+    ''' Inserisce i punti mancanti (un istante gia' salvato tiene il suo valore) e aggiunge a
+        stazioni.json le stazioni di station_records che non ha. Ritorna i punti inseriti. '''
     stazioni_path = os.path.join(parse_dir, 'stazioni.json')
     station_list = comune.load_json(stazioni_path)
     for sc, record in station_records.items():
@@ -115,11 +107,9 @@ def flush_points(parse_dir, points, station_records, um_map):
     comune.save_json(station_list, stazioni_path)
     return added
 
-#-----------------------------------------------------------------------------------------------------------
-# FONTI STORICHE PER REGIONE  ->  points, station_records, um_map
-#-----------------------------------------------------------------------------------------------------------
+# --- Fonti storiche per regione -> points, station_records, um_map
 def fetch_bz(mod, days, debug=False):
-    ''' Bolzano: /timeseries per ogni coppia (stazione, sensore) attiva. DATE (CET/CEST) -> istante solare. '''
+    ''' Bolzano: /timeseries per ogni coppia (stazione, sensore) attiva. DATE e' CET/CEST. '''
     now = comune.now_solar()
     d_from, d_to = (now - datetime.timedelta(days=days)).strftime('%Y%m%d'), now.strftime('%Y%m%d')
     type2var = {ty: v for v, ty in mod.VARIABLES.items()}
@@ -133,8 +123,9 @@ def fetch_bz(mod, days, debug=False):
     points = {}
     for i, (sc, ty, var) in enumerate(pairs):
         try:
-            data = comune.get_json(BZ_TIMESERIES_URL, {'station_code': sc, 'sensor_code': ty, 'output_format': 'JSON',
-                                                      'date_from': d_from, 'date_to': d_to}, timeout=60)
+            data = comune.get_json(BZ_TIMESERIES_URL,
+                                   {'station_code': sc, 'sensor_code': ty, 'output_format': 'JSON',
+                                    'date_from': d_from, 'date_to': d_to}, timeout=60)
         except Exception as e:
             if debug:
                 print(f'  BZ {sc}/{ty} skip: {e}')
@@ -151,17 +142,18 @@ def fetch_bz(mod, days, debug=False):
     return points, {}, um_map
 
 def fetch_er(mod, days, debug=False):
-    ''' Emilia-Romagna: get-time-series per ogni stazione (dal registro) x variabile. t(ms UTC)->istante solare. '''
+    ''' Emilia-Romagna: get-time-series per ogni stazione x variabile. t e' in ms UTC. '''
     stations = comune.load_json(os.path.join(mod.PARSE_DIR, 'stazioni.json'))
     floor = (comune.now_solar() - datetime.timedelta(days=days)).strftime('%Y%m%d%H%M')
     points, um_map = {}, {}
     for i, sc in enumerate(stations):
-        for var in sorted(mod.VARIABLES):          # in ordine alfabetico: i file del giorno si scrivono in quest'ordine
+        for var in sorted(mod.VARIABLES):          # l'ordine decide quello di scrittura nei file del giorno
             desc, unit = mod.VARIABLES[var]
             conv = mod.VALUE_CONV.get(var)
             um_map[(var, sc)] = unit
             try:
-                ts = comune.get_json(mod.API_URL + 'get-time-series', {'stazione': sc, 'variabile': desc}, timeout=45)
+                ts = comune.get_json(mod.API_URL + 'get-time-series',
+                                     {'stazione': sc, 'variabile': desc}, timeout=45)
             except Exception:
                 continue
             pts = []
@@ -185,12 +177,14 @@ def fetch_er(mod, days, debug=False):
     return points, {}, um_map
 
 def fetch_lom(mod, days, debug=False):
-    ''' Lombardia: Socrata storico a chunk di 4h (<50000 righe/richiesta). data e' gia' ora solare. '''
-    sensors = {a.get('idsensore'): a for a in comune.get_json(mod.REGISTRY_URL, {'$limit': '10000'}, timeout=90)}
+    ''' Lombardia: Socrata storico a chunk di 4h (<50000 righe/richiesta). `data` e' ora solare. '''
+    sensors = {a.get('idsensore'): a
+               for a in comune.get_json(mod.REGISTRY_URL, {'$limit': '10000'}, timeout=90)}
     type2var = {tipo: v for v, tipo in mod.VARIABLES.items()}
-    # ANCORA la finestra all'ultimo timestamp del dataset (non all'orologio): il portale pubblica con
-    # ritardo, quindi usare l'ora di sistema perderebbe i dati piu' recenti.
-    latest = comune.get_json(mod.DATA_URL, {'$select': 'data', '$order': 'data DESC', '$limit': '1'}, timeout=90)
+    # Finestra ancorata all'ultimo timestamp del dataset, non all'orologio: il portale pubblica in
+    # ritardo e l'ora di sistema perderebbe i dati piu' recenti.
+    latest = comune.get_json(mod.DATA_URL, {'$select': 'data', '$order': 'data DESC', '$limit': '1'},
+                             timeout=90)
     if latest:
         now = datetime.datetime.strptime(latest[0]['data'][:19], '%Y-%m-%dT%H:%M:%S')
     else:
@@ -199,9 +193,11 @@ def fetch_lom(mod, days, debug=False):
     t0 = now - datetime.timedelta(days=days)
     while t0 < now:
         t1 = min(t0 + datetime.timedelta(hours=4), now)
-        where = "data > '%s' AND data <= '%s'" % (t0.strftime('%Y-%m-%dT%H:%M:%S'), t1.strftime('%Y-%m-%dT%H:%M:%S'))
+        where = "data > '%s' AND data <= '%s'" % (t0.strftime('%Y-%m-%dT%H:%M:%S'),
+                                                  t1.strftime('%Y-%m-%dT%H:%M:%S'))
         try:
-            rows = comune.get_json(mod.DATA_URL, {'$where': where, '$order': 'data', '$limit': '50000'}, timeout=90)
+            rows = comune.get_json(mod.DATA_URL, {'$where': where, '$order': 'data', '$limit': '50000'},
+                                   timeout=90)
         except Exception as e:
             if debug:
                 print(f'  LOM chunk {where} skip: {e}')
@@ -213,14 +209,16 @@ def fetch_lom(mod, days, debug=False):
             if var is None or r.get('idoperatore') != mod.OPERATORS.get(var, '1'):
                 continue
             val = r.get('valore')
-            if val is None or val in mod.SKIP_VALUES or (var == 'DVENTO' and val in mod.SKIP_DIR_VALUES):
+            if val is None or val in mod.SKIP_VALUES or (var == 'DVENTO'
+                                                         and val in mod.SKIP_DIR_VALUES):
                 continue
             ist, sc = mod.compact_moment(r.get('data')), a.get('idstazione')
             if ist is None or sc is None:
                 continue
             if sc not in station_records:
                 station_records[sc] = {'SCODE': sc, 'NOME': a.get('nomestazione'),
-                                       'LAT': mod.coordinate(a.get('lat')), 'LON': mod.coordinate(a.get('lng')),
+                                       'LAT': mod.coordinate(a.get('lat')),
+                                       'LON': mod.coordinate(a.get('lng')),
                                        'QUOTA': a.get('quota'), 'PROVINCIA': a.get('provincia')}
             um_map[(var, sc)] = a.get('unit_dimisura')
             points.setdefault(var, {}).setdefault(sc, []).append((ist, val))
@@ -229,11 +227,11 @@ def fetch_lom(mod, days, debug=False):
         t0 = t1
     return points, station_records, um_map
 
-#-----------------------------------------------------------------------------------------------------------
+# --- Recupero per regione
 def recover_snapshot_region(region, fetcher, days, force, debug):
     ''' Regioni a snapshot (BZ/ER/LOM): gate sul buco, poi fetch storico + merge. '''
     mod = importlib.import_module(REGION_MODULE[region])
-    eff_days = min(days, SOURCE_MAX_DAYS.get(region, days))   # limita alla profondita' servibile dalla fonte
+    eff_days = min(days, SOURCE_MAX_DAYS.get(region, days))   # non oltre quanto serve la fonte
     hole, why = has_hole(mod.PARSE_DIR, sorted(mod.VARIABLES), eff_days, CADENCE[region])
     print(f'[{region}] gate ({eff_days}gg): {why}')
     if not hole and not force:
@@ -246,7 +244,7 @@ def recover_snapshot_region(region, fetcher, days, force, debug):
     print(f'[{region}] punti recuperati e inseriti: {added}  (scaricati {n_pts})')
 
 def recover_ven(days, force):
-    ''' Veneto: dump giornaliero completo -> richiama lo script con -date per ogni giorno della finestra. '''
+    ''' Veneto: dump giornaliero completo; richiama lo script con -date per ogni giorno. '''
     mod = importlib.import_module(REGION_MODULE['VEN'])
     hole, why = has_hole(mod.PARSE_DIR, sorted(mod.VARIABLES), days, CADENCE['VEN'])
     print(f'[VEN] gate: {why}')
@@ -257,11 +255,11 @@ def recover_ven(days, force):
     for k in range(1, days + 1):                       # da ieri all'indietro (oggi lo fa il run normale)
         d = today - datetime.timedelta(days=k)
         print(f'[VEN] recupero giorno {d} ...')
-        subprocess.run([sys.executable, mod.__file__, '-date', str(d.year), str(d.month), str(d.day), '-c', 'no'],
-                       check=False)
+        subprocess.run([sys.executable, mod.__file__, '-date', str(d.year), str(d.month), str(d.day),
+                        '-c', 'no'], check=False)
 
 def recover_windowed(code, script, regarg, cadence, days, force):
-    ''' Aria/PC: gate sul buco interno; se c'e', ri-esegue il fetcher a finestra (che ricuce da solo). '''
+    ''' Aria/PC: gate sul buco; se c'e', riesegue il fetcher a finestra, che ricuce da solo. '''
     parse_dir = os.path.join(comune.region_dir(code), 'data-parsed')
     if not os.path.isdir(parse_dir):
         print(f'[{code}] nessun archivio: salto.')
@@ -275,7 +273,6 @@ def recover_windowed(code, script, regarg, cadence, days, force):
     print(f'[{code}] ri-eseguo {script} -r {regarg} per ricucire...')
     subprocess.run([sys.executable, os.path.join(comune.BASE, script), '-r', regarg], check=False)
 
-#-----------------------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description='Riempimento buchi (blackout) dallo storico delle fonti.')
     ap.add_argument('-r', '--region', default='all', help='all/VEN/BZ/ER/LOM/AQ_*/PC_*')

@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 
-# history.py - STORICO LUNGO: aggregati GIORNALIERI di pioggia (PREC) e temperatura (TEMP) da tutto l'archivio.
+# history.py - storico lungo: aggregati giornalieri di pioggia (PREC) e temperatura (TEMP) da tutto
+# l'archivio, per stazione. Occupano poco e si pubblicano una volta al giorno sul ramo 'history'.
 #
-# Perche': il sito mostra solo gli ultimi 7 giorni (finestra mobile). Qui si riassume ogni giorno dell'archivio
-# in pochi numeri per stazione, cosi' lo storico occupa pochissimo (~20 MB/anno per tutta l'Italia del nord) e si
-# pubblica una volta al giorno su un ramo GitHub a parte ('history'), senza toccare i 10 minuti del ramo 'data'.
-#
-# Aggregati per stazione e GIORNO SOLARE (l'archivio e' sempre in ora solare, UTC+1 fisso):
+# Aggregati per giorno solare (l'archivio e' in ora solare, UTC+1 fisso):
 #   PREC: somma del giorno (mm), ore con dato (0-24)
-#   TEMP: minima, massima, media (media delle medie orarie, robusta a cadenze diverse), ore con dato (0-24)
-# "Ore con dato" e' l'indice di completezza (indipendente dalla cadenza 5/10/30/60 min): il sito marca come
-# incompleti i giorni/mesi con poche ore. Tutto passa da quality.py (sentinelle, valori impossibili, zero-guasto).
+#   TEMP: minima, massima, media (delle medie orarie, robusta a cadenze diverse), ore con dato (0-24)
+# "Ore con dato" misura la completezza a prescindere dalla cadenza; il sito marca i giorni e i mesi
+# con poche ore. Tutto passa da quality.py.
 #
-# Sorgenti: l'archivio METEO di ogni regione (<regione>/data-parsed/, da luglio 2026) e, per il Veneto, anche il
-# vecchio archivio ARPAV (sola lettura, dal 2022-05-06, stesso formato). Dove i due si sovrappongono vince il
-# giorno con piu' ore di dato.
+# Sorgenti: <regione>/data-parsed/ e, per il Veneto, anche l'archivio ARPAV di sola lettura (stesso
+# formato). Dove si sovrappongono vince il giorno con piu' ore di dato.
 #
-# Usa una CACHE (un file per regione con gli aggregati gia' calcolati): ogni notte si rielaborano solo i giorni
-# nuovi + gli ultimi 8 (potrebbero ricevere dati in ritardo). Il primo giro (backfill) rilegge tutto l'archivio.
+# Una cache per regione tiene gli aggregati gia' calcolati: ogni notte si rielaborano i giorni nuovi
+# e gli ultimi 8 (possono ricevere dati in ritardo). Il primo giro rilegge tutto l'archivio.
 #
 # Uscita: <out>/<REGIONE>/<STAZIONE>.json   {"v":1,"d0":"YYYYMMDD","p":[...],"hp":[...],"tn":[...],"tx":[...],
 #         "tm":[...],"ht":[...]}  (un elemento per giorno da d0; null = nessun dato) + <out>/index.json.
@@ -35,12 +31,12 @@ import comune
 import quality
 
 BASE = os.path.dirname(os.path.realpath(__file__))
-OLD_VEN = '/home/manuel/dati/arpav/live/data-parsed'          # vecchio sistema ARPAV (sola lettura)
+OLD_VEN = '/home/manuel/dati/arpav/live/data-parsed'          # archivio ARPAV (sola lettura)
 VARS = ('PREC', 'TEMP')
-# sempre rielaborati (arrivi in ritardo): recover.py (18:40) ricuce fino a 7 giorni prima del giorno in cui gira, e quel
-# giro cade dopo lo Storico delle 07:20, quindi fra due Storici il giorno piu' vecchio che puo' cambiare e' G-8
+# Giorni sempre rielaborati: recover.py (18:40) ricuce fino a 7 giorni prima di quando gira, dopo lo
+# Storico delle 07:20; fra due Storici il giorno piu' vecchio che puo' cambiare e' G-8.
 RECENT_DAYS = 8
-PREC_DAY_MAX = 1500.0                                          # oltre, la somma giornaliera e' un guasto
+PREC_DAY_MAX = 1500.0                                          # oltre e' un guasto
 CACHE_V = 1
 
 def sources_of(region):
@@ -63,16 +59,15 @@ def discover_regions():
             regs.append(name)
     return regs
 
-#-----------------------------------------------------------------------------------------------------------
 def aggregate_file(region, var, path, umid_path=None):
-    ''' Aggrega un file giornaliero: {scode: {giorno: [somma|None, ore, tmin, tmax, tmedia]}} (per PREC solo i
-        primi due campi). Un file puo' contenere istanti di piu' giorni: si raggruppa per data dell'ISTANTE. '''
+    ''' Aggrega un file giornaliero: {scode: {giorno: [somma|None, ore, tmin, tmax, tmedia]}} (per PREC
+        solo i primi due campi). Un file puo' avere istanti di piu' giorni: si raggruppa per l'istante. '''
     data = comune.load_json(path)
     if not isinstance(data, dict):
         return {}
     vkey = comune.value_key(region)
     out = {}
-    zero_ts = {}                                                 # TEMP == 0.0 esatto: candidati a "zero-guasto"
+    zero_ts = {}                                                 # TEMP == 0.0 esatto: guasto sospetto
     per = {}                                                     # scode -> giorno -> dati grezzi
     for scode, rec in data.items():
         misure = (rec or {}).get('MISURE') or {}
@@ -89,12 +84,13 @@ def aggregate_file(region, var, path, umid_path=None):
             st[ts] = (hour, x)
             if var == 'TEMP' and x == 0.0:
                 zero_ts.setdefault(scode, set()).add(ts)
-    if zero_ts and umid_path:                                    # TEMP=0 con UMID=0 allo stesso istante = datalogger azzerato
+    if zero_ts and umid_path:                                    # TEMP=0 e UMID=0: logger azzerato
         um = comune.load_json(umid_path)
         if isinstance(um, dict):
             for scode, tss in zero_ts.items():
                 mis = ((um.get(scode) or {}).get('MISURE')) or {}
-                zeros = set(ts for ts, v in zip(mis.get('ISTANTE') or [], mis.get(vkey) or []) if comune.to_float(v) == 0.0)
+                zeros = set(ts for ts, v in zip(mis.get('ISTANTE') or [], mis.get(vkey) or [])
+                            if comune.to_float(v) == 0.0)
                 for ts in tss & zeros:
                     for day, st in per.get(scode, {}).items():
                         st.pop(ts, None)
@@ -114,11 +110,12 @@ def aggregate_file(region, var, path, umid_path=None):
                 for h, x in st.values():
                     byh.setdefault(h, []).append(x)
                 tm = sum(sum(v) / len(v) for v in byh.values()) / len(byh)
-                out.setdefault(scode, {})[day] = [None, len(hours), round(min(xs), 1), round(max(xs), 1), round(tm, 1)]
+                out.setdefault(scode, {})[day] = [None, len(hours), round(min(xs), 1), round(max(xs), 1),
+                                                  round(tm, 1)]
     return out
 
 def aggregate_or_skip(region, var, path, umid_path=None):
-    ''' aggregate_file di un file solo: se ha la forma sbagliata (JSON valido ma non un archivio) lo salta e lo dice. '''
+    ''' aggregate_file di un file solo: se ha la forma sbagliata lo salta e lo dice. '''
     try:
         return aggregate_file(region, var, path, umid_path)
     except (TypeError, ValueError, KeyError, AttributeError) as e:
@@ -126,8 +123,9 @@ def aggregate_or_skip(region, var, path, umid_path=None):
         return {}
 
 def day_record(region, files, day):
-    ''' Aggregati di un giorno da tutte le fonti: {scode: [psum, hp, tn, tx, tm, ht]}; per ogni variabile e stazione
-        vince la fonte con piu' ore di dato (a parita', la piu' recente). files = [{var: {giorno: percorso}}, ...]. '''
+    ''' Aggregati di un giorno da tutte le fonti: {scode: [psum, hp, tn, tx, tm, ht]}; per ogni variabile
+        e stazione vince la fonte con piu' ore di dato (a parita', la piu' recente).
+        files = [{var: {giorno: percorso}}, ...]. '''
     res = {}
     for fm in files:
         if day in fm['PREC']:
@@ -146,7 +144,6 @@ def day_record(region, files, day):
                         r[2], r[3], r[4], r[5] = v[2], v[3], v[4], v[1]
     return res
 
-#-----------------------------------------------------------------------------------------------------------
 def load_cache(path):
     d = comune.load_json(path)
     if isinstance(d, dict) and d.get('v') == CACHE_V and isinstance(d.get('days'), dict):
@@ -156,11 +153,11 @@ def load_cache(path):
 def day_span(d0, d1):
     return (datetime.datetime.strptime(d1, '%Y%m%d') - datetime.datetime.strptime(d0, '%Y%m%d')).days + 1
 
-#-----------------------------------------------------------------------------------------------------------
 def process_region(region, cache_dir, full=False, verbose=False, today=None):
     ''' today = giorno solare corrente AAAAMMGG (None: adesso). '''
     srcs = sources_of(region)
-    files = [{v: comune.day_files(os.path.join(p, v), v) for v in ('PREC', 'TEMP', 'UMID')} for _, p in srcs]     # elenco file, una volta sola
+    files = [{v: comune.day_files(os.path.join(p, v), v) for v in ('PREC', 'TEMP', 'UMID')}
+             for _, p in srcs]
     all_days = set()
     for fm in files:
         for v in VARS:
@@ -172,7 +169,8 @@ def process_region(region, cache_dir, full=False, verbose=False, today=None):
     days = cache['days']
     if today is None:
         today = comune.now_solar().strftime('%Y%m%d')
-    recent_from = (datetime.datetime.strptime(today, '%Y%m%d') - datetime.timedelta(days=RECENT_DAYS)).strftime('%Y%m%d')
+    recent_from = (datetime.datetime.strptime(today, '%Y%m%d')
+                   - datetime.timedelta(days=RECENT_DAYS)).strftime('%Y%m%d')
     todo = sorted(d for d in all_days if d not in days or d >= recent_from)
     t0 = time.time()
     for i, day in enumerate(todo):
@@ -193,7 +191,6 @@ def write_region(region, days, out_dir):
         return 0, None, None
     d_first = min(days)
     d_last = max(days)
-    # per stazione: giorni in cui compare
     st_days = {}
     for day, recs in days.items():
         for scode in recs:
@@ -204,7 +201,8 @@ def write_region(region, days, out_dir):
     for scode, dl in st_days.items():
         d0 = min(dl)
         n = day_span(d0, d_last)
-        cols = {'p': [None] * n, 'hp': [None] * n, 'tn': [None] * n, 'tx': [None] * n, 'tm': [None] * n, 'ht': [None] * n}
+        cols = {'p': [None] * n, 'hp': [None] * n, 'tn': [None] * n, 'tx': [None] * n, 'tm': [None] * n,
+                'ht': [None] * n}
         for day in dl:
             r = days[day][scode]
             k = day_span(d0, day) - 1
@@ -228,10 +226,11 @@ def write_region(region, days, out_dir):
             os.remove(os.path.join(rdir, fn))
     return len(keep), d_first, d_last
 
-#-----------------------------------------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description='Aggregati giornalieri (pioggia, temperatura) per lo storico lungo.')
-    ap.add_argument('--out', default=os.path.join(BASE, 'history_out'), help='cartella di uscita (ramo history)')
+    ap = argparse.ArgumentParser(
+        description='Aggregati giornalieri (pioggia, temperatura) per lo storico lungo.')
+    ap.add_argument('--out', default=os.path.join(BASE, 'history_out'),
+                    help='cartella di uscita (ramo history)')
     ap.add_argument('--cache', default=os.path.join(BASE, 'history_cache'), help='cartella della cache')
     ap.add_argument('--regions', default='', help='elenco separato da virgole (default: tutte)')
     ap.add_argument('--full', action='store_true', help='ignora la cache e rielabora tutto')
@@ -240,7 +239,7 @@ def main():
 
     regions = [r for r in a.regions.split(',') if r] or discover_regions()
     os.makedirs(a.out, exist_ok=True)
-    now = comune.now_solar()                                   # l'ora si prende una volta: stesso giorno per tutte le regioni
+    now = comune.now_solar()                                   # una volta: stesso giorno per tutte le regioni
     index = {'v': 1, 'updated': now.strftime('%Y-%m-%dT%H:%M'), 'regions': {}}
     t0 = time.time()
     for region in regions:

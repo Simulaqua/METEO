@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
-# check_updates.py - monitor: rileva NUOVE STAZIONI e NUOVE VARIABILI (non mappate) in tutte le regioni.
+# check_updates.py - monitor: rileva nuove stazioni e nuove variabili non mappate in tutte le regioni.
 #
 # Per ogni regione confronta il feed live con:
-#   - le variabili MAPPATE, lette direttamente dalla tabella VARIABLES in testa allo script della regione
-#     (cosi' quando aggiungi una variabile allo script, qui smette automaticamente di segnalarla);
-#   - uno SNAPSHOT delle stazioni note (.tracking/<REGION>_stations.json): segnala solo quelle nuove.
+#   - le variabili mappate, lette dalla tabella VARIABLES dello script della regione (aggiunta una
+#     variabile allo script, smette di segnalarla);
+#   - uno snapshot delle stazioni note (.tracking/<REGION>_stations.json): segnala solo le nuove.
 #
 # Uso:  python3 check_updates.py -r all            (tutte le regioni)
 #       python3 check_updates.py -r BZ             (una regione)
 #       python3 check_updates.py -r all --sample 40   (piu' veloce: campiona 40 stazioni/lista)
-# Le eventuali novita' vengono stampate e appese a tracking.log (con data/ora).
+# Le novita' vengono stampate e appese a tracking.log (con data e ora).
 
 import argparse, csv, datetime, importlib, io, json, os, re
 import xml.etree.ElementTree as ET
@@ -32,14 +32,13 @@ REGIONS = {
     'FVG': 'dati_fvg',
     'LOM': 'dati_lombardia',
     'ER' : 'dati_emilia_romagna',
-    # layer aggiuntivi: il "modulo" e' lo script multi-rete (per riusarne le mappe sigla/variabile)
+    # layer aggiuntivi: il modulo e' lo script multi-rete, di cui si riusano le mappe sigla/variabile
     'AQ_VEN': 'dati_aria', 'AQ_LOM': 'dati_aria', 'AQ_BZ': 'dati_aria',
     'AQ_TN' : 'dati_aria', 'AQ_ER' : 'dati_aria',
     'PC_FVG': 'dati_pc',   'PC_TN' : 'dati_pc',
 }
 
-#-----------------------------------------------------------------------------------------------------------
-# una risposta mancante, rifiutata o rovinata non ferma il giro: la regione risulta senza stazioni
+# Una risposta mancante, rifiutata o rovinata non ferma il giro: la regione risulta senza stazioni.
 def get_or_none(url, params=None, timeout=25):
     try:
         r = comune.get(url, params=params, timeout=timeout)
@@ -52,9 +51,7 @@ def get_json_or_none(url):
     try: return json.loads(raw.decode('utf-8', 'replace')) if raw else None
     except ValueError: return None
 
-#-----------------------------------------------------------------------------------------------------------
-# SCANNER PER REGIONE  ->  (mapped:set, live:dict{code:n_staz}, stations:dict{code:name})
-#-----------------------------------------------------------------------------------------------------------
+# --- Scanner per regione -> (mapped: set, live: {codice: n_staz}, stations: {codice: nome})
 def scan_ven(m, sample):
     mapped = set(m.VARIABLES)                                    # per ARPAV il TYPE == nome variabile
     stations, links = {}, []
@@ -78,7 +75,7 @@ def scan_ven(m, sample):
     return mapped, dict(live), stations
 
 def scan_bz(m, sample):
-    mapped = set(m.VARIABLES.values())                           # i TYPE dei sensori letti dallo script
+    mapped = set(m.VARIABLES.values())                           # i TYPE letti dallo script
     stations = {}
     raw = get_or_none(m.STATIONS_URL)
     if raw:
@@ -95,7 +92,7 @@ def scan_bz(m, sample):
 
 def scan_tn(m, sample):
     NS = m.NS
-    mapped = set(tag for section, item, tag, unit in m.VARIABLES.values())   # i tag dei valori letti dallo script
+    mapped = set(tag for section, item, tag, unit in m.VARIABLES.values())   # i tag letti dallo script
     for extra in m.EXTRA.values():
         mapped.update(extra.values())
     stations, codes = {}, []
@@ -128,11 +125,12 @@ def scan_tn(m, sample):
     return mapped, dict(live), stations
 
 def scan_fvg(m, sample):
-    mapped = set(m.VARIABLES.values())                           # i tag di <meteo_data> letti dallo script
+    mapped = set(m.VARIABLES.values())                           # i tag di <meteo_data> letti
     for extra in m.EXTRA.values():
         mapped.update(extra.values())
     raw = get_or_none(m.HOME_URL)
-    codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', raw.decode('utf-8', 'replace')))) if raw else []
+    codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml',
+                                  raw.decode('utf-8', 'replace')))) if raw else []
     smp = codes[:sample] if sample else codes
     def fields(c):
         raw = get_or_none(m.STATION_URL + c + '.xml')
@@ -151,7 +149,7 @@ def scan_fvg(m, sample):
     return mapped, dict(live), stations
 
 def scan_lom(m, sample):
-    mapped = set(m.VARIABLES.values())                           # le tipologie dei sensori lette dallo script
+    mapped = set(m.VARIABLES.values())                           # le tipologie lette
     q = "?$select=tipologia,idstazione,nomestazione&$where=storico%3D%27N%27&$limit=20000"
     stations, live = {}, Counter()
     raw = get_or_none(m.REGISTRY_URL + q)
@@ -164,7 +162,7 @@ def scan_lom(m, sample):
     return mapped, dict(live), stations
 
 def scan_er(m, sample):
-    mapped = set(desc for desc, unit in m.VARIABLES.values())    # i descrittori delle variabili lette dallo script
+    mapped = set(desc for desc, unit in m.VARIABLES.values())    # i descrittori letti
     stations = {}
     for n in ('LIVIDRO', 'TEMP', 'PREC'):
         desc = m.VARIABLES[n][0]
@@ -174,14 +172,13 @@ def scan_er(m, sample):
         for s in json.loads(raw):
             if isinstance(s, dict) and 'idstazione' in s:
                 stations[s['idstazione']] = s.get('nomestaz')
-    # ER non espone un elenco di variabili: 'live' = 'mapped' (nessuna variabile non mappata)
+    # ER non espone un elenco di variabili: live = mapped, nessuna variabile non mappata
     return mapped, {d: 1 for d in mapped}, stations
 
-#-----------------------------------------------------------------------------------------------------------
-# LAYER AGGIUNTIVI: qualita' aria (AQ_*) e idrometria PC (PC_*). Qui interessa soprattutto rilevare
-# NUOVE STAZIONI (per l'aria TN/ER servono a sapere che va aggiunta/verificata una coordinata). Il
-# flag "variabile non mappata" e' tenuto solo dove e' pulito (PC_TN: 2 grandezze); per l'aria le reti
-# misurano molte specie che non tracciamo di proposito, quindi non lo attiviamo (sarebbe rumore).
+# --- Layer aggiuntivi: qualita' aria (AQ_*) e idrometria (PC_*)
+# Interessano soprattutto le nuove stazioni (per l'aria TN/ER: va verificata una coordinata). Le
+# variabili non mappate si segnalano solo dove e' pulito (PC_TN): le reti d'aria misurano molte
+# specie non tracciate di proposito, sarebbe rumore.
 def scan_aq_ven(m, sample):
     data = get_json_or_none(m.VEN_BASE + 'data.json') or {}
     stats = get_json_or_none(m.VEN_BASE + 'stats.json') or {}
@@ -234,13 +231,12 @@ def scan_pc_tn(m, sample):
             stations[sid] = md.get('site')
         if md.get('quantity'):
             live[md['quantity']] += 1
-    return set(m.TN_MAP), dict(live), stations           # PC_TN: flag anche nuove grandezze (solo 2 attese)
+    return set(m.TN_MAP), dict(live), stations           # PC_TN: segnala anche nuove grandezze (2 attese)
 
 SCANNERS = {'VEN': scan_ven, 'BZ': scan_bz, 'TN': scan_tn, 'FVG': scan_fvg, 'LOM': scan_lom, 'ER': scan_er,
             'AQ_VEN': scan_aq_ven, 'AQ_LOM': scan_aq_lom, 'AQ_BZ': scan_aq_bz, 'AQ_TN': scan_aq_tn,
             'AQ_ER': scan_aq_er, 'PC_FVG': scan_pc_fvg, 'PC_TN': scan_pc_tn}
 
-#-----------------------------------------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description='Rileva nuove stazioni / nuove variabili non mappate.')
     parser.add_argument('-r', '--region', default='all', help='VEN/BZ/TN/FVG/all')
@@ -262,10 +258,10 @@ def main():
         m = importlib.import_module(REGIONS[region])
         mapped, live, stations = SCANNERS[region](m, sample)
 
-# variabili presenti nel feed ma NON mappate
+        # variabili nel feed ma non mappate
         new_vars = sorted(k for k in live if k is not None and k not in mapped)
 
-# stazioni nuove rispetto allo snapshot
+        # stazioni nuove rispetto allo snapshot
         snap = os.path.join(TRACK_DIR, region + '_stations.json')
         known = set(comune.load_json(snap)) if os.path.exists(snap) else None
         cur   = set(stations)
@@ -273,7 +269,7 @@ def main():
         new_staz = [] if baseline else sorted(cur - known)
         comune.save_json(sorted(cur | (known or set())), snap)   # aggiorna snapshot (unione)
 
-# report a schermo
+        # report a schermo
         print(f"\n=== {region} ===")
         if baseline:
             print(f"  stazioni: {len(cur)} (snapshot iniziale creato)")
@@ -289,7 +285,7 @@ def main():
 
         tot_vars += len(new_vars); tot_staz += len(new_staz)
 
-# blocco per il log (solo se c'e' qualcosa di nuovo)
+        # blocco per il log, solo se c'e' qualcosa di nuovo
         if new_vars or new_staz:
             lines = [f"[{stamp}] {region}:"]
             for v in new_vars: lines.append(f"  NUOVA VARIABILE '{v}' ({live[v]} staz)")

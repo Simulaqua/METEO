@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 
-# climatology.py - STATISTICHE E INDICI CLIMATICI dall'ARCHIVIO COMPLETO (data-parsed, tenuto per
-# sempre). NON archivia nuove serie: produce un RIASSUNTO COMPATTO per stazione ->
-# site/<REGIONE>/climate.json. Pesante in CPU (legge tutto l'archivio, anche .gz) ma output minuscolo:
-# va lanciato una volta al giorno, non a ogni run. Disk-safe (dimensione ~costante).
+# climatology.py - statistiche e indici climatici dall'archivio completo (data-parsed), in un riassunto
+# per stazione: site/<REGIONE>/climate.json. Legge tutto l'archivio (anche .gz): una volta al giorno.
 #
-# Per ogni stazione (dove c'e' TEMP e/o PREC): periodo di record, climatologia mensile (Tmin/Tmax/
-# Tmedia medie pluriennali + pioggia mensile media), record assoluti (Tmax/Tmin/pioggia giornaliera),
-# e conteggi medi annui di indici ETCCDI (giorni di gelo, estivi, notti tropicali, giorni caldi,
-# giorni di ghiaccio, giorni piovosi).
+# Per ogni stazione con TEMP e/o PREC: periodo, climatologia mensile (Tmin/Tmax/Tmedia e pioggia
+# media), record assoluti e conteggi medi annui di indici ETCCDI (giorni di gelo, estivi, notti
+# tropicali, giorni caldi, giorni di ghiaccio, giorni piovosi).
 #
 # Uso:  python3 climatology.py -r all | -r VEN   [--site-dir site]
 
@@ -17,7 +14,7 @@ import os
 import sys
 
 import comune
-import quality                      # sentinelle (-999...) e valori impossibili: scartati in lettura
+import quality                      # scarta sentinelle e valori impossibili
 
 
 def scan_file(path, var, key, agg):
@@ -63,11 +60,10 @@ def climate_region(region, parse_dir, out_dir):
     pday = scan(parse_dir, 'PREC', region)        # {scode: {day: somma pioggia}}
     staz = comune.load_json(os.path.join(parse_dir, 'stazioni.json'))
     result = {}
-    for sc in set(tday) | set(pday):              # l'ordine delle stazioni in climate.json è quello di questo set
+    for sc in set(tday) | set(pday):              # l'ordine in climate.json è quello del set
         stax = staz.get(sc, {})
         tdays = tday.get(sc, {})                  # day -> [tmin,tmax,tsum,tcnt]
         pdays = pday.get(sc, {})                  # day -> somma
-        # aggregati giornalieri
         dstats = {}                               # day -> (tmin,tmax,tmean)
         for day, a in tdays.items():
             if a[3] >= 6:                         # servono abbastanza letture per un giorno valido
@@ -76,10 +72,11 @@ def climate_region(region, parse_dir, out_dir):
         if not dstats and not drain:
             continue
         alldays = sorted(set(dstats) | set(drain))
-        entry = {'nome': stax.get('NOME'), 'lat': comune.to_float(stax.get('LAT')), 'lon': comune.to_float(stax.get('LON')),
+        entry = {'nome': stax.get('NOME'), 'lat': comune.to_float(stax.get('LAT')),
+                 'lon': comune.to_float(stax.get('LON')),
                  'period': {'from': alldays[0], 'to': alldays[-1], 'days': len(alldays)}}
         # --- climatologia mensile (media pluriennale) ---
-        mon = {}                                  # '01'..'12' -> {tmin:[],tmax:[],tmean:[], prain: {anno: tot}}
+        mon = {}                      # '01'..'12' -> {tmin:[], tmax:[], tmean:[], prain: {anno: tot}}
         for day, (tn, tx, tm) in dstats.items():
             mm = day[4:6]; mon.setdefault(mm, {'tmin': [], 'tmax': [], 'tmean': [], 'prain': {}})
             mon[mm]['tmin'].append(tn); mon[mm]['tmax'].append(tx); mon[mm]['tmean'].append(tm)
@@ -107,7 +104,7 @@ def climate_region(region, parse_dir, out_dir):
             rec['prec_day'] = {'val': round(pmax[1], 1), 'date': pmax[0]}
         if rec:
             entry['records'] = rec
-        # --- indici ETCCDI: conteggi medi ANNUI (normalizzati per numero di anni con dati) ---
+        # --- indici ETCCDI: conteggi medi annui (per numero di anni con dati) ---
         years = set(d[0:4] for d in dstats)
         ny = max(1, len(years))
         frost = sum(1 for (tn, tx, tm) in dstats.values() if tn < 0)      # gelo (Tmin<0)
@@ -138,7 +135,6 @@ def main():
     ap.add_argument('-r', '--region', default='all')
     ap.add_argument('--site-dir', default='site')
     args = ap.parse_args()
-    # regioni = sottocartelle con data-parsed
     all_reg = sorted(d for d in os.listdir(comune.BASE)
                      if os.path.isdir(os.path.join(comune.BASE, d, 'data-parsed')))
     regions = all_reg if args.region.lower() == 'all' else [r.strip() for r in args.region.split(',')]
@@ -146,7 +142,8 @@ def main():
         parse_dir = os.path.join(comune.BASE, reg, 'data-parsed')
         if not os.path.isdir(parse_dir):
             print('SKIP ' + reg + ': niente data-parsed'); continue
-        out_dir = os.path.join(args.site_dir if os.path.isabs(args.site_dir) else os.path.join(comune.BASE, args.site_dir), reg)
+        out_dir = os.path.join(args.site_dir if os.path.isabs(args.site_dir)
+                               else os.path.join(comune.BASE, args.site_dir), reg)
         try:
             climate_region(reg, parse_dir, out_dir)
         except Exception as e:

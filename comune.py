@@ -18,12 +18,10 @@ def region_dir(code):
     return os.path.join(BASE, code)
 
 
-# ---------------------------------------------------------------------------------------------------------
-# File JSON
+# --- File JSON
 
 def load_json(path):
-    """Un file mancante, vuoto o troncato (scrittura interrotta, disco pieno) non deve fermare lo script:
-    si riparte da {} con un avviso nel log. Legge anche i .json.gz."""
+    """Legge anche i .json.gz. File mancante, vuoto o troncato: {} con un avviso, lo script non si ferma."""
     if not os.path.exists(path):
         return {}
     try:
@@ -37,14 +35,14 @@ def load_json(path):
             print('WARN: file JSON vuoto, ignorato: ' + path)
             return {}
         return json.loads(text)
-    except (ValueError, OSError, EOFError, zlib.error) as error:     # gzip rovinato in 3.7: niente BadGzipFile
+    except (ValueError, OSError, EOFError, zlib.error) as error:     # Python 3.7: niente BadGzipFile
         print('WARN: file JSON illeggibile (' + str(error) + '), ignorato: ' + path)
         return {}
 
 
 def day_files(parse_dir, var):
-    """{'AAAAMMGG': percorso} dei file <var>-AAAAMMGG.json e .json.gz, in ordine di giorno: os.listdir non è
-    ordinato e export e climatologia dipendono dall'ordine di lettura. Se ci sono entrambi vince il .json."""
+    """{'AAAAMMGG': percorso} dei file <var>-AAAAMMGG.json e .json.gz, in ordine di giorno (export e
+    climatologia dipendono dall'ordine). Se ci sono entrambi vince il .json."""
     if not os.path.isdir(parse_dir):
         return {}
     found = {}
@@ -64,8 +62,8 @@ def value_key(region):
 
 
 def save_json(data, path, sort_keys=False):
-    """Scrittura atomica: su .tmp, fsync, poi rename; un kill a metà non lascia mai un .json monco. Il .tmp ha il pid
-    nel nome: due processi che scrivono lo stesso file (recover.py e uno scarico) non si mescolano nel temporaneo."""
+    """Scrittura atomica: .tmp, fsync, rename. Il pid nel nome del .tmp evita che due processi
+    sullo stesso file (recover.py e uno scarico) si mescolino."""
     folder = os.path.dirname(path)
     if folder:
         os.makedirs(folder, exist_ok=True)
@@ -77,14 +75,11 @@ def save_json(data, path, sort_keys=False):
     os.replace(tmp, path)
 
 
-# ---------------------------------------------------------------------------------------------------------
-# Rete
+# --- Rete
 
 def get(url, params=None, headers=None, timeout=60, verify=True):
-    """GET che non solleva per lo stato HTTP. Su errore di connessione (rete caduta, connessione rifiutata o
-    chiusa) riprova una volta dopo 5 secondi. Dopo un timeout NON riprova: una fonte ferma verrebbe
-    interrogata due volte e il giro durerebbe il doppio. ConnectTimeout è anche ConnectionError: conta come
-    timeout, quindi niente secondo tentativo."""
+    """GET che non solleva per lo stato HTTP. Errore di connessione: riprova una volta dopo 5 secondi.
+    Dopo un timeout NON riprova (il giro durerebbe il doppio); ConnectTimeout conta come timeout."""
     if headers is None:
         headers = {'User-Agent': USER_AGENT}
     for attempt in (1, 2):
@@ -107,8 +102,8 @@ def get_json(url, params=None, headers=None, timeout=60, verify=True):
 
 
 def save_url(url, path):
-    """Salva in path il corpo di url, qualunque sia lo stato HTTP (una pagina di errore la scartano i lettori), e lo
-    restituisce. Un errore di rete ferma il giro."""
+    """Salva in path il corpo di url, qualunque sia lo stato HTTP (i lettori scartano le pagine di errore),
+    e lo restituisce. Un errore di rete ferma il giro."""
     try:
         r = get(url)
     except requests.RequestException as error:
@@ -118,23 +113,22 @@ def save_url(url, path):
     return r.content
 
 
-# ---------------------------------------------------------------------------------------------------------
-# Tempo: i file dati usano l'ora solare (UTC+1 tutto l'anno)
+# --- Tempo: i file dati usano l'ora solare (UTC+1 tutto l'anno)
 
 def now_solar():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=1)
 
 
 def is_dst_civil(dt):
-    """Ora civile in ingresso: legale dalle 02:00 dell'ultima domenica di marzo alle 03:00 dell'ultima di ottobre."""
+    """Ora civile: legale dalle 02:00 dell'ultima domenica di marzo alle 03:00 dell'ultima di ottobre."""
     y = dt.year
     last_sunday = lambda month: 31 - ((datetime.date(y, month, 31).weekday() + 1) % 7)
     return datetime.datetime(y, 3, last_sunday(3), 2) <= dt < datetime.datetime(y, 10, last_sunday(10), 3)
 
 
 def is_dst_solar(dt):
-    """Ora solare in ingresso: legale dalle 02:00 solari dell'ultima domenica di marzo alle 02:00 solari
-    dell'ultima di ottobre (le 03:00 civili)."""
+    """Ora solare: legale dalle 02:00 dell'ultima domenica di marzo alle 02:00 dell'ultima di ottobre
+    (le 03:00 civili)."""
     y = dt.year
     last_sunday = lambda month: 31 - ((datetime.date(y, month, 31).weekday() + 1) % 7)
     return datetime.datetime(y, 3, last_sunday(3), 2) <= dt < datetime.datetime(y, 10, last_sunday(10), 2)
@@ -146,7 +140,6 @@ def civil_to_solar(dt):
     return dt.strftime('%Y%m%d%H%M')
 
 
-# L'ora solare è UTC+1 tutto l'anno: è il fuso in cui si salva tutto l'archivio
 SOLAR = datetime.timezone(datetime.timedelta(hours=1))
 
 
@@ -163,7 +156,7 @@ def aware_to_solar(dt):
 def to_float(v):
     try:
         f = float(v)
-        return None if math.isnan(f) else f      # scarta NaN
+        return None if math.isnan(f) else f
     except (TypeError, ValueError):
         return None
 
@@ -173,12 +166,11 @@ def slug(name, empty='staz'):
     return ''.join(c if c.isalnum() else '_' for c in (name or '')).strip('_') or empty
 
 
-# ---------------------------------------------------------------------------------------------------------
+# --- Fusione nei file giornalieri
 def merge_readings(parse_dir, var, readings, new_record):
-    """Fonde `readings` = {scode: [(istante, valore)]} nei file giornalieri <var>-<AAAAMMGG>.json di parse_dir,
-    ordinati per istante; i None si saltano e un istante già salvato tiene il suo valore. `new_record(scode)`
-    crea il record di una stazione assente dal file. Un caricamento e un salvataggio per giorno; ritorna le
-    letture aggiunte."""
+    """Fonde `readings` = {scode: [(istante, valore)]} nei file <var>-<AAAAMMGG>.json di parse_dir, per
+    istante; i None si saltano e un istante già salvato tiene il suo valore. `new_record(scode)` crea
+    il record di una stazione assente dal file. Ritorna le letture aggiunte."""
     by_day = {}
     for sc, pts in readings.items():
         for ist, val in pts:
@@ -187,8 +179,8 @@ def merge_readings(parse_dir, var, readings, new_record):
     added = 0
     for day, per in by_day.items():
         fn = os.path.join(parse_dir, var + '-' + day + '.json')
-        # un giorno già compresso (la compressione delle 03:30) riparte dal .json.gz, che resta com'è: il .json
-        # scritto vince in day_files e con i soli punti nuovi nasconderebbe il resto del giorno
+        # un giorno già compresso riparte dal .json.gz: il .json con i soli punti nuovi, che vince
+        # in day_files, nasconderebbe il resto del giorno
         source = fn + '.gz' if not os.path.exists(fn) and os.path.exists(fn + '.gz') else fn
         bin_day = load_json(source)
         for sc, pts in per.items():
@@ -211,8 +203,8 @@ def merge_readings(parse_dir, var, readings, new_record):
 
 
 def write_parsed(region_code, stations, readings, units, days=8):
-    """Fonde le letture nei file giornalieri <regione>/data-parsed/<VAR>/<VAR>-<AAAAMMGG>.json, ordinate e
-    senza doppioni per istante. Le letture più vecchie di `days` giorni si scartano (days=None: si tengono)."""
+    """Fonde le letture in <regione>/data-parsed/<VAR>/<VAR>-<AAAAMMGG>.json, senza doppioni per istante.
+    Le letture più vecchie di `days` giorni si scartano (days=None: si tengono)."""
     parse_dir = os.path.join(BASE, region_code, 'data-parsed')
     stazioni_path = os.path.join(parse_dir, 'stazioni.json')
     station_list = load_json(stazioni_path)
@@ -227,7 +219,8 @@ def write_parsed(region_code, stations, readings, units, days=8):
         recent = per_scode
         if floor is not None:
             recent = {sc: [(ist, val) for ist, val in pts if ist >= floor] for sc, pts in per_scode.items()}
-        new_record = lambda sc, var=var: {'STAZIONE': station_list.get(sc, {'SCODE': sc}), 'UM': units.get(var),
+        new_record = lambda sc, var=var: {'STAZIONE': station_list.get(sc, {'SCODE': sc}),
+                                          'UM': units.get(var),
                                           'MISURE': {'ISTANTE': [], 'VALORE': []}}
         added += merge_readings(os.path.join(parse_dir, var), var, recent, new_record)
     save_json(station_list, stazioni_path)
@@ -235,12 +228,11 @@ def write_parsed(region_code, stations, readings, units, days=8):
     return added
 
 
-# ---------------------------------------------------------------------------------------------------------
-# File grezzi dei regionali: nomi AAAAMMGG-HHMMSS-<resto>
+# --- File grezzi dei regionali: nomi AAAAMMGG-HHMMSS-<resto>
 
 def delete_downloaded(download_dir, subdirs, stamp, stale_min=None, debug=False):
-    """Toglie i file grezzi del lotto `stamp`, da chiamare solo dopo un parse riuscito. Con `stale_min`
-    toglie anche gli orfani: file più vecchi di tanti minuti lasciati da un giro ucciso prima della pulizia."""
+    """Toglie i file grezzi del lotto `stamp`, solo dopo un parse riuscito. Con `stale_min` toglie anche
+    gli orfani: file più vecchi di tanti minuti, lasciati da un giro ucciso prima della pulizia."""
     stale_cutoff = None if stale_min is None else time.time() - stale_min * 60
     removed = stale = 0
     prefix = stamp + '-'
@@ -269,5 +261,6 @@ def delete_downloaded(download_dir, subdirs, stamp, stale_min=None, debug=False)
     if stale_min is None:
         print('Raw downloaded files removed: ' + str(removed))
     else:
-        print('Raw downloaded files removed: ' + str(removed) + ' (of which stale orphans: ' + str(stale) + ')')
+        print('Raw downloaded files removed: ' + str(removed)
+              + ' (of which stale orphans: ' + str(stale) + ')')
     return removed
