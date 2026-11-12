@@ -186,6 +186,8 @@ const hvAxes = unit => [
 // sull'asse destro (riparte da zero al bordo sinistro anche con lo zoom, come nei grafici delle stazioni).
 // Temperatura: banda min-max, media in linea.
 const hvRainOpts = days => hvBase({
+  // 8 px in piu' in alto: l'etichetta piu' alta dell'asse destro non tocca la chiave
+  padding:[28, 12, 0, 0],
   scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] }, cum:cumY() },
   axes:hvAxes('mm').concat(cumAxis(false, CUMC())),
   series:[
@@ -391,8 +393,6 @@ function hvDecorate(u, r){
     return d;
   };
   if(r.key.length) u._key = add('hv-key', r.key.map(s => '<span>' + s + '</span>').join(''));
-  // con l'asse destro della cumulata la chiave si sposta a sinistra, sopra il grafico
-  if(u._key && u.series.some(s => s.scale === 'cum')) u._key.style.right = '62px';
   if(r.days && hvHint) u._hint = add('hv-hint',
     matchMedia('(pointer: coarse)').matches ? 'due dita: zoom' : 'rotellina: zoom · trascina: sposta');
   u._ends = (r.ends || []).map(e => {
