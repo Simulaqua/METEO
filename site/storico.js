@@ -182,16 +182,28 @@ const hvAxes = unit => [
   { grid:{ stroke:GRID() }, stroke:AXTX(), values:hvTimeVals, incrs:HV_INCRS },
   hvYAxis(unit)
 ];
-// Mesi e Giorni (days). Pioggia: barre, le incomplete piu' chiare. Temperatura: banda min-max, media in linea
+// Mesi e Giorni (days). Pioggia: barre, le incomplete piu' chiare, e la cumulata del periodo mostrato
+// sull'asse destro (riparte da zero al bordo sinistro anche con lo zoom, come nei grafici delle stazioni).
+// Temperatura: banda min-max, media in linea.
 const hvRainOpts = days => hvBase({
-  scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] } },
-  axes:hvAxes('mm'),
+  scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] }, cum:cumY() },
+  axes:hvAxes('mm').concat(cumAxis(false, CUMC())),
   series:[
     {},
     { stroke:'#2b6cb0', fill:'#2b6cb0cc', width:1, paths:hvBars(), points:{ show:false } },
-    { stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } }
+    { stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } },
+    { stroke:CUMC(), width:2, scale:'cum', points:{ show:false } }
   ]
 }, days);
+// un giorno o un mese senza dato interrompe la cumulata, che poi riprende dal valore raggiunto
+function hvCum(vals){
+  let c = 0;
+  return vals.map(v => {
+    if(v == null) return null;
+    c += v;
+    return Math.round(c * 10) / 10;
+  });
+}
 const hvTempOpts = (w, days) => hvBase({
   scales:{ x:{ time:true } }, axes:hvAxes('°C'), bands:[ { series:[1, 2], fill:'rgba(229,62,62,.12)' } ],
   series:[
@@ -232,7 +244,10 @@ function hvMonthsView(h, v){
   };
   if(isP) return {
     opts:hvRainOpts(),
-    data:[x, months.map(c => c.full ? c.val : null), months.map(c => c.full ? null : c.val)],
+    data:[
+      x, months.map(c => c.full ? c.val : null), months.map(c => c.full ? null : c.val),
+      hvCum(months.map(c => c.val))
+    ],
     read, key:hvRainKey()
   };
   return {
@@ -357,7 +372,8 @@ function hvDaysView(h, v){
     data:[
       h.x,
       h.p.map((p, i) => (p != null && h.hp[i] >= 20) ? p : null),
-      h.p.map((p, i) => (p != null && h.hp[i] < 20) ? p : null)
+      h.p.map((p, i) => (p != null && h.hp[i] < 20) ? p : null),
+      hvCum(h.p)
     ],
     read, key:hvRainKey(), days:true
   };
@@ -375,6 +391,8 @@ function hvDecorate(u, r){
     return d;
   };
   if(r.key.length) u._key = add('hv-key', r.key.map(s => '<span>' + s + '</span>').join(''));
+  // con l'asse destro della cumulata la chiave si sposta a sinistra, sopra il grafico
+  if(u._key && u.series.some(s => s.scale === 'cum')) u._key.style.right = '62px';
   if(r.days && hvHint) u._hint = add('hv-hint',
     matchMedia('(pointer: coarse)').matches ? 'due dita: zoom' : 'rotellina: zoom · trascina: sposta');
   u._ends = (r.ends || []).map(e => {
