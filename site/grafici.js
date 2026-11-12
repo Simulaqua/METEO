@@ -135,17 +135,16 @@ function renderCompareTabs(label, unit){
   const rain = isRainVar(label), dir = isDirVar(label), specs = [];
   let data, full = null;
   if(rain){
-    const span = chartMode === 'day3' ? 3 * DAY_S : (chartMode === 'day' ? DAY_S : 0);
     let lo = Infinity, hi = -Infinity;
     tabs.forEach(t => {
       const tb = t.props._table, e = tableEnd(tb, [label]);
       tb.x.forEach(x => { if(x != null && !isNaN(x) && x < lo) lo = x; });
       if(e != null && e > hi) hi = e;
     });
-    const from = span ? hi - span : lo, to = hi;
+    const from = modeStart(chartMode, lo, hi), to = hi;
     data = uPlot.join(tabs.map((t, k) => {
       const rs = rainSeries(
-        t.props._table.x, t.props._table.cols[label] || [], label, from, to, chartMode !== 'day');
+        t.props._table.x, t.props._table.cols[label] || [], label, from, to, !rawMode(chartMode));
       specs.push({
         label: prettyName(t.props.name || t.props.scode), color: COLS[k % COLS.length],
         kind: 'bars', alpha: 0.45,
@@ -163,10 +162,9 @@ function renderCompareTabs(label, unit){
       for(let i=0;i<tb.x.length;i++) if(tb.x[i] != null && c[i] != null) xset.add(tb.x[i]);
     });
     let xs = [...xset].sort((a,b) => a-b);
-    if((chartMode === 'day' || chartMode === 'day3') && xs.length){
-      const span = (chartMode === 'day3' ? 3 : 1) * 86400;
-      const mx = xs[xs.length - 1];
-      xs = xs.filter(x => x >= mx - span);
+    if(chartMode !== 'week' && xs.length){
+      const from = modeStart(chartMode, xs[0], xs[xs.length - 1]);
+      xs = xs.filter(x => x >= from);
     }
     const idx = new Map(xs.map((v,i) => [v,i]));
     data = [xs];
@@ -391,6 +389,17 @@ function applyOff(arr, off, scale){
 // - Zoom: trascinamento col mouse, pizzico a due dita sul telefono; "Tutto" torna all'intero periodo.
 // ------------------------------------------------------------------------------------------------
 const HOUR = 3600, DAY_S = 86400;
+// giorno civile italiano dell'istante ts (numero del giorno) e la sua mezzanotte come istante UTC
+const civDay = ts => Math.floor(civT(ts) / DAY_S);
+const civMidnight = day => civToUtc(day * DAY_S);
+// inizio della finestra: MN = mezzanotte di oggi; 24 h e 3 g = a ritroso dalla fine dei dati; 7 g = tutto
+function modeStart(mode, lo, hi){
+  if(mode === 'mn') return civMidnight(civDay(Date.now() / 1000));
+  const span = mode === 'day3' ? 3 * DAY_S : (mode === 'day' ? DAY_S : 0);
+  return span ? hi - span : lo;
+}
+// 24 h e MN: letture originali; 7 e 3 giorni: barre orarie
+const rawMode = mode => mode === 'day' || mode === 'mn';
 const SECT8 = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 const round2 = v => Math.round(v * 100) / 100;
 const CUMC = () => document.body.classList.contains('dark') ? '#90cdf4' : '#1a365d';
@@ -624,15 +633,94 @@ function rainCum(rs, to){
   }
   return { x: X, y: Y };
 }
+// Pioggia cumulata di ogni giorno civile: un tratto per giorno, da zero a mezzanotte, con gli stessi gradini
+// della cumulata totale. Il primo giorno, tagliato dal bordo, parte dal valore vero: conta anche le letture
+// fra la sua mezzanotte e l'inizio della finestra. Ogni intervallo (a, b] e' del giorno che contiene b - 1 s.
+function rainDaily(xs, ys, rs, to){
+  const n = rs.x.length, segs = [];
+  let seg = null, day = null, c = 0;
+  for(let i = 0; i < n; i++){
+    const b = rs.hourly ? Math.min(rs.x[i] + HOUR, to) : rs.x[i];
+    const d = civDay(b - 1);
+    if(d !== day){
+      const mid = civMidnight(d);
+      c = 0;
+      if(seg) seg = { x: [mid], y: [0] };
+      else {
+        const a = rs.hourly ? rs.x[i] : b - (rs.step || HOUR);
+        for(let k = 0; k < xs.length; k++){
+          if(xs[k] > mid && xs[k] <= a && ys[k] != null) c += ys[k];
+        }
+        seg = { x: [Math.max(a, mid)], y: [round2(c)] };
+      }
+      segs.push(seg);
+      day = d;
+    }
+    c += rs.y[i] || 0;
+    seg.x.push(b);
+    seg.y.push(round2(c));
+  }
+  return segs.length ? segs : null;
+}
+// Linee giornaliere: sull'asse destro come la cumulata, che pero' riparte dal bordo sinistro visibile; per
+// questo si disegnano a mano, spostate del minimo della scala, tratteggiate e piu' sottili.
+function drawDaily(daily, color, hi){
+  return u => {
+    const sc = u.scales.cum;
+    if(sc.min == null) return;
+    const ctx = u.ctx, bb = u.bbox, pr = devicePixelRatio || 1;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bb.left, bb.top, bb.width, bb.height);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = (hi ? 2 : 1.25) * pr;
+    ctx.setLineDash([6 * pr, 4 * pr]);
+    daily.forEach(s => {
+      ctx.beginPath();
+      s.x.forEach((x, i) => {
+        const px = u.valToPos(x, 'x', true), py = u.valToPos(sc.min + s.y[i], 'cum', true);
+        if(i) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+      });
+      ctx.stroke();
+    });
+    ctx.restore();
+  };
+}
+// uPlot misura l'asse destro sulla sola cumulata: se una linea giornaliera visibile sale piu' in alto, si
+// allarga la scala
+function dailyTop(u, daily){
+  const sx = u.scales.x;
+  let top = 0;
+  daily.forEach(s => s.x.forEach((x, i) => {
+    if((sx.min == null || (x >= sx.min && x <= sx.max)) && s.y[i] > top) top = s.y[i];
+  }));
+  return top;
+}
+// dopo uno zoom la scala e' stata calcolata col vecchio intervallo: si ricontrolla
+function fitDailyCum(u, daily){
+  const sc = u.scales.cum, top = dailyTop(u, daily);
+  if(sc.min == null || top <= sc.max - sc.min) return;
+  const r = cumY(() => top).range(u, sc.min, sc.max);
+  u.setScale('cum', { min: r[0], max: r[1] });
+}
+function addDailyHooks(hooks, daily, color, hi){
+  const add = (k, f) => { hooks[k] = (hooks[k] || []).concat(f); };
+  add('draw', drawDaily(daily, color, hi));
+  add('ready', u => fitDailyCum(u, daily));
+  add('setScale', (u, key) => { if(key === 'x') fitDailyCum(u, daily); });
+  return hooks;
+}
 function niceStep(x){
   const p = Math.pow(10, Math.floor(Math.log10(x))), f = x / p;
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
 }
 // Scala della cumulata: dal valore al bordo sinistro visibile a un numero tondo sopra (con lo zoom riparte da
 // 0).
-const cumY = () => ({ range:(u, mn, mx) => {
+const cumY = extra => ({ range:(u, mn, mx) => {
   if(mn == null) return [0, 1];
-  const sp = Math.max(mx - mn, 1), st = niceStep(sp / 4);
+  const sp = Math.max(mx - mn, extra ? extra(u) : 0, 1), st = niceStep(sp / 4);
   return [mn, mn + Math.ceil(sp / st - 1e-9) * st];
 } });
 function cumAxis(hi, color){
@@ -823,7 +911,7 @@ function renderChart(label){
   mainStats(chart);
 }
 function mainModel(st, v, v2, mode){
-  const t = st._table, span = mode === 'day3' ? 3 * DAY_S : (mode === 'day' ? DAY_S : 0);
+  const t = st._table;
   let lo = Infinity, hi = -Infinity;
   for(const x of t.x) if(x != null && !isNaN(x)){
     if(x < lo) lo = x;
@@ -831,12 +919,14 @@ function mainModel(st, v, v2, mode){
   }
   const end = tableEnd(t, [v, v2]);
   if(end != null) hi = end;
-  const ok = lo !== Infinity && hi >= lo, from = ok ? (span ? hi - span : lo) : 0, to = ok ? hi : 0;
+  const ok = lo !== Infinity && hi >= lo, from = ok ? modeStart(mode, lo, hi) : 0;
+  // MN appena dopo mezzanotte, senza letture: almeno un'ora vuota
+  const to = ok ? (mode === 'mn' ? Math.max(hi, from + HOUR) : hi) : 0;
   const one = vv => {
     const ys = applyOff(t.cols[vv] || [], varOffset(vv, st), varScale(vv, st));
     if(isRainVar(vv)){
-      const rs = rainSeries(t.x, ys, vv, from, to, mode !== 'day');
-      return { v: vv, kind: 'bars', x: rs.x, y: rs.y, rs };
+      const rs = rainSeries(t.x, ys, vv, from, to, !rawMode(mode));
+      return { v: vv, kind: 'bars', x: rs.x, y: rs.y, rs, ys };
     }
     const ls = lineSeries(t.x, ys, from, to);
     return { v: vv, kind: isDirVar(vv) ? 'dots' : 'line', x: ls.x, y: ls.y };
@@ -844,14 +934,19 @@ function mainModel(st, v, v2, mode){
   const s1 = one(v), s2 = v2 ? one(v2) : null;
   // cumulata solo con la pioggia da sola (l'asse destro e' libero)
   const cum = (!s2 && v === 'PREC') ? rainCum(s1.rs, to) : null;
+  // in MN la linea del giorno coinciderebbe con la cumulata
+  const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
   const tabs = [[s1.x, s1.y]];
   if(s2) tabs.push([s2.x, s2.y]);
   if(cum) tabs.push([cum.x, cum.y]);
   // con orari diversi i vuoti restano "undefined"
-  const data = tabs.length > 1 ? uPlot.join(tabs) : [s1.x, s1.y];
+  let data = tabs.length > 1 ? uPlot.join(tabs) : [s1.x, s1.y];
+  // MN senza letture di oggi: due punti vuoti tengono l'asse del tempo da mezzanotte
+  if(mode === 'mn' && !data[0].length) data = [[from, to]].concat(data.slice(1).map(() => [null, null]));
   const X = data[0];
   return {
-    st, v, v2, s1, s2, cum, data, win: X.length ? [X[0], X[X.length - 1]] : null,
+    st, v, v2, s1, s2, cum, daily, data,
+    win: mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null),
     gaps: [].concat(s1.rs ? s1.rs.gaps : [], s2 && s2.rs ? s2.rs.gaps : []),
     iV2: s2 ? 2 : null, iCum: cum ? (s2 ? 3 : 2) : null,
     unit1: varUnit(v, st), unit2: v2 ? varUnit(v2, st) : ''
@@ -891,7 +986,7 @@ function mainOpts(m, o){
   if(m.cum){
     series.push(mkSeries({ label: 'Cumulata', color: CC, kind: 'cum', scale: 'cum' }, hi));
     axes.push(cumAxis(hi, CC));
-    scales.cum = cumY();
+    scales.cum = cumY(m.daily && (u => dailyTop(u, m.daily)));
   }
   // Un intervallo piu' stretto della finestra e' uno zoom e va accettato; il resto torna alla finestra
   // intera.
@@ -901,16 +996,17 @@ function mainOpts(m, o){
     range: (u, a, b) => !w ? [a, b] : (w[0] === w[1] ? [w[0] - HOUR, w[1] + HOUR]
       : ((a > w[0] + 1 || b < w[1] - 1) ? [a, b] : [w[0], w[1]]))
   };
+  const hooks = hi ? { drawClear: [dayBands, gapBands(m.gaps, true)] }
+                   : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor],
+                       setScale: [(u, key) => { if(key === 'x') mainStats(u); }] };
+  if(m.daily) addDailyHooks(hooks, m.daily, CC, hi);
   return {
-    width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales,
+    width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
     cursor: hi ? { show:false }
-               : { drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
-    hooks: hi ? { drawClear: [dayBands, gapBands(m.gaps, true)] }
-              : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor],
-                  setScale: [(u, key) => { if(key === 'x') mainStats(u); }] }
+               : { drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } }
   };
 }
-// della temperatura.
+// statistiche sotto il grafico; con la temperatura anche i record storici
 function mainStats(u){
   const m = u._m;
   if(!m || u !== chart) return;            // un grafico appena sostituito non scrive piu'
@@ -1059,6 +1155,10 @@ function stackWindow(t, mode, vars){
   if(mn === Infinity) return null;
   const end = tableEnd(t, vars || []);           // non le righe "nel futuro" dei soli indici giornalieri
   if(end != null && end >= mn) mx = end;
+  if(mode === 'mn'){
+    const lo = modeStart(mode);
+    return [lo, Math.max(mx, lo + HOUR)];
+  }
   const span = mode === 'day' ? 86400 : (mode === 'day3' ? 3*86400 : 0);
   const lo = span ? Math.max(mn, mx - span) : mn;
   return lo === mx ? [lo - 3600, mx + 3600] : [lo, mx];
@@ -1098,6 +1198,7 @@ function stackPanelOpts(p, o){
     x:{ time:true, range:(u, a, b) => (a > o.win[0] + 1 || b < o.win[1] - 1) ? [a, b] : o.win },
     y: yScaleFor(p.v) };
   const rg = (o.rgut || 0) * (hi ? 82 / STACK_RGUT : 1);
+  const h = hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks;
   if(p.cum){
     series.push(mkSeries({ label: 'Cumulata', color: CC, kind: 'cum', scale: 'cum' }, hi));
     const ca = cumAxis(hi, CC);
@@ -1105,7 +1206,7 @@ function stackPanelOpts(p, o){
     ca.label = null;
     ca.labelSize = 0;
     axes.push(ca);
-    scales.cum = cumY();
+    scales.cum = cumY(p.daily && (u => dailyTop(u, p.daily)));
   }
   return {
     width:o.w, height:o.h, tzDate:TZ_CIV, legend:{ show:false },
@@ -1117,14 +1218,14 @@ function stackPanelOpts(p, o){
       y:false, drag:{ x:true, y:false }, sync:{ key:o.sync, setSeries:false, scales:['x', null] },
       dataIdx: cursorDataIdx, points:{ show: hoverPt }
     },
-    hooks: hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks
+    hooks: p.daily ? addDailyHooks(Object.assign({}, h), p.daily, CC, hi) : h
   };
 }
 
 // cfg = { station, table, vars:[...], mode:'week'|'day3'|'day', onRemove:fn(v) }
 function createStack(host, cfg){
   const st = cfg.station, t = cfg.table, units = unitsByRegion[st._region] || {};
-  const vars = cfg.vars, n = vars.length, hourly = (cfg.mode || 'week') !== 'day';
+  const vars = cfg.vars, n = vars.length, hourly = !rawMode(cfg.mode || 'week');
   const win0 = stackWindow(t, cfg.mode || 'week', vars);
   host.innerHTML = '';
   if(!win0){
@@ -1212,6 +1313,7 @@ function createStack(host, cfg){
       p.sy = p.rs.y;
       const cum = p.isSum ? rainCum(p.rs, win0[1]) : null;
       p.cum = !!cum;
+      p.daily = (cum && cfg.mode !== 'mn') ? rainDaily(t.x, ys, p.rs, win0[1]) : null;
       p.data = cum ? uPlot.join([[p.rs.x, p.rs.y], [cum.x, cum.y]]) : [p.rs.x, p.rs.y];
     } else {
       const ls = lineSeries(t.x, ys, win[0], win[1]);

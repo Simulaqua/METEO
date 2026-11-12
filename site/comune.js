@@ -19,7 +19,7 @@ async function fdata(path, opts){
 let map, chart = null;
 let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
 let allFeatures = [], filterVar = '', selectedKey = '';
-let chartMode = 'week';   // 'week' | 'day3' | 'day' (grafico principale) | 'compare' | 'compare30' | 'tabs' (confronti)
+let chartMode = 'week';   // 'week' | 'day3' | 'day' | 'mn' (grafico principale) | 'compare' | 'compare30' | 'tabs' (confronti)
 
 // ogni voce geografica del menu carica PIU' cartelle-dati: meteo/idro + qualita' aria (AQ_) +
 // idrometria Protezione Civile (PC_). Le stazioni (tutte con lat/lon) convivono sulla stessa mappa.
