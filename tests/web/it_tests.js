@@ -1222,6 +1222,7 @@
     histView = 'mesi'; await renderHist();
     log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
+    log(!vis(el('hvYrs')) && !el('hvChart').querySelector('.hv-yrs'), 'Pioggia/Anni: niente Curva e Griglia, niente scelta dell\'anno', '');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Pioggia/Anni: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
     {                                                                // cumulata: a fine 2025 il totale dell'anno; al passaggio la cumulata di ogni anno
       const yrs = [...new Set(Object.values(EP).map(c => c.y))], k = yrs.indexOf(2025) + 1;
@@ -1398,25 +1399,133 @@
     log(!!barColor.P && !!barColor.T && barColor.P !== barColor.T, 'Tabella: barre della temperatura di un altro colore (calde)', JSON.stringify(barColor));
     noOverflow('Temperatura/Tabella');
     histView = 'mesi'; await renderHist();
+    log(!vis(el('hvYrs')), 'Temperatura/Mesi: niente Curva e Griglia', '');
+    // Anni della temperatura: due viste coi due pulsanti accanto ad Anni. Curva = l'anno scelto sulla fascia fra il minimo e il
+    // massimo degli anni, con la loro media; Griglia = un anno per riga, un mese per casella, colore = scarto dalla media del mese.
+    // Medie mensili con almeno 10 giorni completi; fascia e media dove ci sono almeno due anni.
+    const TY = [...new Set(Object.values(ET).map(c => c.y))];
+    const tMean = (y, m) => { let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === y && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
+      return n >= 10 ? r1(t / n) : null; };
+    const tStat = m => { const v = TY.map(y => tMean(y, m)).filter(x => x != null);
+      return v.length < 2 ? null : { mean:r1(v.reduce((a, x) => a + x, 0) / v.length), lo:Math.min(...v), hi:Math.max(...v) }; };
+    const tYears = TY.filter(y => MESI.some((_, m) => tMean(y, m) != null)), tLast = tYears[tYears.length - 1];
+    const sgn = d => (r1(d) > 0 ? '+' : '') + f1(d), withDev = (v, s) => f1(v) + ' °C' + (s ? ' (' + sgn(v - s.mean) + ')' : '');
+    const yrsOn = () => [...el('hvYrs').children].filter(b => b.classList.contains('on')).map(b => b.dataset.w);
+    eq('Temperatura: due pulsanti, Curva e Griglia', [...el('hvYrs').children].map(b => b.dataset.w + ' ' + b.textContent.trim()), ['anni Curva', 'griglia Griglia']);
     histView = 'anni'; await renderHist(); okView('Temperatura/Anni');
-    {                                                                // media mensile nel grafico (almeno 10 giorni completi nel mese); al passaggio ogni anno
-      const yrs = [...new Set(Object.values(ET).map(c => c.y))], k = yrs.indexOf(2025) + 1;
-      const mean = (y, m) => { let t = 0, n = 0; raw.tm.forEach((x, i) => { const d = dayOf(i); if(d.getUTCFullYear() === y && d.getUTCMonth() === m && x != null && raw.ht[i] >= 20){ t += x; n++; } });
-        return n >= 10 ? r1(t / n) : null; };
-      eq('Temperatura/Anni: medie mensili 2025 nel grafico', histU.data[k], MESI.map((_, m) => mean(2025, m)));
-      okYears('Temperatura/Anni', false);
-      okKey('Temperatura/Anni', ['incompleto']);
-      const t = await tipAt(7, null);
-      eq('Temperatura/Anni: etichetta al passaggio (ogni anno)', tipText(t),
-         ['ago', ...yrs.slice().reverse().filter(y => mean(y, 7) != null).map(y => y + ' ' + f1(mean(y, 7)) + ' °C')].join(' | '));
-      log(tipIn(t), 'Temperatura/Anni: etichetta dentro il grafico e lo schermo', '');
-      { const cols = yearCols(), byY = {}; histU.series.slice(1).forEach((s, k) => { byY[String(s.label)] = cols[k]; });
-        eq('Temperatura/Anni: nel riquadro ogni anno col segno del colore della sua linea', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopColor) : null,
-           yrs.slice().reverse().filter(y => mean(y, 7) != null).map(y => byY[String(y)])); }
-      eq('Temperatura/Anni: niente trattini nella chiave e nel riquadro', [...el('histview').querySelectorAll('.sw')].filter(s => vis(s) && getComputedStyle(s).borderTopStyle === 'dashed').length, 0);
+    {
+      eq('Temperatura/Anni: Curva e Griglia accanto ad Anni, accesa Curva', [vis(el('hvYrs')), yrsOn(), el('hvView').querySelector('.on').dataset.w], [true, ['anni'], 'anni']);
+      log(inside(el('hvYrs')), 'Temperatura/Anni: Curva e Griglia dentro lo schermo', '');
+      eq('Temperatura/Anni: serie (fascia: massimo e minimo; media; anno)', histU.series.slice(1).map(s => String(s.label)), ['max', 'min', 'media', String(tLast)]);
+      eq('Temperatura/Anni: si apre sull\'ultimo anno (' + tLast + '), medie mensili', histU.data[4], MESI.map((_, m) => tMean(tLast, m)));
+      eq('Temperatura/Anni: fascia fra il massimo e il minimo degli anni', [histU.data[1], histU.data[2]],
+         [MESI.map((_, m) => tStat(m) && tStat(m).hi), MESI.map((_, m) => tStat(m) && tStat(m).lo)]);
+      eq('Temperatura/Anni: media degli anni, mese per mese', histU.data[3], MESI.map((_, m) => tStat(m) && tStat(m).mean));
+      log((histU.bands || []).length === 1 && histU.bands[0].series.join() === '1,2' && !!histU.bands[0].fill, 'Temperatura/Anni: fascia colorata fra massimo e minimo', JSON.stringify(histU.bands));
+      const cs = histU.series.map((s, k) => k ? colorOf(typeof s.stroke === 'function' ? s.stroke(histU, k) : s.stroke) : null), yc = rgbOf(cs[4]);
+      log(yc[2] - yc[0] >= 60 && histU.series[4].width > Math.max(...histU.series.slice(1, 4).map(s => s.width)) && chroma(cs[3]) < 0.1,
+          'Temperatura/Anni: anno in blu e più spesso, media grigia', JSON.stringify([cs, histU.series.map(s => s.width)]));
+      log(!!(histU.series[3].dash || []).length && !(histU.series[4].dash || []).length, 'Temperatura/Anni: media tratteggiata, anno a linea piena', '');
+      okKey('Temperatura/Anni', ['min–max', 'media']);
+      const yp = el('hvChart').querySelector('.hv-yrs'), ypb = yp ? [...yp.querySelectorAll('button')] : [];
+      eq('Temperatura/Anni: sopra il grafico un pulsante per anno, acceso l\'ultimo', [ypb.map(b => b.textContent.trim()), ypb.filter(b => b.classList.contains('on')).map(b => b.textContent.trim())],
+         [tYears.map(String), [String(tLast)]]);
+      log(vis(yp) && R(yp).bottom <= R(histU.over).top - 10 && ypb.length > 0 && inside(ypb[ypb.length - 1]), 'Temperatura/Anni: anni sopra il grafico, dentro lo schermo',
+          yp && JSON.stringify([R(yp).bottom, R(histU.over).top]));
+      const labs = () => [...histU.over.parentNode.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
+      eq('Temperatura/Anni: niente nomi sul grafico (l\'anno lo dice il pulsante acceso)', labs().map(l => l.textContent.trim()), []);
+      const tipFor = (y, m) => { const v = tMean(y, m), s = tStat(m);
+        return [MESI[m], ...(v != null ? [y + ' ' + withDev(v, s)] : []), ...(s ? ['media ' + f1(s.mean) + ' °C'] : []),
+                ...(v != null && !ET[y + '-' + m].full ? ['incompleto'] : [])].join(' | '); };
+      await okTip('Temperatura/Anni, agosto', 7, tipFor(tLast, 7));
+      const t = el('hvChart').querySelector('.ctip');
+      eq('Temperatura/Anni: nel riquadro i segni di anno e media (tratteggio)', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopStyle) : null, ['solid', 'dashed']);
+      const y0 = [histU.scales.y.min, histU.scales.y.max], prev = tYears[tYears.length - 2];
+      ypb.find(b => b.textContent.trim() === String(prev)).click(); await until(() => histU && String(histU.series[4].label) === String(prev), 5000); await sleep(200);
+      eq('Temperatura/Anni: clic su ' + prev + ': il suo anno in primo piano', [histYear, String(histU.series[4].label), histU.data[4]], [prev, String(prev), MESI.map((_, m) => tMean(prev, m))]);
+      eq('Temperatura/Anni: cambiando anno l\'asse resta fermo', [histU.scales.y.min, histU.scales.y.max], y0);
+      eq('Temperatura/Anni: acceso ' + prev, [...el('hvChart').querySelectorAll('.hv-yrs .on')].map(b => b.textContent.trim()), [String(prev)]);
+      await okTip('Temperatura/Anni ' + prev + ', settembre (incompleto)', 8, tipFor(prev, 8));
       await tipEdges('Temperatura/Anni');
       noOverflow('Temperatura/Anni');
+      document.body.classList.add('dark'); await renderHist(); await sleep(100);
+      { const c = colorOf(histU.series[4].stroke);
+        log(c !== cs[4] && contrastC(c, colorOf('var(--bg)')) >= 3, 'Temperatura/Anni, tema scuro: anno leggibile sullo sfondo', JSON.stringify([c, cs[4]])); }
+      document.body.classList.remove('dark'); await renderHist(); await sleep(100);
     }
+    el('hvYrs').querySelector('[data-w="griglia"]').click(); await until(() => !!el('hvChart').querySelector('.hv-grid'), 5000); await sleep(200);
+    {
+      const g = el('hvChart').querySelector('.hv-grid'), cells = g ? [...g.querySelectorAll('.hv-gc')] : [];
+      eq('Temperatura/Griglia: vista, pulsanti accesi, niente grafico', [histView, yrsOn(), el('hvView').querySelector('.on').dataset.w, !!histU, !!el('hvChart').querySelector('canvas')],
+         ['griglia', ['griglia'], 'anni', false, false]);
+      log(vis(g) && R(g).right <= innerWidth + 0.5, 'Temperatura/Griglia: griglia visibile, dentro lo schermo', g ? JSON.stringify([R(g).left, R(g).right]) : 'assente');
+      log(/Dati dal 23\/10\/2024 al /.test(el('hvNote').textContent) && !/undefined|NaN|null/.test(el('hvChart').textContent), 'Temperatura/Griglia: nota, niente undefined/NaN', el('hvChart').textContent.slice(0, 80));
+      eq('Temperatura/Griglia: in alto i mesi', g ? [...g.querySelectorAll('.hv-gm')].map(e => e.textContent.trim()) : null, MESI);
+      eq('Temperatura/Griglia: un anno per riga, dal più recente', g ? [...g.querySelectorAll('.hv-gy')].map(e => e.textContent.trim()) : null, tYears.slice().reverse().map(String));
+      const narrow = innerWidth <= 480, want = [];
+      tYears.slice().reverse().forEach(y => MESI.forEach((_, m) => { const v = tMean(y, m); if(v != null) want.push(y + ' ' + m + ' ' + (narrow ? String(Math.round(v)) : f1(v))); }));
+      eq('Temperatura/Griglia: in ogni casella la media del mese' + (narrow ? ' (senza decimali sul telefono)' : ''), cells.map(c => c.dataset.y + ' ' + c.dataset.m + ' ' + c.innerText.trim()), want);
+      const gm = g ? [...g.querySelectorAll('.hv-gm')] : [], gy = g ? [...g.querySelectorAll('.hv-gy')] : [], cx = e => (R(e).left + R(e).right) / 2;
+      eq('Temperatura/Griglia: ogni casella sotto il suo mese, nella riga del suo anno', cells.filter(c => Math.abs(cx(c) - cx(gm[+c.dataset.m])) > 1 ||
+         Math.abs(R(c).top - R(gy.find(e => e.textContent.trim() === c.dataset.y)).top) > 1).map(c => c.dataset.y + '-' + c.dataset.m), []);
+      const an = c => { const s = tStat(+c.dataset.m); return s ? tMean(+c.dataset.y, +c.dataset.m) - s.mean : null; };
+      const bgc = c => getComputedStyle(c).backgroundColor, warm = c => { const [r, , b] = rgbOf(bgc(c)); return r - b; };
+      eq('Temperatura/Griglia: rosso se più caldo della media del mese, blu se più freddo',
+         cells.filter(c => { const a = an(c); return a != null && Math.abs(a) >= 0.5 && Math.sign(warm(c)) !== Math.sign(a); }).map(c => c.dataset.y + '-' + c.dataset.m), []);
+      const k = el('hvChart').querySelector('.hv-gkey'), sw = k ? [...k.querySelectorAll('.sw')] : [], d = c => dE(bgc(c), bgc(sw[3]));
+      let worse = 0; const ac = cells.filter(c => an(c) != null);
+      ac.forEach(a => ac.forEach(b => { if(Math.sign(an(a)) === Math.sign(an(b)) && Math.abs(an(a)) > Math.abs(an(b)) + 0.05 && Math.abs(an(b)) < 3 && d(a) < d(b) - 0.5) worse++; }));
+      eq('Temperatura/Griglia: più lontano dalla media, colore più carico', sw.length === 7 ? worse : 'chiave senza i sette colori', 0);
+      eq('Temperatura/Griglia: numeri leggibili sul colore (contrasto almeno 4.5)', cells.filter(c => contrastC(getComputedStyle(c).color, bgc(c)) < 4.5)
+         .map(c => c.dataset.y + '-' + c.dataset.m + ' ' + contrastC(getComputedStyle(c).color, bgc(c)).toFixed(2)), []);
+      const part = cells.filter(c => !ET[c.dataset.y + '-' + c.dataset.m].full), fullc = cells.filter(c => !part.includes(c));
+      log(part.length > 0 && part.every(c => c.classList.contains('part') && +getComputedStyle(c).opacity < 1) && fullc.every(c => !c.classList.contains('part') && getComputedStyle(c).opacity === '1'),
+          'Temperatura/Griglia: mesi incompleti più chiari', JSON.stringify(part.map(c => c.dataset.y + '-' + c.dataset.m)));
+      eq('Temperatura/Griglia: chiave', k ? k.innerText.replace(/\s+/g, ' ').trim() : null, 'più freddo più caldo');
+      log(vis(k) && R(k).bottom <= R(g).top + 1 && R(k).right <= R(g).right + 0.5 && R(k).right >= R(g).right - 2, 'Temperatura/Griglia: chiave sopra la griglia, a destra', k && JSON.stringify([R(k).right, R(g).right]));
+      const gtip = (y, m) => [MESI[m] + ' ' + y, withDev(tMean(y, m), tStat(m)), ...(!ET[y + '-' + m].full ? ['incompleto'] : [])].join(' | ');
+      const tipOf = () => g.querySelector('.ctip'), tipOk = () => { const t = tipOf(), r = t && R(t);
+        return !!r && vis(t) && r.left >= R(g).left - 0.5 && r.right <= R(g).right + 0.5 && r.left >= -0.5 && r.right <= innerWidth + 0.5; };
+      const cell = (y, m) => cells.find(c => c.dataset.y === String(y) && c.dataset.m === String(m));
+      cell(tLast, 7).dispatchEvent(new PointerEvent('pointerover', { pointerType:'mouse', bubbles:true })); await sleep(50);
+      eq('Temperatura/Griglia: al passaggio il riquadro della casella', tipText(tipOf()), gtip(tLast, 7));
+      log(tipOk(), 'Temperatura/Griglia: riquadro dentro la griglia e lo schermo', '');
+      cell(2025, 11).dispatchEvent(new PointerEvent('pointerover', { pointerType:'mouse', bubbles:true })); await sleep(50);
+      log(tipText(tipOf()) === gtip(2025, 11) && tipOk(), 'Temperatura/Griglia: dicembre, riquadro dentro la griglia', tipText(tipOf()));
+      g.dispatchEvent(new PointerEvent('pointerleave', { pointerType:'mouse' })); await sleep(50);
+      log(!vis(tipOf()), 'Temperatura/Griglia: uscendo col mouse il riquadro sparisce', '');
+      cell(2025, 8).dispatchEvent(new PointerEvent('pointerdown', { pointerType:'touch', isPrimary:true, bubbles:true })); await sleep(50);
+      g.dispatchEvent(new PointerEvent('pointerleave', { pointerType:'touch' })); await sleep(50);
+      eq('Temperatura/Griglia: al tocco il riquadro della casella, resta alzando il dito (settembre 2025, incompleto)', tipText(tipOf()), gtip(2025, 8));
+      noOverflow('Temperatura/Griglia');
+      clean('Temperatura/Griglia');
+      const bg0 = bgc(cells[0]);
+      document.body.classList.add('dark'); await renderHist(); await sleep(100);
+      { const cs2 = [...el('hvChart').querySelectorAll('.hv-gc')], low = cs2.filter(c => contrastC(getComputedStyle(c).color, bgc(c)) < 4.5);
+        log(cs2.length === cells.length && !low.length && bgc(cs2[0]) !== bg0, 'Temperatura/Griglia, tema scuro: altri colori, numeri leggibili', JSON.stringify(low.map(c => c.dataset.y + '-' + c.dataset.m))); }
+      document.body.classList.remove('dark'); await renderHist(); await sleep(100);
+    }
+    // la scelta resta: da Mesi di nuovo ad Anni torna la Griglia; la pioggia ha solo le cumulate, poi di nuovo la Griglia
+    el('hvView').querySelector('[data-w="mesi"]').click(); await sleep(300);
+    el('hvView').querySelector('[data-w="anni"]').click(); await sleep(300);
+    eq('Temperatura: da Mesi di nuovo ad Anni resta la Griglia', [histView, !!el('hvChart').querySelector('.hv-grid')], ['griglia', true]);
+    el('hvVar').querySelector('[data-v="PREC"]').click(); await sleep(300);
+    eq('Pioggia: Anni con le cumulate, senza Curva e Griglia', [histView, histVar, !!histU, vis(el('hvYrs'))], ['anni', 'PREC', true, false]);
+    el('hvVar').querySelector('[data-v="TEMP"]').click(); await sleep(300);
+    eq('di nuovo Temperatura: la Griglia', [histView, !!el('hvChart').querySelector('.hv-grid')], ['griglia', true]);
+    el('hvYrs').querySelector('[data-w="anni"]').click(); await sleep(300);
+    eq('clic su Curva', [histView, !!histU, yrsOn()], ['anni', true, ['anni']]);
+    {                                                                // un anno solo: niente Curva/Griglia ne' anni da scegliere; Griglia -> Curva
+      const key = V._region + '|' + V.scode, keep = histCache[key], i0 = raw.tm.findIndex((x, i) => x != null && dayOf(i).getUTCFullYear() === tLast);
+      const one = Object.assign({}, raw, { d0:dayOf(i0).toISOString().slice(0, 10).replace(/-/g, '') });
+      ['p', 'hp', 'tn', 'tx', 'tm', 'ht'].forEach(k => { if(raw[k]) one[k] = raw[k].slice(i0); });
+      histCache[key] = { t:Date.now(), h:prepHist(one) };
+      histView = 'griglia'; await renderHist();
+      eq('un anno solo: la Griglia diventa Curva, senza i due pulsanti ne\' gli anni', [histView, vis(el('hvYrs')), !!el('hvChart').querySelector('.hv-yrs'), !!histU, histU && histU.series.length],
+         ['anni', false, false, true, 5]);
+      histCache[key] = keep; await renderHist();
+    }
+    histYear = null;
     histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni');
     okKey('Temperatura/Giorni', ['min–max', 'media']);
     for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
@@ -1449,18 +1558,24 @@
     log(+row[3] < +row[4], 'CSV: tmin < tmax', row.join(';'));
 
     // link H:VAR:VIEW
-    for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['PREC', 'tabella'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni'], ['TEMP', 'tabella']]){
+    for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['PREC', 'tabella'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'griglia'], ['TEMP', 'giorni'],
+                         ['TEMP', 'tabella']]){
       await setHistMode(false); await open(L);                                       // parte da un'altra stazione, senza Storico
       history.replaceState(null, '', '#VEN/79/' + v + '/H:' + v + ':' + w);
-      await applyHash(); await until(() => histMode && (w === 'tabella' ? !!el('hvTable').querySelector('table') : !!histU), 8000); await sleep(300);
+      await applyHash();
+      await until(() => histMode && (w === 'tabella' ? !!el('hvTable').querySelector('table') : w === 'griglia' ? !!el('hvChart').querySelector('.hv-grid') : !!histU), 8000); await sleep(300);
       eq('link H:' + v + ':' + w + ' apre la stessa vista', [currentStation && currentStation.scode, histMode, histVar, histView], ['79', true, v, w]);
       if(w === 'tabella') log(!histU && !!el('hvTable').querySelector('table'), 'link H:' + v + ':' + w + ': tabella senza grafico', '');
+      else if(w === 'griglia') log(!histU && !!el('hvChart').querySelector('.hv-grid'), 'link H:' + v + ':' + w + ': griglia senza grafico', '');
       else log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'link H:' + v + ':' + w + ': grafico disegnato', '');
       eq('link H:' + v + ':' + w + ' riscritto uguale', decodeURIComponent(location.hash), '#VEN/79/' + v + '/H:' + v + ':' + w);
     }
     await setHistMode(false); await open(L);                                          // vista sconosciuta: resta quella di prima, niente errori
     history.replaceState(null, '', '#VEN/79/PREC/H:PREC:zzz'); await applyHash(); await until(() => histMode, 8000); await sleep(300);
     log(histMode && histView === 'tabella' && !!el('hvTable').querySelector('table'), 'link con vista sconosciuta', histView);
+    await setHistMode(false); await open(L);                                          // la pioggia non ha la Griglia: apre Anni
+    history.replaceState(null, '', '#VEN/79/PREC/H:PREC:griglia'); await applyHash(); await until(() => histMode && !!histU, 8000); await sleep(300);
+    eq('link H:PREC:griglia: apre Anni della pioggia', [histVar, histView, decodeURIComponent(location.hash)], ['PREC', 'anni', '#VEN/79/PREC/H:PREC:anni']);
     // uscita
     await setHistMode(false);
     log(!histMode && !vis(el('histview')) && !!el('chart').querySelector('canvas'), 'uscendo dallo Storico torna il grafico', '');
@@ -1488,7 +1603,7 @@
     const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
       return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
     // comandi visibili della seconda riga, nell'ordine della pagina (le voci di "Confronti" stanno nel menu chiuso)
-    const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvRange')].filter(vis);
+    const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvYrs, #hvRange')].filter(vis);
     const tag2 = e => e.id || (e.dataset.mode ? 'mode:' + e.dataset.mode : 'var');
     const scroller = () => { for(let e = el('vars'); e && e !== el('panel'); e = e.parentElement) if(/auto|scroll/.test(getComputedStyle(e).overflowX)) return e; return null; };
     const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte
@@ -1598,6 +1713,15 @@
     eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
     log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
     if(!phone) log(gap('hvChart') <= 75, 'Storico/Mesi: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
+    el('hvVar').querySelector('[data-v="TEMP"]').click(); await sleep(200);
+    el('hvView').querySelector('[data-w="anni"]').click(); await until(() => histView === 'anni' && histVar === 'TEMP' && !!histU, 8000); await sleep(300);
+    eq('Storico/Anni, temperatura: riga 2 con Curva e Griglia', ctl2().map(tag2), ['hvVar', 'hvView', 'hvYrs', 'histbtn']);
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Anni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    if(!phone) log(gap('hvChart') <= 75, 'Storico/Anni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
+    el('hvYrs').querySelector('[data-w="griglia"]').click(); await until(() => !!el('hvChart').querySelector('.hv-grid'), 8000); await sleep(300);
+    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Griglia: riga 2 su una riga, sopra la griglia', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
+    if(phone) noOverflow('telefono, Storico/Griglia');
+    el('hvYrs').querySelector('[data-w="anni"]').click(); await sleep(300);
     el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
     eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
     log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));

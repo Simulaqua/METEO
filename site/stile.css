@@ -333,6 +333,8 @@ body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,
 .hv-key .sw, .hv-tip .sw { display:inline-block; width:12px; height:8px; margin-right:5px; border-radius:2px; vertical-align:-1px; }
 .hv-key .sw.ln, .hv-tip .sw.ln { height:0; border-top:2px solid; border-radius:0; vertical-align:3px; }
 .hv-key .sw.ln.thin, .hv-tip .sw.ln.thin { border-top-width:1px; }   /* anno incompleto: linea piu' sottile */
+.hv-key .sw.ln.dash, .hv-tip .sw.ln.dash { border-top-style:dashed; }
+.hv-yrs { margin:0 0 6px; }                                            /* Curva: gli anni sopra il grafico */
 /* Giorni: suggerimento dello zoom a sinistra nella fascia della chiave (via al primo zoom); la mano dice che si trascina */
 .hv-hint { position:absolute; top:2px; left:0; font-size:11px; line-height:16px; color:var(--muted); white-space:nowrap; pointer-events:none; }
 .hv-pan { cursor:grab; -webkit-user-select:none; user-select:none; }
@@ -357,6 +359,25 @@ body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,
 #hvTable td.part { color:var(--muted); --hvc:var(--hv-part); }
 #hvTable tr.tot > * { font-weight:600; border-top:1px solid var(--muted); border-bottom:none; }
 #hvTable tr.tot th { color:var(--fg); }
+/* Griglia: un anno per riga, un mese per colonna, colore = scarto dalla media del mese (hv-k0 molto piu'
+   freddo, hv-k3 nella media, hv-k6 molto piu' caldo); numeri leggibili su ogni colore, sul telefono interi */
+.hv-gkey { display:flex; justify-content:flex-end; align-items:center; gap:6px; max-width:760px;
+           margin:0 0 6px; font-size:11px; line-height:16px; color:var(--muted); }
+.hv-gkey .sw { display:inline-block; width:12px; height:10px; margin-left:1px; border-radius:2px; }
+.hv-grid { position:relative; display:grid; grid-template-columns:34px repeat(12, minmax(0, 1fr)); gap:2px;
+           max-width:760px; font-size:12px; font-variant-numeric:tabular-nums; }
+.hv-grid > span { height:30px; display:flex; align-items:center; justify-content:center; border-radius:4px; }
+.hv-grid > .hv-gm { height:18px; color:var(--muted); font-size:11px; }
+.hv-grid > .hv-gy { justify-content:flex-start; color:var(--muted); }
+.hv-gc.part { opacity:.6; }
+.hv-gc .d0 { display:none; }
+@media (max-width:480px){ .hv-gc .d0 { display:inline; } .hv-gc .d1 { display:none; } }
+.hv-k0 { background:#2166ac; color:#fff; } .hv-k1 { background:#67a9cf; } .hv-k2 { background:#d1e5f0; }
+.hv-k3 { background:#eeeeec; } .hv-k4 { background:#fddbc7; } .hv-k5 { background:#ef8a62; }
+.hv-k6 { background:#b2182b; color:#fff; }
+body.dark .hv-k1 { background:#3b5f8a; } body.dark .hv-k2 { background:#2c4058; }
+body.dark .hv-k3 { background:#223146; } body.dark .hv-k4 { background:#4a2f38; }
+body.dark .hv-k5 { background:#8a3b3b; }
 /* nota: "Dati dal ... al ..." e la "i" che apre il metodo */
 #hvNote { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; color:var(--muted); font-size:12px; line-height:1.5; }
 .hv-i { width:18px; height:18px; padding:0; border:1px solid var(--line); border-radius:50%; background:none; color:var(--muted); cursor:pointer;
