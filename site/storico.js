@@ -20,9 +20,9 @@ async function fhist(path){
 const MESI_BR = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
 // histWin = finestra dopo uno zoom (resta fra le viste della stessa stazione);
 // hvHint = suggerimento dello zoom, da mostrare fino al primo zoom;
-// Anni della temperatura: histAnni = ultima scelta fra Curva ('anni') e Griglia, histYear = anno della Curva
+// histYear = anno in primo piano negli Anni della temperatura (null = l'ultimo)
 let histMode = false, histVar = 'PREC', histView = 'giorni', histRange = 0,
-    histU = null, histData = null, histWin = null, hvHint = true, histAnni = 'anni', histYear = null;
+    histU = null, histData = null, histWin = null, hvHint = true, histYear = null;
 const histCache = {};
 let _histIndexP = null;
 function histIndex(){
@@ -100,29 +100,35 @@ function histMonths(h, v){
 }
 
 // Tabella mesi x anni: una riga per mese, in fondo il totale (pioggia, mm interi) o la media delle medie
-// (temperatura); una colonna per anno dal piu' vecchio. Dietro ogni numero una barra: pioggia in proporzione
-// al mese piu' piovoso, temperatura dal piu' freddo al piu' caldo. Incompleto = piu' chiaro, col perche'.
+// (temperatura); una colonna per anno dal piu' vecchio. Pioggia: dietro ogni numero una barra in proporzione
+// al mese piu' piovoso. Temperatura: la casella ha il colore dello scarto dalla media di quel mese fra gli
+// anni, con la chiave sopra. Incompleto = piu' chiaro, col perche'.
 function hvTableHtml(months, v){
   const isP = v === 'PREC', by = {}, vals = [];
   months.forEach(c => {
     if(c.val != null){ by[c.y + '-' + c.m] = c; vals.push(c.val); }
   });
-  const years = [...new Set(months.map(c => c.y))], lo = Math.min(...vals), hi = Math.max(...vals);
-  const bar = x => isP ? (hi > 0 ? x / hi : 0) : (hi > lo ? (x - lo) / (hi - lo) : 1);
-  const cell = (x, why, w) => {
-    const cls = [w != null && 'b', why && 'part'].filter(Boolean).join(' ');
+  const years = [...new Set(months.map(c => c.y))], hi = Math.max(...vals);
+  const stat = isP ? null : hvTempStats(months).stat;
+  const look = c => {
+    if(isP) return { cls:'b', css:'--w:' + (100 * (hi > 0 ? c.val / hi : 0)).toFixed(1) + '%' };
+    const s = stat[c.m];
+    return { cls:c.have >= 10 && s ? 'hv-k' + hvDevClass(Math.round((c.val - s.mean) * 10) / 10) : '' };
+  };
+  const cell = (x, why, lk) => {
+    const cls = [lk && lk.cls, why && 'part'].filter(Boolean).join(' ');
     return '<td' + (cls ? ' class="' + cls + '"' : '') + (why ? ' title="incompleto: ' + why + '"' : '') +
-           (w != null ? ' style="--w:' + (100 * w).toFixed(1) + '%"' : '') + '>' +
-           (isP ? Math.round(x) : fmt1(x)) + '</td>';
+           (lk && lk.css ? ' style="' + lk.css + '"' : '') + '>' + (isP ? Math.round(x) : fmt1(x)) + '</td>';
   };
   const row = (head, cells, cls) =>
     '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + head + '</th>' + cells.join('') + '</tr>';
-  let html = '<table class="' + (isP ? 'rain' : 'warm') + '" style="--ny:' + years.length + '"><thead>' +
+  let html = (isP ? '' : hvDevKey(years.length)) +
+             '<table class="' + (isP ? 'rain' : 'warm') + '" style="--ny:' + years.length + '"><thead>' +
              row(isP ? 'mm' : '°C', years.map(y => '<th>' + y + '</th>')) + '</thead><tbody>';
   MESI_BR.forEach((name, m) => {
     html += row(name, years.map(y => {
       const c = by[y + '-' + m];
-      return c ? cell(c.val, c.full ? '' : c.have + ' giorni completi su ' + c.dim, bar(c.val)) : '<td></td>';
+      return c ? cell(c.val, c.full ? '' : c.have + ' giorni completi su ' + c.dim, look(c)) : '<td></td>';
     }));
   });
   html += row(isP ? 'tot' : 'media', years.map(y => {
@@ -344,9 +350,9 @@ function hvRainYearsView(h){
 
 // Temperatura negli anni: medie mensili di ogni anno (almeno 10 giorni completi) e, mese per mese, media,
 // minimo e massimo fra gli anni dove ce ne sono almeno due
-function hvTempYears(h){
+function hvTempStats(months){
   const by = {};
-  histMonths(h, 'TEMP').forEach(c => {
+  months.forEach(c => {
     if(c.have < 10) return;
     const Y = by[c.y] || (by[c.y] = { y:c.y, val:new Array(12).fill(null), mon:[] });
     Y.val[c.m] = c.val;
@@ -361,6 +367,15 @@ function hvTempYears(h){
   });
   return { years, stat };
 }
+// classe del colore dello scarto dalla media del mese (stile.css): hv-k3 entro mezzo grado, poi uno, due e
+// piu' di due gradi e mezzo, verso il blu (hv-k2..k0) o verso il rosso (hv-k4..k6)
+const hvDevClass = d => {
+  const a = Math.abs(d);
+  return 3 + Math.sign(d) * (a < 0.5 ? 0 : a < 1.5 ? 1 : a < 2.5 ? 2 : 3);
+};
+const hvDevKey = ny => '<div class="hv-dev" style="--ny:' + ny + '"><span>più freddo</span><span>' +
+  [0, 1, 2, 3, 4, 5, 6].map(k => '<span class="sw hv-k' + k + '"></span>').join('') +
+  '</span><span>più caldo</span></div>';
 // "26.7 °C (+1.8)": la media del mese e lo scarto dalla media degli anni
 const hvDev = (v, s) => {
   if(!s) return fmt1(v) + ' °C';
@@ -369,15 +384,17 @@ const hvDev = (v, s) => {
 };
 const hvBg = () => getComputedStyle(el('panel')).backgroundColor;
 
-// ---- vista "Anni", temperatura, Curva: l'anno scelto sulla fascia fra minimo e massimo degli anni ----
+// ---- vista "Anni", temperatura: l'anno scelto sulla fascia fra minimo e massimo degli anni, con la media;
+// sotto, leggere e dello stesso colore, le linee di tutti gli anni ----
 function hvCurveView(h){
-  const { years, stat } = hvTempYears(h);
+  const { years, stat } = hvTempStats(histMonths(h, 'TEMP'));
   if(!years.length) return { msg:'Nessun dato' };
   const Y = years.find(o => o.y === histYear) || years[years.length - 1];
   const dark = document.body.classList.contains('dark'), color = HV_YEARS[dark ? 'dark' : 'light'][0];
   const band = k => (dark ? 'rgba(199,211,224,' : 'rgba(28,39,51,') + (dark ? 0.14 : 0.1) * k + ')';
+  const faint = dark ? 'rgba(199,211,224,.35)' : 'rgba(28,39,51,.3)';
   const all = years.flatMap(o => o.val).filter(v => v != null), x = MESI_BR.map((_, i) => i);
-  const smooth = uPlot.paths.spline(), of = k => stat.map(s => s && s[k]);
+  const smooth = uPlot.paths.spline(), of = k => stat.map(s => s && s[k]), n = years.length;
   const line = (label, stroke, width, more) =>
     Object.assign({ label, stroke, width, paths:smooth, points:{ show:false } }, more);
   const read = i => {
@@ -390,20 +407,21 @@ function hvCurveView(h){
     scales:{                                                       // asse fermo cambiando anno
       x:{ time:false, range:[-0.3, 11.3] }, y:{ range:[Math.min(...all) - 1, Math.max(...all) + 1] }
     },
-    bands:[{ series:[1, 2], fill:band(1) }],
-    series:[
-      {}, line('max', band(1), 1), line('min', band(1), 1), line('media', AXTX(), 1.5, { dash:[5, 4] }),
+    bands:[{ series:[n + 1, n + 2], fill:band(1) }],
+    series:[{}].concat(
+      years.map(o => line(String(o.y), faint, 1)),
+      line('max', band(1), 1), line('min', band(1), 1), line('media', AXTX(), 1.5, { dash:[5, 4] }),
       line(String(Y.y), color, 2.6, { points:{ show:true, size:7, width:1.5, fill:color, stroke:hvBg() } })
-    ],
+    ),
     axes:[hvMonthAxis(x, 12), hvYAxis('°C (media mensile)')]
   });
   return {
-    opts, data:[x, of('hi'), of('lo'), of('mean'), Y.val], read,
+    opts, data:[x, ...years.map(o => o.val), of('hi'), of('lo'), of('mean'), Y.val], read,
     key:stat.some(Boolean) ? [hvSw(band(2)) + 'min–max', hvSw(AXTX(), true, 'dash') + 'media'] : [],
-    years:years.length > 1 ? years.map(o => o.y) : null, year:Y.y
+    years:n > 1 ? years.map(o => o.y) : null, year:Y.y
   };
 }
-// anni della Curva, sopra il grafico: un clic porta l'anno in primo piano
+// anni sopra il grafico: un clic porta l'anno in primo piano
 function hvYearPicker(years, year){
   const d = document.createElement('div');
   d.className = 'hv-seg hv-yrs';
@@ -416,56 +434,6 @@ function hvYearPicker(years, year){
     renderHist();
   });
   return d;
-}
-
-// ---- vista "Anni", temperatura, Griglia: un anno per riga, un mese per casella ----
-// Colore = scarto dalla media del mese fra gli anni, a classi (stile.css): hv-k3 entro mezzo grado, poi
-// uno, due e piu' di due gradi e mezzo, verso il blu (k2..k0) o verso il rosso (k4..k6).
-const hvDevClass = d => {
-  const a = Math.abs(d);
-  return 3 + Math.sign(d) * (a < 0.5 ? 0 : a < 1.5 ? 1 : a < 2.5 ? 2 : 3);
-};
-function hvGridView(h){
-  const { years, stat } = hvTempYears(h);
-  let html ='<div class="hv-gkey"><span>più freddo</span><span>' +
-             [0, 1, 2, 3, 4, 5, 6].map(k => '<span class="sw hv-k' + k + '"></span>').join('') +
-             '</span><span>più caldo</span></div><div class="hv-grid"><span></span>' +
-             MESI_BR.map(m => '<span class="hv-gm">' + m + '</span>').join('');
-  years.slice().reverse().forEach(Y => {
-    html += '<span class="hv-gy">' + Y.y + '</span>';
-    Y.val.forEach((v, m) => {
-      if(v == null){ html += '<span></span>'; return; }
-      const s = stat[m], k = s ? hvDevClass(Math.round((v - s.mean) * 10) / 10) : 3;
-      html += '<span class="hv-gc hv-k' + k + (Y.mon[m].full ? '' : ' part') + '" data-y="' + Y.y +
-              '" data-m="' + m + '"><span class="d1">' + fmt1(v) + '</span><span class="d0">' +
-              Math.round(v) + '</span></span>';
-    });
-  });
-  const read = (y, m) => {
-    const Y = years.find(o => o.y === y);
-    return hvTip(MESI_BR[m] + ' ' + y, [hvDev(Y.val[m], stat[m])], !Y.mon[m].full);
-  };
-  return { html:html + '</div>', read };
-}
-// riquadro della casella: col mouse al passaggio, al tocco resta finche' non si tocca altrove
-function hvGridShow(r){
-  el('hvChart').innerHTML = r.html;
-  const grid = el('hvChart').querySelector('.hv-grid'), tip = document.createElement('div');
-  tip.className = 'ctip hv-tip';
-  grid.appendChild(tip);
-  const show = e => {
-    const c = e.target.closest('.hv-gc');
-    if(!c){ tip.style.display = 'none'; return; }
-    tip.innerHTML = r.read(+c.dataset.y, +c.dataset.m);
-    tip.style.display = 'block';
-    const w = tip.offsetWidth;
-    const x = Math.max(0, Math.min(c.offsetLeft + (c.offsetWidth - w) / 2, grid.clientWidth - w));
-    const up = c.offsetTop - tip.offsetHeight - 4, y = up >= 0 ? up : c.offsetTop + c.offsetHeight + 4;
-    tip.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
-  };
-  grid.addEventListener('pointerover', show);
-  grid.addEventListener('pointerdown', show);
-  grid.addEventListener('pointerleave', e => { if(e.pointerType === 'mouse') tip.style.display = 'none'; });
 }
 
 // ---- vista "Giorni": serie giornaliera (pioggia: barre; temperatura: banda min-max + media) ----
@@ -755,7 +723,7 @@ function hvApplyRange(){
   const w = hvWinFor(histData);
   hvSetWin(histU, w.min, w.max, false);
 }
-function hvSync(h, both){
+function hvSync(h){
   const hv = stationHistVars(currentStation);
   [...el('hvVar').children].forEach(b => {
     b.style.display =
@@ -763,11 +731,7 @@ function hvSync(h, both){
         ? '' : 'none';
     b.classList.toggle('on', b.dataset.v === histVar);
   });
-  const anni = histView === 'anni' || histView === 'griglia';
-  const lit = anni ? 'anni' : histView;
-  [...el('hvView').children].forEach(b => b.classList.toggle('on', b.dataset.w === lit));
-  el('hvYrs').style.display = anni && both ? '' : 'none';
-  [...el('hvYrs').children].forEach(b => b.classList.toggle('on', b.dataset.w === histView));
+  [...el('hvView').children].forEach(b => b.classList.toggle('on', b.dataset.w === histView));
   el('hvRange').style.display = histView === 'giorni' ? '' : 'none';
   el('hvChart').style.display = histView === 'tabella' ? 'none' : '';
   hvRangeLit();
@@ -789,30 +753,24 @@ async function renderHist(){
   if(histWin && histWin.key !== hvKey(st)) histWin = null;
   if(histVar === 'PREC' && !h.hasP && h.hasT) histVar = 'TEMP';
   if(histVar === 'TEMP' && !h.hasT && h.hasP) histVar = 'PREC';
-  const both = histVar === 'TEMP' && hvTempYears(h).years.length > 1;      // Curva e Griglia: due anni
-  if(histView === 'griglia' && !both) histView = 'anni';
-  hvSync(h, both);
+  hvSync(h);
   if(histView === 'tabella'){
     const months = histMonths(h, histVar);
     el('hvTable').innerHTML = months.length
       ? hvTableHtml(months, histVar)
       : '<div class="hint">Nessun dato</div>';
   } else {
-    const r = histView === 'griglia' ? hvGridView(h)
-      : histView === 'anni' ? (histVar === 'TEMP' ? hvCurveView(h) : hvRainYearsView(h))
+    const r = histView === 'anni' ? (histVar === 'TEMP' ? hvCurveView(h) : hvRainYearsView(h))
       : histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar);
     if(r.msg){
       el('hvChart').innerHTML = '<div class="hint">' + r.msg + '</div>';
       hvNoteSet(null, '');
       return;
     }
-    if(r.html) hvGridShow(r);
-    else {
-      histU = new uPlot(r.opts, r.data, el('hvChart'));
-      hvDecorate(histU, r);
-      if(r.years) el('hvChart').prepend(hvYearPicker(r.years, r.year));
-      if(r.days) hvApplyRange();
-    }
+    histU = new uPlot(r.opts, r.data, el('hvChart'));
+    hvDecorate(histU, r);
+    if(r.years) el('hvChart').prepend(hvYearPicker(r.years, r.year));
+    if(r.days) hvApplyRange();
   }
   hvNoteSet(h);
   updateHash();
@@ -856,7 +814,6 @@ async function setHistMode(on, v, w){
   histVar = hv.includes(v) ? v : (hv.includes(currentVar) ? currentVar : hv[0]);
   currentVar = histVar;
   if(w) histView = w;
-  if(w === 'anni' || w === 'griglia') histAnni = w;
   histMode = true;
   document.body.classList.add('hist-mode');
   const b = el('histbtn');
@@ -894,20 +851,13 @@ function buildHistControls(){
     if(!b) return;
     histVar = b.dataset.v;
     currentVar = histVar;
-    if(histVar === 'TEMP' && histView === 'anni') histView = histAnni;
     syncVarButtons();
     renderHist();
   });
   el('hvView').addEventListener('click', e => {
     const b = e.target.closest('button');
     if(!b) return;
-    histView = b.dataset.w === 'anni' && histVar === 'TEMP' ? histAnni : b.dataset.w;
-    renderHist();
-  });
-  el('hvYrs').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if(!b) return;
-    histView = histAnni = b.dataset.w;
+    histView = b.dataset.w;
     renderHist();
   });
   el('hvRange').addEventListener('click', e => {

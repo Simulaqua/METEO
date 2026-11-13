@@ -621,7 +621,7 @@ async function applyHash(){
   if(sp && sp.startsWith('S:')) setStackMode(true, sp.slice(2).split(',').filter(Boolean));
   else if(sp && sp.startsWith('H:')){                              // "H:PREC:anni" -> storico lungo
     const [, hv, hw] = sp.split(':');
-    await setHistMode(true, hv, ['mesi', 'anni', 'griglia', 'giorni', 'tabella'].includes(hw) ? hw : undefined);
+    await setHistMode(true, hv, ['mesi', 'anni', 'giorni', 'tabella'].includes(hw) ? hw : undefined);
   }
   syncPills();
 }
