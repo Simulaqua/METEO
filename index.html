@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dati Meteo</title>
+<link rel="icon" href="favicon.ico?v=2">
+<meta name="description" content="Stazioni idro-meteo del Nord Italia in tempo reale: temperature, piogge, livelli idrometrici, laghi e invasi, qualità dell'aria. Dati delle agenzie regionali, aggiornati ogni 10 minuti.">
+
+<!-- Leaflet (mappa) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- uPlot (grafici time-series) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+
+<link rel="stylesheet" href="stile.css?v=22521702">
+</head>
+<body>
+<div id="app">
+  <div id="stalebanner"></div>
+  <div id="layout">
+  <!-- comandi di prima, nascosti: fonte unica dello stato (le pillole della barra in alto li leggono e li azionano) -->
+  <div id="legacyCtl" hidden>
+      <div id="pages">
+        <button class="pg active" data-page="dirette">Misure dirette</button>
+        <button class="pg" data-page="derivate">Misure derivate</button>
+        <button class="pg" data-page="indici">Indici</button>
+      </div>
+      <select id="region">
+        <option value="ALL">Tutte</option>
+        <option value="VEN">Veneto</option>
+        <option value="LOM">Lombardia</option>
+        <option value="ER">Emilia-Romagna</option>
+        <option value="TN">Trentino</option>
+        <option value="BZ">Alto Adige</option>
+        <option value="FVG">Friuli V.G.</option>
+        <option value="PIE">Piemonte</option>
+        <option value="LIG">Liguria</option>
+        <option value="PO">Po (AIPO + Piemonte)</option>
+        <option value="LAGHI">Laghi</option>
+      </select>
+      <select id="stationFilter">
+        <option value="">Tutte le stazioni</option>
+      </select>
+      <select id="varFilter">
+        <option value="">Tutte le variabili</option>
+      </select>
+  </div>
+  <div id="content">
+    <nav id="tabbar">
+      <span class="brand">Simulaqua Meteo</span>
+      <button class="tab active" id="tabMap">Mappa</button>
+    </nav>
+    <div id="views">
+    <div id="map"></div>
+    <!-- barra in alto sulla mappa: ricerca e pillole (i menu si aprono sotto le pillole) -->
+    <div id="topbar">
+      <div class="tb-q">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
+        <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
+               aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
+        <kbd>/</kbd>
+      </div>
+      <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
+      <div id="pillRow">
+        <button id="pgPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Misure dirette</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="regPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le regioni</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="varPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le variabili</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="srcinfo" class="pill" title="Stato delle fonti dati"><span id="srcdot"></span>Fonti</button>
+        <button id="moreBtn" class="pill" aria-haspopup="menu" aria-expanded="false" aria-label="Altro" title="Altro">⋯</button>
+      </div>
+      <div id="moreMenu" class="tb-menu" role="menu" hidden>
+        <button id="noteBtn" role="menuitem" tabindex="-1">Note</button>
+        <button id="themeBtn" role="menuitem" tabindex="-1">Tema scuro</button>
+        <button id="resetBtn" role="menuitem" tabindex="-1">Azzera i filtri</button>
+      </div>
+      <div id="pillMenu" class="tb-menu" role="menu" hidden></div>
+      <div id="srcpanel"></div>
+      <div id="notepanel">
+        <b>Note</b> — Sito amatoriale, senza fini di lucro. I dati appartengono agli enti indicati nel pannello
+        fonti e sono ridistribuiti così come pubblicati dalle rispettive API aperte, senza validazione: possono
+        contenere errori, ritardi o lacune, e fanno fede esclusivamente i canali ufficiali. Le grandezze derivate,
+        gli indici e la climatologia sono elaborazioni non ufficiali di questo sito. Non usare per finalità di
+        allertamento o sicurezza: per le allerte consultare la Protezione Civile e i bollettini ufficiali.
+      </div>
+    </div>
+    <!-- scheda al passaggio del mouse su un puntino (una sola, riposizionata) -->
+    <div id="hoverCard" role="tooltip" hidden></div>
+    <!-- foglio basso al tocco su un puntino: la stessa scheda e "Apri la scheda"; trascinato in giu' si chiude -->
+    <div id="sheet" role="dialog" aria-label="Stazione" hidden>
+      <div class="sh-grab" aria-hidden="true"></div>
+      <button id="sheetClose" class="sh-x" aria-label="Chiudi"><svg viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
+      <div class="sh-body"></div>
+      <button id="sheetOpen" class="sh-open">Apri la scheda</button>
+      <div class="sh-cred"></div>
+    </div>
+    <!-- plancia in basso: tempo (Cursore), legenda (prodotto, scala, Stazioni) e crediti; sul telefono si chiude -->
+    <div id="dock" class="dock no-time only-credits">
+      <div class="dk-grab" aria-hidden="true"></div>
+      <button id="dkToggle" class="dk-toggle" aria-label="Chiudi la plancia" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+      <div id="tsbar" class="dk-time" role="group" aria-label="Cursore del tempo" style="display:none">
+        <button id="tsPlay" aria-label="Riproduci"><svg viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></button>
+        <button id="tsPrev" aria-label="Indietro"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6l6 6"/></svg></button>
+        <button id="tsNext" aria-label="Avanti"><svg viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6"/></svg></button>
+        <span id="tsLab"></span>
+        <div class="dk-track"><input id="tsRange" type="range" min="0" max="167" step="1" value="167" aria-label="Istante"><div id="tsTicks" class="dk-ticks"></div></div>
+        <button id="tsSpeed" aria-label="Velocità" title="Velocità">1×</button>
+        <button id="tsClose" aria-label="Chiudi il cursore"><svg viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
+      </div>
+      <div class="dk-info">
+        <div id="colorbar" class="dk-legend" style="display:none">
+          <button id="dkProd" class="dk-prod no-menu" aria-haspopup="menu" aria-expanded="false"><span id="dkName"></span><span id="dkUnit" class="dk-unit"></span><svg viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+          <div id="dkScale" class="dk-scale"></div>
+          <span id="dkNd" class="dk-nd" title="Puntino grigio: dato non disponibile">n.d.</span>
+          <span id="dkSta" class="dk-sta"><button id="mcStations" class="dk-switch on" role="switch" aria-checked="true" aria-label="Stazioni" title="Mostra o nascondi i puntini delle stazioni"></button>Stazioni<span id="mcStaTime" class="dk-sub"></span></span>
+        </div>
+        <div id="dkCredits" class="dk-credits"></div>
+      </div>
+    </div>
+    <div id="prodMenu" class="dk-menu" role="menu" aria-label="Cosa mostra la mappa"></div>
+    <div id="panel">
+      <!-- riga 1: nome · codice e ultimo dato; a destra le azioni (nello Storico il suo CSV e Link) -->
+      <div id="phead">
+        <div id="stationName">Seleziona una stazione</div>
+        <div id="stationMeta"></div>
+        <div id="pact" hidden>
+          <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
+          <a id="download" class="act" download title="Scarica il CSV">CSV</a>
+          <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
+          <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
+          <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
+        </div>
+      </div>
+      <!-- riga 2: variabili | modi; nello Storico la sua barra al posto di entrambi e in fondo "Storico ×" -->
+      <div id="pbar" hidden>
+        <div id="vars"></div>
+        <div id="modes">
+          <span class="pb-sep" aria-hidden="true"></span>
+          <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
+          <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
+          <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
+          <button class="mode" data-mode="mn" title="Da mezzanotte">MN</button>
+          <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronti</span> <span aria-hidden="true">▾</span></button>
+          <button id="stackbtn" class="tog" aria-pressed="false" title="Una fascia per variabile, con cursore e zoom sincronizzati">Impilato</button>
+          <div class="hv-bar">
+            <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
+            <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="tabella">Tabella</button></div>
+            <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
+          </div>
+          <button id="histbtn" class="tog" aria-pressed="false" title="Storico lungo: totali mensili, anni a confronto, giorni" style="display:none">Storico<span class="hb-x" aria-hidden="true"> ×</span></button>
+        </div>
+      </div>
+      <!-- menu di "Confronti": fuori dalla riga 2, che sul telefono scorre di lato -->
+      <div id="cmpMenu" class="tb-menu" role="menu" aria-label="Confronti" hidden>
+        <button data-mode="compare" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 7 giorni</button>
+        <button data-mode="compare30" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 30 giorni</button>
+        <button data-mode="tabs" role="menuitem" tabindex="-1">Confronto schede</button>
+      </div>
+      <div id="chartwrap">
+        <div id="chart"></div>
+        <div id="chartlegend"></div>
+      </div>
+      <div id="histview">
+        <div id="hvChart"></div>
+        <div id="hvTable"></div>
+        <div id="hvNote"><span id="hvDates"></span><button id="hvInfoBtn" class="hv-i" type="button" aria-expanded="false" aria-controls="hvInfo"
+             aria-label="Metodo" title="Metodo" hidden>i</button><div id="hvInfo" hidden>giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato
+             · più chiaro = incompleto · più sottile = anno incompleto · elaborazioni non ufficiali dei dati grezzi delle fonti</div></div>
+      </div>
+      <div id="chartstats" class="hint"></div>
+      <div id="windrose"></div>
+      <div id="status" class="hint"></div>
+      <div id="climabox" style="display:none"></div>
+      <div id="source" class="hint"></div>
+    </div>
+    </div>
+  </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="pngsheet">
+  <img id="pngimg" alt="Grafico">
+  <div class="pt">Tieni premuto sull'immagine → Salva</div>
+  <div class="row"><button id="pngshare" class="btn">Condividi</button><button id="pngclose" class="btn">Chiudi</button></div>
+</div>
+
+<script>
+// ------------------------------------------------------------------------------------------------
+// CONFIG
+// ------------------------------------------------------------------------------------------------
+// Base dei dati (cartelle per regione: <REGION>/stations.geojson, series/<SCODE>.csv, units.json).
+//   '.'  = accanto alla pagina (per il test locale con 'python3 -m http.server' dentro site/).
+// In produzione publish.sh RISCRIVE automaticamente questa riga con l'URL raw del branch 'data'
+// (es. https://raw.githubusercontent.com/utente/repo/data), cosi' i dati si aggiornano senza
+// innescare deploy di GitHub Pages. Per testare la pagina gia' puntata al raw, mettilo qui a mano.
+const DATA_BASE = 'https://raw.githubusercontent.com/Simulaqua/METEO/data';
+const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/history') : './_HIST';
+</script>
+<!-- radar.js, poi comune.js (gli altri usano le sue costanti mentre si caricano), poi un file per argomento; la pagina parte quando tutti hanno girato (avvio, in fondo a comune.js) -->
+<!-- publish.sh pubblica e versiona i file dei tag script e link scritti col solo nome (minuscolo, finito in .js o .css, fra virgolette doppie; niente cartelle, niente ?); un altro file locale citato dalla pagina che publish.sh non pubblica (favicon.ico si') ferma la pubblicazione -->
+<script src="radar.js?v=9d37f7e8"></script>
+<script src="comune.js?v=71f2955f"></script>
+<script src="mappa.js?v=8bd10d99"></script>
+<script src="ricerca.js?v=9ed720f6"></script>
+<script src="stazione.js?v=4bd324b5"></script>
+<script src="grafici.js?v=afe8f84a"></script>
+<script src="storico.js?v=a63ab790"></script>
+<script src="stato.js?v=f338c2d2"></script>
+</body>
+</html>
