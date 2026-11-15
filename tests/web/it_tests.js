@@ -448,6 +448,13 @@
     log(!vis(el('sidebar')), 'niente barra laterale', '');
     log(vis(el('topbar')) && vis(el('stationQ')), 'ricerca sopra la mappa', '');
     eq('pillole', ['pgPill', 'regPill', 'varPill', 'srcinfo', 'moreBtn'].map(id => vis(el(id))), [true, true, true, true, true]);
+    {                                                                // computer: pillole sulla riga della ricerca (piu' mappa); telefono: sotto
+      const q = el('stationQ').getBoundingClientRect(), p = el('pillRow').getBoundingClientRect(), mid = r => (r.top + r.bottom) / 2;
+      const box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);
+      if(innerWidth >= 900) log(Math.abs(mid(q) - mid(p)) <= 3 && p.left >= q.right + 4 && el('topbar').getBoundingClientRect().height <= 42,
+                                'computer: pillole sulla riga della ricerca', JSON.stringify([box(q), box(p)]));
+      else if(innerWidth <= 720) log(p.top >= q.bottom, 'telefono: pillole sotto la ricerca', JSON.stringify([box(q), box(p)]));
+    }
     log(/^Cerca fra \d+ stazioni…$/.test(el('stationQ').placeholder), 'segnaposto col numero di stazioni', el('stationQ').placeholder);
     log(!vis(el('legacyCtl')) && !!el('region') && !!el('varFilter') && !!el('stationFilter'), 'tendine nascoste ma presenti', '');
     el('srcinfo').click(); await sleep(100);

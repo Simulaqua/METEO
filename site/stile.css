@@ -416,9 +416,10 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 #pngsheet .pt { color:#fff; font-size:14px; text-align:center; }
 #pngsheet .row { display:flex; gap:10px; }
 
-/* ---- BARRA IN ALTO sulla mappa: ricerca (con suggerimenti) e pillole Pagina, Regione, Variabile, Fonti, ⋯.
-   Le tendine di prima (#pages, #region, #stationFilter, #varFilter) restano nascoste in #legacyCtl: fonte unica ---- */
-#topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-direction:column; align-items:flex-start;
+/* ---- BARRA IN ALTO sulla mappa: ricerca (con suggerimenti) e pillole Pagina, Regione, Variabile, Fonti, ⋯ sulla
+   stessa riga; se non ci stanno, le pillole vanno sotto. Le tendine di prima (#pages, #region, #stationFilter,
+   #varFilter) restano nascoste in #legacyCtl: fonte unica ---- */
+#topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-flow:row wrap; align-items:center;
           gap:8px; max-width:calc(100% - 80px); pointer-events:none; }
 #topbar > *, #pillRow > * { pointer-events:auto; }
 .tb-q { position:relative; width:300px; max-width:100%; }
@@ -516,7 +517,7 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
 
 /* ---- MOBILE / schermo verticale: tab scorrevoli; ricerca a tutta larghezza, pillole scorrevoli di lato ---- */
 @media (max-width:720px){
-  #topbar { left:10px; right:10px; top:10px; max-width:none; align-items:stretch; }
+  #topbar { left:10px; right:10px; top:10px; max-width:none; flex-flow:column nowrap; align-items:stretch; }
   .tb-q { width:auto; }
   #stationQ { height:40px; font-size:16px; }          /* 16 px: l'iPhone non ingrandisce la pagina al tocco */
   .tb-q kbd { display:none; }
