@@ -895,12 +895,11 @@
     const WV = pick(p => has(p, 'DVENTO') && has(p, 'VVENTO'));
     log(!!WV, 'stazione con direzione e velocità del vento', '');
     if(WV){
+      document.querySelector('#pages .pg[data-page="dirette"]').click();
       await open(WV);
-      const pg = document.querySelector('#pages .pg[data-page="' + varCat(WARROW) + '"]');
-      if(pg) pg.click();
       await sleep(400);
       const chip = document.querySelector('#vars [data-var="' + WARROW + '"]');
-      log(!!chip && !chip.querySelector('.vadd'), 'Vento: chip fra le derivate, senza "+"', chip ? chip.outerHTML.slice(0, 80) : '');
+      log(!!chip && !chip.querySelector('.vadd'), 'Vento: chip fra le misure dirette, senza "+"', chip ? chip.outerHTML.slice(0, 80) : '');
       drawVar(WARROW);
       await until(() => chart && chart._m && chart._m.wind); await sleep(300);
       const ar = chart._m.wind.arrows;

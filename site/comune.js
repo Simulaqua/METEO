@@ -41,9 +41,9 @@ const REGION_GROUPS = {
 const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PIE');
 
 // Categoria di ogni variabile = le 3 pagine (misure dirette, derivate, indici).
-const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (derivate): velocita' con le frecce
+const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (misure dirette): velocita' con le frecce
 const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
-const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WARROW, WROSE]);
+const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE]);
 const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48',
                               'GDD','HDD','CDD','ET0']);
 

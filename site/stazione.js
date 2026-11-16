@@ -69,7 +69,7 @@ async function selectStation(props){
 
   const allVars = ((props.variables && props.variables.length) ? props.variables
                 : table.header.slice(1)).slice();
-  if(windObsCount(table) >= 10) allVars.push(WARROW, WROSE);   // chip "Vento" e "Rosa dei venti" fra le derivate
+  if(windObsCount(table) >= 10) allVars.push(WARROW, WROSE);   // "Vento" fra le misure dirette, "Rosa dei venti" fra le derivate
   const vars = allVars.filter(v => varCat(v) === currentPage).sort(natVars);
   currentVar2 = null;
   document.body.classList.remove('rose-mode');
