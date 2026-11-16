@@ -11,7 +11,6 @@ body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); colo
 body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
 body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
 body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
-body.dark #climabox th, body.dark #climabox td { border-color:var(--line); }
 * { box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; }   /* iPhone: niente ingrandimento automatico dei testi (sballa il layout) */
 html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--fg); background:var(--bg); }
@@ -33,13 +32,6 @@ html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,
 .btn { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#f7fafc;
        font-size:13px; cursor:pointer; color:var(--fg); }
 .btn:hover { background:#edf2f7; }
-/* pannello climatologia (pagina indici) */
-#climabox { font-size:12px; line-height:1.5; margin-top:10px; }
-#climabox h4 { margin:0 0 4px; font-size:13px; }
-#climabox table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
-#climabox th, #climabox td { padding:2px 6px; text-align:right; border-bottom:1px solid var(--line); }
-#climabox th:first-child, #climabox td:first-child { text-align:left; }
-#climabox .rec { color:var(--muted); margin-top:6px; }
 #map { position:absolute; inset:0; }
 #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
          flex-direction:column; padding:8px 16px 14px; gap:8px; overflow:auto; }
@@ -79,7 +71,6 @@ body.dark #stationMeta { color:#f0a35e; }
                  stroke-linecap:round; stroke-linejoin:round; }
 #cmpMenu, #altMenu { z-index:20; }                  /* sopra il grafico (etichette e "Tutto" stanno a 4-5) */
 #altMenu { overflow-y:auto; overscroll-behavior:contain; }   /* tante voci (Arba: 23): il menu scorre */
-#climabox[hidden] { display:none; }
 .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
            clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .tb-menu hr { border:0; border-top:1px solid var(--line); margin:4px 0; flex:none; }
@@ -332,8 +323,7 @@ body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5;
 #histview { display:none; flex-direction:column; gap:8px; }
 /* lo Storico e' alto quanto il grafico delle misure */
 body.hist-mode #histview { display:flex; flex:1 1 auto; min-height:0; }
-body.hist-mode #chartwrap, body.hist-mode #climabox, body.hist-mode #windrose,
-body.hist-mode #vars { display:none; }
+body.hist-mode #chartwrap, body.hist-mode #windrose, body.hist-mode #vars { display:none; }
 .hv-bar { display:none; }
 body.hist-mode .hv-bar { display:contents; }        /* nella riga 2, al posto delle variabili */
 /* Pioggia e Temperatura come le chip delle variabili: la scelta col bordo, il velo e il trattino del suo

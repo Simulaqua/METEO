@@ -994,14 +994,15 @@
       const tops = [...fake._labs.querySelectorAll('.cl-v')].map(e => parseFloat(e.style.top));
       log(tops.length === 5 && tops.every(t => t >= 0 && t <= 300 - 16), 'cursore: valori fitti in basso restano dentro il grafico', JSON.stringify(tops));
     }
-    {
-      const G = (stationVars.includes('GDD') && 'GDD') || stationVars.find(v => varCat(v) === 'indici');
+    {                                                  // indici: niente tabelle, nulla sopra il grafico
+      const G = stationVars.find(v => v === 'PREC3') || stationVars.find(v => varCat(v) === 'indici');
       if(G){
-        drawVar(G); await until(() => !el('climabox').hidden, 4000);
-        await setHistMode(true); await sleep(300);
-        log(!vis(el('climabox')), 'Storico: niente climatologia sotto', '');
-        await pickMode('week'); await sleep(300);
-        log(!vis(el('climabox')) && varCat(currentVar) !== 'indici', 'uscendo dallo Storico: niente climatologia della variabile di prima', currentVar);
+        drawVar(G); await sleep(1500);
+        const cw = el('chartwrap').getBoundingClientRect(), cv = el('chart').querySelector('canvas').getBoundingClientRect();
+        const over = [...el('panel').children].filter(e => e !== el('chartwrap') && vis(e) && e.id !== 'chartsum').filter(e => {
+          const r = e.getBoundingClientRect(); return r.top < cv.bottom - 1 && r.bottom > cv.top + 1; });
+        log(!document.getElementById('climabox') && !over.length && cv.bottom <= cw.bottom + 1,
+            'indici (' + G + '): nessuna tabella, nulla sopra il grafico', JSON.stringify(over.map(e => e.id || e.className)));
       }
     }
     {

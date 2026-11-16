@@ -177,7 +177,6 @@ function keepFocus(box, build){
 // Nei confronti si guarda una variabile alla volta: niente "+".
 function buildVarRow(){
   keepFocus(el('vars'), fillVarRow);
-  updateClimaBox();
 }
 function fillVarRow(){
   const box = el('vars'), all = stationVars, cmp = isCompareMode();
@@ -263,58 +262,6 @@ function altClose(refocus){
     b.setAttribute('aria-expanded', 'false');
     if(refocus) b.focus({ preventScroll:true });
   }
-}
-
-// ---- climatologia: riassunto da <REGIONE>/climate.json, sotto il grafico degli indici ----
-const _climaCache = {};
-async function loadClimate(region){
-  if(region in _climaCache) return _climaCache[region];
-  try {
-    _climaCache[region] = await (await fdata(`${region}/climate.json`, {cache:'no-store'})).json();
-  }
-  catch(e){ _climaCache[region] = null; }
-  return _climaCache[region];
-}
-const _fmtMon = s => s ? s.substr(4,2) + '/' + s.substr(0,4) : '';
-const _fmtDay = s => s ? s.substr(6,2) + '/' + s.substr(4,2) + '/' + s.substr(0,4) : '';
-async function updateClimaBox(){
-  const box = el('climabox');
-  if(!currentStation || !currentVar || varCat(currentVar) !== 'indici' || histMode){
-    box.hidden = true;
-    box.innerHTML = '';
-    return;
-  }
-  box.hidden = false;
-  box.innerHTML = '<div class="hint">Carico la climatologia…</div>';
-  const clima = await loadClimate(currentStation._region);
-  if(!currentStation){ return; }
-  const e = clima && clima[currentStation.scode];
-  if(!e){
-    box.innerHTML = '<div class="hint">Climatologia non disponibile per questa stazione.</div>';
-    return;
-  }
-  const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
-  let rows = '';
-  const mon = e.monthly || {};
-  for(let m=1;m<=12;m++){
-    const d = mon[String(m).padStart(2,'0')];
-    if(!d) continue;
-    rows += `<tr><td>${MESI[m-1]}</td><td>${d.tmin??'–'}</td><td>${d.tmax??'–'}</td><td>${d.tmean??'–'}</td><td>${d.prec??'–'}</td></tr>`;
-  }
-  let html = `<h4>Climatologia — ${_fmtMon(e.period.from)}–${_fmtMon(e.period.to)} · ${e.period.days} giorni</h4>`;
-  if(rows) html += `<table><tr><th>Mese</th><th>T min</th><th>T max</th><th>T media</th><th>Pioggia</th></tr>${rows}</table>`;
-  const r = e.records || {}, rb = [];
-  if(r.tmax) rb.push(`T max ${r.tmax.val} °C (${_fmtDay(r.tmax.date)})`);
-  if(r.tmin) rb.push(`T min ${r.tmin.val} °C (${_fmtDay(r.tmin.date)})`);
-  if(r.prec_day) rb.push(`pioggia/g ${r.prec_day.val} mm (${_fmtDay(r.prec_day.date)})`);
-  if(rb.length) html += `<div class="rec"><b>Record:</b> ${rb.join(' · ')}</div>`;
-  const ix = e.indices || {}, IXL = {
-    frost_days:'gelo', ice_days:'ghiaccio', summer_days:'estivi',
-    hot_days:'caldi (>30°)', tropical_nights:'notti tropicali', rainy_days:'piovosi'
-  };
-  const ib = Object.keys(IXL).filter(k => ix[k] != null).map(k => `${IXL[k]} ${ix[k]}`);
-  if(ib.length) html += `<div class="rec"><b>Giorni/anno:</b> ${ib.join(' · ')}</div>`;
-  box.innerHTML = html;
 }
 
 async function ensureTabTables(){
@@ -470,8 +417,6 @@ async function renderCompareView(){
   el('source').innerHTML = TZNOTE;
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
   el('windrose').innerHTML = '';
-  el('climabox').hidden = true;
-  el('climabox').innerHTML = '';
   history.replaceState(null, '', '#confronto');
   await ensureTabTables();
   const set = new Set();
