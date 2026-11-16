@@ -1788,9 +1788,14 @@
     const n2 = names();
     log(n2.length >= 3 && below(n2, Math.max(...tools().map(e => R(e).bottom))) && n2.every(e => R(e).bottom <= R(el('chart')).top + 1),
         'riga 2: le variabili fra la prima riga e il grafico', JSON.stringify(n2.map(e => Math.round(mid(e)))));
-    log([...document.querySelectorAll('#phead button, #pact .act, #vars button')].filter(vis).every(e => {
-      const cs = getComputedStyle(e); return cs.borderTopWidth === '0px' && cs.backgroundColor === 'rgba(0, 0, 0, 0)'; }),
-        'comandi a parole: niente riquadri né fondi', '');
+    {                                                   // ogni comando ha il suo bordo: si vede dove cliccare
+      const boxes = [el('modes'), ...document.querySelectorAll('#pviews .mode, #pact .act, #vars .vn, #altBtn, #stackbtn')].filter(vis);
+      log(boxes.length > 8 && boxes.every(e => getComputedStyle(e).borderTopWidth !== '0px'), 'comandi con il bordo (chip e gruppi a segmenti)',
+          JSON.stringify(boxes.filter(e => getComputedStyle(e).borderTopWidth === '0px').map(e => e.id || e.className)));
+      const on = el('vars').querySelector('.vn.on');
+      log(!!on && getComputedStyle(on).borderTopColor === on.style.getPropertyValue('--c').replace(/#(..)(..)(..)/, (m, a, b, c) =>
+          'rgb(' + [a, b, c].map(h => parseInt(h, 16)).join(', ') + ')'), 'chip scelta: bordo del colore della variabile', on ? getComputedStyle(on).borderTopColor : '');
+    }
     M.normale = gap('chart');
     if(!phone) log(M.normale <= 75, 'normale: grafico a ' + M.normale + ' px dalla barra delle schede (al massimo 75)', M.normale);
     noScroller('normale');
@@ -1879,6 +1884,14 @@
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Storico: nessun periodo acceso', '');
     M.storico = gap('hvChart');
     if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
+    {
+      const hb = histU && histU.root.getBoundingClientRect(), nb = el('hvNote').getBoundingClientRect(), pb = el('panel').getBoundingClientRect();
+      M.storicoAlto = hb ? Math.round(hb.height) : 0;
+      if(!phone) log(!!hb && pb.bottom - nb.bottom < 80 && hb.height > 330, 'Storico: il grafico riempie la scheda come gli altri',
+                     JSON.stringify([Math.round(hb && hb.height), Math.round(pb.bottom - nb.bottom)]));
+      else log(!!hb && Math.abs(hb.height - Math.max(220, Math.round(innerHeight * 0.46))) < 40, 'telefono: Storico alto come il grafico delle misure',
+               JSON.stringify([Math.round(hb && hb.height), innerHeight]));
+    }
     el('hvView').querySelector('[data-w="mesi"]').click(); await until(() => histView === 'mesi' && !!histU, 8000); await sleep(300);
     log(!vis(el('hvRange')), 'Storico/Mesi: niente periodo dei giorni', '');
     if(phone){ actsOk('telefono, Storico', ['hvCsv', 'exportpng', 'copylink']); noOverflow('telefono, Storico'); }

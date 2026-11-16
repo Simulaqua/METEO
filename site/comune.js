@@ -129,6 +129,12 @@ function varColor(v, text, onWhite){
   return text ? (VAR_INK[c] || c) : c;
 }
 
+// velo del colore della variabile, per il fondo della sua chip quando e' nel grafico
+function varTint(v){
+  const c = varColor(v), a = document.body.classList.contains('dark') ? 0.2 : 0.09;
+  return 'rgba(' + [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16)).join(',') + ',' + a + ')';
+}
+
 // scarica un file generato nella pagina (CSV, PNG sul computer)
 function saveBlob(blob, fname){
   const a = document.createElement('a');

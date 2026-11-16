@@ -459,11 +459,7 @@ function mkSeries(d, hi){
     s.width = hi ? 3 : 2;
     s.spanGaps = true;
     s.points = { show:false };
-  } else {
-    // pallini solo dove i dati sono radi (uPlot li mostra se c'e' spazio), mai sulla linea fitta
-    s.points = { size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
-    if(d.pts != null) s.points.show = d.pts;
-  }
+  } else s.points = { show: d.pts == null ? true : d.pts, size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
   return s;
 }
 // punto del cursore: niente pallino sulle barre, normale su linee e puntini
@@ -1196,7 +1192,7 @@ function stackPanelH(n){
   return mob ? (n <= 2 ? 150 : 128) : (n === 1 ? 300 : (n === 2 ? 210 : 165));
 }
 
-// Opzioni uPlot di UN pannello. p = {v, src, label, color, kind, rs, cum, gaps, wind}; o =
+// Opzioni uPlot di UN pannello. p = {v, src, label, color, kind, rs, cum, gaps, npts, wind}; o =
 // {w,h,last,win,hi,sync,hooks,rgut}. hi = versione ad alta risoluzione per il PNG (font grandi, niente
 // cursore). rgut = spazio a destra per l'asse della cumulata: i pannelli senza cumulata lo lasciano vuoto,
 // cosi' gli assi del tempo restano allineati.
@@ -1212,7 +1208,7 @@ function stackPanelOpts(p, o){
       label: p.label, color: p.wind ? withAlpha(color, 0.45) : color, kind: p.kind,
       align: p.rs && p.rs.align, slot: p.rs && p.rs.slot,
       slotTxt: (p.rs && p.rs.hourly) ? (p.src === 'PREC' ? 'range' : 'end') : '',
-      pts: p.wind ? false : null, ptSize: 3, ptSizeHi: 6
+      pts: !p.wind && p.npts <= 400, ptSize: 3, ptSizeHi: 6
     }, hi)
   ];
   const axX = o.last
@@ -1308,10 +1304,12 @@ function createStack(host, cfg){
   vars.forEach((v, i) => {
     const src = srcOf(v), last = i === n - 1;
     const ys = applyOff(t.cols[src] || [], varOffset(src, st), varScale(src, st, units));
+    let npts = 0;
+    for(let k = 0; k < ys.length; k++) if(ys[k] != null && t.x[k] >= win[0] && t.x[k] <= win[1]) npts++;
     const unit = varUnit(src, st, units);
     const p = {
       v, src, label: varLabel(v), unit, kind: isRainVar(src) ? 'bars' : (isDirVar(src) ? 'dots' : 'line'),
-      gaps: [], cum: false
+      npts, gaps: [], cum: false
     };
     if(isRainVar(src)){            // pioggia: barre orarie (7 e 3 giorni), buchi tratteggiati, cumulata PREC
       p.rs = rainSeries(t.x, ys, src, win0[0], win0[1], hourly);

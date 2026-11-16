@@ -126,23 +126,26 @@ async function selectStation(props){
   updateHash();
 }
 
-// Un nome della riga: trattino del colore se e' nel grafico, poi il nome; "+" lo aggiunge, "×" lo toglie.
+// Una chip della riga: il nome (col trattino del suo colore se e' nel grafico); "+" la aggiunge, "×" la
+// toglie.
 function varItem(v, on, plus){
   const item = document.createElement('span');
-  item.className = 'vn' + (on ? ' on' : '');
+  item.className = 'vn' + (on ? ' on' : '') + (plus ? ' plus' : '');
   item.dataset.var = v;
-  if(on){
-    const k = document.createElement('i');
-    k.className = 'key';
-    k.style.background = varColor(v);
-    item.appendChild(k);
-  }
+  item.style.setProperty('--c', varColor(v));
+  item.style.setProperty('--t', varTint(v));
   const b = document.createElement('button');
   b.className = 'vb';
   b.dataset.var = v;
   b.textContent = varShort(v);
   b.title = varLabel(v);
   b.setAttribute('aria-pressed', String(on));
+  if(on){
+    const k = document.createElement('i');
+    k.className = 'key';
+    k.style.background = varColor(v);
+    b.prepend(k);
+  }
   item.appendChild(b);
   if(plus){
     const p = document.createElement('button'), x = extraVars.includes(v);
@@ -157,17 +160,27 @@ function varItem(v, on, plus){
 function rowButton(id, text, extra){
   const b = document.createElement('button');
   b.id = id;
-  b.className = 'vb';
   b.textContent = text;
   Object.entries(extra || {}).forEach(([k, val]) => b.setAttribute(k, val));
   return b;
 }
+// La riga si ricostruisce a ogni scelta: il fuoco della tastiera torna sullo stesso comando.
+function keepFocus(box, build){
+  const f = document.activeElement;
+  const was = !box.contains(f) ? null
+            : f.id ? '#' + f.id : '.' + f.className + '[data-var="' + f.dataset.var + '"]';
+  build();
+  const back = was && (box.querySelector(was) || box.querySelector(was.replace(/^\.vp/, '.vb')));
+  if(back) back.focus({ preventScroll:true });
+}
 // Riga delle variabili: le misure principali in ordine fisico, piu' quelle scelte da "Altro".
 // Nei confronti si guarda una variabile alla volta: niente "+".
 function buildVarRow(){
-  const box = el('vars'), all = stationVars, cmp = isCompareMode(), f = document.activeElement;
-  const was = !box.contains(f) ? null
-            : f.id ? '#' + f.id : '.' + f.className + '[data-var="' + f.dataset.var + '"]';
+  keepFocus(el('vars'), fillVarRow);
+  updateClimaBox();
+}
+function fillVarRow(){
+  const box = el('vars'), all = stationVars, cmp = isCompareMode();
   const sel = cmp ? [currentVar] : selVars();
   const main = all.filter(v => isMainVar(v, all)).sort(byVarOrder);
   const shown = main.concat(sel.filter(v => v && all.includes(v) && !main.includes(v)).sort(byVarOrder));
@@ -181,10 +194,6 @@ function buildVarRow(){
     box.appendChild(rowButton('stackbtn', 'Impilate', {
       'aria-pressed': String(stackMode), title: 'Una fascia per variabile, con cursore e zoom insieme'
     }));
-  // la riga si ricostruisce a ogni scelta: il fuoco della tastiera torna sullo stesso comando
-  const back = was && (box.querySelector(was) || box.querySelector(was.replace(/^\.vp/, '.vb')));
-  if(back) back.focus({ preventScroll:true });
-  updateClimaBox();
 }
 
 function drawVar(v){
@@ -439,10 +448,13 @@ function closeCompare(){
   );
 }
 // riga della scheda Confronto: le variabili delle schede aperte, una alla volta
-function buildCompareRow(vars){
+let compareVars = [];
+function buildCompareRow(){
   const box = el('vars');
-  box.innerHTML = '';
-  vars.forEach(v => box.appendChild(varItem(v, v === compareVar, false)));
+  keepFocus(box, () => {
+    box.innerHTML = '';
+    compareVars.forEach(v => box.appendChild(varItem(v, v === compareVar, false)));
+  });
 }
 // vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
 async function renderCompareView(){
@@ -466,27 +478,16 @@ async function renderCompareView(){
   openTabs.forEach(t => (t.props.variables || []).forEach(v => {
     if(v !== WROSE && v !== WARROW) set.add(v);
   }));
-  const vars = [...set].sort(byVarOrder);
-  if(!compareVar || !set.has(compareVar)) compareVar = set.has(currentVar) ? currentVar : vars[0];
-  buildCompareRow(vars);
+  compareVars = [...set].sort(byVarOrder);
+  if(!compareVar || !set.has(compareVar)) compareVar = set.has(currentVar) ? currentVar : compareVars[0];
+  buildCompareRow();
   if(['compare','compare30','tabs'].indexOf(chartMode) >= 0) chartMode = 'week';
   syncModes();
   if(compareVar) renderCompareTabs(compareVar); else clearChart();
 }
 function pickCompareVar(v){
   compareVar = v;
-  [...el('vars').children].forEach(x => {
-    const on = x.dataset.var === v;
-    x.classList.toggle('on', on);
-    x.querySelector('.vb').setAttribute('aria-pressed', String(on));
-    const k = x.querySelector('.key');
-    if(on && !k){
-      const i = document.createElement('i');
-      i.className = 'key';
-      i.style.background = varColor(v);
-      x.prepend(i);
-    } else if(!on && k) k.remove();
-  });
+  buildCompareRow();
   renderCompareTabs(v);
 }
 function showMapView(){
