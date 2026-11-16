@@ -141,6 +141,7 @@
           <a id="download" class="act" download title="Scarica i dati (CSV)">CSV</a>
           <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
           <button id="tabsCsv" class="act" title="Scarica le serie confrontate (CSV)">CSV</button>
+          <button id="climaCsv" class="act" title="Scarica le medie mensili (CSV)">CSV</button>
           <button id="exportpng" class="act" title="Scarica l'immagine (PNG)">PNG</button>
           <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
         </div>
@@ -172,6 +173,7 @@
              · più chiaro = incompleto · più sottile = anno incompleto · elaborazioni non ufficiali dei dati grezzi delle fonti</div></div>
       </div>
       <div id="windrose"></div>
+      <div id="climaview"></div>
       <div id="status" class="hint"></div>
       <div id="source" class="hint"></div>
     </div>
@@ -207,6 +209,7 @@ const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/
 <script src="stazione.js"></script>
 <script src="grafici.js"></script>
 <script src="storico.js"></script>
+<script src="clima.js"></script>
 <script src="stato.js"></script>
 </body>
 </html>

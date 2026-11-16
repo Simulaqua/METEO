@@ -92,6 +92,7 @@ body.dark #stationMeta { color:#f0a35e; }
 /* una sola azione CSV per vista: la serie, lo Storico o il Confronto schede */
 body.hist-mode #download, body.view-compare #download, body:not(.hist-mode) #hvCsv,
 body:not(.view-compare) #tabsCsv, body.hist-mode #refresh, body.view-compare #refresh { display:none; }
+body:not(.clima-mode) #climaCsv, body.clima-mode #download, body.clima-mode #refresh { display:none; }
 /* grafico + legenda in colonna a destra */
 #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
 #chart { flex:1 1 auto; min-width:0; }
@@ -167,6 +168,10 @@ body.dark #windrose .wr-t { fill:var(--muted); }
 body.dark #windrose .wr-c { fill:var(--fg); }
 body.dark #windrose .wr-calm { fill:var(--soft2); stroke:var(--line); }
 body.dark #windrose .wr-p { stroke:var(--bg); }
+/* la Climatologia come la rosa: al posto del grafico, grande come lui */
+#climaview { display:none; }
+body.clima-mode #climaview { display:block; flex:1 1 auto; min-height:200px; }
+body.clima-mode #chartwrap { display:none; }
 .wdir { white-space:nowrap; }
 .wd-ar { display:inline-block; font-style:normal; font-weight:400; line-height:1; width:.9em; text-align:center; margin-left:.12em; transform-origin:50% 55%; }
 /* ---- MAPPA: in alto a destra sfondi, Pioggia · Cursore · Radar e zoom; in basso la PLANCIA (tempo, legenda, crediti in
@@ -566,6 +571,7 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #chartwrap { flex:0 0 auto; min-height:0; flex-direction:column; overflow:visible; }
   #chart { flex:0 0 auto; width:100%; height:46vh; min-height:220px; overflow:hidden; }
   body.rose-mode #windrose { flex:0 0 auto; min-height:0; }
+  body.clima-mode #climaview { flex:0 0 auto; height:46vh; min-height:220px; }
   #windrose .wr-plot { flex:0 0 auto; height:46vh; min-height:220px; }
   #panel { padding-bottom:28px; }
   #chartlegend { width:100%; flex:0 0 auto; font-size:12px; padding-top:8px; overflow-y:visible;

@@ -355,6 +355,7 @@ function buildSearchControls(){
     if(!document.body.classList.contains('view-station')) return;
     if(document.body.classList.contains('view-compare')){ if(compareVar) pickCompareVar(compareVar); }
     else if(histMode) renderHist();
+    else if(currentVar === WCLIMA) renderClima();
     else if(currentStation && currentVar && currentVar !== WROSE){
       buildVarRow();                              // i trattini dei colori cambiano col tema
       renderChart(currentVar);

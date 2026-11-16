@@ -2073,10 +2073,144 @@
     finish();
   }
 
+  // Climatologia: climogramma in "Altro" dai dati dello Storico (campione vero: Valdagno, VEN/79)
+  async function suiteClima(){
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const R = e => e.getBoundingClientRect(), phone = innerWidth <= 720;
+    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc) || {}).properties;
+    const V = st('VEN', '79');
+    const N = (allFeatures.find(f => !['TEMP', 'PREC'].some(v => (f.properties.variables || []).includes(v))) || {}).properties;
+    log(V && N, 'stazioni di prova trovate', JSON.stringify([!!V, !!N]));
+    if(!(V && N)) return finish();
+    const open = async p => {
+      await selectStation(p);
+      await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000);
+      await sleep(300);
+    };
+    const acts = () => ['refresh', 'download', 'hvCsv', 'tabsCsv', 'climaCsv', 'exportpng', 'copylink'].filter(id => vis(el(id)));
+    // atteso, calcolato qui dal file: mesi completi (interi e col 90% dei giorni con almeno 20 ore), media fra gli anni
+    const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();
+    const want = (() => {
+      const d0 = Date.UTC(+raw.d0.slice(0, 4), +raw.d0.slice(4, 6) - 1, +raw.d0.slice(6, 8)), n = raw.p.length;
+      const r1 = v => Math.round(v * 10) / 10, first = a => a.findIndex(v => v != null);
+      const months = (i0, cb) => {
+        const M = {};
+        for(let i = i0; i < n; i++){
+          const d = new Date(d0 + i * 864e5), k = d.getUTCFullYear() + '-' + d.getUTCMonth();
+          const o = M[k] || (M[k] = { m:d.getUTCMonth(), dim:new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(),
+                                       span:0, have:0, s:0, x:0, nx:0, t:0, nt:0 });
+          o.span++;
+          cb(o, i);
+        }
+        return Object.values(M).filter(o => o.span === o.dim && o.have >= 0.9 * o.dim);
+      };
+      const T = months(first(raw.tm), (o, i) => {
+        if(raw.tm[i] == null || !(raw.ht[i] >= 20)) return;
+        o.have++; o.s += raw.tm[i];
+        if(raw.tx[i] != null){ o.x += raw.tx[i]; o.nx++; }
+        if(raw.tn[i] != null){ o.t += raw.tn[i]; o.nt++; }
+      });
+      const P = months(first(raw.p), (o, i) => {
+        if(raw.p[i] == null) return;
+        o.s += raw.p[i];
+        if(raw.hp[i] >= 20) o.have++;
+      });
+      const avg = a => a.length ? r1(a.reduce((s, v) => s + v, 0) / a.length) : null, by = (A, m) => A.filter(o => o.m === m);
+      return [...Array(12).keys()].map(m => ({
+        tm:avg(by(T, m).map(o => r1(o.s / o.have))), tx:avg(by(T, m).filter(o => o.nx).map(o => o.x / o.nx)),
+        tn:avg(by(T, m).filter(o => o.nt).map(o => o.t / o.nt)), p:avg(by(P, m).map(o => r1(o.s))),
+        nt:by(T, m).length, np:by(P, m).length
+      }));
+    })();
+    const near = (a, b) => a == null ? b == null : b != null && Math.abs(a - b) < 0.1001;
+    const col = lab => { const i = climaU.series.findIndex(s => s.label === lab); return i > 0 ? climaU.data[i] : null; };
+
+    await open(V);
+    el('altBtn').click(); await sleep(100);
+    const item = el('altMenu').querySelector('[data-var="CLIMATOLOGIA"]');
+    eq('Altro: la Climatologia, in fondo', item ? [item.textContent.trim(), item === el('altMenu').lastElementChild] : null, ['Climatologia', true]);
+    item.click();
+    await until(() => climaU && document.body.classList.contains('clima-mode'), 10000); await sleep(300);
+    log(!vis(el('chartwrap')) && vis(el('climaview')) && vis(climaU.root), 'Climatologia al posto del grafico', '');
+    eq('link della vista', location.hash, '#VEN/79/CLIMATOLOGIA');
+    const bad = [['Pioggia (mm)', 'p'], ['Temperatura massima (°C)', 'tx'], ['Temperatura minima (°C)', 'tn'], ['Temperatura media (°C)', 'tm']]
+      .flatMap(([lab, k]) => { const c = col(lab); return want.map((w, m) => !c || !near(c[m], w[k]) ? lab + ' ' + (m + 1) + ': ' + (c && c[m]) + ' atteso ' + w[k] : null); })
+      .filter(Boolean);
+    eq('medie dei soli mesi completi, uguali a quelle calcolate dal file', bad.slice(0, 6), []);
+    log(want.some(w => w.nt >= 2) && want.some(w => w.tm == null || w.nt < 2), 'campione: mesi con più anni e mesi con meno', JSON.stringify(want.map(w => w.nt)));
+    eq('anni per mese (temperatura, pioggia)', climaStats(await histLoad(V)).map(o => [o.nt, o.np]),
+       want.map(w => [w.nt, w.np]));
+    log(climaU._labs && climaU._labs.hidden && !el('climaview').querySelector('.hv-key, .hv-hint'), 'a riposo nessun numero né scritta sul grafico', '');
+    log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'nessun periodo acceso', '');
+    eq('azioni: CSV della climatologia, PNG, Link', acts(), ['climaCsv', 'exportpng', 'copylink']);
+    {
+      const m = want.findIndex(w => w.tx != null && w.p != null);
+      climaU.setCursor({ left:climaU.valToPos(m, 'x'), top:20 }); await sleep(120);
+      const labs = [...climaU._labs.querySelectorAll('.cl-v')].map(e => e.textContent.trim()).sort();
+      const w = want[m], yrs = [...new Set([w.nt, w.np].filter(Boolean))].sort((a, b) => a - b);
+      eq('al cursore: il mese e quanti anni', climaU._labs.querySelector('.cl-t').textContent,
+         MESI_BR[m] + ' · ' + yrs.join('–') + (Math.max(...yrs) === 1 ? ' anno' : ' anni'));
+      eq('al cursore: massima, media, minima e pioggia', labs,
+         [w.tx, w.tm, w.tn].map(v => v.toFixed(1) + ' °C').concat(Math.round(w.p) + ' mm').sort());
+    }
+    {                                                           // alta come il grafico delle misure
+      const hc = R(climaU.root).height;
+      drawVar('TEMP'); await sleep(300);
+      const hm = R(el('chart')).height;
+      drawVar('CLIMATOLOGIA'); await until(() => climaU, 8000); await sleep(300);
+      log(Math.abs(hc - hm) < 40 && Math.abs(R(climaU.root).height - hc) < 2, 'grande come il grafico delle misure', JSON.stringify([hc, hm]));
+    }
+    {                                                           // CSV: una riga per mese
+      let csvText = null; const OB = window.Blob, oclick = HTMLAnchorElement.prototype.click, oc = URL.createObjectURL;
+      window.Blob = function(parts, o){ csvText = (parts || []).join(''); return new OB(parts, o); };
+      URL.createObjectURL = () => 'blob:test';
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) oclick.call(this); };
+      el('climaCsv').click(); await sleep(200);
+      window.Blob = OB; HTMLAnchorElement.prototype.click = oclick; URL.createObjectURL = oc;
+      const lines = csvText ? csvText.trim().split('\n') : [];
+      eq('CSV: intestazione e dodici mesi', [lines[0], lines.length], ['mese;anni_temperatura;tmin;tmedia;tmax;anni_pioggia;pioggia_mm', 13]);
+      const w = want[7], c = v => v == null ? '' : String(v);
+      eq('CSV: agosto', (lines[8] || '').split(';').map((s, k) => k === 0 ? s : s === '' ? '' : String(+s)),
+         ['ago', String(w.nt), c(w.tn), c(w.tm), c(w.tx), String(w.np), c(w.p)]);
+    }
+    {                                                           // PNG
+      const pngs = [], real = window.deliverPNG;
+      window.deliverPNG = async (b, f) => { pngs.push({ f, kb:Math.round(b.size / 1024), type:b.type }); };
+      await exportPNG(); await until(() => pngs.length, 8000);
+      window.deliverPNG = real;
+      const p = pngs[0];
+      log(!!p && p.kb > 30 && p.type === 'image/png' && /_climatologia\.png$/.test(p.f), 'PNG della climatologia', JSON.stringify(p || null));
+    }
+    el('themeBtn').click(); await sleep(300);
+    log(!!climaU && document.body.classList.contains('dark'), 'tema scuro: si ridisegna', '');
+    el('themeBtn').click(); await sleep(300);
+    if(phone) noOverflow('telefono, Climatologia');
+    document.querySelector('#modes [data-mode="day3"]').click(); await sleep(400);
+    log(!document.body.classList.contains('clima-mode') && chartMode === 'day3' && currentVar !== 'CLIMATOLOGIA' && !!chart,
+        'un periodo torna al grafico', JSON.stringify([currentVar, chartMode]));
+    document.querySelector('#modes [data-mode="week"]').click(); await sleep(200);
+    history.replaceState(null, '', '#VEN/79/CLIMATOLOGIA'); await applyHash();
+    await until(() => climaU && document.body.classList.contains('clima-mode'), 8000);
+    log(document.body.classList.contains('clima-mode') && currentVar === 'CLIMATOLOGIA', 'il link apre la Climatologia', location.hash);
+    // solo pioggia o solo temperatura: un asse solo, a sinistra
+    {
+      const s = want.map(w => Object.assign({}, w, { tm:null, tx:null, tn:null, nt:0 }));
+      const o = climaOpts(s, { w:600, h:300 }), ys = o.axes.slice(1);
+      eq('solo pioggia: le barre sull\'asse di sinistra', [o.series.length, ys.map(a => [a.scale, a.side || 3])], [2, [['mm', 3]]]);
+      const t = want.map(w => Object.assign({}, w, { p:null, np:0 })), ot = climaOpts(t, { w:600, h:300 });
+      eq('solo temperatura: niente barre né asse dei mm', [ot.series.length, ot.axes.slice(1).map(a => a.scale)], [4, ['y']]);
+    }
+    await open(N);
+    log(!stationVars.includes('CLIMATOLOGIA') && !document.body.classList.contains('clima-mode'), 'senza pioggia né temperatura: niente Climatologia', '');
+    showMapView();
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
             hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
-            pulizia:suitePulizia })[suite]())
+            pulizia:suitePulizia, clima:suiteClima })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

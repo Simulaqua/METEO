@@ -12,7 +12,7 @@ function resetPanel(){
   cmpClose();
   altClose();
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = true;
-  document.body.classList.remove('rose-mode');
+  document.body.classList.remove('rose-mode', 'clima-mode');
   el('windrose').innerHTML = '';
 }
 const TZNOTE = 'Dati non validati.';
@@ -86,17 +86,22 @@ async function selectStation(props){
   stationVars = ((props.variables && props.variables.length) ? props.variables : table.header.slice(1))
     .slice();
   if(windObsCount(table) >= 10) stationVars.push(WARROW, WROSE);
-  extraVars = [];
-  document.body.classList.remove('rose-mode');
   const hasHist = stationHistVars(props).length > 0;
+  if(hasHist) stationVars.push(WCLIMA);              // la Climatologia viene dai dati dello Storico
+  extraVars = [];
+  document.body.classList.remove('rose-mode', 'clima-mode');
   el('histbtn').style.display = 'none';   // "Storico": solo con pioggia/temperatura E storico pubblicato
   if(hasHist) histIndex().then(ix => {
-    if(currentStation === props && ix && ix.regions && ix.regions[props._region])
-      el('histbtn').style.display = '';
+    if(currentStation !== props) return;
+    if(ix && ix.regions && ix.regions[props._region]) el('histbtn').style.display = '';
+    else {                                          // regione senza Storico: niente Climatologia
+      stationVars = stationVars.filter(v => v !== WCLIMA);
+      if(currentVar !== WCLIMA) buildVarRow();
+    }
   });
   if(histMode && !hasHist) exitHist();
   // Impilate resta acceso cambiando stazione, con le variabili di prima che questa ha
-  const keep = prevSel.filter(v => v !== WROSE && stationVars.includes(v));
+  const keep = prevSel.filter(v => !isView(v) && stationVars.includes(v));
   if(histMode && hasHist){
     if(!['PREC', 'TEMP'].includes(histVar) || !stationHistVars(props).includes(histVar))
       histVar = stationHistVars(props)[0];
@@ -183,9 +188,9 @@ function fillVarRow(){
   const sel = cmp ? [currentVar] : selVars();
   const main = all.filter(v => isMainVar(v, all)).sort(byVarOrder);
   const shown = main.concat(sel.filter(v => v && all.includes(v) && !main.includes(v)).sort(byVarOrder));
-  const plus = !cmp && !histMode && currentVar !== WROSE;
+  const plus = !cmp && !histMode && !isView(currentVar);
   box.innerHTML = '';
-  shown.forEach(v => box.appendChild(varItem(v, sel.includes(v), plus && v !== currentVar && v !== WROSE)));
+  shown.forEach(v => box.appendChild(varItem(v, sel.includes(v), plus && v !== currentVar && !isView(v))));
   if(all.some(v => !isMainVar(v, all)))
     box.appendChild(rowButton('altBtn', 'Altro',
       { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'altMenu' }));
@@ -208,16 +213,19 @@ function drawVar(v){
   }
   currentVar = v;
   extraVars = [];
-  if(v !== WROSE) chartVar = v;
+  if(!isView(v)) chartVar = v;
   document.body.classList.toggle('rose-mode', v === WROSE);
+  document.body.classList.toggle('clima-mode', v === WCLIMA);
+  syncModes();
   buildVarRow();
   if(v === WROSE) updateWindRose();
+  else if(v === WCLIMA) renderClima();
   else renderChart(v);
   if(currentStation) updateHash();
 }
 // "+": aggiunge la variabile al grafico (asse a destra, del suo colore); "×" la toglie
 function addVar(v){
-  if(v === WROSE || isCompareMode() || histMode || !currentStation) return;
+  if(isView(v) || isCompareMode() || histMode || !currentStation) return;
   const i = extraVars.indexOf(v);
   if(i >= 0) extraVars.splice(i, 1);
   else if(v !== currentVar){
@@ -287,8 +295,10 @@ async function refreshStation(){
     const t = parseCSV(csv);
     currentStation._table = t;
     if(currentVar === WROSE) updateWindRose();
-    else if(currentVar && (currentVar === WARROW || t.cols[currentVar])) renderChart(currentVar);
-    else drawVar(t.header[1]);
+    else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
+      if(currentVar && (currentVar === WARROW || t.cols[currentVar])) renderChart(currentVar);
+      else drawVar(t.header[1]);
+    }
     // Ultimo dato MISURATO: salta le righe con sole derivate/indici (GDD/ET0 alle 12:00 solari, la mattina
     // sono "nel futuro").
     let lastX = null;
@@ -306,7 +316,7 @@ async function refreshStation(){
 // "Impilate": una fascia per variabile scelta. Resta una preferenza: con una variabile sola il grafico e'
 // unico.
 let stackMode = false, stackObj = null;
-const stacked = () => stackMode && selVars().length >= 2 && !isCompareMode() && currentVar !== WROSE;
+const stacked = () => stackMode && selVars().length >= 2 && !isCompareMode() && !isView(currentVar);
 function exitStack(){
   if(!stackMode) return;
   stackMode = false;
@@ -316,7 +326,7 @@ function exitStack(){
 function setStackMode(on, vars){
   if(on){
     if(!currentStation) return;
-    const ok = (vars || []).filter(v => v !== WROSE && stationVars.includes(v));
+    const ok = (vars || []).filter(v => !isView(v) && stationVars.includes(v));
     if(ok.length >= 2){
       currentVar = chartVar = ok[0];
       extraVars = ok.slice(1, maxVars());
@@ -325,7 +335,7 @@ function setStackMode(on, vars){
       chartMode = 'week';
       syncModes();
     }
-    document.body.classList.remove('rose-mode');
+    document.body.classList.remove('rose-mode', 'clima-mode');
     stackMode = true;
   } else exitStack();
   buildVarRow();
@@ -409,7 +419,7 @@ async function renderCompareView(){
   exitStack();
   altClose();
   document.body.classList.add('view-station', 'view-compare');
-  document.body.classList.remove('rose-mode');
+  document.body.classList.remove('rose-mode', 'clima-mode');
   el('panel').scrollTop = 0;
   el('stationName').textContent = 'Confronto schede';
   el('stationName').title = '';
@@ -469,16 +479,17 @@ async function ensureTable30(){
 }
 
 // Periodi (Oggi, 24 h, 3 g, 7 g) e, nel menu "Confronta", Confronto 7 giorni / 30 giorni / schede.
-// Un periodo chiude lo Storico; la rosa segue il periodo.
+// Un periodo chiude lo Storico e la Climatologia; la rosa segue il periodo.
 async function pickMode(mode){
   if(mode === 'tabs'){ openCompareTab(); return; }
   if(histMode) exitHist();
   chartMode = mode;
-  if(isCompareMode() && currentVar === WROSE){       // la rosa non ha giorni da confrontare: torna al grafico
+  // la rosa non ha giorni da confrontare, la Climatologia nessun periodo: torna al grafico
+  if(currentVar === WCLIMA || (isCompareMode() && currentVar === WROSE)){
     const first = stationVars.slice().sort(byVarOrder).find(v => isMainVar(v, stationVars));
     currentVar = stationVars.includes(chartVar) ? chartVar : (first || currentVar);
     extraVars = extraVars.filter(v => v !== currentVar);
-    document.body.classList.remove('rose-mode');
+    document.body.classList.remove('rose-mode', 'clima-mode');
   }
   syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
@@ -492,8 +503,9 @@ async function pickMode(mode){
 // periodo acceso (sottolineato); un confronto acceso accende "Confronta", che ne prende il nome
 const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g' };
 function syncModes(){
+  const free = histMode || currentVar === WCLIMA;          // viste senza periodo
   document.querySelectorAll('#modes .mode[data-mode]').forEach(b => {
-    const on = !histMode && b.dataset.mode === chartMode;
+    const on = !free && b.dataset.mode === chartMode;
     b.classList.toggle('active', on);
     b.setAttribute('aria-pressed', String(on));
   });
@@ -501,7 +513,7 @@ function syncModes(){
     b.classList.toggle('on', b.dataset.mode === chartMode);
     b.setAttribute('aria-checked', String(b.dataset.mode === chartMode));
   });
-  const cmp = !histMode && CMP_LABEL[chartMode];
+  const cmp = !free && CMP_LABEL[chartMode];
   el('cmpBtn').classList.toggle('active', !!cmp);
   el('cmpBtn').firstElementChild.textContent = cmp || 'Confronta';
   el('histbtn').classList.toggle('active', histMode);
@@ -570,7 +582,7 @@ async function applyHash(){
   const sp = parts[3];
   if(sp && sp.startsWith('S:')) setStackMode(true, sp.slice(2).split(',').filter(Boolean));
   else if(sp && sp.startsWith('V:')){                            // "V:UMID,PRESS" -> variabili aggiunte
-    sp.slice(2).split(',').filter(x => x && x !== WROSE && stationVars.includes(x) && x !== currentVar)
+    sp.slice(2).split(',').filter(x => x && !isView(x) && stationVars.includes(x) && x !== currentVar)
       .slice(0, maxVars() - 1).forEach(x => extraVars.push(x));
     buildVarRow();
     renderChart(currentVar);
@@ -590,6 +602,7 @@ function buildStationControls(){
       if(!currentStation || !currentVar || histMode || !document.body.classList.contains('view-station') ||
          document.body.classList.contains('view-compare')) return;
       if(currentVar === WROSE) updateWindRose();
+      else if(currentVar === WCLIMA) renderClima();
       else renderChart(currentVar);
     }, 250);
   });

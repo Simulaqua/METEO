@@ -796,7 +796,7 @@ async function setHistMode(on, v, w){
   const hv = stationHistVars(currentStation);
   if(!hv.length){ toast('Nessuno storico per questa stazione'); return; }
   exitStack();
-  document.body.classList.remove('rose-mode');
+  document.body.classList.remove('rose-mode', 'clima-mode');
   histVar = hv.includes(v) ? v : (hv.includes(currentVar) ? currentVar : hv[0]);
   currentVar = histVar;
   extraVars = [];

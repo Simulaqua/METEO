@@ -317,7 +317,9 @@ function cursorLabels(u){
     const s = m && m.ss[i - 1], sr = u.series[i];
     const c = s ? varColor(s.v) : (typeof sr.stroke === 'function' ? sr.stroke(u, i) : sr.stroke);
     let html;
-    if(m && i === m.iCum) html = 'tot ' + fmtNum(round2(v - (u.scales.cum.min || 0))) + unitTxt(m.s1.unit);
+    if(u._fmt) html = u._fmt(i, v);
+    else if(m && i === m.iCum)
+      html = 'tot ' + fmtNum(round2(v - (u.scales.cum.min || 0))) + unitTxt(m.s1.unit);
     else if(s ? isDirVar(s.src) : u._dir) html = windDirHtml(v);
     else {
       html = numTxt(v, s ? s.src : u._src) + unitTxt(s ? s.unit : u._unit);
@@ -333,7 +335,7 @@ function cursorLabels(u){
   for(let k = tags.length - 1; k >= 0; k--)          // troppi in fondo: risalgono, dentro il grafico
     tags[k].y = Math.min(tags[k].y, k === tags.length - 1 ? H - 16 : tags[k + 1].y - 16);
   const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null;
-  const tt = u._days ? (u.data[0][gi] != null ? hhmm(u.data[0][gi]) : '')
+  const tt = u._top ? u._top(gi) : u._days ? (u.data[0][gi] != null ? hhmm(u.data[0][gi]) : '')
            : x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
   const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
   box.innerHTML = `<span class="cl-t" style="left:${tx}px">${tt}</span>` + tags.map(t =>
@@ -1426,6 +1428,38 @@ async function offPlot(opts, data, W, H){
   return { u, done(){ u.destroy(); host.remove(); } };
 }
 
+// legenda in colonna: segno della serie (barra, puntino o linea) e nome, fino a bottom
+function pngLegend(ctx, series, lx, ly, bottom){
+  ctx.font = '17px system-ui, sans-serif';
+  for(let i = 1; i < series.length; i++){
+    const s = series[i];
+    if(!s.label) continue;
+    if(ly > bottom){
+      ctx.fillStyle = '#5a6b7a';
+      ctx.fillText('…', lx, ly);
+      break;
+    }
+    if(s.kind === 'bars'){
+      ctx.fillStyle = s.fill;
+      ctx.fillRect(lx + 6, ly - 15, 18, 18);
+    } else if(s.kind === 'dots'){
+      ctx.fillStyle = s.stroke;
+      ctx.beginPath();
+      ctx.arc(lx + 15, ly - 6, 6, 0, 2 * Math.PI);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = s.stroke;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly - 6);
+      ctx.lineTo(lx + 30, ly - 6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#22303c';
+    ctx.fillText(s.label, lx + 40, ly);
+    ly += 28;
+  }
+}
 // grafico mostrato (una o piu' variabili, confronti, Confronto schede), legenda in colonna a destra
 async function chartPNG(){
   const tabs = document.body.classList.contains('view-compare');
@@ -1453,36 +1487,7 @@ async function chartPNG(){
   pngHead(ctx, title, what, !tabs);
   ctx.drawImage(plot.u.ctx.canvas, L, TOP, W_PLOT, H_PLOT);
   plot.done();
-  let lx = L + W_PLOT + 26, ly = TOP + 30;
-  ctx.font = '17px system-ui, sans-serif';
-  for(let i = 1; i < series.length; i++){
-    const s = series[i];
-    if(!s.label) continue;
-    if(ly > totH - 24){
-      ctx.fillStyle = '#5a6b7a';
-      ctx.fillText('…', lx, ly);
-      break;
-    }
-    if(s.kind === 'bars'){
-      ctx.fillStyle = s.fill;
-      ctx.fillRect(lx + 6, ly - 15, 18, 18);
-    } else if(s.kind === 'dots'){
-      ctx.fillStyle = s.stroke;
-      ctx.beginPath();
-      ctx.arc(lx + 15, ly - 6, 6, 0, 2 * Math.PI);
-      ctx.fill();
-    } else {
-      ctx.strokeStyle = s.stroke;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(lx, ly - 6);
-      ctx.lineTo(lx + 30, ly - 6);
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#22303c';
-    ctx.fillText(s.label, lx + 40, ly);
-    ly += 28;
-  }
+  pngLegend(ctx, series, L + W_PLOT + 26, TOP + 30, totH - 24);
   const fname = tabs ? 'confronto_schede_' + compareVar + '_' + chartMode + '.png'
                      : pngBase() + '_' + (m ? m.vars.join('-') : currentVar) + '_' + chartMode + '.png';
   return { blob: toPng(cv), fname };
@@ -1557,6 +1562,7 @@ async function exportPNG(){
   try {
     const out = histMode ? await histPNG()
               : document.body.classList.contains('rose-mode') ? await rosePNG()
+              : document.body.classList.contains('clima-mode') ? await climaPNG()
               : stackObj ? await stackPNG() : await chartPNG();
     if(!out) return;
     btn.textContent = lbl;                  // pulsante libero prima del foglio di condivisione
