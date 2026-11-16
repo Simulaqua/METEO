@@ -15,8 +15,7 @@ comune.py            attrezzi in comune dei downloader (scarico, percorsi, archi
 quality.py           scarta in lettura i valori impossibili e le sentinelle (-999...); lo usano tutti i lettori
 export_web.py        dall'archivio ai file del sito (ultimi 7 o 30 giorni, geojson, unita', fotogrammi per il cursore)
 derive.py            grandezze derivate e indici, calcolati al volo (mai archiviati)
-climatology.py       statistiche climatiche dall'archivio completo -> <REG>/climate.json (una volta al giorno)
-history.py           aggregati giornalieri di pioggia e temperatura di tutto l'archivio (scheda "Storico")
+history.py           aggregati giornalieri di pioggia e temperatura di tutto l'archivio (Storico e Climatologia)
 recover.py           riempie i buchi (dopo un blackout) scaricando lo storico dalle fonti
 check_updates.py     segnala stazioni nuove e variabili non mappate
 status.py            stato del sito (site/STATUS/status.json): banner "dati fermi" e avvisi

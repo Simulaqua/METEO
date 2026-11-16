@@ -1,4 +1,4 @@
-# Rete di sicurezza della pulizia, parte 3: export, climatologia e Storico girano su un campione dell'archivio con
+# Rete di sicurezza della pulizia, parte 3: export e Storico girano su un campione dell'archivio con
 # l'orologio fermo e la rete vietata (tests/orologio/sitecustomize.py); le impronte (sha1) di ogni file che producono
 # stanno in tests/fixtures/rete/impronte.txt e tests/test_rete.py le confronta.
 # Il campione sono gli attesi delle prove di scarico, un giro per fonte, più cinque file costruiti: tre .json.gz, uno
@@ -27,8 +27,7 @@ RUNS = ['laghi/normale', 'invasi/normale', 'liguria/full', 'mare/reti', 'mare/ac
         'emilia_romagna/normale']
 # configurazione dei dati che sta nel progetto e non nell'archivio
 PROJECT_DATA = ['*/zero_idrometrici.json', 'FVG/stazioni_coords.csv']
-# il primo dentro la finestra di 7 giorni; gli altri fuori: li leggono l'export a 30 giorni, la climatologia e lo
-# Storico. La climatologia vede solo il 28: il 27 ha 1-2 letture per stazione, meno delle 6 di un giorno valido.
+# il primo dentro la finestra di 7 giorni; gli altri fuori: li leggono l'export a 30 giorni e lo Storico.
 GZIPPED = ['PC_PO/data-parsed/LIVIDRO/LIVIDRO-20261030.json', 'LIG/data-parsed/TEMP/TEMP-20261027.json',
            'LIG/data-parsed/TEMP/TEMP-20261028.json']
 BROKEN = {'LAGHI/data-parsed/LIVLAGO/LIVLAGO-20261101.json': b'',
@@ -42,7 +41,6 @@ EXPORT = ['export_web.py', '-r', 'all', '--site-dir', 'site']
 HISTORY = ['history.py', '--out', 'history_out', '--cache', 'history_cache']
 COMMANDS = [EXPORT,
             EXPORT + ['--days', '30', '--series-dir', 'series30', '--series-only'],
-            ['climatology.py', '-r', 'all', '--site-dir', 'site'],
             HISTORY]
 USAGE = 'uso: python3 tests/rete.py attesi export | attesi bash | uscita CARTELLA [--da COMMIT] | tempo'
 
@@ -151,8 +149,8 @@ def fingerprints(folder, subdirs):
 
 
 def export_outputs(dest, commit=None):
-    """Campione e programmi in dest, poi export a 7 giorni, export a 30 giorni (solo serie), climatologia e Storico
-    due volte: il secondo, dalla cache, deve lasciare history_out/ com'era. Le impronte di site/, history_out/ e
+    """Campione e programmi in dest, poi export a 7 giorni, export a 30 giorni (solo serie) e Storico due volte:
+    il secondo, dalla cache, deve lasciare history_out/ com'era. Le impronte di site/, history_out/ e
     history_cache/."""
     build_archive(dest)
     copy_programs(dest, commit)

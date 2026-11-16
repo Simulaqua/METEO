@@ -77,10 +77,6 @@ PYTHON=/usr/bin/python3
 # leggendo anche l'archivio compresso (.json.gz); il publish successivo lo pubblica.
 48 * * * * mkdir -p $BASE/logs && $PYTHON $BASE/export_web.py -r all --site-dir $BASE/site --days 30 --series-dir series30 --series-only >> $BASE/logs/export30-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
-# --- CLIMATOLOGIA (climatology.py): statistiche e indici climatici dall'archivio completo ->
-# site/<REG>/climate.json. Pesante (legge tutto l'archivio, anche i .gz): una volta al giorno, 04:10.
-10 4 * * *  mkdir -p $BASE/logs && $PYTHON $BASE/climatology.py -r all --site-dir $BASE/site >> $BASE/logs/climate-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
-
 # --- PUBLISH ogni 10 min (a :05,:15,... dopo i download). Dati sul branch 'data', pagina su gh-pages
 # solo se cambia: si puo' pubblicare spesso senza deploy Pages inutili. Il repository (REMOTE) e' in
 # publish.sh; il Pi pubblica via SSH con la sua deploy key.
@@ -107,7 +103,7 @@ PYTHON=/usr/bin/python3
 # Comprime anche i log piu' vecchi di 1 giorno (testo, ~15x): 14 giorni di storico occupano poco.
 35 3 * * * find $BASE/logs $BASE/*/logs -name '*.log' -mtime +1 -exec gzip -q {} \; 2>/dev/null
 
-# --- BACKUP sulla chiavetta USB (04:40: dopo compressione e climatologia, prima del riavvio 05:50).
+# --- BACKUP sulla chiavetta USB (04:40: dopo la compressione dei log, prima del riavvio 05:50).
 # backup_usb.sh salva ogni notte una versione completa di METEO (senza site/, log, grezzi) e di ARPAV
 # in /mnt/usb/backup/AAAA-MM-GG/ e tiene le ultime 30; i file uguali sono hard link. Chiavetta non
 # montata: non scrive nulla. Mai due insieme (flock nello script). Controllo: ~/METEO/check_size.sh.

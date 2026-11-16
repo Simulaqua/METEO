@@ -17,8 +17,8 @@ su GitHub Pages. Il Mac serve per sviluppare, provare e installare sul Pi.
 - **Letture**: `quality.py` scarta in lettura i valori impossibili e le sentinelle (-999...). `derive.py` calcola
   al volo le grandezze derivate (non si archiviano mai).
 - **Dall'archivio al sito**: `export_web.py` scrive i file del sito (ultimi 7 e 30 giorni, geojson, fotogrammi del
-  cursore); `climatology.py` le statistiche climatiche (una volta al giorno); `history.py` gli aggregati giornalieri
-  di pioggia e temperatura di tutto l'archivio (lo "Storico"); `status.py` lo stato del sito (`STATUS/status.json`).
+  cursore); `history.py` gli aggregati giornalieri di pioggia e temperatura di tutto l'archivio (lo "Storico", da
+  cui la pagina calcola anche la Climatologia); `status.py` lo stato del sito (`STATUS/status.json`).
 - **Pubblicazione**: `publish.sh` (ogni 10 minuti) esporta e pubblica; `delta_names.py` e' un suo aiuto per il push
   incrementale; `publish_history.sh` pubblica lo Storico una volta al giorno (07:20).
 - **Manutenzione**: `recover.py` riempie i buchi dopo un blackout; `check_updates.py` segnala stazioni nuove e
@@ -67,7 +67,7 @@ Girano solo sul Mac e proteggono le modifiche; sono in `tests/` (circa 45 MB di 
 
 - **Giri registrati degli scarichi** (`tests/registratore.py`, `tests/test_scarico.py`): ogni downloader gira
   sulle risposte vere registrate, senza rete, e deve scrivere gli stessi file.
-- **Impronte delle uscite** (`tests/rete.py`, `tests/test_rete.py`): export, climatologia e Storico su un campione
+- **Impronte delle uscite** (`tests/rete.py`, `tests/test_rete.py`): export e Storico su un campione
   dell'archivio, con orologio fermo e rete vietata; si confrontano gli sha1 dei file prodotti
   (`tests/fixtures/rete/impronte.txt`).
 - **Scenari bash**: `publish.sh`, `publish_history.sh`, `backup_usb.sh` e `deploy.sh` girano in cartelle temporanee
@@ -92,7 +92,7 @@ altre e passa da sola.
   mancanti a ottobre e marzo. Solo `export_web.py` converte in ora civile italiana, e il confine di ottobre
   (02:00) si calcola sull'ora solare. I `dati_*.py` che copiano dati di altri usano l'ora civile della fonte.
 - **Il filtro di qualita' agisce in lettura.** Gli archivi conservano quello che la fonte ha detto; `quality.py`
-  scarta sentinelle e valori impossibili quando si legge (export, climatologia, Storico, ogni nuovo aggregato). Un
+  scarta sentinelle e valori impossibili quando si legge (export, Storico, ogni nuovo aggregato). Un
   -999 della Lombardia una volta aveva falsato le piogge a 24 e 48 ore.
 - **Storico.** Si conta per giorno solare. Un giorno e' completo con almeno 20 ore con dato; un giorno senza dati e'
   `null`, mai 0. Dove il vecchio archivio ARPAV e il nuovo si sovrappongono (Veneto) vince il giorno con piu' ore.

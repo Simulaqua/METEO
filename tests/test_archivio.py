@@ -1,5 +1,5 @@
 # Un file d'archivio che si legge ma ha la forma sbagliata (un record che e' una lista, ISTANTE un numero, MISURE una
-# stringa) non ferma export, climatologia e Storico: il file e' saltato con una riga WARN e il resto esce come prima.
+# stringa) non ferma export e Storico: il file e' saltato con una riga WARN e il resto esce come prima.
 #   /usr/bin/python3 -m unittest tests.test_archivio -v
 import csv, json, os, shutil, sys, tempfile, unittest
 
@@ -55,14 +55,6 @@ class TestArchivio(unittest.TestCase):
         with open(os.path.join(self.folder, 'site', 'LOM', 'series', 'A.csv'), encoding='utf-8') as fp:
             rows = list(csv.DictReader(fp))
         self.assertEqual([row['PREC'] for row in rows if row['PREC']], ['0.2'] * 8)      # le otto letture del giorno buono
-
-    def test_climatologia(self):
-        text = self.run_program('climatology.py', '-r', 'LOM', '--site-dir', 'site')
-        self.assert_warns(text)
-        with open(os.path.join(self.folder, 'site', 'LOM', 'climate.json'), encoding='utf-8') as fp:
-            entry = json.load(fp)['A']
-        self.assertEqual(entry['period']['from'], GOOD_DAY)
-        self.assertEqual(entry['records']['prec_day']['val'], 1.6)
 
     def test_storico(self):
         text = self.run_program('history.py', '--out', 'history_out', '--cache', 'history_cache')

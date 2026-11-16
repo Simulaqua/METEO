@@ -1,4 +1,4 @@
-# Rete di sicurezza della pulizia, parte 3 (1/3): export, climatologia e Storico, lanciati da tests/rete.py sul
+# Rete di sicurezza della pulizia, parte 3 (1/3): export e Storico, lanciati da tests/rete.py sul
 # campione dell'archivio con l'orologio fermo, devono produrre gli stessi file di tests/fixtures/rete/impronte.txt.
 # Per vedere che cosa è cambiato: tests/rete.py uscita (con --da per il commit di partenza) in due cartelle e diff -r.
 # Per una differenza voluta: tests/rete.py attesi export, e il diff di impronte.txt si guarda riga per riga.
@@ -7,7 +7,7 @@
 # Per una differenza voluta: tests/rete.py attesi bash, e il diff di bash.json si guarda riga per riga.
 # Solo sul Mac.
 #   /usr/bin/python3 -m unittest tests.test_rete -v
-import json, os, re, sys, tempfile, unittest
+import json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import rete
@@ -19,10 +19,6 @@ def read_fingerprints(path):
     """{percorso: sha1} da un file nel formato di sha1sum."""
     with open(path, encoding='utf-8') as fp:
         return {name: sha1 for sha1, name in (line.rstrip('\n').split('  ', 1) for line in fp)}
-
-
-def is_climate(path):
-    return re.fullmatch(r'site/[^/]+/climate\.json', path) is not None
 
 
 class TestExport(unittest.TestCase):
@@ -50,10 +46,7 @@ class TestExport(unittest.TestCase):
             self.fail('%d file non come in impronte.txt:\n%s' % (len(wrong), '\n'.join(wrong[:SHOWN])))
 
     def test_sito(self):
-        self.compare(lambda path: path.startswith('site/') and not is_climate(path))
-
-    def test_climatologia(self):
-        self.compare(is_climate)
+        self.compare(lambda path: path.startswith('site/'))
 
     def test_storico(self):
         self.compare(lambda path: path.startswith(('history_out/', 'history_cache/')))

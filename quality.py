@@ -3,7 +3,7 @@
 # quality.py - plausibilita' dei valori misurati.
 # Scarta, solo in lettura (l'archivio non si tocca), le sentinelle di dato mancante (-999, -9999,
 # 99999...) e i valori fisicamente impossibili, qualunque sia la regione o l'unita'.
-# Usato da export_web.py (prima delle derivate), climatology.py e dagli aggregati dello storico.
+# Usato da export_web.py (prima delle derivate) e dagli aggregati dello Storico.
 
 from comune import to_float
 

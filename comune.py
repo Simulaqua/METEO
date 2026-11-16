@@ -42,7 +42,7 @@ def load_json(path):
 
 def day_files(parse_dir, var):
     """{'AAAAMMGG': percorso} dei file <var>-AAAAMMGG.json e .json.gz, in ordine di giorno (export e
-    climatologia dipendono dall'ordine). Se ci sono entrambi vince il .json."""
+    Storico dipendono dall'ordine). Se ci sono entrambi vince il .json."""
     if not os.path.isdir(parse_dir):
         return {}
     found = {}
