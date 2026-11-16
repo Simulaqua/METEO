@@ -352,10 +352,13 @@ function buildSearchControls(){
       localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
     } catch(e){}
     _syncThemeBtn();
-    if(histMode) renderHist();
-    else if(currentStation && currentVar && currentVar !== WROSE
-            && document.body.classList.contains('view-station'))
+    if(!document.body.classList.contains('view-station')) return;
+    if(document.body.classList.contains('view-compare')){ if(compareVar) pickCompareVar(compareVar); }
+    else if(histMode) renderHist();
+    else if(currentStation && currentVar && currentVar !== WROSE){
+      buildVarRow();                              // i trattini dei colori cambiano col tema
       renderChart(currentVar);
+    }
   });
   el('region').addEventListener('change', e => {
     const v = e.target.value;
@@ -402,24 +405,13 @@ function buildSearchControls(){
     loadRegions(REGIONS_ALL);
   });
 
-  // Le 3 pagine (dirette, derivate, indici) cambiano le variabili selezionabili;
-  // "indici" mostra anche la climatologia della stazione.
+  // Le 3 pagine (dirette, derivate, indici) cambiano le variabili della mappa; la scheda della stazione le ha
+  // tutte (le derivate e gli indici sotto "Altro") e non cambia.
   [...document.querySelectorAll('#pages .pg')].forEach(b => b.addEventListener('click', () => {
     if(!radarUi.switching) radarOff(false);
     currentPage = b.dataset.page;
     [...document.querySelectorAll('#pages .pg')].forEach(x => x.classList.toggle('active', x === b));
     filterVar = '';
-    document.body.classList.remove('rose-mode');   // si riparte dal grafico; drawVar riattiva la rosa
-    const sf = selectedFeature();
-    if(sf){
-      const base = (sf.properties.variables || []).slice();
-      if(currentStation && windObsCount(currentStation._table) >= 10) base.push(WARROW, WROSE);
-      const vars = base.filter(v => varCat(v) === currentPage).sort(natVars);
-      buildVarButtons(vars);
-      updateClimaBox();
-      if(vars.length) drawVar(vars.includes(currentVar) ? currentVar : vars[0]);
-      else clearChart();
-    }
     buildStationFilter();
     buildVarFilter();
     renderMarkers();

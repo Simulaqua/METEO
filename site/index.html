@@ -120,43 +120,45 @@
     </div>
     <div id="prodMenu" class="dk-menu" role="menu" aria-label="Cosa mostra la mappa"></div>
     <div id="panel">
-      <!-- riga 1: nome · codice e ultimo dato; a destra le azioni (nello Storico il suo CSV e Link) -->
+      <!-- riga 1: nome | periodi | Storico e Confronta | azioni; riga 2: le variabili (nello Storico la sua barra) -->
       <div id="phead">
-        <div id="stationName">Seleziona una stazione</div>
-        <div id="stationMeta"></div>
+        <div id="ptitle"><span id="stationName">Seleziona una stazione</span><span id="stationMeta"></span></div>
+        <div id="ptools" hidden>
+          <div id="modes" role="group" aria-label="Periodo">
+            <button class="mode" data-mode="mn" title="Da mezzanotte">Oggi</button>
+            <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
+            <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
+            <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
+          </div>
+          <div id="pviews">
+            <button id="histbtn" class="mode" aria-pressed="false" title="Pioggia e temperatura di tutti gli anni"
+                    style="display:none">Storico</button>
+            <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronta</span></button>
+          </div>
+        </div>
         <div id="pact" hidden>
           <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
-          <a id="download" class="act" download title="Scarica il CSV">CSV</a>
-          <button id="exportpng" class="act" title="Scarica il grafico (PNG)">PNG</button>
+          <a id="download" class="act" download title="Scarica i dati (CSV)">CSV</a>
           <button id="hvCsv" class="act" title="Scarica i dati giornalieri dello Storico (CSV)">CSV</button>
+          <button id="tabsCsv" class="act" title="Scarica le serie confrontate (CSV)">CSV</button>
+          <button id="exportpng" class="act" title="Scarica l'immagine (PNG)">PNG</button>
           <button id="copylink" class="act" title="Copia il link a questa vista">Link</button>
         </div>
       </div>
-      <!-- riga 2: variabili | modi; nello Storico la sua barra al posto di entrambi e in fondo "Storico ×" -->
       <div id="pbar" hidden>
         <div id="vars"></div>
-        <div id="modes">
-          <span class="pb-sep" aria-hidden="true"></span>
-          <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
-          <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
-          <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
-          <button class="mode" data-mode="mn" title="Da mezzanotte">MN</button>
-          <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronti</span> <span aria-hidden="true">▾</span></button>
-          <button id="stackbtn" class="tog" aria-pressed="false" title="Una fascia per variabile, con cursore e zoom sincronizzati">Impilato</button>
-          <div class="hv-bar">
-            <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
-            <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="tabella">Tabella</button></div>
-            <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
-          </div>
-          <button id="histbtn" class="tog" aria-pressed="false" title="Storico lungo: totali mensili, anni a confronto, giorni" style="display:none">Storico<span class="hb-x" aria-hidden="true"> ×</span></button>
+        <div class="hv-bar">
+          <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
+          <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="tabella">Tabella</button></div>
+          <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
         </div>
       </div>
-      <!-- menu di "Confronti": fuori dalla riga 2, che sul telefono scorre di lato -->
       <div id="cmpMenu" class="tb-menu" role="menu" aria-label="Confronti" hidden>
         <button data-mode="compare" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 7 giorni</button>
         <button data-mode="compare30" role="menuitemradio" aria-checked="false" tabindex="-1">Confronto 30 giorni</button>
         <button data-mode="tabs" role="menuitem" tabindex="-1">Confronto schede</button>
       </div>
+      <div id="altMenu" class="tb-menu" role="menu" aria-label="Altre variabili" hidden></div>
       <div id="chartwrap">
         <div id="chart"></div>
         <div id="chartlegend"></div>
@@ -168,7 +170,6 @@
              aria-label="Metodo" title="Metodo" hidden>i</button><div id="hvInfo" hidden>giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato
              · più chiaro = incompleto · più sottile = anno incompleto · elaborazioni non ufficiali dei dati grezzi delle fonti</div></div>
       </div>
-      <div id="chartstats" class="hint"></div>
       <div id="windrose"></div>
       <div id="status" class="hint"></div>
       <div id="climabox" style="display:none"></div>

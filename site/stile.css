@@ -4,16 +4,13 @@ body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
             --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
 /* override scuri (scoped: il tema chiaro resta intatto) */
 body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
-body.dark .btn, body.dark #vars button, body.dark #pbar .mode, body.dark #pact .act
-  { background:var(--soft); color:var(--fg); border-color:var(--line); }
+body.dark .btn { background:var(--soft); color:var(--fg); border-color:var(--line); }
 body.dark .btn:hover { background:var(--soft2); }
 body.dark #tabbar { background:var(--bar); }
 body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); color:var(--muted); }
 body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
 body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
 body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
-body.dark #vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-body.dark #pbar .mode.active { background:var(--accent); color:#fff; }
 body.dark #climabox th, body.dark #climabox td { border-color:var(--line); }
 * { box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; }   /* iPhone: niente ingrandimento automatico dei testi (sballa il layout) */
@@ -47,43 +44,44 @@ html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,
 #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
          flex-direction:column; padding:8px 16px 14px; gap:8px; overflow:auto; }
 body.view-station #panel { display:flex; }
-/* scheda della stazione in due righe: 1) nome · codice e ultimo dato, azioni a destra; 2) variabili | modi
-   (nello Storico la sua barra al posto di entrambi). Sopra al grafico restano ~70 px */
-#phead { display:grid; grid-template-columns:auto minmax(0, 1fr) auto; align-items:baseline; column-gap:8px; }
-#stationName { font-size:16px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
-#stationMeta { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-#stationMeta:not(:empty)::before { content:'· '; }
-#pact { display:flex; gap:4px; align-self:center; }
-#pact[hidden], #pbar[hidden] { display:none; }
-/* flex:none: col pannello piu' alto dello schermo la riga 2 (che sul telefono scorre di lato, quindi senza altezza
-   minima) verrebbe schiacciata a 0 e i pulsanti finirebbero sopra la riga 1 */
-#phead, #pbar { flex:none; }
-/* le pillole vanno a capo una per una, i modi (nello Storico la sua barra e "Storico ×") tutti insieme */
-#pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-#vars { display:contents; }
-#modes { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:0; }
-.pb-sep { flex:none; width:1px; height:18px; margin:0 3px; background:var(--line); }
-#vars button { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--line);
-               background:#f7fafc; border-radius:999px; font-size:12px; cursor:pointer; color:var(--fg); white-space:nowrap; }
-#vars button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-/* '+' = aggiungi questa variabile come SECONDARIA (linea rossa, asse destro) */
-#vars button .vadd { font-weight:700; font-size:14px; line-height:1; color:#b7c2ce;
-                     border-left:1px solid var(--line); padding-left:6px; }
-#vars button .vadd:hover { color:#e53e3e; }
-#vars button.active2 { border-color:#e53e3e; box-shadow:inset 0 0 0 1px #e53e3e; }
-#vars button.active2 .vadd { color:#e53e3e; }
-#pbar button.mode, #pbar button.tog { height:24px; padding:0 10px; border:1px solid var(--line); background:#f7fafc; border-radius:6px;
-                font-size:12px; cursor:pointer; color:var(--fg); white-space:nowrap; }
-#pbar button.mode.active { background:var(--fg); color:#fff; border-color:var(--fg); }
-#pbar button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-#histbtn .hb-x { display:none; }
-body.hist-mode #histbtn .hb-x { display:inline; }   /* "Storico ×": lo stesso pulsante fa uscire */
-#cmpMenu { z-index:20; }                            /* sopra il grafico (etichetta e "Tutto" stanno a 4-5) */
-#pact .act { display:inline-flex; align-items:center; height:24px; padding:0 9px; border:1px solid var(--line); background:#fff;
-             border-radius:6px; font-size:12px; cursor:pointer; color:var(--accent); text-decoration:none; white-space:nowrap; }
-#pact .act:hover { background:#eef4fb; }
-#pact .act svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-body:not(.hist-mode) #hvCsv { display:none; }       /* CSV dello Storico: al posto di quello della serie */
+/* Scheda della stazione: riga 1 nome | periodi | Storico, Confronta | azioni; riga 2 le variabili; poi il
+   grafico. Comandi a parole, senza riquadri: grigi, quello scelto nero; il periodo scelto sottolineato, la
+   variabile scelta col trattino del suo colore. */
+#phead { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 28px; flex:none; }
+#ptitle { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; margin-right:auto; min-width:0; }
+#stationName { font-size:17px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
+#stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
+#stationMeta:empty { display:none; }
+#ptools, #modes, #pviews, #pact { display:flex; align-items:baseline; }
+#ptools { gap:6px 28px; flex-wrap:wrap; }
+#modes, #pviews { gap:14px; }
+#pact { gap:12px; }
+#ptools[hidden], #pact[hidden], #pbar[hidden] { display:none; }
+#phead .mode, #pact .act, #vars button, .hv-seg button {
+  background:none; border:0; border-bottom:1.5px solid transparent; border-radius:0; padding:2px 0; margin:0;
+  font:inherit; font-size:13px; line-height:18px; color:var(--muted); cursor:pointer; white-space:nowrap;
+  text-decoration:none; }
+#phead .mode:hover, #pact .act:hover, #vars button:hover, .hv-seg button:hover { color:var(--fg); }
+#phead .mode.active, .hv-seg button.on { color:var(--fg); border-bottom-color:var(--fg); }
+#phead button:focus-visible, #pact .act:focus-visible, #vars button:focus-visible,
+.hv-seg button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#pact .act { font-size:12px; }
+#pact .act svg { width:14px; height:14px; vertical-align:-2px; fill:none; stroke:currentColor; stroke-width:2;
+                 stroke-linecap:round; stroke-linejoin:round; }
+#cmpMenu, #altMenu { z-index:20; }                  /* sopra il grafico (etichette e "Tutto" stanno a 4-5) */
+.tb-menu hr { border:0; border-top:1px solid var(--line); margin:4px 0; flex:none; }
+/* riga 2: i nomi vanno a capo, mai nascosti */
+#pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 28px; flex:none; }
+#vars { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; }
+#vars .vn { display:inline-flex; align-items:center; gap:6px; }
+#vars .vn.on .vb { color:var(--fg); }
+#vars .key { display:inline-block; width:14px; height:2px; border-radius:1px; }
+#vars .vp { font-size:15px; line-height:18px; padding:0 2px; opacity:.75; }
+#vars .vp:hover { opacity:1; }
+#vars #stackbtn[aria-pressed="true"] { color:var(--fg); border-bottom-color:var(--fg); }
+/* una sola azione CSV per vista: la serie, lo Storico o il Confronto schede */
+body.hist-mode #download, body.view-compare #download, body:not(.hist-mode) #hvCsv,
+body:not(.view-compare) #tabsCsv, body.hist-mode #refresh, body.view-compare #refresh { display:none; }
 /* grafico + legenda in colonna a destra */
 #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
 #chart { flex:1 1 auto; min-width:0; }
@@ -92,28 +90,32 @@ body:not(.hist-mode) #hvCsv { display:none; }       /* CSV dello Storico: al pos
 #chartlegend .sw { width:16px; height:3px; border-radius:2px; flex:0 0 auto; }
 #chartlegend .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #chartlegend .vl { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
-/* etichetta accanto al cursore (modi a variabile singola): valore/i e ora */
+#chart .u-cursor-x { border-right:1px solid rgba(107,122,141,.55); }
+.clabs { position:absolute; inset:0; z-index:4; pointer-events:none; }
+.clabs[hidden] { display:none; }
+.cl-t, .cl-v { position:absolute; white-space:nowrap; font-size:12px; line-height:16px;
+               font-variant-numeric:tabular-nums;
+               text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg), 0 0 2px var(--bg); }
+.cl-t { top:0; transform:translateX(-50%); color:var(--muted); }
+.cl-v { transform:translateX(8px); font-weight:600; color:var(--fg); }
+.cl-v.l { transform:translateX(calc(-100% - 8px)); }
+/* riquadro al passaggio dello Storico */
 .ctip { position:absolute; left:0; top:0; z-index:4; display:none; pointer-events:none; padding:3px 7px;
         background:rgba(255,255,255,.95); border:1px solid var(--line); border-radius:6px;
         box-shadow:0 1px 4px rgba(0,0,0,.15); font-size:12px; line-height:1.35; white-space:nowrap;
         font-variant-numeric:tabular-nums; color:var(--fg); }
 body.dark .ctip { background:rgba(21,31,45,.95); }
 .ctip b { font-weight:600; }
-.ctip .c1 { color:#2b6cb0; } .ctip .c2 { color:#e53e3e; } .ctip .c3 { color:#1a365d; }
-body.dark .ctip .c1 { color:#63a4e8; } body.dark .ctip .c3 { color:#90cdf4; }
-.ctip i { font-style:normal; color:var(--muted); }
-.ctip .t { color:var(--muted); font-size:11px; }
 /* "Tutto": torna all'intero periodo dopo uno zoom (angolo in alto a destra del grafico) */
 .zoomall { position:absolute; top:4px; right:4px; z-index:5; padding:2px 9px; font:600 11px system-ui, sans-serif;
            color:var(--fg); background:var(--card); border:1px solid var(--line); border-radius:11px; cursor:pointer;
            box-shadow:0 1px 3px rgba(0,0,0,.12); }
 .zoomall:hover { background:var(--soft2); }
 .hint { color:var(--muted); font-size:13px; }
-#source { margin-top:12px; line-height:1.6; }
-#source a { color:var(--accent); }
-/* scheda Confronto: niente confronti, Impilato e Storico (aprirebbe quello dell'ultima stazione) */
-body.view-compare #refresh, body.view-compare #download, body.view-compare #exportpng, body.view-compare #stackbtn,
-body.view-compare #cmpBtn, body.view-compare #histbtn { display:none; }
+#source { margin-top:12px; line-height:1.6; font-size:12px; }
+#source a { color:inherit; }
+/* scheda Confronto: niente Confronta e Storico (aprirebbe quello dell'ultima stazione) */
+body.view-compare #cmpBtn, body.view-compare #histbtn { display:none !important; }
 .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
 .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
 /* etichette-valore sui puntini (zoom alto) */
@@ -146,13 +148,8 @@ body.view-compare #cmpBtn, body.view-compare #histbtn { display:none; }
 #windrose { display:none; }
 body.rose-mode #windrose { display:block; }
 body.rose-mode #chartwrap { display:none; }                 /* la rosa sostituisce il grafico */
-body.rose-mode #modes .mode, body.rose-mode #exportpng, body.rose-mode #stackbtn { display:none; }   /* modi tempo/PNG non pertinenti */
-#vars .vrose.active { background:#0b7285; border-color:#0b7285; color:#fff; }   /* chip rosa attivo */
-#windrose .wr-title { font-weight:600; font-size:13px; margin-bottom:2px; }
-#windrose .wr-sub { font-weight:400; color:var(--muted); font-size:11px; }
 #windrose .wr-legend { font-size:11px; color:var(--muted); text-align:center; margin-top:4px; display:flex;
                        flex-wrap:wrap; gap:6px; justify-content:center; }
-#windrose .wr-mean { font-size:12px; color:var(--fg); text-align:center; margin-top:5px; }
 .wdir { white-space:nowrap; }
 .wd-ar { display:inline-block; font-style:normal; font-weight:400; line-height:1; width:.9em; text-align:center; margin-left:.12em; transform-origin:50% 55%; }
 /* ---- MAPPA: in alto a destra sfondi, Pioggia · Cursore · Radar e zoom; in basso la PLANCIA (tempo, legenda, crediti in
@@ -313,16 +310,16 @@ body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5;
 /* STORICO LUNGO: aggregati giornalieri (pioggia, temperatura) da tutto l'archivio, al posto del grafico */
 #histview { display:none; flex-direction:column; gap:8px; }
 body.hist-mode #histview { display:flex; }
-body.hist-mode #chartwrap, body.hist-mode #chartstats, body.hist-mode #climabox, body.hist-mode #windrose,
-body.hist-mode #vars, body.hist-mode .pb-sep, body.hist-mode #modes > .mode, body.hist-mode #stackbtn, body.hist-mode #exportpng,
-body.hist-mode #refresh, body.hist-mode #download { display:none; }
+body.hist-mode #chartwrap, body.hist-mode #climabox, body.hist-mode #windrose,
+body.hist-mode #vars { display:none; }
 .hv-bar { display:none; }
-body.hist-mode .hv-bar { display:contents; }        /* nella riga 2, al posto di variabili e modi */
-.hv-seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-.hv-seg button { border:none; border-right:1px solid var(--line); background:transparent; color:var(--fg); height:22px; padding:0 11px;
-                 font-size:12px; cursor:pointer; white-space:nowrap; }
-.hv-seg button:last-child { border-right:none; }
-.hv-seg button.on { background:var(--accent); color:#fff; }
+body.hist-mode .hv-bar { display:contents; }        /* nella riga 2, al posto delle variabili */
+.hv-seg { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px 14px; }
+/* Pioggia e Temperatura come i nomi delle variabili: la scelta col trattino del suo colore */
+#hvVar button.on { border-bottom-color:transparent; }
+#hvVar button.on::before { content:''; display:inline-block; width:14px; height:2px; margin-right:6px;
+                           border-radius:1px; vertical-align:middle; background:var(--k); }
+#hvVar [data-v="PREC"] { --k:#1f6fd1; } #hvVar [data-v="TEMP"] { --k:#e34948; }
 /* barre della tabella: pioggia, temperatura (calda), incompleto */
 #histview { --hv-rain:#b5d4f4; --hv-warm:#f5c4b3; --hv-part:var(--line); }
 body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,.36); }
@@ -383,8 +380,6 @@ body.dark .hv-k5 { background:#8a3b3b; }
 @media (max-width:720px){ .hv-i { width:24px; height:24px; font-size:12px; line-height:22px; } }   /* da toccare col dito */
 #hvInfo { flex:1 0 100%; }
 /* modo "Impilato": un pannello per variabile, asse del tempo condiviso, cursore e zoom sincronizzati */
-body.dark #pbar button.tog { background:var(--soft); color:var(--fg); border-color:var(--line); }
-body.dark #pbar button.tog.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 body.stacked #chartlegend { display:none; }
 body.stacked #chartwrap { flex:0 0 auto; min-height:0; }
 body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible; }
@@ -394,15 +389,7 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 .stk-h .sw { width:14px; height:3px; border-radius:2px; flex:0 0 auto; }
 .stk-h b { font-weight:600; }
 .stk-h .un { color:var(--muted); }
-.stk-h .stk-v { order:1; margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; }
-.stk-h .stk-v.idle { color:var(--muted); font-weight:500; }
-.stk-h .stk-s { order:2; color:var(--muted); font-size:11px; }
-.stk-h .stk-cum { margin-left:8px; white-space:nowrap; }
-.stk-h .stk-cum i { display:inline-block; width:12px; height:2px; border-radius:1px; margin-right:4px; vertical-align:middle; }
-.stk-h .stk-x { order:3; border:none; background:none; color:#9aa8b8; cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
-.stk-h .stk-x:hover { color:#d33; }
-/* telefono: valore e "×" sulla prima riga, statistiche sempre sulla seconda (stesso aspetto in ogni pannello) */
-@media (max-width:720px){ .stk-h .stk-x { order:2; } .stk-h .stk-s { order:3; flex:1 0 100%; } }
+.stk-h .stk-v { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; }
 .stk-note { font-size:12px; color:var(--muted); padding:4px 6px; }
 /* avviso a comparsa (es. file salvato) + anteprima del PNG su cellulare */
 #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:6000; max-width:90vw;
@@ -535,21 +522,18 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #srcpanel, #notepanel { right:0; min-width:0; max-width:none; }
   #sheet { left:8px; right:8px; bottom:8px; width:auto; max-width:none; }
   #panel { padding:10px 12px 18px; }
-  /* riga 1: nome e azioni (mai nascoste: il nome va a capo), sotto codice e ultimo dato */
-  #phead { grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"name act" "meta meta"; align-items:center; }
-  #stationName { grid-area:name; line-height:1.25; }
+  /* riga 1: nome e azioni (il nome va a capo); sotto periodi, Storico e Confronta; poi le variabili */
+  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; gap:8px 12px;
+           grid-template-areas:"name act" "tools tools"; }
+  #ptitle { grid-area:name; }
   #pact { grid-area:act; }
-  #stationMeta { grid-area:meta; }
-  #stationMeta:not(:empty)::before { content:none; }
-  #pact .act { height:28px; padding:0 8px; }
-  /* riga 2: una riga sola che scorre di lato (anche partendo fra due pulsanti), senza barra visibile */
-  #pbar, #modes { flex-wrap:nowrap; }
-  #pbar { overflow-x:auto; scrollbar-width:none; margin:0 -12px; padding:0 12px; }
-  #pbar::-webkit-scrollbar { display:none; }
-  #pbar > *, #vars > *, #modes > *, .hv-bar > * { flex:none; }
-  #vars button, #pbar button.mode, #pbar button.tog { height:30px; font-size:13px; }   /* tap target piu' grandi */
-  #vars button { padding:0 12px; }
-  .hv-seg button { height:28px; font-size:13px; }
+  #ptools { grid-area:tools; gap:8px 22px; }
+  #modes, #pviews { gap:16px; }
+  /* da toccare col dito */
+  #phead .mode, #vars button, .hv-seg button { font-size:14px; line-height:20px; padding:5px 0; }
+  #vars .vp { padding:5px 6px; margin:0 -4px; }
+  #pact .act { font-size:13px; padding:5px 0; }
+  #vars { gap:2px 16px; }
   /* su cellulare il grafico e' stretto: la legenda va SOTTO (non a destra) cosi' il grafico
      resta ampio. chartwrap in colonna, altezza fissa al grafico, legenda a piena larghezza.
      flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra

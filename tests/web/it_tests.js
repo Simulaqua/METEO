@@ -2,7 +2,13 @@
 // Suite scelta con ?suite=cursor|radar|hash. Esito in #out ("RISULTATO: n/n"; la suite cursor stampa anche
 // una riga JSON da confrontare prima/dopo il refactoring del Cursore).
 (() => {
-  const res = [], log = (ok, name, info) => res.push((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : ': ' + info));
+  // ogni esito va subito in #out, nascosto fino alla fine (non deve coprire la pagina): se la prova si ferma,
+  // run.sh lo legge lo stesso e si sa dove
+  const res = [], log = (ok, name, info) => {
+    res.push((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : ': ' + info));
+    const o = document.getElementById('out');
+    if(o){ o.style.display = 'none'; o.textContent = res.join('\n') + '\n(in corso)'; }
+  };
   const eq = (name, got, want) => log(JSON.stringify(got) === JSON.stringify(want), name, 'got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function until(fn, ms = 8000){ const t0 = Date.now(); while(Date.now() - t0 < ms){ try { if(fn()) return true; } catch(e){} await sleep(50); } return false; }
@@ -14,7 +20,9 @@
   }
   const finish = extra => {
     const ok = res.filter(l => l.startsWith('PASS')).length;
-    document.getElementById('out').textContent = (extra ? extra + '\n' : '') + res.join('\n') + '\nRISULTATO: ' + ok + '/' + res.length;
+    const o = document.getElementById('out');
+    o.style.display = '';
+    o.textContent = (extra ? extra + '\n' : '') + res.join('\n') + '\nRISULTATO: ' + ok + '/' + res.length;
   };
   // clic DOM vero nel punto della mappa (passa dal renderer canvas dei puntini, come un dito)
   function clickAt(latlng){
@@ -413,7 +421,7 @@
     eq('marzo: barre prima e dopo l\'ora che manca', [0, 1].map(j => slotTimeTxt({ data: [rm.x], series: [{}, { slotTxt: 'range' }] }, 1, j)),
        ['29/03 01:00–02:00', '29/03 03:00–04:00']);
 
-    const m = mainModel({ _table: t, scode: 'T', _region: 'VEN' }, 'TEMP', null, 'week');
+    const m = mainModel({ _table: t, scode: 'T', _region: 'VEN' }, ['TEMP'], 'week');
     log(m.data[0].every((x, i) => i === 0 || x > m.data[0][i - 1]), 'grafico: tempo sempre crescente', JSON.stringify(m.data[0]));
     eq('grafico: valori nell\'ordine giusto', m.data[1], temps);
 
@@ -425,7 +433,7 @@
     // etichette civili scritte dal browser (Europe/Rome), indipendenti dal codice della pagina
     const civLab = s => new Date(s * 1000).toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 16).replace(' ', 'T');
     const rows = []; for(let s = U(10, 24, 10, 0); s <= U(10, 26, 11, 0); s += 3600) rows.push(civLab(s) + ',' + ((s / 3600) % 7));
-    const m2 = mainModel({ _table: parseCSV('datetime,TEMP\n' + rows.join('\n')), scode: 'T', _region: 'VEN' }, 'TEMP', null, 'week');
+    const m2 = mainModel({ _table: parseCSV('datetime,TEMP\n' + rows.join('\n')), scode: 'T', _region: 'VEN' }, ['TEMP'], 'week');
     const host = document.createElement('div'); document.body.appendChild(host);
     const u = new uPlot(mainOpts(m2, { w: 900, h: 300 }), m2.data, host);
     await sleep(50);                                                   // uPlot disegna (e calcola le etichette) dopo un microtask
@@ -595,10 +603,13 @@
       const w = host.querySelector('.hc-keys .wdir');
       log(!!w && w.firstChild.textContent === 'SE' && w.title === 'vento da SE' && /^12 /.test(host.querySelector('.hc-keys b').parentNode.nextSibling.querySelector('b').textContent), 'freccia: nella scheda (vento 12, da SE)', host.querySelector('.hc-keys') && host.querySelector('.hc-keys').innerHTML);
       log(!!kv && !/undefined|\[object/.test(kv.text), 'freccia: testo semplice intatto', kv && kv.text);
-      const cs = { cols:{ DVENTO:Array(12).fill(90), VVENTO:Array(12).fill(3) } }, save = currentStation;     // 12 osservazioni da E
-      currentStation = { _table: cs }; updateWindRose(); const rw = el('windrose').querySelector('.wr-mean .wdir');
+      const xs = Array.from({ length:12 }, (_, i) => 1794700000 + i * 600), save = currentStation;     // 12 osservazioni da E
+      const cs = { header:['datetime', 'DVENTO', 'VVENTO'], x:xs, cols:{ DVENTO:Array(12).fill(90), VVENTO:Array(12).fill(3) } };
+      currentStation = { _table: cs }; updateWindRose();
+      const g = el('windrose').querySelector('svg g'), ln = g && g.querySelector('line'), tt = g ? g.querySelector('title').textContent : '';
       currentStation = save; updateWindRose();
-      log(!!rw && rw.firstChild.textContent === 'E' && rw.title === 'vento da E' && /rotate\(90(\.\d+)?deg\)/.test(rw.querySelector('.wd-ar').style.transform), 'freccia: nella rosa dei venti (da E, 90 gradi)', rw && rw.outerHTML);
+      log(!!ln && / da E;/.test(tt) && +ln.getAttribute('x2') > +ln.getAttribute('x1') + 10 && Math.abs(+ln.getAttribute('y2') - +ln.getAttribute('y1')) < 1,
+          'rosa dei venti: freccia del vento medio verso la provenienza (E), "da E" al passaggio', tt + ' ' + (ln && ln.outerHTML));
     }
     const M = cardModel(P);
     eq('modello', [M.name, M.where, M.main && M.main.v, M.keys.length], ['Arba', regionLabel('FVG') + ' · ' + SOURCES.FVG.name, 'TEMP', 3]);
@@ -787,17 +798,17 @@
     log(vis(card) && !card.querySelector('.hc-spark polyline') && /^max .+ in 1 h$/.test(card.querySelector('.hc-mm').textContent),
         'scheda: un file lento non sovrascrive la variabile nuova', card.querySelector('.hc-mm').textContent);
     move(5, innerHeight / 2); setMapVar('');
-    {                                                  // "prevalente ..." sotto il grafico della direzione: sigla + freccia
+    {                                                  // direzione del vento al cursore: sigla e freccia ruotata, "vento da"
       const W = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('DVENTO') && hasVal(p.latest || {}, 'DVENTO'));
       log(!!W, 'stazione con direzione del vento trovata', '');
       if(W){
         await selectStation(W); await until(() => currentStation === W); await sleep(800); drawVar('DVENTO');
-        await until(() => /prevalente/.test(el('chartstats').textContent), 6000);
-        const cs = el('chartstats'), w = cs.querySelector('.wdir'), m = w && getComputedStyle(w.querySelector('.wd-ar')).transform;
-        const rot = m && m !== 'none' ? Math.round((Math.atan2(+m.slice(7).split(',')[1], +m.slice(7).split(',')[0]) * 180 / Math.PI + 360) % 360) : -1;
-        log(/^prevalente /.test(cs.textContent) && !!w && rot >= 0 && rot % 45 === 0 && w.firstChild.textContent === SECT8[rot / 45] &&
-            w.title === 'vento da ' + SECT8[rot / 45] && w.getAttribute('aria-label') === w.title,
-            'prevalente: sigla, freccia ruotata come il settore, "vento da"', cs.innerHTML + ' rot=' + rot);
+        await until(() => chart && chart._labs, 6000);
+        const k = chart.data[1].findIndex(v => v != null);
+        chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 20 }); await sleep(150);
+        const w = chart._labs.querySelector('.wdir'), deg = chart.data[1][k], n = _dirName(deg);
+        log(!!w && w.firstChild.textContent === n && w.title === 'vento da ' + n && w.getAttribute('aria-label') === w.title,
+            'direzione al cursore: sigla, "vento da"', chart._labs.innerHTML.slice(0, 300));
         showMapView();
       }
     }
@@ -836,31 +847,104 @@
     finish();
   }
 
-  async function suiteStazione(){                     // con quale variabile si apre una stazione
+  async function suiteStazione(){                     // apertura, riga delle variabili, "+" e assi, Impilate, Altro, link, cursore, PNG
     const has = (p, v) => (p.variables || []).includes(v);
-    const onPage = p => (p.variables || []).filter(v => varCat(v) === currentPage).sort(natVars);
     const pick = test => (allFeatures.find(f => test(f.properties)) || {}).properties;
-    const A = pick(p => has(p, 'TEMP') && has(p, 'UMID'));
+    const A = pick(p => ['TEMP', 'UMID', 'PREC', 'PRESS', 'TDEW'].every(v => has(p, v)));
     const A2 = pick(p => has(p, 'TEMP') && has(p, 'UMID') && p !== A);
     const B = pick(p => !has(p, 'TEMP') && has(p, 'PREC'));
     const C = pick(p => !has(p, 'TEMP') && !has(p, 'PREC') && has(p, 'LIVIDRO'));
-    const D = pick(p => !has(p, 'TEMP') && !has(p, 'PREC') && !has(p, 'LIVIDRO') && onPage(p).length);
+    const D = pick(p => !has(p, 'TEMP') && !has(p, 'PREC') && !has(p, 'LIVIDRO') && (p.variables || []).some(v => varCat(v) === 'dirette'));
     log(A && A2 && B && C && D, 'stazioni di prova trovate', JSON.stringify([!!A, !!A2, !!B, !!C, !!D]));
     if(!(A && A2 && B && C && D)) return finish();
-    const open = async p => { await selectStation(p); await until(() => currentStation === p); return currentVar; };
+    const open = async p => { await selectStation(p); await until(() => currentStation === p); await sleep(200); return currentVar; };
+    const row = () => [...el('vars').querySelectorAll('.vn')].map(e => e.dataset.var);
+    const mainNow = () => stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder);
+    const rgb = h => 'rgb(' + [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(', ') + ')';
     setMapVar(''); await until(() => filterVar === '');
     eq('si apre sulla temperatura', await open(A), 'TEMP');
     eq('senza temperatura: la precipitazione', await open(B), 'PREC');
     eq('senza temperatura né precipitazione: il livello idrometrico', await open(C), 'LIVIDRO');
-    eq('altrimenti la prima variabile disponibile', await open(D), onPage(D)[0]);
+    const d = await open(D);
+    eq('altrimenti la prima della riga', d, mainNow()[0]);
     await open(A); drawVar('UMID');
     eq('la variabile della stazione di prima non passa alla successiva', await open(A2), 'TEMP');
     setMapVar('UMID'); await until(() => filterVar === 'UMID');
     eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
+    setMapVar(''); await until(() => filterVar === '');
 
-    // pioggia: linee cumulate giornaliere (da zero a ogni mezzanotte; il primo giorno dal valore vero) e modo MN
-    eq('modi: 7 g, 3 g, 24 h, MN', [...document.querySelectorAll('#modes .mode[data-mode]')].map(b => b.dataset.mode),
-       ['week', 'day3', 'day', 'mn']);
+    // riga: le misure principali in ordine fisico, la scelta col trattino del suo colore; derivate e indici in "Altro"
+    await open(A);
+    eq('riga: le principali in ordine fisico', row(), mainNow());
+    eq('riga: si comincia da temperatura, umidità, pioggia', row().slice(0, 3), ['TEMP', 'UMID', 'PREC']);
+    log(row().every(v => varCat(v) === 'dirette'), 'riga: niente derivate né indici', JSON.stringify(row()));
+    const key = el('vars').querySelector('.vn.on .key');
+    log(!!key && key.style.background === rgb(varColor('TEMP')) && !el('vars').querySelector('.vn.on .vp'),
+        'riga: la scelta col trattino del suo colore, senza "+"', key ? key.style.background : 'nessun trattino');
+    eq('periodi: Oggi, 24 h, 3 g, 7 g', [...document.querySelectorAll('#modes .mode[data-mode]')].map(b => [b.dataset.mode, b.textContent]),
+       [['mn', 'Oggi'], ['day', '24 h'], ['day3', '3 g'], ['week', '7 g']]);
+    log(!el('chartstats') && chart._labs && chart._labs.hidden, 'a riposo: nessun numero sopra o sotto il grafico', '');
+
+    // "+": piu' variabili; un asse per unita' di misura, il primo a sinistra, gli altri a destra del colore della variabile
+    const ys = () => chart.axes.filter(a => a.scale && a.scale !== 'x' && a.scale !== 'cum');
+    el('vars').querySelector('.vp[data-var="UMID"]').click(); await sleep(300);
+    el('vars').querySelector('.vp[data-var="PRESS"]').click(); await sleep(300);
+    eq('"+": tre variabili', selVars(), ['TEMP', 'UMID', 'PRESS']);
+    eq('"+": un asse per variabile, il primo a sinistra', ys().map(a => [a.scale, a.side]), [['y', 3], ['y1', 1], ['y2', 1]]);
+    log(ys()[1].stroke(chart, 2) === varColor('UMID', true) && ys()[2].stroke(chart, 3) === varColor('PRESS', true),
+        'assi a destra del colore della loro variabile', JSON.stringify(ys().map((a, i) => a.stroke(chart, i + 1))));
+    log(/\/V:UMID,PRESS$/.test(location.hash), 'link: le variabili aggiunte', location.hash);
+    addVar('TDEW'); await sleep(300);
+    const sTd = chart.series.find(s => s.label === varLabel('TDEW'));
+    log(!!sTd && sTd.scale === 'y' && ys().length === 3, 'rugiada sull\'asse della temperatura (°C): tre assi per quattro variabili',
+        JSON.stringify([sTd && sTd.scale, ys().length]));
+    log(ys()[0].stroke(chart, 1) === AXTX(), 'asse con due variabili: colore neutro', ys()[0].stroke(chart, 1));
+    el('vars').querySelector('.vp[data-var="UMID"]').click(); await sleep(300);
+    eq('"×" toglie', selVars(), ['TEMP', 'PRESS', 'TDEW']);
+    for(const v of mainNow().filter(v => !selVars().includes(v))) addVar(v);
+    await sleep(300);
+    eq('al massimo ' + maxVars() + ' variabili', selVars().length, maxVars());
+    const h = location.hash, want = [h.split('/')[2]].concat(h.split('V:')[1].split(',').map(decodeURIComponent));
+    drawVar('TEMP'); await sleep(200);
+    history.replaceState(null, '', h); await applyHash(); await sleep(500);
+    eq('link: riapre le stesse variabili', selVars(), want);
+
+    // cursore: il valore accanto a ogni punto, l'ora in alto; fuori dal grafico niente
+    drawVar('TEMP'); addVar('UMID'); await sleep(300);
+    const k = chart.data[0].findIndex((x, i) => chart.data[1][i] != null && chart.data[2][i] != null);
+    chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 10 }); await sleep(100);
+    const labs = [...chart._labs.querySelectorAll('.cl-v')].map(e => e.textContent);
+    log(!chart._labs.hidden && labs.length === 2 && labs.some(t => / °C$/.test(t)) && labs.some(t => / %$/.test(t)),
+        'cursore: un valore per variabile, con l\'unità', JSON.stringify(labs));
+    log(/^\d\d\/\d\d \d\d:\d\d/.test(chart._labs.querySelector('.cl-t').textContent), 'cursore: l\'ora in alto', chart._labs.querySelector('.cl-t').textContent);
+    chart.setCursor({ left: -10, top: -10 }); await sleep(50);
+    log(chart._labs.hidden, 'cursore fuori dal grafico: niente numeri', '');
+
+    // Impilate: con due o piu' variabili, una fascia ciascuna del suo colore; resta scelta come preferenza
+    log(!!el('stackbtn'), 'Impilate: c\'è con due variabili', '');
+    el('stackbtn').click(); await until(() => stackObj); await sleep(300);
+    eq('Impilate: una fascia per variabile', stackObj && stackObj.panels.map(p => p.v), selVars());
+    log(stackObj && stackObj.panels.every(p => p.u.series[1].stroke(p.u, 1) === varColor(p.v)), 'Impilate: ogni fascia del colore della sua variabile', '');
+    log(/\/S:TEMP,UMID$/.test(location.hash), 'Impilate: nel link', location.hash);
+    drawVar('TEMP'); await sleep(200);
+    log(!el('stackbtn') && !stackObj && !!chart, 'una variabile sola: niente Impilate', '');
+    addVar('UMID'); await until(() => stackObj); await sleep(200);
+    log(!!stackObj, 'Impilate resta scelto: con due variabili tornano le fasce', '');
+    el('stackbtn').click(); await sleep(200);
+    log(!stackObj && !!chart, 'Impilate spento', '');
+
+    // Altro: misure secondarie, derivate, indici; la scelta entra nella riga e ne esce lasciandola
+    drawVar('TEMP'); await sleep(200);
+    el('altBtn').click(); await sleep(150);
+    const items = [...el('altMenu').querySelectorAll('[data-var]')].map(b => b.dataset.var);
+    log(!el('altMenu').hidden && items.includes('TDEW') && items.some(v => varCat(v) === 'indici') && !items.some(v => row().includes(v)),
+        'Altro: derivate e indici, nessuna della riga', JSON.stringify(items));
+    el('altMenu').querySelector('[data-var="TDEW"]').click(); await sleep(300);
+    log(currentVar === 'TDEW' && row().includes('TDEW') && el('altMenu').hidden, 'Altro: la scelta si vede e entra nella riga', JSON.stringify(row()));
+    drawVar('TEMP'); await sleep(200);
+    log(!row().includes('TDEW'), 'Altro: lasciata, esce dalla riga', JSON.stringify(row()));
+
+    // pioggia: linee cumulate giornaliere (da zero a ogni mezzanotte; il primo giorno dal valore vero) e modo Oggi
     await open(B);
     const mode = async m => {
       document.querySelector('#modes [data-mode="' + m + '"]').click();
@@ -885,40 +969,62 @@
           JSON.stringify([chart.scales.cum.min, chart.scales.cum.max, top]));
     }
     await mode('mn');
-    log(chart._m.daily == null, 'MN: niente linee giornaliere (coinciderebbero con la cumulata)', '');
-    eq('MN: dalla mezzanotte di oggi', chart.scales.x.min, midOf(Date.now() / 1000));
-    setStackMode(true); await until(() => stackObj); await sleep(400);
-    document.querySelector('#modes [data-mode="week"]').click(); await sleep(400);
-    setStackMode(false); await sleep(200);
+    log(chart._m.daily == null, 'Oggi: niente linee giornaliere (coinciderebbero con la cumulata)', '');
+    eq('Oggi: dalla mezzanotte', chart.scales.x.min, midOf(Date.now() / 1000));
     await mode('week');
-    // "Vento": velocita' con le frecce della direzione, se la stazione ha direzione e velocita'
-    const WV = pick(p => has(p, 'DVENTO') && has(p, 'VVENTO'));
+
+    // "Vento": velocita' con le frecce della direzione, nella riga al posto di velocita' e direzione
+    const WV = pick(p => has(p, 'DVENTO') && has(p, 'VVENTO') && has(p, 'PRESS'));
     log(!!WV, 'stazione con direzione e velocità del vento', '');
     if(WV){
-      document.querySelector('#pages .pg[data-page="dirette"]').click();
-      await open(WV);
-      await sleep(400);
-      const chip = document.querySelector('#vars [data-var="' + WARROW + '"]');
-      log(!!chip && !chip.querySelector('.vadd'), 'Vento: chip fra le misure dirette, senza "+"', chip ? chip.outerHTML.slice(0, 80) : '');
+      await open(WV); await sleep(400);
+      log(row().includes(WARROW) && !row().includes('VVENTO') && !row().includes('DVENTO') && !!el('vars').querySelector('.vp[data-var="' + WARROW + '"]'),
+          'Vento: nella riga al posto di velocità e direzione, col "+"', JSON.stringify(row()));
       drawVar(WARROW);
       await until(() => chart && chart._m && chart._m.wind); await sleep(300);
       const ar = chart._m.wind.arrows;
       log(ar.length > 0 && ar.every(a => a.s > 0 && a.d >= 0 && a.d < 360), 'Vento 7 g: frecce sulla velocità', ar.length);
       log(chart.scales.y.min === 0, 'Vento: asse della velocità da zero', chart.scales.y.min);
-      const ora = ar.every(a => (a.x % HOUR) === HOUR / 2);
-      log(ora, 'Vento 7 g: una freccia all\'ora, a metà ora', '');
+      log(ar.every(a => (a.x % HOUR) === HOUR / 2), 'Vento 7 g: una freccia all\'ora, a metà ora', '');
       await mode('day');
       const ar24 = chart._m.wind.arrows;
       log(ar24.length > 0 && ar24.every(a => currentStation._table.x.includes(a.x)), 'Vento 24 h: una freccia per lettura', ar24.length);
-      const k = chart._m.wind.dirs.findIndex(d => d != null);
-      if(k >= 0){
-        chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 20 }); await sleep(200);
-        log(/da <span class="wdir"/.test(chart._tip ? chart._tip.innerHTML : ''), 'Vento: l\'etichetta del cursore dice da dove viene', chart._tip ? chart._tip.textContent : '');
+      const kw = chart._m.wind.dirs.findIndex((d, i) => d != null && chart.data[1][i] != null);
+      if(kw >= 0){
+        chart.setCursor({ left: chart.valToPos(chart.data[0][kw], 'x'), top: 20 }); await sleep(200);
+        log(/m\/s <span class="wdir"/.test(chart._labs.innerHTML), 'Vento: al cursore la velocità e da dove viene', chart._labs.textContent);
       }
+      addVar('PRESS'); await sleep(300);
+      log(chart._m.wind && chart._m.wind.i === 1 && chart.series.length >= 3, 'Vento con la pressione: frecce sulla sua linea', '');
       await mode('week');
-      document.querySelector('#pages .pg[data-page="' + varCat('TEMP') + '"]').click();
-      await sleep(300);
+      // la rosa segue il periodo
+      const obs = () => +((/(\d+) osservazioni/.exec(el('windrose').innerHTML) || [])[1] || 0);
+      drawVar(WROSE); await sleep(300);
+      const n7 = obs();
+      await mode('day'); await sleep(200);
+      const n1 = obs();
+      log(n7 > 0 && n1 > 0 && n1 < n7, 'Rosa: segue il periodo (24 h meno di 7 g)', JSON.stringify([n7, n1]));
+      await mode('week');
     }
+
+    // PNG di ogni vista: immagine grande, intera
+    const pngs = [], real = window.deliverPNG;
+    window.deliverPNG = async (b, f) => { pngs.push({ f, kb: Math.round(b.size / 1024), type: b.type }); };
+    const png = async tag => {
+      const n = pngs.length;
+      await exportPNG(); await until(() => pngs.length > n, 8000);
+      const p = pngs[n];
+      log(!!p && p.kb > 40 && p.type === 'image/png' && /\.png$/.test(p.f), 'PNG: ' + tag, JSON.stringify(p || null));
+    };
+    await open(A); await png('una variabile');
+    addVar('UMID'); addVar('PRESS'); await sleep(300); await png('tre variabili');
+    el('stackbtn').click(); await until(() => stackObj); await sleep(300); await png('Impilate');
+    el('stackbtn').click(); await sleep(200);
+    drawVar('TEMP'); await sleep(200);
+    pickMode('compare'); await until(() => chartMode === 'compare' && chart && chart._hi, 8000); await sleep(300); await png('Confronto 7 giorni');
+    await mode('week');
+    if(WV){ await open(WV); drawVar(WROSE); await sleep(300); await png('Rosa dei venti'); drawVar(WARROW); await sleep(200); }
+    window.deliverPNG = real;
     showMapView(); setMapVar('');
     eq('errori JS', window.__errs, []);
     finish();
@@ -1534,6 +1640,22 @@
     eq('CSV: ' + ds + ' uguale al file (pioggia, ore, tmin, tmax, tmedia, ore)', row.slice(1).map(Number), [raw.p[k], raw.hp[k], raw.tn[k], raw.tx[k], raw.tm[k], raw.ht[k]]);
     log(+row[3] < +row[4], 'CSV: tmin < tmax', row.join(';'));
 
+    // PNG di ogni vista dello Storico (grafico ridisegnato grande; Tabella disegnata)
+    {
+      const pngs = [], real = window.deliverPNG;
+      window.deliverPNG = async (b, f) => { pngs.push({ f, kb: Math.round(b.size / 1024) }); };
+      for(const [v, w] of [['PREC', 'giorni'], ['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'tabella'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'tabella']]){
+        histVar = currentVar = v; histView = w; await renderHist(); await sleep(200);
+        const n = pngs.length;
+        await exportPNG(); await until(() => pngs.length > n, 8000);
+        const g = pngs[n];
+        log(!!g && g.kb > (w === 'tabella' ? 20 : 40) && g.f === pngBase() + '_storico_' + v + '_' + w + '.png',
+            'PNG Storico ' + v + '/' + w, JSON.stringify(g || null));
+      }
+      window.deliverPNG = real;
+      histView = 'mesi'; histVar = currentVar = 'PREC'; await renderHist();
+    }
+
     // link H:VAR:VIEW
     for(const [v, w] of [['PREC', 'mesi'], ['PREC', 'anni'], ['PREC', 'giorni'], ['PREC', 'tabella'], ['TEMP', 'mesi'], ['TEMP', 'anni'], ['TEMP', 'giorni'], ['TEMP', 'tabella']]){
       await setHistMode(false); await open(L);                                       // parte da un'altra stazione, senza Storico
@@ -1554,10 +1676,9 @@
     finish();
   }
 
-  // scheda della stazione su due righe: in alto nome, codice e ultimo dato, azioni; sotto variabili e modi (i tre confronti
-  // in "Confronti ▾"); nello Storico la sua barra al posto di variabili e modi, in fondo "Storico ×".
+  // Scheda della stazione: riga 1 nome | periodi | Storico, Confronta | azioni; riga 2 le variabili; poi il grafico.
   // Desktop (w.html 1024x768): grafico entro 75 px dalla barra delle schede. Telefono (w.html 320/375/430, FVG/A280 con
-  // molte variabili): la seconda riga resta una e scorre di lato, niente esce dalla pagina, le azioni restano visibili
+  // molte variabili): niente scorre di lato, tutto va a capo e resta dentro lo schermo, le azioni restano visibili.
   async function suiteSchede(){
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2;
@@ -1569,167 +1690,157 @@
     const open = async p => { await selectStation(p); await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000); await sleep(300); };
     const gap = id => Math.round(R(el(id)).top - R(el('tabbar')).bottom);        // dalla barra delle schede all'inizio del grafico
     const sameRow = es => es.length > 0 && Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
-    const acts = () => ['refresh', 'download', 'exportpng', 'hvCsv', 'copylink'].filter(id => vis(el(id)));
-    // riga 2 tutta sotto la riga 1 (nome, dati, azioni) e tutta sopra il grafico: niente sovrapposizioni
-    const stacked = (c, chartId) => { const b1 = Math.max(...[el('stationName'), el('stationMeta'), ...acts().map(el)].map(e => R(e).bottom));
-      return Math.min(...c.map(e => R(e).top)) >= b1 - 1 && Math.max(...c.map(e => R(e).bottom)) <= R(el(chartId)).top + 1; };
-    // comandi visibili della seconda riga, nell'ordine della pagina (le voci di "Confronti" stanno nel menu chiuso)
-    const ctl2 = () => [...document.querySelectorAll('#vars > button, button[data-mode], #cmpBtn, #stackbtn, #histbtn, #hvVar, #hvView, #hvRange')].filter(vis);
-    const tag2 = e => e.id || (e.dataset.mode ? 'mode:' + e.dataset.mode : 'var');
-    const scroller = () => { for(let e = el('vars'); e && e !== el('panel'); e = e.parentElement) if(/auto|scroll/.test(getComputedStyle(e).overflowX)) return e; return null; };
+    const acts = () => ['refresh', 'download', 'hvCsv', 'tabsCsv', 'exportpng', 'copylink'].filter(id => vis(el(id)));
+    const tools = () => [...document.querySelectorAll('#modes .mode, #pviews .mode')].filter(vis);
+    const names = () => [...el('vars').querySelectorAll('button')].filter(vis);
+    const below = (es, top) => es.every(e => R(e).top >= top - 1);
     const actsOk = (tag, want) => {                                  // dentro lo schermo e non coperte
       const bad = want.filter(id => { const e = el(id); if(!vis(e)) return true;
         const r = R(e), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return r.left < -0.5 || r.right > innerWidth + 0.5 || !(h && e.contains(h)); });
       eq(tag + ': azioni visibili e intere', bad, []);
     };
+    const noScroller = tag => {
+      const sc = [...el('panel').querySelectorAll('#phead *, #pbar, #pbar *')].filter(e => /auto|scroll/.test(getComputedStyle(e).overflowX));
+      eq(tag + ': niente righe che scorrono di lato', sc.map(e => e.id || e.className), []);
+    };
     const M = { w:innerWidth, h:innerHeight };
     setMapVar(''); await until(() => filterVar === '');
 
     // riga 1 e riga 2 (Padova: tre variabili)
     await open(P); await until(() => vis(el('histbtn')), 5000);
-    const name = el('stationName'), meta = el('stationMeta');
-    log(/^234\b|\b234\b/.test(meta.textContent) && /ultimo dato \S/.test(meta.textContent), 'riga 1: codice e ultimo dato', meta.textContent);
+    const name = el('stationName');
+    log(/^234\b/.test(name.title) && !vis(el('stationMeta')), 'riga 1: codice e ultimo dato nel titolo del nome, niente scritte accanto', name.title);
     eq('riga 1: azioni', acts(), ['refresh', 'download', 'exportpng', 'copylink']);
-    if(!phone) log(sameRow([name, meta, ...acts().map(el)]), 'riga 1: nome, dati e azioni sulla stessa riga',
-                   JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
-    else log(sameRow([name, ...acts().map(el)]) && R(meta).top >= R(name).bottom - 1, 'riga 1 (telefono): nome e azioni, sotto codice e ultimo dato',
-             JSON.stringify([name, meta, ...acts().map(el)].map(e => Math.round(mid(e)))));
-    const c2 = ctl2();
-    eq('riga 2: variabili poi modi', c2.map(tag2), ['var', 'var', 'var', 'mode:week', 'mode:day3', 'mode:day', 'mode:mn', 'cmpBtn', 'stackbtn', 'histbtn']);
-    log(sameRow(c2) && stacked(c2, 'chart'), 'riga 2: tutta su una riga, fra la prima e il grafico',
-        JSON.stringify([...new Set(c2.map(e => Math.round(mid(e))))]));
+    eq('riga 1: periodi, Storico, Confronta', tools().map(b => b.dataset.mode || b.id), ['mn', 'day', 'day3', 'week', 'histbtn', 'cmpBtn']);
+    if(!phone) log(sameRow([name, ...tools(), ...acts().map(el)]), 'riga 1: tutto sulla stessa riga',
+                   JSON.stringify([name, ...tools(), ...acts().map(el)].map(e => Math.round(mid(e)))));
+    else log(sameRow([name, ...acts().map(el)]) && below(tools(), R(name).bottom), 'riga 1 (telefono): nome e azioni, sotto periodi e viste',
+             JSON.stringify([name, ...tools(), ...acts().map(el)].map(e => Math.round(mid(e)))));
+    const n2 = names();
+    log(n2.length >= 3 && below(n2, Math.max(...tools().map(e => R(e).bottom))) && n2.every(e => R(e).bottom <= R(el('chart')).top + 1),
+        'riga 2: le variabili fra la prima riga e il grafico', JSON.stringify(n2.map(e => Math.round(mid(e)))));
+    log([...document.querySelectorAll('#phead button, #pact .act, #vars button')].filter(vis).every(e => {
+      const cs = getComputedStyle(e); return cs.borderTopWidth === '0px' && cs.backgroundColor === 'rgba(0, 0, 0, 0)'; }),
+        'comandi a parole: niente riquadri né fondi', '');
     M.normale = gap('chart');
     if(!phone) log(M.normale <= 75, 'normale: grafico a ' + M.normale + ' px dalla barra delle schede (al massimo 75)', M.normale);
+    noScroller('normale');
 
-    // "Confronti ▾": un comando, un menu con i tre confronti
+    // "Confronta": un comando, un menu con i tre confronti
     const cb = el('cmpBtn'), cm = el('cmpMenu');
-    log(!!cb && !!cm, 'Confronti: un comando con il suo menu', 'assente');
-    if(cb && cm){
-      const item = m => cm.querySelector('[data-mode="' + m + '"]');
-      const esc = () => fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true }));
-      const openCmp = async () => { cb.scrollIntoView({ block:'nearest', inline:'nearest' }); await sleep(120); cb.focus(); cb.click(); await sleep(60); };
-      log(!vis(cm) && cb.getAttribute('aria-haspopup') === 'menu' && cb.getAttribute('aria-expanded') === 'false' && /Confronti/.test(cb.textContent),
-          'Confronti: chiuso all\'inizio', cb.outerHTML.slice(0, 120));
-      await openCmp();
-      log(vis(cm) && cb.getAttribute('aria-expanded') === 'true', 'Confronti: si apre', '');
-      eq('Confronti: le tre voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
-         [['compare', 'Confronto 7 giorni'], ['compare30', 'Confronto 30 giorni'], ['tabs', 'Confronto schede']]);
-      {
-        const r = R(cm), b = R(item('tabs')), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        log(cm.contains(hit) && r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
-            'Confronti: menu sopra il grafico e dentro lo schermo', JSON.stringify([r.left, r.right, r.bottom, hit && (hit.id || hit.className || hit.tagName)]));
-      }
-      log(cm.contains(fa()) && fa().dataset.mode === 'compare', 'Confronti: il fuoco entra sulla prima voce', fa() && (fa().dataset.mode || fa().id || fa().tagName));
-      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown', bubbles:true }));
-      eq('Confronti: freccia giù', fa().dataset.mode, 'compare30');
-      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'End', bubbles:true }));
-      eq('Confronti: Fine', fa().dataset.mode, 'tabs');
-      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowUp', bubbles:true }));
-      eq('Confronti: freccia su', fa().dataset.mode, 'compare30');
-      esc(); await sleep(60);
-      log(!vis(cm) && fa() === cb && cb.getAttribute('aria-expanded') === 'false', 'Confronti: Esc chiude e il fuoco torna al comando', fa() && (fa().id || fa().tagName));
-      await openCmp();
-      fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true }));
-      log(!vis(cm) && fa() === cb, 'Confronti: Tab chiude', fa() && (fa().id || fa().tagName));
-      await openCmp();
-      name.click(); await sleep(60);
-      log(!vis(cm), 'Confronti: clic fuori chiude', '');
-      if(phone){                                                   // il menu e' fisso: se la riga 2 scorre di lato si chiude
-        const sc = scroller(); await openCmp();
-        const open0 = vis(cm), s0 = sc.scrollLeft;
-        sc.scrollLeft = s0 > 60 ? s0 - 60 : s0 + 60;
-        // il browser manda 'scroll' (che non risale ai genitori) al fotogramma dopo; il Chrome headless di run.sh, col tempo
-        // virtuale, non disegna altri fotogrammi e non lo manda mai: lo si manda qui, uguale
-        sc.dispatchEvent(new Event('scroll')); await sleep(50);
-        log(open0 && sc.scrollLeft !== s0 && !vis(cm) && cb.getAttribute('aria-expanded') === 'false', 'telefono: scorrendo la riga 2 il menu si chiude',
-            JSON.stringify([open0, s0, sc.scrollLeft, vis(cm)]));
-        if(vis(cm)) esc();
-        sc.scrollLeft = 0; await sleep(150);
-      }
-      for(const [m, lab] of [['compare', 'Confronto 7 g'], ['compare30', 'Confronto 30 g']]){
-        await openCmp(); item(m).click();
-        await until(() => chartMode === m && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
-        const others = [...document.querySelectorAll('button[data-mode]')].filter(b => vis(b) && b.classList.contains('active'));
-        log(chartMode === m && !vis(cm) && cb.classList.contains('active') && cb.textContent.includes(lab) && !others.length,
-            'Confronti: ' + lab + ' scelto, acceso sul comando', [chartMode, vis(cm), cb.className, cb.textContent, others.map(tag2)].join(' | '));
-        log(!!chart && chart.series.length > 3, 'Confronti: ' + lab + ': grafico coi giorni sovrapposti', chart && chart.series.length);
-        await openCmp();
-        eq('Confronti: ' + lab + ' segnato nel menu', [...cm.querySelectorAll('[data-mode]')].map(b => b.classList.contains('on')), [m === 'compare', m === 'compare30', false]);
-        esc(); await sleep(60);
-      }
-      document.querySelector('button[data-mode="week"]').click(); await until(() => chartMode === 'week'); await sleep(200);
-      log(!cb.classList.contains('active') && /Confronti/.test(cb.textContent) && document.querySelector('button[data-mode="week"]').classList.contains('active'),
-          'Confronti: 7 g lo spegne', cb.className + ' ' + cb.textContent);
-      await openCmp(); item('tabs').click();
-      await until(() => document.body.classList.contains('view-compare'), 8000); await sleep(300);
-      log(document.body.classList.contains('view-compare') && !vis(cm) && el('stationName').textContent === 'Confronto schede',
-          'Confronti: "Confronto schede" apre la scheda Confronto', '');
-      eq('scheda Confronto: niente Confronti, Impilato, Storico', [vis(cb), vis(el('stackbtn')), vis(el('histbtn'))], [false, false, false]);
-      closeCompare(); await sleep(100);
+    const item = m => cm.querySelector('[data-mode="' + m + '"]');
+    const esc = () => fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true }));
+    const openCmp = async () => { cb.focus(); cb.click(); await sleep(60); };
+    log(!vis(cm) && cb.getAttribute('aria-haspopup') === 'menu' && cb.getAttribute('aria-expanded') === 'false' && cb.textContent.trim() === 'Confronta',
+        'Confronta: chiuso all\'inizio', cb.outerHTML.slice(0, 120));
+    await openCmp();
+    log(vis(cm) && cb.getAttribute('aria-expanded') === 'true', 'Confronta: si apre', '');
+    eq('Confronta: le tre voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
+       [['compare', 'Confronto 7 giorni'], ['compare30', 'Confronto 30 giorni'], ['tabs', 'Confronto schede']]);
+    {
+      const r = R(cm), b = R(item('tabs')), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      log(cm.contains(hit) && r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
+          'Confronta: menu sopra il grafico e dentro lo schermo', JSON.stringify([r.left, r.right, r.bottom, hit && (hit.id || hit.className || hit.tagName)]));
     }
+    log(cm.contains(fa()) && fa().dataset.mode === 'compare', 'Confronta: il fuoco entra sulla prima voce', fa() && (fa().dataset.mode || fa().id || fa().tagName));
+    fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown', bubbles:true }));
+    eq('Confronta: freccia giù', fa().dataset.mode, 'compare30');
+    fa().dispatchEvent(new KeyboardEvent('keydown', { key:'End', bubbles:true }));
+    eq('Confronta: Fine', fa().dataset.mode, 'tabs');
+    fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowUp', bubbles:true }));
+    eq('Confronta: freccia su', fa().dataset.mode, 'compare30');
+    esc(); await sleep(60);
+    log(!vis(cm) && fa() === cb && cb.getAttribute('aria-expanded') === 'false', 'Confronta: Esc chiude e il fuoco torna al comando', fa() && (fa().id || fa().tagName));
+    await openCmp();
+    fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true }));
+    log(!vis(cm) && fa() === cb, 'Confronta: Tab chiude', fa() && (fa().id || fa().tagName));
+    await openCmp();
+    name.click(); await sleep(60);
+    log(!vis(cm), 'Confronta: clic fuori chiude', '');
+    for(const [m, lab] of [['compare', 'Confronto 7 g'], ['compare30', 'Confronto 30 g']]){
+      await openCmp(); item(m).click();
+      await until(() => chartMode === m && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
+      const lit = [...document.querySelectorAll('#modes .mode')].filter(b => b.classList.contains('active'));
+      log(chartMode === m && !vis(cm) && cb.classList.contains('active') && cb.textContent.includes(lab) && !lit.length,
+          'Confronta: ' + lab + ' scelto, acceso sul comando', [chartMode, vis(cm), cb.className, cb.textContent, lit.length].join(' | '));
+      log(!!chart && chart.series.length > 3 && !el('vars').querySelector('.vp'), 'Confronta: ' + lab + ': giorni sovrapposti, niente "+"', chart && chart.series.length);
+      await openCmp();
+      eq('Confronta: ' + lab + ' segnato nel menu', [...cm.querySelectorAll('[data-mode]')].map(b => b.classList.contains('on')), [m === 'compare', m === 'compare30', false]);
+      esc(); await sleep(60);
+    }
+    document.querySelector('#modes [data-mode="week"]').click(); await until(() => chartMode === 'week'); await sleep(200);
+    log(!cb.classList.contains('active') && cb.textContent.trim() === 'Confronta' && document.querySelector('#modes [data-mode="week"]').classList.contains('active'),
+        'Confronta: 7 g lo spegne', cb.className + ' ' + cb.textContent);
 
-    // Storico: la sua barra nella seconda riga, "Storico ×" in fondo, CSV e Link in alto
+    // Confronto schede: niente Confronta e Storico; CSV delle serie confrontate e PNG
+    await open(V); await open(P);
+    await openCmp(); item('tabs').click();
+    await until(() => document.body.classList.contains('view-compare') && !!chart, 8000); await sleep(300);
+    log(document.body.classList.contains('view-compare') && !vis(cm) && el('stationName').textContent === 'Confronto schede',
+        'Confronta: "Confronto schede" apre la scheda Confronto', '');
+    eq('Confronto schede: niente Confronta né Storico', [vis(cb), vis(el('histbtn'))], [false, false]);
+    eq('Confronto schede: azioni', acts(), ['tabsCsv', 'exportpng', 'copylink']);
+    {
+      let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
+      window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) oc.call(this); };
+      el('tabsCsv').click(); await sleep(100);
+      window.Blob = OB; HTMLAnchorElement.prototype.click = oc;
+      const lines = text ? text.trim().split('\n') : [];
+      log(lines.length > 10 && /^datetime,".+",".+"/.test(lines[0]) && lines.slice(1).every(l => /^\d{4}-\d\d-\d\dT\d\d:\d\d,/.test(l)),
+          'Confronto schede: CSV con una colonna per stazione', lines.slice(0, 2).join(' | '));
+    }
+    {
+      let got = null; const real = window.deliverPNG;
+      window.deliverPNG = async (b, f) => { got = { f, kb: Math.round(b.size / 1024) }; };
+      await exportPNG(); await until(() => got, 8000);
+      window.deliverPNG = real;
+      log(!!got && got.kb > 40 && /^confronto_schede_/.test(got.f), 'Confronto schede: PNG', JSON.stringify(got));
+    }
+    closeCompare(); await sleep(100);
+
+    // Storico: "Storico" acceso fra le viste; nella riga 2 la sua barra; un periodo ne esce
     await open(V); await until(() => vis(el('histbtn')), 5000);
-    el('histbtn').click(); await until(() => histMode && !!histU, 8000); await sleep(300);
     const hb = el('histbtn');
-    log(histMode && vis(hb) && /Storico\s*×/.test(hb.innerText), 'Storico: "Storico ×"', hb.innerText);
-    log(![...el('vars').children].some(vis), 'Storico: niente variabili', '');
-    eq('Storico: azioni', acts(), ['hvCsv', 'copylink']);
-    eq('Storico: si apre su Giorni', histView, 'giorni');
-    eq('Storico/Giorni (apertura): riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
+    hb.click(); await until(() => histMode && !!histU, 8000); await sleep(300);
+    log(histMode && hb.classList.contains('active') && hb.getAttribute('aria-pressed') === 'true' && hb.textContent.trim() === 'Storico',
+        'Storico: acceso fra le viste', hb.outerHTML.slice(0, 120));
+    log(![...el('vars').children].some(vis) && ['hvVar', 'hvView', 'hvRange'].every(id => vis(el(id))), 'Storico: nella riga 2 la sua barra', '');
+    eq('Storico: azioni', acts(), ['hvCsv', 'exportpng', 'copylink']);
+    log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Storico: nessun periodo acceso', '');
     M.storico = gap('hvChart');
     if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
     el('hvView').querySelector('[data-w="mesi"]').click(); await until(() => histView === 'mesi' && !!histU, 8000); await sleep(300);
-    eq('Storico/Mesi: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
-    if(!phone) log(gap('hvChart') <= 75, 'Storico/Mesi: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
-    el('hvVar').querySelector('[data-v="TEMP"]').click(); await sleep(200);
-    el('hvView').querySelector('[data-w="anni"]').click(); await until(() => histView === 'anni' && histVar === 'TEMP' && !!histU, 8000); await sleep(300);
-    eq('Storico/Anni, temperatura: riga 2', ctl2().map(tag2), ['hvVar', 'hvView', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Anni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
-    if(!phone) log(gap('hvChart') <= 75, 'Storico/Anni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
-    if(phone) noOverflow('telefono, Storico/Anni');
-    el('hvView').querySelector('[data-w="giorni"]').click(); await until(() => histView === 'giorni' && !!histU, 8000); await sleep(300);
-    eq('Storico/Giorni: riga 2 col periodo', ctl2().map(tag2), ['hvVar', 'hvView', 'hvRange', 'histbtn']);
-    log(sameRow(ctl2()) && stacked(ctl2(), 'hvChart'), 'Storico/Giorni: riga 2 su una riga, fra la prima e il grafico', JSON.stringify(ctl2().map(e => Math.round(mid(e)))));
-    log(R(hb).left >= Math.max(...ctl2().filter(e => e !== hb).map(e => R(e).right)), 'Storico ×: in fondo alla riga', '');
-    if(!phone) log(gap('hvChart') <= 75, 'Storico/Giorni: grafico a ' + gap('hvChart') + ' px (al massimo 75)', gap('hvChart'));
-    if(phone){ actsOk('telefono, Storico', ['hvCsv', 'copylink']); noOverflow('telefono, Storico'); }
-    hb.click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
-    log(!histMode && !vis(el('histview')) && [...el('vars').children].some(vis) && vis(document.querySelector('button[data-mode="week"]')) && !/×/.test(hb.innerText),
-        '"Storico ×" esce dallo Storico: tornano variabili e modi', hb.innerText);
-    await open(P); await until(() => vis(el('histbtn')), 5000);
-    el('histbtn').click(); await until(() => histMode, 8000); await sleep(800);
-    M.storico234 = gap('hvChart');                                    // Padova non e' nel campione: barra vera, grafico vuoto
-    if(!phone) log(M.storico234 <= 75, 'Storico (Padova): grafico a ' + M.storico234 + ' px dalla barra delle schede (al massimo 75)', M.storico234);
-    await setHistMode(false);
+    log(!vis(el('hvRange')), 'Storico/Mesi: niente periodo dei giorni', '');
+    if(phone){ actsOk('telefono, Storico', ['hvCsv', 'exportpng', 'copylink']); noOverflow('telefono, Storico'); }
+    document.querySelector('#modes [data-mode="day3"]').click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
+    log(!histMode && chartMode === 'day3' && !hb.classList.contains('active') && [...el('vars').children].some(vis),
+        'un periodo esce dallo Storico: tornano le variabili', '');
+    hb.click(); await until(() => histMode, 8000); await sleep(300);
+    hb.click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(200);
+    log(!histMode && !vis(el('histview')), 'Storico: un secondo clic ne esce', '');
+    document.querySelector('#modes [data-mode="week"]').click(); await sleep(200);
 
     // telefono: Arba (12 variabili) e la stazione dal nome piu' lungo
     if(phone){
       await open(A);
-      const c = ctl2(), sc = scroller();
-      log(c.length >= 15 && sameRow(c) && stacked(c, 'chart'), 'telefono: riga 2 su una riga sola (' + c.length + ' comandi), fra la prima e il grafico', JSON.stringify([...new Set(c.map(e => Math.round(mid(e))))]));
-      log(!!sc && sc.scrollWidth > sc.clientWidth + 20, 'telefono: la riga 2 scorre di lato', sc ? sc.scrollWidth + ' / ' + sc.clientWidth : 'nessuna riga che scorre');
-      if(sc){
-        const last = c[c.length - 1];
-        sc.scrollLeft = sc.scrollWidth; await sleep(150);
-        const r = R(last), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-        log(r.left >= -0.5 && r.right <= innerWidth + 0.5 && !!h && last.contains(h), 'telefono: scorrendo si arriva all\'ultimo comando', tag2(last) + ' ' + JSON.stringify([r.left, r.right]));
-        sc.scrollLeft = 0; await sleep(100);
-      }
+      const n = names(), last = n[n.length - 1];
+      log(n.length >= 7 && below(n, Math.max(...tools().map(e => R(e).bottom))) && n.every(e => R(e).right <= innerWidth + 0.5 && R(e).bottom <= R(el('chart')).top + 1),
+          'telefono, Arba: ' + n.length + ' comandi nella riga 2, a capo e dentro lo schermo', JSON.stringify([...new Set(n.map(e => Math.round(mid(e))))]));
+      const h = last && document.elementFromPoint(R(last).left + R(last).width / 2, R(last).top + R(last).height / 2);
+      log(!!h && last.contains(h), 'telefono, Arba: l\'ultimo comando si tocca', last ? last.textContent : '');
+      log(n.every(e => R(e).height >= 28), 'telefono: comandi alti almeno 28 px', JSON.stringify(n.map(e => Math.round(R(e).height))));
       actsOk('telefono, Arba', ['refresh', 'download', 'exportpng', 'copylink']);
       noOverflow('telefono, Arba');
+      noScroller('telefono, Arba');
       M.telefono = gap('chart');
-      const long = allFeatures.map(f => f.properties).filter(p => (p.variables || []).some(v => varCat(v) === currentPage))
+      const long = allFeatures.map(f => f.properties).filter(p => (p.variables || []).some(v => varCat(v) === 'dirette'))
                               .reduce((a, p) => prettyName(p.name || p.scode).length > prettyName(a.name || a.scode).length ? p : a);
       await open(long);
       actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'download', 'exportpng', 'copylink']);
       noOverflow('telefono, nome lungo');
-      log(stacked(ctl2(), 'chart'), 'telefono, nome lungo: riga 2 fra la prima e il grafico', '');
       log(name.scrollWidth <= name.clientWidth + 1, 'telefono, nome lungo: nome intero (va a capo, non tagliato)', JSON.stringify([name.scrollWidth, name.clientWidth]));
-      log(vis(meta) && R(meta).left >= -0.5 && R(meta).right <= innerWidth + 0.5, 'telefono, nome lungo: codice e ultimo dato dentro lo schermo',
-          JSON.stringify([R(meta).left, R(meta).right, innerWidth]));
     }
     showMapView();
     eq('errori JS', window.__errs, []);

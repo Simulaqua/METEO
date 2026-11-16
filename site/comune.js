@@ -18,7 +18,8 @@ async function fdata(path, opts){
 // STATO
 // ------------------------------------------------------------------------------------------------
 let map, chart = null;
-let unitsByRegion = {}, currentStation = null, currentVar = null, currentVar2 = null, currentUnits = {};
+// currentVar = prima variabile del grafico (asse sinistro); extraVars = quelle aggiunte col "+"
+let unitsByRegion = {}, currentStation = null, currentVar = null, extraVars = [], currentUnits = {};
 let allFeatures = [], filterVar = '', selectedKey = '';
 // grafico principale: 'week' | 'day3' | 'day' | 'mn'; confronti: 'compare' | 'compare30' | 'tabs'
 let chartMode = 'week';
@@ -65,6 +66,79 @@ const natCode = (a, b) => {                                     // codici: ordin
 const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
 const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || ((a === WARROW) - (b === WARROW))
   || natCode(a, b);   // la rosa in coda
+
+// Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
+// le misure secondarie, le derivate e gli indici stanno sotto "Altro".
+const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
+  'RADSOL', 'LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO',
+  'VOLINVASO', 'MAREA', 'ONDE', 'PM10', 'PM25', 'NO2', 'O3', 'SO2', 'CO', 'C6H6', 'GAMMA', 'SALINITA',
+  'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA',
+  'VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS', 'VISIB',
+  'TDEW', 'TAPP', 'VPD', 'QSPEC', 'PSLM', 'UWND', 'VWND', WROSE,
+  'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'GDD', 'HDD', 'CDD', 'ET0', 'EAQI', 'O3_8H'];
+const SECONDARY = new Set(['VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS',
+                           'VISIB']);
+const varRank = v => {
+  const i = VAR_ORDER.indexOf(v), c = varCat(v);
+  return i >= 0 ? i : 500 + (c === 'derivate' ? 100 : c === 'indici' ? 200 : 0);
+};
+const byVarOrder = (a, b) => (varRank(a) - varRank(b)) || natCode(a, b);
+// nella riga principale: le misure dirette, tranne le secondarie; con il "Vento" a frecce anche velocita' e
+// direzione vanno sotto "Altro"
+const isMainVar = (v, all) => varCat(v) === 'dirette' && !SECONDARY.has(v)
+  && !((v === 'VVENTO' || v === 'DVENTO') && all.includes(WARROW));
+const VAR_SHORT = {
+  TEMP:'Temperatura', UMID:'Umidità', PREC:'Pioggia', PRESS:'Pressione', RADSOL:'Radiazione', LIVNEVE:'Neve',
+  VVENTO:'Velocità vento', VVENTOMAX:'Raffica', VVENTOSCAL:'Vento scalare', LIVIDRO:'Livello',
+  FREATICA:'Falda', TEMPACQUA:'Temperatura acqua', SOLEGG:'Soleggiamento', BAGNATURA:'Bagnatura',
+  CLOUDINESS:'Nuvolosità'
+};
+const varShort = v => VAR_SHORT[v] || varLabel(v);
+
+// Un colore per grandezza, uguale in ogni vista (temperatura rossa, pioggia blu...). Le coppie che si
+// guardano insieme (T e rugiada, pioggia e livello, vento e raffica) restano distinte anche per chi non
+// vede i colori.
+const INK = '#2f3b48';
+const VAR_COLORS = {
+  TEMP:'#e34948', TAPP:'#f08c00', TDEW:'#862e9c', TEMPACQUA:'#1098ad',
+  UMID:'#2bb39a', QSPEC:'#0b7285', VPD:'#e8590c',
+  PREC:'#1f6fd1', PREC1:'#1f6fd1', PREC3:'#1f6fd1', PREC6:'#1f6fd1', PREC12:'#1f6fd1', PREC24:'#1f6fd1',
+  PREC48:'#1f6fd1', PREC_TYPE:'#74c0fc', LIVNEVE:'#74c0fc',
+  [WARROW]:'#a23b9e', [WROSE]:'#a23b9e', VVENTO:'#a23b9e', VVENTOSCAL:'#a23b9e', DVENTO:'#a23b9e',
+  VVENTOMAX:'#f08c00', DVENTOMAX:'#f08c00', UWND:'#a23b9e', VWND:'#5f3dc4',
+  PRESS:INK, PSLM:'#868e96', RADSOL:'#eda100', SOLEGG:'#f08c00', CLOUDINESS:'#868e96', VISIB:'#868e96',
+  BAGNATURA:'#2b8a3e',
+  LIVIDRO:INK, LIVLAGO:INK, FREATICA:INK, MAREA:INK, PORTATA:'#e8590c', AFFLUSSO:'#e8590c',
+  DEFLUSSO:'#0b7285', VOLINVASO:'#5f3dc4', SOLIDI:'#8a5a2b', ONDE:'#1f6fd1',
+  PM10:'#8a5a2b', PM25:'#e8590c', NO2:'#5f3dc4', O3:'#2bb39a', O3_8H:'#2bb39a', SO2:'#c2255c', CO:INK,
+  C6H6:'#2b8a3e', EAQI:INK, GAMMA:'#868e96',
+  SALINITA:'#0b7285', OSSIGENO:'#1f6fd1', OSSIGENO_SAT:'#74c0fc', PH:'#5f3dc4', CLOROFILLA:'#2b8a3e',
+  CONDUCIBILITA:'#e8590c', GDD:'#e8590c', HDD:'#1f6fd1', CDD:'#e34948', ET0:'#2bb39a'
+};
+// testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
+const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',
+                  '#74c0fc':'#1971c2', '#868e96':'#5f6670', '#e8590c':'#c2410c', '#1098ad':'#0b7285' };
+// tema scuro: le tinte scure si schiariscono
+const VAR_DARK = { [INK]:'#dce6f2', '#1f6fd1':'#4d94ea', '#a23b9e':'#c86bc4', '#862e9c':'#b565c9',
+                   '#5f3dc4':'#9179f0', '#0b7285':'#22b8cf', '#8a5a2b':'#c08a55', '#2b8a3e':'#40c057',
+                   '#c2255c':'#e64980', '#868e96':'#adb5bd' };
+// text = per scritte (assi); onWhite = per le immagini PNG, sempre su bianco
+function varColor(v, text, onWhite){
+  const c = VAR_COLORS[v] || '#868e96';
+  if(!onWhite && document.body.classList.contains('dark')) return VAR_DARK[c] || c;
+  return text ? (VAR_INK[c] || c) : c;
+}
+
+// scarica un file generato nella pagina (CSV, PNG sul computer)
+function saveBlob(blob, fname){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
 // Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
 const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
 function fmtNum(v, vr){

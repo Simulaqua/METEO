@@ -792,17 +792,15 @@ function exitHist(){
   if(!histMode) return;
   histMode = false;
   document.body.classList.remove('hist-mode');
-  const b = el('histbtn');
-  b.classList.remove('active');
-  b.setAttribute('aria-pressed', 'false');
   if(histU){ histU.destroy(); histU = null; }
   hvInfo(false);
   histWin = null;
+  syncModes();
 }
 async function setHistMode(on, v, w){
   if(!on){
     exitHist();
-    if(currentStation && currentVar){ syncVarButtons(); renderChart(currentVar); }
+    if(currentStation && currentVar){ buildVarRow(); renderChart(currentVar); }
     updateHash();
     return;
   }
@@ -813,13 +811,13 @@ async function setHistMode(on, v, w){
   document.body.classList.remove('rose-mode');
   histVar = hv.includes(v) ? v : (hv.includes(currentVar) ? currentVar : hv[0]);
   currentVar = histVar;
+  extraVars = [];
   if(w) histView = w;
   histMode = true;
   document.body.classList.add('hist-mode');
-  const b = el('histbtn');
-  b.classList.add('active');
-  b.setAttribute('aria-pressed', 'true');
-  syncVarButtons();
+  altClose();
+  syncModes();
+  buildVarRow();
   await renderHist();
 }
 function exportHistCSV(){
@@ -834,15 +832,164 @@ function exportHistCSV(){
       c(h.p[i]), c(h.hp[i]), c(h.tn[i]), c(h.tx[i]), c(h.tm[i]), c(h.ht[i])
     ].join(';'));
   }
-  const blob = new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'storico_' + prettyName(currentStation.name || currentStation.scode).replace(/[^\w-]+/g, '_') +
-               '_' + currentStation._region + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }),
+           'storico_' + pngBase() + '.csv');
+}
+// ---- PNG dello Storico: il grafico ridisegnato grande, o la Tabella disegnata cella per cella. L'immagine
+// e' su bianco: viste e colori si leggono col tema chiaro (tolto e rimesso senza che lo schermo si
+// ridisegni) ----
+const HV_VIEW_TXT = { giorni:'Giorni', mesi:'Mesi', anni:'Anni', tabella:'Tabella' };
+function hvLight(fn){
+  const dark = document.body.classList.contains('dark');
+  if(dark) document.body.classList.remove('dark');
+  try { return fn(); } finally { if(dark) document.body.classList.add('dark'); }
+}
+async function histPNG(){
+  const h = histData, st = currentStation;
+  if(!h || !st) return null;
+  const d = ts => new Date(ts * 1000).toISOString().slice(0, 10).split('-').reverse().join('/');
+  const title = prettyName(st.name || st.scode) + ' — ' + (histVar === 'PREC' ? 'pioggia' : 'temperatura') +
+                ', ' + HV_VIEW_TXT[histView];
+  const what = 'Dati dal ' + d(h.x[0]) + ' al ' + d(h.x[h.n - 1]);
+  const cv = histView === 'tabella' ? hvLight(() => hvTableCanvas(title, what))
+                                    : await hvChartCanvas(h, title, what);
+  if(!cv) return null;
+  return { blob: toPng(cv), fname: pngBase() + '_storico_' + histVar + '_' + histView + '.png' };
+}
+async function hvChartCanvas(h, title, what){
+  const r = hvLight(() => {
+    const v = histView === 'anni' ? (histVar === 'TEMP' ? hvCurveView(h) : hvRainYearsView(h))
+            : histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar);
+    if(!v.msg){
+      v.keyEl = document.createElement('div');
+      v.keyEl.innerHTML = v.key.map(s => '<span>' + s + '</span>').join('');
+    }
+    return v;
+  });
+  if(r.msg) return null;
+  const W = 1500, H = 640, TOP = 124, L = 12, o = r.opts;
+  Object.assign(o, { width:W, height:H, hooks:{}, cursor:{ show:false } });
+  o.padding = [20, o.padding[1] * 2, 0, 0];                 // a destra il posto per i nomi degli anni
+  o.axes.forEach(a => Object.assign(a, {
+    font:'20px system-ui, sans-serif', labelFont:'700 22px system-ui, sans-serif',
+    size:(a.size || 50) * 1.5, labelSize:a.label ? 30 : 0
+  }));
+  if(histView === 'giorni' && histU && histU.scales.x.min != null){
+    const xr = [histU.scales.x.min, histU.scales.x.max];
+    o.scales.x.range = () => xr;
+  }
+  if(histView === 'anni' && histVar === 'TEMP') title += ' (' + r.year + ')';
+  const plot = await offPlot(o, r.data, W, H);
+  const { cv, ctx } = pngCanvas(L + W + 12, TOP + H + 20);
+  pngHead(ctx, title, what, true, 'Giorno solare (UTC+1)');
+  hvDrawKey(ctx, r.keyEl, L, 104);
+  ctx.drawImage(plot.u.ctx.canvas, L, TOP, W, H);
+  if(r.ends) hvDrawEnds(ctx, plot.u, r.ends, L, TOP);
+  plot.done();
+  return cv;
+}
+// chiave della vista: segno (riquadro o linea, sottile o tratteggiata) e testo, in riga
+function hvDrawKey(ctx, keyEl, x, y){
+  ctx.font = '17px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  [...keyEl.children].forEach(span => {
+    const sw = span.querySelector('.sw'), text = span.textContent.trim();
+    let c = sw ? (sw.style.background || sw.style.borderColor) : '';
+    if(!c || c.startsWith('var(')) c = '#6b7a8d';
+    if(sw && sw.classList.contains('ln')){
+      ctx.strokeStyle = c;
+      ctx.lineWidth = sw.classList.contains('thin') ? 1.5 : 3;
+      ctx.setLineDash(sw.classList.contains('dash') ? [8, 5] : []);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 26, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if(sw){
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y - 8, 22, 16);
+    }
+    ctx.fillStyle = '#22303c';
+    ctx.fillText(text, x + 34, y);
+    x += 34 + ctx.measureText(text).width + 28;
+  });
+  ctx.textBaseline = 'alphabetic';
+}
+// nomi degli anni a destra dell'ultimo punto, uno sotto l'altro se si toccherebbero (come hvPlaceYears)
+function hvDrawEnds(ctx, u, ends, ox, oy){
+  const H = 22, near = (p, q) => Math.abs(p.x - q.x) < 60;
+  const bottom = oy + (u.bbox.top + u.bbox.height) / PNG_R - H;
+  const ps = ends.map(e => ({ e, x:ox + u.valToPos(e.x, 'x', true) / PNG_R + 8,
+                              y:oy + u.valToPos(e.y, 'y', true) / PNG_R - H / 2 })).sort((a, b) => a.y - b.y);
+  ps.forEach((p, k) => ps.slice(0, k).forEach(q => { if(near(p, q) && p.y < q.y + H) p.y = q.y + H; }));
+  for(let k = ps.length - 1; k >= 0; k--){
+    ps[k].y = Math.min(ps[k].y, bottom);
+    ps.slice(k + 1).forEach(q => { if(near(ps[k], q) && ps[k].y > q.y - H) ps[k].y = q.y - H; });
+  }
+  ctx.font = '600 18px system-ui, sans-serif';
+  ctx.textBaseline = 'top';
+  ps.forEach(p => {
+    ctx.fillStyle = p.e.color;
+    ctx.fillText(p.e.name, p.x, p.y);
+  });
+  ctx.textBaseline = 'alphabetic';
+}
+// Tabella: ogni casella col suo fondo, la barra della pioggia, i bordi e il numero, 1.6 volte piu' grande
+function hvTableCanvas(title, what){
+  const box = el('hvTable'), table = box.querySelector('table');
+  if(!table) return null;
+  const sl = box.scrollLeft, Z = 1.6, L = 12, TOP = 96, key = box.querySelector('.hv-dev');
+  box.scrollLeft = 0;                          // la prima colonna e' fissa: senza scorrere sta al suo posto
+  try {
+    const tr = table.getBoundingClientRect(), kr = key && key.getBoundingClientRect();
+    const KH = kr ? kr.height * Z + 14 : 0;
+    const W = Math.max(tr.width * Z, kr ? kr.width * Z : 0, 640) + 2 * L;
+    const { cv, ctx } = pngCanvas(W, TOP + KH + tr.height * Z + 20);
+    pngHead(ctx, title, what, true, 'Giorno solare (UTC+1)');
+    if(kr) key.querySelectorAll('*').forEach(e => {
+      if(!e.children.length) hvDrawBox(ctx, e, kr, L, TOP, Z);
+    });
+    table.querySelectorAll('th, td').forEach(c => hvDrawBox(ctx, c, tr, L, TOP + KH, Z));
+    return cv;
+  } finally { box.scrollLeft = sl; }
+}
+function hvDrawBox(ctx, c, base, ox, oy, Z){
+  const r = c.getBoundingClientRect(), cs = getComputedStyle(c), px = k => (parseFloat(cs[k]) || 0) * Z;
+  const x = ox + (r.left - base.left) * Z, y = oy + (r.top - base.top) * Z, w = r.width * Z, h = r.height * Z;
+  const b = { t:px('borderTopWidth'), r:px('borderRightWidth'), b:px('borderBottomWidth'),
+              l:px('borderLeftWidth') };
+  const visible = col => col && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(col);
+  ctx.save();
+  ctx.globalAlpha = +cs.opacity;
+  if(visible(cs.backgroundColor)){
+    ctx.fillStyle = cs.backgroundColor;
+    ctx.fillRect(x + b.l, y + b.t, w - b.l - b.r, h - b.t - b.b);
+  }
+  const bw = c.style.getPropertyValue('--w');
+  if(bw){                                      // barra della pioggia dietro il numero
+    const pl = px('paddingLeft'), pr = px('paddingRight'), pt = px('paddingTop'), pb = px('paddingBottom');
+    ctx.fillStyle = cs.getPropertyValue('--hvc').trim();
+    ctx.fillRect(x + b.l + pl, y + b.t + pt, (w - b.l - b.r - pl - pr) * parseFloat(bw) / 100,
+                 h - b.t - b.b - pt - pb);
+  }
+  if(b.b && cs.borderBottomStyle !== 'none' && visible(cs.borderBottomColor)){
+    ctx.fillStyle = cs.borderBottomColor;
+    ctx.fillRect(x, y + h - b.b, w, b.b);
+  }
+  if(b.t && cs.borderTopStyle !== 'none' && visible(cs.borderTopColor)){
+    ctx.fillStyle = cs.borderTopColor;
+    ctx.fillRect(x, y, w, b.t);
+  }
+  const txt = c.children.length ? '' : c.textContent.trim();
+  if(txt){
+    const right = cs.textAlign === 'right' || cs.textAlign === 'end';
+    ctx.fillStyle = cs.color;
+    ctx.font = cs.fontWeight + ' ' + parseFloat(cs.fontSize) * Z + 'px ' + cs.fontFamily;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = right ? 'right' : 'left';
+    ctx.fillText(txt, right ? x + w - b.r - px('paddingRight') : x + b.l + px('paddingLeft'), y + h / 2);
+  }
+  ctx.restore();
 }
 function buildHistControls(){
   el('histbtn').addEventListener('click', () => setHistMode(!histMode));
@@ -851,7 +998,6 @@ function buildHistControls(){
     if(!b) return;
     histVar = b.dataset.v;
     currentVar = histVar;
-    syncVarButtons();
     renderHist();
   });
   el('hvView').addEventListener('click', e => {

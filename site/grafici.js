@@ -18,17 +18,21 @@ function windObsCount(t){
   }
   return n;
 }
+// La rosa segue il periodo scelto (Oggi, 24 h, 3 g, 7 g).
 function updateWindRose(){
   const box = el('windrose');
   const t = currentStation && currentStation._table;
   const dirs = t && t.cols['DVENTO'], sps = t && t.cols['VVENTO'];
   if(!dirs || !sps){ box.innerHTML = ''; return; }
+  let lo = Infinity, hi = tableEnd(t, ['DVENTO', 'VVENTO']);
+  t.x.forEach(x => { if(x != null && x < lo) lo = x; });
+  const from = (hi == null || isCompareMode()) ? -Infinity : modeStart(chartMode, lo, hi);
   // conteggi per (16 settori x classe di velocita'), piu' somme vettoriale e scalare
   const grid = Array.from({length:16}, () => new Array(_WR_CLASSES.length).fill(0));
   let n = 0, calm = 0, su = 0, sv = 0, ss = 0;
   for(let i=0;i<dirs.length;i++){
     const d = dirs[i], s = sps[i];
-    if(d == null || s == null || isNaN(d) || isNaN(s)) continue;
+    if(d == null || s == null || isNaN(d) || isNaN(s) || t.x[i] < from) continue;
     n++;
     ss += s;
     const rad = d * Math.PI / 180;
@@ -86,23 +90,23 @@ function updateWindRose(){
   }
   svg += `<circle cx="${cx}" cy="${cy}" r="${calmR}" fill="#eef2f6" stroke="#d7dee6"/>`
        + `<text x="${cx}" y="${cy+3}" font-size="8" fill="#7a8794" text-anchor="middle">calme</text>`;
-  // vento medio vettoriale: freccia dal centro verso la provenienza (come i petali)
+  // vento medio vettoriale: freccia dal centro verso la provenienza (come i petali); i numeri al passaggio
   const vspeed = Math.hypot(su, sv) / n, sspeed = ss / n;
   const fromDeg = (Math.atan2(-su, -sv) * 180/Math.PI + 360) % 360;
   if(vspeed > 0.1){
     const [hx,hy] = P(R*0.62, fromDeg);
-    svg += `<line x1="${cx}" y1="${cy}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="2"/>`
-         + `<circle cx="${hx}" cy="${hy}" r="2.5" fill="#c05621"/>`;
+    svg += `<g><title>Vento medio ${vspeed.toFixed(1)} m/s da ${_dirName(fromDeg)}; media scalare ` +
+           `${sspeed.toFixed(1)} m/s; calme ${(calm/n*100).toFixed(0)}%; ${n} osservazioni</title>` +
+           `<line x1="${cx}" y1="${cy}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="2"/>` +
+           `<circle cx="${hx}" cy="${hy}" r="2.5" fill="#c05621"/></g>`;
   }
   const legend = _WR_CLASSES.map(c =>
     `<span style="white-space:nowrap"><i style="display:inline-block;width:9px;height:9px;background:${c.c};border:1px solid #bbb;vertical-align:-1px"></i> ${c.l}</span>`
   ).join(' ');
   box.innerHTML =
-    `<div class="wr-title">Rosa dei venti <span class="wr-sub">· ${n} osservazioni</span></div>` +
-    `<svg viewBox="0 0 260 250" width="100%" style="max-width:300px;display:block;margin:0 auto">${svg}</svg>` +
-    `<div class="wr-legend">m/s: ${legend}</div>` +
-    `<div class="wr-mean">Vento medio (vettoriale): <b>${vspeed.toFixed(1)} m/s</b> da <b>${windDirHtml(fromDeg)}</b>` +
-      ` · media scalare ${sspeed.toFixed(1)} m/s · calme ${(calm/n*100).toFixed(0)}%</div>`;
+    `<svg viewBox="0 0 260 250" width="100%" font-family="system-ui, sans-serif" ` +
+    `style="max-width:300px;display:block;margin:0 auto">${svg}</svg>` +
+    `<div class="wr-legend">m/s ${legend}</div>`;
 }
 
 // CONFRONTO SCHEDE: stessa variabile, una serie per ogni stazione aperta in scheda
@@ -112,7 +116,6 @@ function renderCompareTabs(label, unit){
     unit = t0 ? (unitsByRegion[t0.props._region] || {})[label] : '';
   }
   clearChart();
-  el('chartstats').textContent = '';
   const tabs = openTabs.filter(t =>
     t.props._table && (t.props._table.cols[label] || []).some(v => v != null));
   if(tabs.length < 2){
@@ -183,30 +186,44 @@ function renderCompareTabs(label, unit){
     });
     if(xs.length) full = [xs[0], xs[xs.length - 1]];
   }
-  const series = [{ value: (u, ts) => ts==null ? '--' : fmtFull(ts) }].concat(specs.map(d => mkSeries(d)));
-  const yAx = { grid:{stroke:GRID()}, size:58, label: uLab, labelSize:26, labelGap:4, stroke:AXTX() };
-  const axes = [
-    { grid:{stroke:GRID()}, stroke:AXTX(), values: (u, ticks) => ticks.map(fmtAxis) },
-    dir ? dirAxis(yAx) : yAx
-  ];
-  const opts = {
-    width: chartWidth(), height: chartHeight(), tzDate: TZ_CIV, legend: { show:false },
-    scales: {
-      x: {
-        time:true,
-        range: (u, a, b) => (full && a <= full[0] + 1 && b >= data[0][data[0].length - 1] - 1) ? full : [a, b]
+  const opts = (hi, W, H) => {
+    const fnt = hi ? { font: '20px system-ui, sans-serif' } : {}, grid = hi ? '#e3e9f0' : GRID(),
+          ax = hi ? '#33475a' : AXTX();
+    const lab = hi ? { labelFont: '700 24px system-ui, sans-serif', labelSize: 32, labelGap: 6 }
+                   : { labelSize: 26, labelGap: 4 };
+    const yAx = Object.assign({ grid:{ stroke: grid }, size: hi ? 82 : 58, label: uLab, stroke: ax },
+                              lab, fnt);
+    return {
+      width: W, height: H, tzDate: TZ_CIV, legend: { show:false },
+      scales: {
+        x: {
+          time:true,
+          range: (u, a, b) => (full && a <= full[0] + 1 && b >= data[0][data[0].length - 1] - 1)
+            ? full : [a, b]
+        },
+        y: yScaleFor(label)
       },
-      y: yScaleFor(label)
-    },
-    series, axes, cursor: { drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
-    hooks: { drawClear: [ dayBands ] },
+      series: [{ value: (u, ts) => ts==null ? '--' : fmtFull(ts) }].concat(specs.map(d => mkSeries(d, hi))),
+      axes: [
+        Object.assign({ grid:{ stroke: grid }, stroke: ax, values: (u, ticks) => ticks.map(fmtAxis) },
+                      hi ? { size: 46 } : {}, fnt),
+        dir ? dirAxis(yAx) : yAx
+      ],
+      cursor: hi ? { show:false }
+                 : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
+      hooks: hi ? { drawClear: [ dayBands ] } : { drawClear: [ dayBands ], setCursor: [ legendCursor ] }
+    };
   };
-  chart = new uPlot(opts, data, el('chart'));
+  chart = new uPlot(opts(false, chartWidth(), chartHeight()), data, el('chart'));
+  chart._hi = (W, H) => opts(true, W, H);
+  chart._unit = uLab;
+  chart._dir = dir;
+  addLabels(chart);
   addZoomUI(chart, () => full, HOUR);
   el('chartlegend').style.display = '';
-  el('chartlegend').innerHTML = series.slice(1).map((sr, k) =>
+  el('chartlegend').innerHTML = specs.map((d, k) =>
     '<div class="lg-row"><span class="lg-sw" style="background:' + COLS[k % COLS.length] + '"></span>'
-    + sr.label + '</div>').join('');
+    + escHtml(d.label) + '</div>').join('');
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -216,7 +233,6 @@ function clearChart(){
   if(chart){ chart.destroy(); chart = null; }
   if(stackObj){ stackObj.destroy(); stackObj = null; }
   el('chart').innerHTML='';
-  el('chartstats').textContent = '';
 }
 
 // Larghezza = colonna del grafico (la legenda uPlot e' spenta, la nostra sta a destra). Altezza = solo
@@ -237,16 +253,9 @@ const AXTX = () => document.body.classList.contains('dark') ? '#c7d3e0' : '#1c27
 function renderLegend(u){
   const box = el('chartlegend');
   box.innerHTML = '';
-  box._idle = null;
   box._rows = null;
   if(chartMode === 'compare30') return;                     // 30 giorni: niente elenco (troppi giorni)
-  if(!isCompareMode()){
-    // variabile singola: valori e ora in un'etichetta accanto al cursore (legendCursor)
-    u._tip = document.createElement('div');
-    u._tip.className = 'ctip';
-    u.over.appendChild(u._tip);
-    return;
-  }
+  if(!isCompareMode()){ addLabels(u); return; }             // valori accanto ai punti (cursorLabels)
   const rows = [];
   for(let i = 1; i < u.series.length; i++){
     const s = u.series[i];
@@ -264,56 +273,53 @@ function renderLegend(u){
 // il punto valido piu' vicino (serie con orari diversi sono allineate con dei vuoti).
 function legendCursor(u){
   if(u !== chart) return;
+  if(u._labs){ cursorLabels(u); return; }
   const box = el('chartlegend'), idxs = u.cursor.idxs, gi = u.cursor.idx;
-  const at = i => (idxs && idxs[i] !== undefined) ? idxs[i] : gi;
-  const val = i => {
-    const j = at(i), d = u.data[i], v = (j != null && d) ? d[j] : null;
-    return (v == null || v === '') ? null : v;
-  };
-  if(u._tip){
-    const tip = u._tip, m = u._m || {}, un = x => x ? ' ' + escHtml(x) : '';
-    if(gi == null || u.cursor.left == null || u.cursor.left < 0){ tip.style.display = 'none'; return; }
-    const parts = [], v = val(1);
-    if(v != null) parts.push('<b class="c1">' + v + un(m.unit1) + '</b>');
-    const dw = m.wind && m.wind.dirs[at(1)];
-    if(dw != null) parts.push('<span>da ' + windDirHtml(dw) + '</span>');
-    if(m.iV2){
-      const v2 = val(m.iV2);
-      if(v2 != null) parts.push('<b class="c2">' + v2 + un(m.unit2) + '</b>');
-    }
-    if(m.iCum){
-      const c = val(m.iCum);
-      if(c != null) parts.push(
-        '<span class="c3">tot ' + fmtNum(round2(c - (u.scales.cum.min || 0))) + un(m.unit1) + '</span>');
-    }
-    const j = at(1),
-          tt = (j != null && u.data[0][j] != null) ? slotTimeTxt(u, 1, j)
-             : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
-    tip.innerHTML = (parts.length ? parts.join('<i> · </i>') : '<span class="t">nessun dato</span>') +
-                    '<div class="t">' + tt + '</div>';
-    placeTip(u, tip);
-    return;
-  }
-  if(box._rows){
-    for(let i = 1; i < u.series.length; i++){
-      // cursore fuori dal grafico: valori "a riposo" se ci sono (pioggia: totale del giorno)
-      const v = (gi == null && box._idle) ? box._idle[i-1] : val(i);
-      if(box._rows[i-1]) box._rows[i-1].textContent = v == null ? '' : v;
-    }
+  if(!box._rows) return;
+  for(let i = 1; i < u.series.length; i++){
+    const j = (idxs && idxs[i] !== undefined) ? idxs[i] : gi, d = u.data[i];
+    const v = (j != null && d && d[j] !== '') ? d[j] : null;
+    if(box._rows[i-1]) box._rows[i-1].textContent = v == null ? '' : v;
   }
 }
-// Etichetta in basso a destra del puntatore, dall'altra parte vicino ai bordi; sul telefono SOPRA il punto
-// toccato, cosi' il dito non la copre.
-function placeTip(u, tip){
-  tip.style.display = 'block';
-  const l = u.cursor.left, t = u.cursor.top, W = u.over.clientWidth, H = u.over.clientHeight;
-  const w = tip.offsetWidth, h = tip.offsetHeight, touch = matchMedia('(pointer:coarse)').matches;
-  let x = l + 14, y = touch ? t - h - 40 : t + 16;
-  if(x + w > W - 2) x = l - 14 - w;
-  if(x < 2) x = Math.min(2, W - w - 2);
-  if(y + h > H - 2) y = t - h - 14;
-  if(y < 2) y = touch ? Math.min(t + 40, H - h - 2) : 2;
-  tip.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+function addLabels(u){
+  u._labs = document.createElement('div');
+  u._labs.className = 'clabs';
+  u._labs.hidden = true;
+  u.over.appendChild(u._labs);
+}
+const numTxt = v => String(+(+v).toFixed(2));
+const unitTxt = un => un ? ' ' + escHtml(un) : '';
+// Al cursore: il valore accanto a ogni punto, l'ora in alto; niente riquadro. Le etichette stanno sopra il
+// punto, a destra del cursore (a sinistra vicino al bordo destro), e non si sovrappongono.
+function cursorLabels(u){
+  const box = u._labs, gi = u.cursor.idx, left = u.cursor.left;
+  if(gi == null || left == null || left < 0){ box.hidden = true; return; }
+  const m = u._m, idxs = u.cursor.idxs, at = i => (idxs && idxs[i] !== undefined) ? idxs[i] : gi;
+  const W = u.over.clientWidth, H = u.over.clientHeight, tags = [];
+  for(let i = 1; i < u.series.length; i++){
+    const j = at(i), v = (j != null && u.data[i]) ? u.data[i][j] : null;
+    if(v == null || v === '' || !u.series[i].show) continue;
+    const s = m && m.ss[i - 1];
+    let html;
+    if(m && i === m.iCum) html = 'tot ' + fmtNum(round2(v - (u.scales.cum.min || 0))) + unitTxt(m.s1.unit);
+    else if(s ? isDirVar(s.src) : u._dir) html = windDirHtml(v);
+    else {
+      html = numTxt(v) + unitTxt(s ? s.unit : u._unit);
+      const d = m && m.wind && i === m.wind.i ? m.wind.dirs[j] : null;
+      if(d != null) html += ' ' + windDirHtml(d);
+    }
+    tags.push({ y: u.valToPos(v, u.series[i].scale), html });
+  }
+  tags.sort((a, b) => a.y - b.y);
+  tags.forEach(t => { t.y = Math.min(Math.max(t.y - 18, 16), H - 16); });
+  for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
+  const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null;
+  const tt = x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
+  const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
+  box.innerHTML = `<span class="cl-t" style="left:${tx}px">${tt}</span>` + tags.map(t =>
+    `<span class="cl-v${side}" style="left:${left}px;top:${Math.round(t.y)}px">${t.html}</span>`).join('');
+  box.hidden = false;
 }
 
 // Asse X: etichetta solo sull'ora tonda (a mezzanotte la data GG/MM): niente "11 11 11 12" con finestre
@@ -402,7 +408,6 @@ function modeStart(mode, lo, hi){
 }
 // 24 h e MN: letture originali; 7 e 3 giorni: barre orarie
 const rawMode = mode => mode === 'day' || mode === 'mn';
-const SECT8 = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 const round2 = v => Math.round(v * 100) / 100;
 const CUMC = () => document.body.classList.contains('dark') ? '#90cdf4' : '#1a365d';
 
@@ -447,7 +452,11 @@ function mkSeries(d, hi){
     s.width = hi ? 3 : 2;
     s.spanGaps = true;
     s.points = { show:false };
-  } else s.points = { show: d.pts == null ? true : d.pts, size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
+  } else {
+    // pallini solo dove i dati sono radi (uPlot li mostra se c'e' spazio), mai sulla linea fitta
+    s.points = { size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
+    if(d.pts != null) s.points.show = d.pts;
+  }
   return s;
 }
 // punto del cursore: niente pallino sulle barre, normale su linee e puntini
@@ -732,7 +741,7 @@ function windArrows(xs, sp, dir, from, to, hourly){
   }));
   return out.sort((p, q) => p.x - q.x);
 }
-function drawArrows(arrows, color, hi, dense){
+function drawArrows(arrows, color, hi, dense, scale){
   return u => {
     const ctx = u.ctx, bb = u.bbox, pr = devicePixelRatio || 1, sx = u.scales.x;
     const n = (hi ? (dense ? 8 : 11) : (dense ? 4.5 : 6.5)) * pr;
@@ -746,7 +755,7 @@ function drawArrows(arrows, color, hi, dense){
     arrows.forEach(a => {
       if(a.x < sx.min || a.x > sx.max) return;
       ctx.save();
-      ctx.translate(u.valToPos(a.x, 'x', true), u.valToPos(a.s, 'y', true));
+      ctx.translate(u.valToPos(a.x, 'x', true), u.valToPos(a.s, scale || 'y', true));
       ctx.rotate((a.d + 180) * Math.PI / 180);
       ctx.beginPath();
       ctx.moveTo(0, n);
@@ -795,62 +804,6 @@ function cumAxis(hi, color){
       return String(+d.toFixed(Math.abs(d % 1) > 1e-9 ? 1 : 0));
     })
   }, hi ? { font: '20px system-ui, sans-serif', labelFont: '700 24px system-ui, sans-serif' } : {});
-}
-
-const durTxt = s => (s >= HOUR && s % HOUR === 0) ? (s / HOUR) + ' h' : Math.round(s / 60) + ' min';
-function gapHours(gaps, a, b){
-  let t = 0;
-  (gaps || []).forEach(g => {
-    const l = Math.min(g[1], b) - Math.max(g[0], a);
-    if(l > 0) t += l;
-  });
-  return t / HOUR;
-}
-function prevailingDir(vals){
-  const c = new Array(8).fill(0);
-  vals.forEach(v => c[Math.round((((v % 360) + 360) % 360) / 45) % 8]++);
-  let k = 0;
-  for(let i = 1; i < 8; i++) if(c[i] > c[k]) k = i;
-  return SECT8[k];
-}
-// Gradi del centro del settore prevalente (freccia accanto a "prevalente NE"); null se v non e' una direzione
-// o non ci sono dati.
-function prevailingDeg(v, xs, ys, a, b){
-  if(!isDirVar(v)) return null;
-  const vals = [];
-  for(let i = 0; i < xs.length; i++){
-    const x = xs[i], y = ys[i];
-    if(x != null && y != null && !isNaN(y) && x >= a && x <= b) vals.push(y);
-  }
-  return vals.length ? SECT8.indexOf(prevailingDir(vals)) * 45 : null;
-}
-function setStats(node, txt, deg){
-  if(deg == null) node.textContent = txt; else node.innerHTML = 'prevalente ' + windDirHtml(deg);
-}
-// Statistiche della serie (xs, ys) di v sull'intervallo [a, b] (segue lo zoom). rs = info pioggia (durata
-// delle barre, buchi); unit = '' per non ripetere l'unita'.
-function statsText(v, unit, xs, ys, a, b, rs){
-  const vals = [];
-  for(let i = 0; i < xs.length; i++){
-    const x = xs[i], y = ys[i];
-    if(x == null || y == null || isNaN(y) || x < a || x > b) continue;
-    vals.push(y);
-  }
-  const un = unit ? ' ' + unit : '', gh = rs ? Math.round(gapHours(rs.gaps, a, b)) : 0;
-  const gap = gh >= 1 ? ' · ' + gh + ' h senza dati' : '';
-  if(!vals.length) return 'nessun dato' + gap;
-  let mn = Infinity, mx = -Infinity, s = 0;
-  vals.forEach(y => {
-    if(y < mn) mn = y;
-    if(y > mx) mx = y;
-    s += y;
-  });
-  if(isDirVar(v)) return 'prevalente ' + prevailingDir(vals);
-  if(v === 'PREC') return 'totale ' + fmtNum(round2(s)) + un + ' · max ' + fmtNum(mx) + un +
-                          ' in ' + durTxt((rs && rs.slot) || HOUR) + gap;
-  if(isRain(v)) return 'max ' + fmtNum(mx) + un + gap;
-  return 'min ' + fmtNum(mn, v) + ' · max ' + fmtNum(mx, v) +
-         ' · media ' + fmtNum(round2(s / vals.length), v) + un;
 }
 
 // ZOOM: trascinamento col mouse (gia' in uPlot); sul telefono pizzico a due dita e trascinamento orizzontale
@@ -944,161 +897,161 @@ function tableEnd(t, vars){
   return null;
 }
 
-// grafico principale: 'week' (7gg), 'day3' (3gg), 'day' (24h); 'compare'/'compare30' -> renderCompare
+// grafico principale: 'week' (7 g), 'day3' (3 g), 'day' (24 h), 'mn' (da mezzanotte), con le variabili
+// scelte; 'compare'/'compare30' -> renderCompare (una variabile)
 function renderChart(label){
   clearChart();
-  if(stackMode){ renderStackView(); return; }
+  const stk = stacked();
+  document.body.classList.toggle('stacked', stk);
+  if(stk){ renderStackView(); return; }
   // La colonna a destra c'e' solo nel Confronto 7 giorni (elenco dei giorni con i valori); il confronto fra
   // schede la gestisce da se', nei 30 giorni sarebbe troppo lunga. Va decisa PRIMA di creare il grafico.
   el('chartlegend').style.display = chartMode === 'compare' ? '' : 'none';
   const unit = varUnit(label, currentStation);
   if(chartMode === 'compare' || chartMode === 'compare30'){
     const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
-    el('chartstats').textContent = '';
     if(t) renderCompare(t, label, unit);
     return;
   }
   if(chartMode === 'tabs'){ renderCompareTabs(label, unit); return; }
-  const v2 = (currentVar2 && currentVar2 !== label) ? currentVar2 : null;   // 2ª variabile (asse dx, rossa)
-  const m = mainModel(currentStation, label, v2, chartMode);
+  const m = mainModel(currentStation, selVars(), chartMode);
   chart = new uPlot(mainOpts(m, { w: chartWidth(), h: chartHeight() }), m.data, el('chart'));
   chart._m = m;
   chart._hi = (W, H) => mainOpts(m, { w: W, h: H, hi: true });
   renderLegend(chart);
   addZoomUI(chart, () => m.win, HOUR);
-  mainStats(chart);
 }
-function mainModel(st, v, v2, mode){
-  const t = st._table, arrows = v === WARROW;
-  if(arrows){
-    v = 'VVENTO';
-    v2 = null;
-  }
+// Una serie per variabile (vars[0] sull'asse sinistro). Il "Vento" e' la velocita' con le frecce della
+// direzione; la cumulata della pioggia c'e' solo con la pioggia da sola.
+function mainModel(st, vars, mode){
+  const t = st._table, src = v => v === WARROW ? 'VVENTO' : v;
   let lo = Infinity, hi = -Infinity;
   for(const x of t.x) if(x != null && !isNaN(x)){
     if(x < lo) lo = x;
     if(x > hi) hi = x;
   }
-  const end = tableEnd(t, [v, v2]);
+  const end = tableEnd(t, vars.map(src));
   if(end != null) hi = end;
   const ok = lo !== Infinity && hi >= lo, from = ok ? modeStart(mode, lo, hi) : 0;
   // MN appena dopo mezzanotte, senza letture: almeno un'ora vuota
   const to = ok ? (mode === 'mn' ? Math.max(hi, from + HOUR) : hi) : 0;
-  const one = vv => {
-    const ys = applyOff(t.cols[vv] || [], varOffset(vv, st), varScale(vv, st));
-    if(isRainVar(vv)){
-      const rs = rainSeries(t.x, ys, vv, from, to, !rawMode(mode));
-      return { v: vv, kind: 'bars', x: rs.x, y: rs.y, rs, ys };
+  const ss = vars.map(v => {
+    const c = src(v), ys = applyOff(t.cols[c] || [], varOffset(c, st), varScale(c, st));
+    const s = { v, src: c, unit: varUnit(c, st) };
+    if(isRainVar(c)){
+      const rs = rainSeries(t.x, ys, c, from, to, !rawMode(mode));
+      return Object.assign(s, { kind: 'bars', x: rs.x, y: rs.y, rs, ys });
     }
     const ls = lineSeries(t.x, ys, from, to);
-    return { v: vv, kind: isDirVar(vv) ? 'dots' : 'line', x: ls.x, y: ls.y };
-  };
-  const s1 = one(v), s2 = v2 ? one(v2) : null;
-  // cumulata solo con la pioggia da sola (l'asse destro e' libero)
-  const cum = (!s2 && v === 'PREC') ? rainCum(s1.rs, to) : null;
+    return Object.assign(s, { kind: isDirVar(c) ? 'dots' : 'line', x: ls.x, y: ls.y });
+  });
+  const s1 = ss[0];
+  const cum = (ss.length === 1 && s1.src === 'PREC') ? rainCum(s1.rs, to) : null;
   // in MN la linea del giorno coinciderebbe con la cumulata
   const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
-  let wind = null;
-  if(arrows){
-    const dir = t.cols.DVENTO || [], at = new Map();
-    t.x.forEach((x, i) => { if(x != null && dir[i] != null) at.set(x, dir[i]); });
-    const sp = applyOff(t.cols.VVENTO || [], varOffset(v, st), varScale(v, st));
-    wind = {
-      arrows: windArrows(t.x, sp, dir, from, to, !rawMode(mode)), dense: rawMode(mode),
-      dirs: s1.x.map(x => at.has(x) ? at.get(x) : null)
-    };
-  }
-  const tabs = [[s1.x, s1.y]];
-  if(s2) tabs.push([s2.x, s2.y]);
+  const tabs = ss.map(s => [s.x, s.y]);
   if(cum) tabs.push([cum.x, cum.y]);
   // con orari diversi i vuoti restano "undefined"
   let data = tabs.length > 1 ? uPlot.join(tabs) : [s1.x, s1.y];
   // MN senza letture di oggi: due punti vuoti tengono l'asse del tempo da mezzanotte
   if(mode === 'mn' && !data[0].length) data = [[from, to]].concat(data.slice(1).map(() => [null, null]));
   const X = data[0];
+  let wind = null;
+  const wi = vars.indexOf(WARROW);
+  if(wi >= 0){
+    const dir = t.cols.DVENTO || [], at = new Map();
+    t.x.forEach((x, i) => { if(x != null && dir[i] != null) at.set(x, dir[i]); });
+    const sp = applyOff(t.cols.VVENTO || [], varOffset('VVENTO', st), varScale('VVENTO', st));
+    wind = {
+      i: wi + 1, arrows: windArrows(t.x, sp, dir, from, to, !rawMode(mode)), dense: rawMode(mode),
+      dirs: X.map(x => at.has(x) ? at.get(x) : null)
+    };
+  }
   return {
-    st, v, v2, s1, s2, cum, daily, wind, data,
+    st, vars, ss, s1, cum, daily, wind, data,
     win: mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null),
-    gaps: [].concat(s1.rs ? s1.rs.gaps : [], s2 && s2.rs ? s2.rs.gaps : []),
-    iV2: s2 ? 2 : null, iCum: cum ? (s2 ? 3 : 2) : null,
-    unit1: varUnit(v, st), unit2: v2 ? varUnit(v2, st) : ''
+    gaps: [].concat(...ss.map(s => s.rs ? s.rs.gaps : [])),
+    iCum: cum ? ss.length + 1 : null
   };
 }
-// opzioni uPlot del grafico principale; o = {w, h, hi}. hi = PNG (font grandi, niente cursore)
+// Un asse per unita' di misura (temperatura e rugiada sullo stesso): il primo a sinistra, gli altri a destra.
+function mainAxes(m){
+  const groups = [];
+  m.ss.forEach(s => {
+    const dir = isDirVar(s.src);
+    let g = groups.find(a => a.unit === s.unit && a.dir === dir);
+    if(!g){
+      g = { unit: s.unit, dir, key: groups.length ? 'y' + groups.length : 'y', ss: [] };
+      groups.push(g);
+    }
+    g.ss.push(s);
+    s.scale = g.key;
+  });
+  return groups;
+}
+const windY = () => ({ range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.15)] });
+// opzioni uPlot del grafico principale; o = {w, h, hi}. hi = PNG (su bianco, font grandi, niente cursore).
+// Con piu' assi ognuno ha il colore della sua variabile; neutro se ne porta piu' d'una.
 function mainOpts(m, o){
-  const hi = !!o.hi, fnt = hi ? { font: '20px system-ui, sans-serif' } : {};
+  // schermo stretto (telefono): assi piu' sottili, il grafico resta largo anche con tre variabili
+  const hi = !!o.hi, narrow = !hi && o.w < 520, fnt = hi ? { font: '20px system-ui, sans-serif' } : {};
   const lab = hi ? { labelFont: '700 24px system-ui, sans-serif', labelSize: 32, labelGap: 6 }
-                 : { labelSize: 26, labelGap: 4 };
-  const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(),
-        C1 = '#2b6cb0', C2 = '#e53e3e', CC = hi ? '#1a365d' : CUMC();
-  const ser = (s, color, scale) => mkSeries({
-    label: varLabel(s.v), color, kind: s.kind, scale,
-    align: s.rs && s.rs.align, slot: s.rs && s.rs.slot,
-    slotTxt: (s.rs && s.rs.hourly) ? (s.v === 'PREC' ? 'range' : 'end') : ''
-  }, hi);
-  const yAxis = (s, scale, color, unit, right) => {
-    const a = Object.assign({
-      scale, grid: right ? { show:false } : { stroke: grid }, size: hi ? 82 : 58, label: unit, stroke: color
-    }, lab, fnt);
-    if(right) a.side = 1;
-    return isDirVar(s.v) ? dirAxis(a) : a;
-  };
-  const s1 = m.wind
-    ? mkSeries({
-        label: varLabel(m.v), color: withAlpha(C1, 0.45), scale: 'y', pts: false, width: hi ? 1.6 : 1
-      }, hi)
-    : ser(m.s1, C1, 'y');
-  const series = [{ value: (u, ts) => ts == null ? '--' : fmtFull(ts) }, s1];
+                 : { labelSize: narrow ? 16 : 26, labelGap: narrow ? 2 : 4 };
+  const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(), CC = hi ? '#1a365d' : CUMC();
+  const col = (v, text) => varColor(v, text, hi);
+  const groups = mainAxes(m), many = groups.length > 1;
+  const series = [{ value: (u, ts) => ts == null ? '--' : fmtFull(ts) }];
+  m.ss.forEach(s => {
+    const c = col(s.v), w = s.v === WARROW;
+    series.push(mkSeries({
+      label: varLabel(s.v) + (hi && s.unit ? ' (' + s.unit + ')' : ''), color: w ? withAlpha(c, 0.45) : c,
+      kind: s.kind, scale: s.scale, align: s.rs && s.rs.align, slot: s.rs && s.rs.slot,
+      slotTxt: (s.rs && s.rs.hourly) ? (s.src === 'PREC' ? 'range' : 'end') : '',
+      pts: w ? false : null, width: w ? (hi ? 1.6 : 1) : 0
+    }, hi));
+  });
   const axes = [
     Object.assign({ grid:{ stroke: grid }, stroke: ax, values: (u, ticks) => ticks.map(fmtAxis) },
-                  hi ? { size: 46 } : {}, fnt),
-    yAxis(m.s1, 'y', (hi && !m.s2 && !m.cum) ? '#33475a' : C1, m.unit1, false)
+                  hi ? { size: 46 } : {}, fnt)
   ];
-  const windY = { range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.15)] };
-  const scales = { y: m.wind ? windY : yScaleFor(m.v) };
-  if(m.s2){
-    series.push(ser(m.s2, C2, 'y2'));
-    axes.push(yAxis(m.s2, 'y2', C2, m.unit2, true));
-    scales.y2 = yScaleFor(m.v2);
-  }
+  const scales = {};
+  groups.forEach((g, k) => {
+    const one = g.ss.length === 1 ? g.ss[0].v : null;
+    // tacche rade e numeri col punto, senza migliaia (uPlot userebbe la lingua del browser: "1,025")
+    const a = Object.assign({
+      scale: g.key, grid: k ? { show:false } : { stroke: grid }, label: g.unit,
+      size: hi ? 82 : narrow ? 38 : 54, stroke: many && one ? col(one, true) : ax, space: hi ? 70 : 44,
+      values: (u, sp) => sp.map(v => String(Math.round(v * 1000) / 1000))
+    }, lab, fnt);
+    if(k) a.side = 1;
+    axes.push(g.dir ? dirAxis(a) : a);
+    scales[g.key] = g.ss.some(s => isRainVar(s.src)) ? rainY() : g.dir ? dirY()
+                  : g.ss.some(s => s.v === WARROW) ? windY() : {};
+  });
   if(m.cum){
     series.push(mkSeries({ label: 'Cumulata', color: CC, kind: 'cum', scale: 'cum' }, hi));
     axes.push(cumAxis(hi, CC));
     scales.cum = cumY(m.daily && (u => dailyTop(u, m.daily)));
   }
-  // Un intervallo piu' stretto della finestra e' uno zoom e va accettato; il resto torna alla finestra
-  // intera.
+  // Un intervallo dentro la finestra e piu' stretto e' uno zoom e va accettato; il resto (anche dati che
+  // sporgono, come l'inizio della cumulata prima di mezzanotte) torna alla finestra intera.
   const w = m.win;
+  const zoom = (a, b) => a >= w[0] - 1 && b <= w[1] + 1 && (a > w[0] + 1 || b < w[1] - 1);
   scales.x = {
     time:true,
-    range: (u, a, b) => !w ? [a, b] : (w[0] === w[1] ? [w[0] - HOUR, w[1] + HOUR]
-      : ((a > w[0] + 1 || b < w[1] - 1) ? [a, b] : [w[0], w[1]]))
+    range: (u, a, b) => !w ? [a, b]
+      : (w[0] === w[1] ? [w[0] - HOUR, w[1] + HOUR] : (zoom(a, b) ? [a, b] : [w[0], w[1]]))
   };
   const hooks = hi ? { drawClear: [dayBands, gapBands(m.gaps, true)] }
-                   : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor],
-                       setScale: [(u, key) => { if(key === 'x') mainStats(u); }] };
+                   : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor] };
   if(m.daily) addDailyHooks(hooks, m.daily, CC, hi);
-  if(m.wind) hooks.draw = (hooks.draw || []).concat(drawArrows(m.wind.arrows, C1, hi, m.wind.dense));
+  if(m.wind) hooks.draw = (hooks.draw || []).concat(
+    drawArrows(m.wind.arrows, col(WARROW), hi, m.wind.dense, m.ss[m.wind.i - 1].scale));
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
     cursor: hi ? { show:false }
-               : { drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } }
+               : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } }
   };
-}
-// statistiche sotto il grafico; con la temperatura anche i record storici
-function mainStats(u){
-  const m = u._m;
-  if(!m || u !== chart) return;            // un grafico appena sostituito non scrive piu'
-  const sx = u.scales.x, a = sx.min == null ? -Infinity : sx.min, b = sx.max == null ? Infinity : sx.max;
-  let txt = statsText(m.v, m.unit1, m.s1.x, m.s1.y, a, b, m.s1.rs);
-  const clima = _climaCache[m.st._region], ce = clima && clima[m.st.scode];
-  if(m.v === 'TEMP' && ce && ce.records){
-    const r = ce.records, rb = [];
-    if(r.tmax) rb.push('max ' + r.tmax.val + '°');
-    if(r.tmin) rb.push('min ' + r.tmin.val + '°');
-    if(rb.length) txt += '  ·  record storici: ' + rb.join(' / ');
-  }
-  setStats(el('chartstats'), txt, prevailingDeg(m.v, m.s1.x, m.s1.y, a, b));
 }
 
 // Modo 'Confronto': una curva grigia per ogni giorno, sovrapposte per ora del giorno; oggi in blu sopra.
@@ -1161,11 +1114,6 @@ function renderCompare(t, label, unit){
     });
     data.push(X.map(tod => m.has(tod) ? m.get(tod) : null));
   });
-  const totals = rain ? days.map(d => {
-    let v = 0;
-    byDay.get(d).forEach(c => { if(c > v) v = c; });
-    return round2(v);
-  }) : null;
   const full = rain ? [0, DAY_S] : [X[0], X[X.length - 1]];
   const opts = hi => {
     const fnt = hi ? { font: '20px system-ui, sans-serif' } : {}, grid = hi ? '#e3e9f0' : GRID();
@@ -1188,7 +1136,7 @@ function renderCompare(t, label, unit){
         dir ? dirAxis(yAx) : yAx
       ],
       cursor: hi ? { show:false }
-                 : { drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
+                 : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
       hooks: hi ? {} : { setCursor: [ legendCursor ] },
     };
   };
@@ -1196,29 +1144,12 @@ function renderCompare(t, label, unit){
   chart._hi = (W, H) => Object.assign(opts(true), { width: W, height: H });
   renderLegend(chart);
   addZoomUI(chart, () => full, HOUR);
-  if(rain){
-    const box = el('chartlegend');
-    if(box._rows){
-      box._idle = totals;
-      box._rows.forEach((r, i) => { r.textContent = totals[i]; });
-    }
-    let bi = 0;
-    totals.forEach((v, i) => { if(v > totals[bi]) bi = i; });
-    const tot = totals.reduce((a, b) => a + b, 0), un = unit ? ' ' + unit : '';
-    el('chartstats').textContent = 'cumulata da mezzanotte · totale ' + fmtNum(round2(tot)) + un
-      + (totals[bi] > 0
-         ? ' · più piovoso ' + (days[bi] === today ? 'oggi' : dayLabel(days[bi])) +
-           ' (' + fmtNum(totals[bi]) + un + ')'
-         : '');
-  }
 }
 
 // ------------------------------------------------------------------------------------------------
-// PILA DI GRAFICI ("Impilato"): un pannello uPlot per variabile, asse del tempo condiviso, cursore e
+// PILA DI GRAFICI ("Impilate"): un pannello uPlot per variabile, asse del tempo condiviso, cursore e
 // zoom sincronizzati. Il motore (createStack) non dipende dalla scheda stazione.
 // ------------------------------------------------------------------------------------------------
-const STACK_COLORS = ['#2b6cb0', '#e53e3e', '#2f9e44', '#f59f00', '#7048e8', '#0ca678'];
-const STACK_MAX = 4;
 let _stackSeq = 0;
 const isSumVar = v => v === 'PREC';            // pioggia per intervallo: totale e cumulata (non le 1-48 h)
 const STACK_RGUT = 50;                         // spazio a destra per l'asse cumulata, uguale in ogni pannello
@@ -1247,7 +1178,7 @@ function stackPanelH(n){
   return mob ? (n <= 2 ? 150 : 128) : (n === 1 ? 300 : (n === 2 ? 210 : 165));
 }
 
-// Opzioni uPlot di UN pannello. p = {v,label,color,kind,rs,cum,gaps,npts}; o =
+// Opzioni uPlot di UN pannello. p = {v, src, label, color, kind, rs, cum, gaps, wind}; o =
 // {w,h,last,win,hi,sync,hooks,rgut}. hi = versione ad alta risoluzione per il PNG (font grandi, niente
 // cursore). rgut = spazio a destra per l'asse della cumulata: i pannelli senza cumulata lo lasciano vuoto,
 // cosi' gli assi del tempo restano allineati.
@@ -1256,12 +1187,14 @@ function stackPanelOpts(p, o){
   // niente 'font: undefined': uPlot lo prenderebbe alla lettera
   const fnt = hi ? { font: '20px system-ui, sans-serif' } : {};
   const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(), CC = hi ? '#1a365d' : CUMC();
+  const color = varColor(p.v, false, hi);
   const series = [
     { value:(u, ts) => ts == null ? '--' : fmtFull(ts) },
     mkSeries({
-      label: p.label, color: p.color, kind: p.kind, align: p.rs && p.rs.align, slot: p.rs && p.rs.slot,
-      slotTxt: (p.rs && p.rs.hourly) ? (p.v === 'PREC' ? 'range' : 'end') : '',
-      pts: p.npts <= 400, ptSize: 3, ptSizeHi: 6
+      label: p.label, color: p.wind ? withAlpha(color, 0.45) : color, kind: p.kind,
+      align: p.rs && p.rs.align, slot: p.rs && p.rs.slot,
+      slotTxt: (p.rs && p.rs.hourly) ? (p.src === 'PREC' ? 'range' : 'end') : '',
+      pts: p.wind ? false : null, ptSize: 3, ptSizeHi: 6
     }, hi)
   ];
   const axX = o.last
@@ -1269,15 +1202,16 @@ function stackPanelOpts(p, o){
         grid:{stroke:grid}, stroke:ax, size: hi ? 46 : 30, values:(u, ticks) => ticks.map(fmtAxis)
       }, fnt)
     : { grid:{stroke:grid}, size:6, ticks:{show:false}, values:(u, ticks) => ticks.map(() => '') };
-  const axY = Object.assign({ grid:{stroke:grid}, size: hi ? 82 : 58, stroke:p.color }, fnt);
-  const axes = [ axX, isDirVar(p.v) ? dirAxis(axY) : axY ];
+  const axY = Object.assign({ grid:{stroke:grid}, size: hi ? 82 : 58, stroke: varColor(p.v, true, hi) }, fnt);
+  const axes = [ axX, isDirVar(p.src) ? dirAxis(axY) : axY ];
   const scales = {
     // Un intervallo piu' STRETTO della finestra e' uno zoom (trascinamento) e va accettato; uguale o piu'
     // ampio (dati iniziali, doppio clic) torna alla finestra intera.
     x:{ time:true, range:(u, a, b) => (a > o.win[0] + 1 || b < o.win[1] - 1) ? [a, b] : o.win },
-    y: yScaleFor(p.v) };
+    y: p.wind ? windY() : yScaleFor(p.src) };
   const rg = (o.rgut || 0) * (hi ? 82 / STACK_RGUT : 1);
-  const h = hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks;
+  const h = Object.assign({}, hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks);
+  if(p.wind) h.draw = (h.draw || []).concat(drawArrows(p.wind.arrows, color, hi, p.wind.dense));
   if(p.cum){
     series.push(mkSeries({ label: 'Cumulata', color: CC, kind: 'cum', scale: 'cum' }, hi));
     const ca = cumAxis(hi, CC);
@@ -1297,22 +1231,24 @@ function stackPanelOpts(p, o){
       y:false, drag:{ x:true, y:false }, sync:{ key:o.sync, setSeries:false, scales:['x', null] },
       dataIdx: cursorDataIdx, points:{ show: hoverPt }
     },
-    hooks: p.daily ? addDailyHooks(Object.assign({}, h), p.daily, CC, hi) : h
+    hooks: p.daily ? addDailyHooks(h, p.daily, CC, hi) : h
   };
 }
 
-// cfg = { station, table, vars:[...], mode:'week'|'day3'|'day', onRemove:fn(v) }
+// cfg = { station, table, vars:[...], mode:'week'|'day3'|'day'|'mn' }. Il valore compare solo al cursore.
 function createStack(host, cfg){
   const st = cfg.station, t = cfg.table, units = unitsByRegion[st._region] || {};
-  const vars = cfg.vars, n = vars.length, hourly = !rawMode(cfg.mode || 'week');
-  const win0 = stackWindow(t, cfg.mode || 'week', vars);
+  const vars = cfg.vars, n = vars.length, mode = cfg.mode || 'week', hourly = !rawMode(mode);
+  const srcOf = v => v === WARROW ? 'VVENTO' : v;
+  const win0 = stackWindow(t, mode, vars.map(srcOf));
   host.innerHTML = '';
   if(!win0){
     host.innerHTML = '<div class="stk-note">Nessun dato nel periodo.</div>';
     return { panels:[], destroy(){ host.innerHTML = ''; }, resize(){} };
   }
   // con barre orarie la finestra parte dall'inizio della prima ora (la prima barra resta intera)
-  const win = (hourly && vars.some(isRainVar)) ? [Math.floor((win0[0] - 1) / HOUR) * HOUR, win0[1]] : win0;
+  const win = (hourly && vars.map(srcOf).some(isRainVar))
+    ? [Math.floor((win0[0] - 1) / HOUR) * HOUR, win0[1]] : win0;
   const rgut = vars.some(isSumVar) ? STACK_RGUT : 0;
   const sync = uPlot.sync('stk' + (++_stackSeq)).key;
   const ph = stackPanelH(n), AX = 30;
@@ -1326,41 +1262,18 @@ function createStack(host, cfg){
   let ready = false, zooming = false;
   const width = () => Math.max(220, root.clientWidth || host.clientWidth || 600);
 
-  function stats(p){
-    const u = p.u, a = u.scales.x.min, b = u.scales.x.max;
-    let last = null;
-    for(let i = 0; i < p.sx.length; i++){
-      const x = p.sx[i], y = p.sy[i];
-      if(x != null && y != null && !isNaN(y) && x >= a && x <= b) last = y;
-    }
-    p.lastTxt = last == null ? '' : fmtNum(last, p.v);
-    p.statTxt = statsText(p.v, '', p.sx, p.sy, a, b, p.rs);
-    p.statDeg = prevailingDeg(p.v, p.sx, p.sy, a, b);
-    setStats(p.hs, p.statTxt, p.statDeg);
-    if(p.cum){
-      const c = document.createElement('span');
-      c.className = 'stk-cum';
-      c.innerHTML = '<i></i>cumulata';
-      c.querySelector('i').style.background = CUMC();
-      p.hs.appendChild(c);
-    }
-    if(p.hv.classList.contains('idle') || !p.hv.textContent) {
-      p.hv.textContent = p.lastTxt;
-      p.hv.classList.add('idle');
-    }
-  }
   function onCursor(u){
     const p = panels.find(q => q.u === u);
     if(!p) return;
     const ix = u.cursor.idxs, j = (ix && ix[1] !== undefined) ? ix[1] : u.cursor.idx,
           y = j != null ? u.data[1][j] : null;
+    let html = '';
     if(y != null){
-      p.hv.textContent = fmtNum(y, p.v);
-      p.hv.classList.remove('idle');
-    } else {
-      p.hv.textContent = p.lastTxt;
-      p.hv.classList.add('idle');
+      html = isDirVar(p.src) ? windDirHtml(y) : numTxt(y) + unitTxt(p.unit);
+      const d = p.wind && p.wind.dirs[j];
+      if(d != null) html += ' ' + windDirHtml(d);
     }
+    p.hv.innerHTML = html;
     if(p === panels[0]) timeEl.textContent = (j != null && u.data[0][j] != null) ? slotTimeTxt(u, 1, j) : '';
   }
   function onScale(u, key){
@@ -1372,45 +1285,41 @@ function createStack(host, cfg){
         q.u.setScale('x', { min:sx.min, max:sx.max });
     });
     zooming = false;
-    panels.forEach(stats);
   }
 
   vars.forEach((v, i) => {
-    const color = STACK_COLORS[i % STACK_COLORS.length], last = i === n - 1;
-    const ys = applyOff(t.cols[v] || [], varOffset(v, st), varScale(v, st, units));
-    let npts = 0;
-    for(let k = 0; k < ys.length; k++) if(ys[k] != null && t.x[k] >= win[0] && t.x[k] <= win[1]) npts++;
-    const unit = varUnit(v, st, units);
+    const src = srcOf(v), last = i === n - 1;
+    const ys = applyOff(t.cols[src] || [], varOffset(src, st), varScale(src, st, units));
+    const unit = varUnit(src, st, units);
     const p = {
-      v, label: varLabel(v), unit, color, kind: isRainVar(v) ? 'bars' : (isDirVar(v) ? 'dots' : 'line'),
-      isSum: isSumVar(v), npts, lastTxt:'', statTxt:'', gaps: [], cum: false
+      v, src, label: varLabel(v), unit, kind: isRainVar(src) ? 'bars' : (isDirVar(src) ? 'dots' : 'line'),
+      gaps: [], cum: false
     };
-    if(isRainVar(v)){            // pioggia: barre orarie (7 e 3 giorni), buchi tratteggiati, cumulata PREC
-      p.rs = rainSeries(t.x, ys, v, win0[0], win0[1], hourly);
+    if(isRainVar(src)){            // pioggia: barre orarie (7 e 3 giorni), buchi tratteggiati, cumulata PREC
+      p.rs = rainSeries(t.x, ys, src, win0[0], win0[1], hourly);
       p.gaps = p.rs.gaps;
-      p.sx = p.rs.x;
-      p.sy = p.rs.y;
-      const cum = p.isSum ? rainCum(p.rs, win0[1]) : null;
+      const cum = isSumVar(src) ? rainCum(p.rs, win0[1]) : null;
       p.cum = !!cum;
-      p.daily = (cum && cfg.mode !== 'mn') ? rainDaily(t.x, ys, p.rs, win0[1]) : null;
+      p.daily = (cum && mode !== 'mn') ? rainDaily(t.x, ys, p.rs, win0[1]) : null;
       p.data = cum ? uPlot.join([[p.rs.x, p.rs.y], [cum.x, cum.y]]) : [p.rs.x, p.rs.y];
     } else {
       const ls = lineSeries(t.x, ys, win[0], win[1]);
-      p.sx = ls.x;
-      p.sy = ls.y;
       p.data = [ls.x, ls.y];
+    }
+    if(v === WARROW){
+      const dir = t.cols.DVENTO || [], at = new Map();
+      t.x.forEach((x, k) => { if(x != null && dir[k] != null) at.set(x, dir[k]); });
+      p.wind = { arrows: windArrows(t.x, ys, dir, win0[0], win0[1], hourly), dense: !hourly,
+                 dirs: p.data[0].map(x => at.has(x) ? at.get(x) : null) };
     }
     const box = document.createElement('div');
     box.className = 'stk-p';
-    box.innerHTML = '<div class="stk-h"><i class="sw"></i><b></b><span class="un"></span><span class="stk-v idle"></span>'
-                  + '<span class="stk-s"></span><button class="stk-x" title="Rimuovi">×</button></div>'
-                  + '<div class="stk-c"></div>';
-    box.querySelector('.sw').style.background = color;
-    box.querySelector('b').textContent = p.label;
-    box.querySelector('.un').textContent = unit ? '(' + unit + ')' : '';
+    box.innerHTML = '<div class="stk-h"><i class="sw"></i><b></b><span class="un"></span>'
+                  + '<span class="stk-v"></span></div><div class="stk-c"></div>';
+    box.querySelector('.sw').style.background = varColor(v);
+    box.querySelector('b').textContent = varShort(v);
+    box.querySelector('.un').textContent = unit;
     p.hv = box.querySelector('.stk-v');
-    p.hs = box.querySelector('.stk-s');
-    box.querySelector('.stk-x').onclick = () => cfg.onRemove(v);
     root.appendChild(box);
     const opts = stackPanelOpts(p, {
       w:width(), h: ph + (last ? AX : 0), last, win, sync, rgut,
@@ -1421,7 +1330,6 @@ function createStack(host, cfg){
     panels.push(p);
   });
   ready = true;
-  panels.forEach(stats);
   return {
     panels, win, rgut,
     resize(){
@@ -1432,91 +1340,217 @@ function createStack(host, cfg){
   };
 }
 
-async function exportStackPNG(){
+// ------------------------------------------------------------------------------------------------
+// IMMAGINI PNG di ogni vista (alta risoluzione, su bianco, titolo e fonte in alto)
+// ------------------------------------------------------------------------------------------------
+const PNG_R = 2;
+const MODE_TXT = { week:'Ultimi 7 giorni', day3:'Ultimi 3 giorni', day:'Ultime 24 ore', mn:'Da mezzanotte',
+                   compare:'Confronto 7 giorni', compare30:'Confronto 30 giorni' };
+function pngCanvas(W, H){
+  const cv = document.createElement('canvas');
+  cv.width = W * PNG_R;
+  cv.height = H * PNG_R;
+  const ctx = cv.getContext('2d');
+  ctx.scale(PNG_R, PNG_R);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  return { cv, ctx };
+}
+function pngHead(ctx, title, what, withSource, when){
+  const src = withSource && currentStation && SOURCES[currentStation._region];
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#0f2233';
+  ctx.font = '700 32px system-ui, sans-serif';
+  ctx.fillText(title, 12, 44);
+  ctx.fillStyle = '#5a6b7a';
+  ctx.font = '16px system-ui, sans-serif';
+  const line = [what, src ? 'Fonte: ' + src.name : '', when || 'Ora italiana'].filter(Boolean);
+  ctx.fillText(line.join('  ·  '), 12, 70);
+}
+const pngBase = () => prettyName(currentStation.name || currentStation.scode).replace(/[^\w-]+/g, '_') +
+                      '_' + currentStation._region;
+// codifica subito (toBlob aspetta un momento libero della pagina, che puo' non arrivare)
+function toPng(cv){
+  const bin = atob(cv.toDataURL('image/png').split(',')[1]), a = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return new Blob([a], { type:'image/png' });
+}
+// grafico uPlot fuori schermo alla risoluzione delle immagini, atteso fino a disegno finito (niente
+// fotogrammi: la pagina puo' non disegnarne, come in Chrome senza schermo); done() lo toglie
+async function offPlot(opts, data, W, H){
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:' + W + 'px;height:' +
+                       H + 'px';
+  document.body.appendChild(host);
+  let drawn;
+  const ready = new Promise(r => { drawn = r; });
+  const hooks = Object.assign({}, opts.hooks);
+  hooks.draw = (hooks.draw || []).concat(() => drawn());
+  const u = new uPlot(Object.assign(opts, { pxRatio: PNG_R, hooks }), data, host);
+  await Promise.race([ready, new Promise(r => setTimeout(r, 1500))]);
+  return { u, done(){ u.destroy(); host.remove(); } };
+}
+
+// grafico mostrato (una o piu' variabili, confronti, Confronto schede), legenda in colonna a destra
+async function chartPNG(){
+  const tabs = document.body.classList.contains('view-compare');
+  if(!chart || !chart._hi || (!tabs && !currentStation)) return null;
+  const W_PLOT = 1500, H_PLOT = 780, W_LEG = 340, TOP = 84, L = 12;
+  const opts = chart._hi(W_PLOT, H_PLOT), series = opts.series;
+  // stessa finestra dello schermo, zoom compreso
+  if(chart.scales.x.min != null){
+    const xr = [chart.scales.x.min, chart.scales.x.max];
+    opts.scales.x.range = () => xr;
+  }
+  const plot = await offPlot(opts, chart.data, W_PLOT, H_PLOT);
+  const totW = L + W_PLOT + W_LEG, totH = TOP + H_PLOT + 18, { cv, ctx } = pngCanvas(totW, totH);
+  const m = chart._m, withUnit = (v, un) => varLabel(v) + (un ? ' (' + un + ')' : '');
+  let title, what = MODE_TXT[chartMode] || '';
+  if(tabs) title = 'Confronto schede — ' + withUnit(compareVar, chart._unit);
+  else {
+    const name = prettyName(currentStation.name || currentStation.scode);
+    title = name + ' — ' + (m && m.ss.length > 1 ? m.ss.map(s => varShort(s.v)).join(', ')
+                                              : withUnit(currentVar, varUnit(currentVar, currentStation)));
+    if(currentVar === 'PREC' && (chartMode === 'compare' || chartMode === 'compare30'))
+      what += ', pioggia cumulata dalla mezzanotte';
+  }
+  pngHead(ctx, title, what, !tabs);
+  ctx.drawImage(plot.u.ctx.canvas, L, TOP, W_PLOT, H_PLOT);
+  plot.done();
+  let lx = L + W_PLOT + 26, ly = TOP + 30;
+  ctx.font = '17px system-ui, sans-serif';
+  for(let i = 1; i < series.length; i++){
+    const s = series[i];
+    if(!s.label) continue;
+    if(ly > totH - 24){
+      ctx.fillStyle = '#5a6b7a';
+      ctx.fillText('…', lx, ly);
+      break;
+    }
+    if(s.kind === 'bars'){
+      ctx.fillStyle = s.fill;
+      ctx.fillRect(lx + 6, ly - 15, 18, 18);
+    } else if(s.kind === 'dots'){
+      ctx.fillStyle = s.stroke;
+      ctx.beginPath();
+      ctx.arc(lx + 15, ly - 6, 6, 0, 2 * Math.PI);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = s.stroke;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly - 6);
+      ctx.lineTo(lx + 30, ly - 6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#22303c';
+    ctx.fillText(s.label, lx + 40, ly);
+    ly += 28;
+  }
+  const fname = tabs ? 'confronto_schede_' + compareVar + '_' + chartMode + '.png'
+                     : pngBase() + '_' + (m ? m.vars.join('-') : currentVar) + '_' + chartMode + '.png';
+  return { blob: toPng(cv), fname };
+}
+
+// Impilate: un pannello sotto l'altro, ognuno col suo nome
+async function stackPNG(){
   const so = stackObj;
-  if(!so || !so.panels.length || !currentStation) return;
-  const btn = el('exportpng'), lbl = btn.textContent;
+  if(!so || !so.panels.length || !currentStation) return null;
+  const W_PLOT = 1500, PH = 300, AXH = 46, HEAD = 44, TOP = 84, L = 12;
+  const n = so.panels.length, totW = L + W_PLOT, totH = TOP + n * (HEAD + PH) + AXH + 18;
+  const { cv, ctx } = pngCanvas(totW, totH);
+  pngHead(ctx, prettyName(currentStation.name || currentStation.scode), MODE_TXT[chartMode] || '', true);
+  const sx = so.panels[0].u.scales.x, win = [sx.min, sx.max];
+  let y = TOP;
+  for(let i = 0; i < n; i++){
+    const p = so.panels[i], last = i === n - 1;
+    ctx.fillStyle = varColor(p.v, false, true);
+    ctx.fillRect(L + 6, y + 20, 22, 4);
+    ctx.fillStyle = '#0f2233';
+    ctx.font = '700 22px system-ui, sans-serif';
+    ctx.fillText(p.label + (p.unit ? ' (' + p.unit + ')' : ''), L + 38, y + 28);
+    y += HEAD;
+    const h = PH + (last ? AXH : 0);
+    const opts = stackPanelOpts(p, { w:W_PLOT, h, last, win, hi:true, rgut:so.rgut });
+    const plot = await offPlot(opts, p.data, W_PLOT, h);
+    ctx.drawImage(plot.u.ctx.canvas, L, y, W_PLOT, h);
+    plot.done();
+    y += h;
+  }
+  return { blob: toPng(cv), fname: pngBase() + '_impilate_' + chartMode + '.png' };
+}
+
+// Rosa dei venti: il disegno della pagina, piu' grande, con la legenda delle velocita'
+async function rosePNG(){
+  const svg = el('windrose').querySelector('svg');
+  if(!svg || !currentStation) return null;
+  const W = 1000, SH = 760, SW = Math.round(SH * 260 / 250), TOP = 90, H = TOP + SH + 70;
+  const { cv, ctx } = pngCanvas(W, H);
+  pngHead(ctx, prettyName(currentStation.name || currentStation.scode) + ' — Rosa dei venti',
+          MODE_TXT[chartMode] || '', true);
+  const c = svg.cloneNode(true);
+  c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  c.setAttribute('width', SW);
+  c.setAttribute('height', SH);
+  c.removeAttribute('style');
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' +
+            encodeURIComponent(new XMLSerializer().serializeToString(c));
+  await img.decode();
+  ctx.drawImage(img, (W - SW) / 2, TOP, SW, SH);
+  ctx.font = '18px system-ui, sans-serif';
+  const items = _WR_CLASSES.map(k => ({ k, w: 22 + ctx.measureText(k.l).width + 24 }));
+  let x = (W - (44 + items.reduce((a, it) => a + it.w, 0))) / 2;
+  const y = TOP + SH + 44;
+  ctx.fillStyle = '#5a6b7a';
+  ctx.fillText('m/s', x, y);
+  x += 44;
+  items.forEach(it => {
+    ctx.fillStyle = it.k.c;
+    ctx.fillRect(x, y - 14, 16, 16);
+    ctx.fillStyle = '#22303c';
+    ctx.fillText(it.k.l, x + 22, y);
+    x += it.w;
+  });
+  return { blob: toPng(cv), fname: pngBase() + '_rosa_' + chartMode + '.png' };
+}
+
+// Pulsante PNG: l'immagine della vista mostrata
+async function exportPNG(){
+  const btn = el('exportpng');
+  if(btn.disabled) return;
+  const lbl = btn.textContent;
   btn.textContent = '⏳';
   btn.disabled = true;
   try {
-    const R = 2, W_PLOT = 1500, PH = 300, AXH = 46, HEAD = 44, PAD_TOP = 84, PAD_BOT = 18, PAD_L = 12;
-    const n = so.panels.length, totW = PAD_L + W_PLOT, totH = PAD_TOP + n * (HEAD + PH) + AXH + PAD_BOT;
-    const cv = document.createElement('canvas');
-    cv.width = totW * R;
-    cv.height = totH * R;
-    const ctx = cv.getContext('2d');
-    ctx.scale(R, R);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, totW, totH);
-    const name = prettyName(currentStation.name || currentStation.scode);
-    const MODE_TXT = { week:'Ultimi 7 giorni', day3:'Ultimi 3 giorni', day:'Ultime 24 ore' };
-    const src = SOURCES[currentStation._region];
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#0f2233';
-    ctx.font = '700 32px system-ui, sans-serif';
-    ctx.fillText(name, PAD_L, 44);
-    ctx.fillStyle = '#5a6b7a';
-    ctx.font = '16px system-ui, sans-serif';
-    ctx.fillText((MODE_TXT[chartMode] || '') + (src ? '  ·  Fonte: ' + src.name : '') +
-                 '  ·  Orari in ora locale italiana (CET/CEST)', PAD_L, 70);
-    const sx = so.panels[0].u.scales.x, win = [sx.min, sx.max];
-    let y = PAD_TOP;
-    for(let i = 0; i < n; i++){
-      const p = so.panels[i], last = i === n - 1;
-      ctx.fillStyle = p.color;
-      ctx.fillRect(PAD_L + 6, y + 20, 22, 4);
-      ctx.fillStyle = '#0f2233';
-      ctx.font = '700 22px system-ui, sans-serif';
-      const title = p.label + (p.unit ? ' (' + p.unit + ')' : '');
-      ctx.fillText(title, PAD_L + 38, y + 28);
-      const tw = ctx.measureText(title).width;
-      ctx.fillStyle = '#5a6b7a';
-      ctx.font = '17px system-ui, sans-serif';
-      ctx.fillText(p.statTxt, PAD_L + 38 + tw + 18, y + 28);
-      const stw = ctx.measureText(p.statTxt).width;
-      if(p.statDeg != null){                                // freccia ↓ ruotata (giu' = vento da N)
-        ctx.save();
-        ctx.translate(PAD_L + 38 + tw + 18 + stw + 12, y + 22);
-        ctx.rotate(p.statDeg * Math.PI / 180);
-        ctx.textAlign = 'center';
-        ctx.fillText('↓', 0, 6);
-        ctx.restore();
-      }
-      if(p.cum){
-        const sx0 = PAD_L + 38 + tw + 18 + stw + (p.statDeg != null ? 34 : 22);
-        ctx.fillStyle = '#1a365d';
-        ctx.fillRect(sx0, y + 20, 22, 4);
-        ctx.fillStyle = '#5a6b7a';
-        ctx.fillText('cumulata (asse destro)', sx0 + 30, y + 28);
-      }
-      y += HEAD;
-      const h = PH + (last ? AXH : 0);
-      const host = document.createElement('div');
-      host.style.cssText =
-        'position:fixed;left:-99999px;top:0;background:#fff;width:' + W_PLOT + 'px;height:' + h + 'px';
-      document.body.appendChild(host);
-      const u = new uPlot(
-        Object.assign(stackPanelOpts(p, { w:W_PLOT, h, last, win, hi:true, rgut:so.rgut }), { pxRatio:R }),
-        p.data, host);
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      ctx.drawImage(u.ctx.canvas, PAD_L, y, W_PLOT, h);
-      u.destroy();
-      host.remove();
-      y += h;
-    }
-    const fname = name.replace(/[^\w-]+/g,'_') + '_' + currentStation._region + '_impilato_' + chartMode +
-                  '.png';
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    btn.textContent = lbl;
+    const out = histMode ? await histPNG()
+              : document.body.classList.contains('rose-mode') ? await rosePNG()
+              : stackObj ? await stackPNG() : await chartPNG();
+    if(!out) return;
+    btn.textContent = lbl;                  // pulsante libero prima del foglio di condivisione
     btn.disabled = false;
-    await deliverPNG(blob, fname);
+    await deliverPNG(out.blob, out.fname);
   } catch(e){
-    setStatus('Export del grafico non riuscito (' + e + ').');
+    setStatus('Immagine non riuscita (' + e + ').');
     toast('PNG non riuscito');
   } finally {
     btn.textContent = lbl;
     btn.disabled = false;
   }
+}
+
+// CSV del Confronto schede: una colonna per stazione, sugli istanti del grafico (ora italiana)
+function exportTabsCSV(){
+  if(!chart || !document.body.classList.contains('view-compare')) return;
+  const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+  const rows = [['datetime'].concat(chart.series.slice(1).map(s => q(s.label))).join(',')];
+  chart.data[0].forEach((x, i) => {
+    const vals = chart.data.slice(1).map(d => d[i] == null ? '' : d[i]);
+    if(vals.some(v => v !== ''))
+      rows.push([new Date(civT(x) * 1000).toISOString().slice(0, 16)].concat(vals).join(','));
+  });
+  saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }),
+           'confronto_schede_' + compareVar + '.csv');
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1559,129 +1593,8 @@ async function deliverPNG(blob, fname){
     showPngSheet(blob, fname, file);
     return;
   }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  saveBlob(blob, fname);
   toast('PNG salvato in Download: ' + fname);
-}
-
-// ------------------------------------------------------------------------------------------------
-// EXPORT PNG del grafico mostrato (alta risoluzione, font grandi, legenda in colonna a destra)
-// ------------------------------------------------------------------------------------------------
-async function exportChartPNG(){
-  if(stackMode){ return exportStackPNG(); }
-  if(!chart || !chart._hi || !currentStation){ return; }
-  const btn = el('exportpng'), lbl = btn.textContent;
-  btn.textContent = '⏳';
-  btn.disabled = true;
-  try {
-    const W_PLOT = 1500, H_PLOT = 780, W_LEG = 320, PAD_TOP = 84, PAD_BOT = 18, PAD_L = 12, R = 2;
-    const unit = varUnit(currentVar, currentStation);   // LIVIDRO -> 'm s.m.m.' se c'è lo zero
-    // 2ª variabile attiva (asse destro, rossa): compare nel titolo
-    const v2png = (chart._m && chart._m.v2) || null;
-    const unit2 = v2png ? varUnit(v2png, currentStation) : '';
-    // stessa vista dello schermo (barre orarie, cumulata, buchi, puntini) ad alta risoluzione e sulla stessa
-    // finestra X, zoom compreso
-    const xr = (chart.scales.x.min != null) ? [chart.scales.x.min, chart.scales.x.max] : null;
-    const host = document.createElement('div');
-    host.style.cssText =
-      'position:fixed;left:-99999px;top:0;background:#fff;width:' + W_PLOT + 'px;height:' + H_PLOT + 'px';
-    document.body.appendChild(host);
-    const opts = Object.assign(chart._hi(W_PLOT, H_PLOT), { pxRatio: R });
-    if(xr) opts.scales.x.range = () => xr;
-    const series = opts.series;
-    const u = new uPlot(opts, chart.data, host);
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-    const totW = PAD_L + W_PLOT + W_LEG, totH = PAD_TOP + H_PLOT + PAD_BOT;
-    const cv = document.createElement('canvas');
-    cv.width = totW * R;
-    cv.height = totH * R;
-    const ctx = cv.getContext('2d');
-    ctx.scale(R, R);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, totW, totH);
-
-    const title = prettyName(currentStation.name || currentStation.scode) +
-                  ' — ' + varLabel(currentVar) + (unit ? ' (' + unit + ')' : '') +
-                  (v2png ? '  +  ' + varLabel(v2png) + (unit2 ? ' (' + unit2 + ')' : '') : '');
-    const MODE_TXT = {
-      week:'Ultimi 7 giorni', day3:'Ultimi 3 giorni', day:'Ultime 24 ore', tabs:'Confronto schede',
-      compare:'Confronto 7 giorni', compare30:'Confronto 30 giorni'
-    };
-    const modeTxt = (MODE_TXT[chartMode] || '') +
-      ((currentVar === 'PREC' && (chartMode === 'compare' || chartMode === 'compare30'))
-        ? ', pioggia cumulata dalla mezzanotte' : '');
-    const src = SOURCES[currentStation._region];
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#0f2233';
-    ctx.font = '700 32px system-ui, sans-serif';
-    ctx.fillText(title, PAD_L, 44);
-    ctx.fillStyle = '#5a6b7a';
-    ctx.font = '16px system-ui, sans-serif';
-    ctx.fillText(modeTxt + (src ? '  ·  Fonte: ' + src.name : '') +
-                 '  ·  Orari in ora locale italiana (CET/CEST)', PAD_L, 70);
-
-    ctx.drawImage(u.ctx.canvas, PAD_L, PAD_TOP, W_PLOT, H_PLOT);
-
-    let lx = PAD_L + W_PLOT + 26, ly = PAD_TOP + 6;
-    ctx.fillStyle = '#0f2233';
-    ctx.font = '700 20px system-ui, sans-serif';
-    ctx.fillText('Legenda', lx, ly);
-    ly += 30;
-    ctx.font = '17px system-ui, sans-serif';
-    for(let i = 1; i < series.length; i++){
-      const s = series[i];
-      if(!s.label) continue;
-      if(ly > totH - 24){
-        ctx.fillStyle = '#5a6b7a';
-        ctx.fillText('…', lx, ly);
-        break;
-      }
-      if(s.kind === 'bars'){
-        ctx.fillStyle = s.fill;
-        ctx.fillRect(lx + 6, ly - 15, 18, 18);
-      }
-      else if(s.kind === 'dots'){
-        ctx.fillStyle = s.stroke;
-        ctx.beginPath();
-        ctx.arc(lx + 15, ly - 6, 6, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-      else {
-        ctx.strokeStyle = s.stroke;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(lx, ly - 6);
-        ctx.lineTo(lx + 30, ly - 6);
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#22303c';
-      ctx.fillText(s.label, lx + 40, ly);
-      ly += 28;
-    }
-
-    u.destroy();
-    host.remove();
-
-    const fname = prettyName(currentStation.name || currentStation.scode).replace(/[^\w-]+/g,'_') +
-                  '_' + currentStation._region + '_' + currentVar + '_' + chartMode + '.png';
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    btn.textContent = lbl;                  // pulsante libero prima del foglio di condivisione
-    btn.disabled = false;
-    await deliverPNG(blob, fname);
-  } catch(e){
-    setStatus('Export del grafico non riuscito (' + e + ').');
-    toast('PNG non riuscito');
-  } finally {
-    btn.textContent = lbl;
-    btn.disabled = false;
-  }
 }
 
 function buildChartControls(){
@@ -1690,7 +1603,8 @@ function buildChartControls(){
     if(stackObj) stackObj.resize();
     if(histMode && histU) histU.setSize({ width: histWidth(), height: histHeight() });
   }).observe(el('panel'));
-  el('exportpng').addEventListener('click', exportChartPNG);
+  el('exportpng').addEventListener('click', exportPNG);
+  el('tabsCsv').addEventListener('click', exportTabsCSV);
   el('pngclose').addEventListener('click', closePngSheet);
   el('pngsheet').addEventListener('click', e => { if(e.target === el('pngsheet')) closePngSheet(); });
 }
