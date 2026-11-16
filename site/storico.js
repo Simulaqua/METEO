@@ -838,7 +838,7 @@ function exportHistCSV(){
 // ---- PNG dello Storico: il grafico ridisegnato grande, o la Tabella disegnata cella per cella. L'immagine
 // e' su bianco: viste e colori si leggono col tema chiaro (tolto e rimesso senza che lo schermo si
 // ridisegni) ----
-const HV_VIEW_TXT = { giorni:'Giorni', mesi:'Mesi', anni:'Anni', tabella:'Tabella' };
+const HV_VIEW_TXT = { giorni:'giorni', mesi:'mesi', anni:'anni', tabella:'tabella' };
 function hvLight(fn){
   const dark = document.body.classList.contains('dark');
   if(dark) document.body.classList.remove('dark');
@@ -848,8 +848,8 @@ async function histPNG(){
   const h = histData, st = currentStation;
   if(!h || !st) return null;
   const d = ts => new Date(ts * 1000).toISOString().slice(0, 10).split('-').reverse().join('/');
-  const title = prettyName(st.name || st.scode) + ' — ' + (histVar === 'PREC' ? 'pioggia' : 'temperatura') +
-                ', ' + HV_VIEW_TXT[histView];
+  const title = prettyName(st.name || st.scode) + ' — Storico ' +
+                (histVar === 'PREC' ? 'pioggia' : 'temperatura') + ', ' + HV_VIEW_TXT[histView];
   const what = 'Dati dal ' + d(h.x[0]) + ' al ' + d(h.x[h.n - 1]);
   const cv = histView === 'tabella' ? hvLight(() => hvTableCanvas(title, what))
                                     : await hvChartCanvas(h, title, what);

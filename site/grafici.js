@@ -93,13 +93,15 @@ function updateWindRose(){
   // vento medio vettoriale: freccia dal centro verso la provenienza (come i petali); i numeri al passaggio
   const vspeed = Math.hypot(su, sv) / n, sspeed = ss / n;
   const fromDeg = (Math.atan2(-su, -sv) * 180/Math.PI + 360) % 360;
+  const mean = `Vento medio ${vspeed.toFixed(1)} m/s da ${_dirName(fromDeg)}; media scalare ` +
+               `${sspeed.toFixed(1)} m/s; calme ${(calm/n*100).toFixed(0)}%; ${n} osservazioni`;
   if(vspeed > 0.1){
     const [hx,hy] = P(R*0.62, fromDeg);
-    svg += `<g><title>Vento medio ${vspeed.toFixed(1)} m/s da ${_dirName(fromDeg)}; media scalare ` +
-           `${sspeed.toFixed(1)} m/s; calme ${(calm/n*100).toFixed(0)}%; ${n} osservazioni</title>` +
+    svg += `<g><title>${mean}</title>` +
            `<line x1="${cx}" y1="${cy}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="2"/>` +
            `<circle cx="${hx}" cy="${hy}" r="2.5" fill="#c05621"/></g>`;
   }
+  el('chartsum').textContent = 'Rosa dei venti. ' + mean + '.';
   const legend = _WR_CLASSES.map(c =>
     `<span style="white-space:nowrap"><i style="display:inline-block;width:9px;height:9px;background:${c.c};border:1px solid #bbb;vertical-align:-1px"></i> ${c.l}</span>`
   ).join(' ');
@@ -217,6 +219,7 @@ function renderCompareTabs(label, unit){
   chart = new uPlot(opts(false, chartWidth(), chartHeight()), data, el('chart'));
   chart._hi = (W, H) => opts(true, W, H);
   chart._unit = uLab;
+  chart._src = label;
   chart._dir = dir;
   addLabels(chart);
   addZoomUI(chart, () => full, HOUR);
@@ -233,6 +236,7 @@ function clearChart(){
   if(chart){ chart.destroy(); chart = null; }
   if(stackObj){ stackObj.destroy(); stackObj = null; }
   el('chart').innerHTML='';
+  el('chartsum').textContent = '';
 }
 
 // Larghezza = colonna del grafico (la legenda uPlot e' spenta, la nostra sta a destra). Altezza = solo
@@ -288,7 +292,7 @@ function addLabels(u){
   u._labs.hidden = true;
   u.over.appendChild(u._labs);
 }
-const numTxt = v => String(+(+v).toFixed(2));
+const numTxt = (v, src) => CM_VARS.has(src) ? (+v).toFixed(2) : String(+(+v).toFixed(2));
 const unitTxt = un => un ? ' ' + escHtml(un) : '';
 // Al cursore: il valore accanto a ogni punto, l'ora in alto; niente riquadro. Le etichette stanno sopra il
 // punto, a destra del cursore (a sinistra vicino al bordo destro), e non si sovrappongono.
@@ -300,20 +304,23 @@ function cursorLabels(u){
   for(let i = 1; i < u.series.length; i++){
     const j = at(i), v = (j != null && u.data[i]) ? u.data[i][j] : null;
     if(v == null || v === '' || !u.series[i].show) continue;
-    const s = m && m.ss[i - 1];
+    const s = m && m.ss[i - 1], sr = u.series[i];
+    const c = s ? varColor(s.v) : (typeof sr.stroke === 'function' ? sr.stroke(u, i) : sr.stroke);
     let html;
     if(m && i === m.iCum) html = 'tot ' + fmtNum(round2(v - (u.scales.cum.min || 0))) + unitTxt(m.s1.unit);
     else if(s ? isDirVar(s.src) : u._dir) html = windDirHtml(v);
     else {
-      html = numTxt(v) + unitTxt(s ? s.unit : u._unit);
+      html = numTxt(v, s ? s.src : u._src) + unitTxt(s ? s.unit : u._unit);
       const d = m && m.wind && i === m.wind.i ? m.wind.dirs[j] : null;
       if(d != null) html += ' ' + windDirHtml(d);
     }
-    tags.push({ y: u.valToPos(v, u.series[i].scale), html });
+    tags.push({ y: u.valToPos(v, sr.scale), html: '<i class="k" style="background:' + c + '"></i>' + html });
   }
   tags.sort((a, b) => a.y - b.y);
   tags.forEach(t => { t.y = Math.min(Math.max(t.y - 18, 16), H - 16); });
   for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
+  for(let k = tags.length - 1; k >= 0; k--)          // troppi in fondo: risalgono, dentro il grafico
+    tags[k].y = Math.min(tags[k].y, k === tags.length - 1 ? H - 16 : tags[k + 1].y - 16);
   const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null;
   const tt = x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
   const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
@@ -679,7 +686,7 @@ function drawDaily(daily, color, hi){
   return u => {
     const sc = u.scales.cum;
     if(sc.min == null) return;
-    const ctx = u.ctx, bb = u.bbox, pr = devicePixelRatio || 1;
+    const ctx = u.ctx, bb = u.bbox, pr = ctx.canvas.width / Math.max(1, u.width);
     ctx.save();
     ctx.beginPath();
     ctx.rect(bb.left, bb.top, bb.width, bb.height);
@@ -743,7 +750,7 @@ function windArrows(xs, sp, dir, from, to, hourly){
 }
 function drawArrows(arrows, color, hi, dense, scale){
   return u => {
-    const ctx = u.ctx, bb = u.bbox, pr = devicePixelRatio || 1, sx = u.scales.x;
+    const ctx = u.ctx, bb = u.bbox, pr = ctx.canvas.width / Math.max(1, u.width), sx = u.scales.x;
     const n = (hi ? (dense ? 8 : 11) : (dense ? 4.5 : 6.5)) * pr;
     ctx.save();
     ctx.beginPath();
@@ -907,19 +914,30 @@ function renderChart(label){
   // La colonna a destra c'e' solo nel Confronto 7 giorni (elenco dei giorni con i valori); il confronto fra
   // schede la gestisce da se', nei 30 giorni sarebbe troppo lunga. Va decisa PRIMA di creare il grafico.
   el('chartlegend').style.display = chartMode === 'compare' ? '' : 'none';
-  const unit = varUnit(label, currentStation);
+  const cv = label === WARROW ? 'VVENTO' : label, unit = varUnit(cv, currentStation);   // Vento: la velocita'
   if(chartMode === 'compare' || chartMode === 'compare30'){
     const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
-    if(t) renderCompare(t, label, unit);
+    if(t) renderCompare(t, cv, unit);
     return;
   }
-  if(chartMode === 'tabs'){ renderCompareTabs(label, unit); return; }
+  if(chartMode === 'tabs'){ renderCompareTabs(cv, unit); return; }
   const m = mainModel(currentStation, selVars(), chartMode);
   chart = new uPlot(mainOpts(m, { w: chartWidth(), h: chartHeight() }), m.data, el('chart'));
   chart._m = m;
   chart._hi = (W, H) => mainOpts(m, { w: W, h: H, hi: true });
   renderLegend(chart);
   addZoomUI(chart, () => m.win, HOUR);
+  el('chartsum').textContent = chartSummary(m);
+}
+// per chi usa un lettore di schermo: l'ultimo valore di ogni variabile e la sua ora
+function chartSummary(m){
+  return m.ss.map(s => {
+    let i = s.y.length - 1;
+    while(i >= 0 && s.y[i] == null) i--;
+    if(i < 0) return varLabel(s.v) + ': nessun dato';
+    return varLabel(s.v) + ': ' + numTxt(s.y[i], s.src) + (s.unit ? ' ' + s.unit : '') + ' alle ' +
+           fmtDayTime(s.x[i]);
+  }).join('; ') + '.';
 }
 // Una serie per variabile (vars[0] sull'asse sinistro). Il "Vento" e' la velocita' con le frecce della
 // direzione; la cumulata della pioggia c'e' solo con la pioggia da sola.
@@ -1269,7 +1287,7 @@ function createStack(host, cfg){
           y = j != null ? u.data[1][j] : null;
     let html = '';
     if(y != null){
-      html = isDirVar(p.src) ? windDirHtml(y) : numTxt(y) + unitTxt(p.unit);
+      html = isDirVar(p.src) ? windDirHtml(y) : numTxt(y, p.src) + unitTxt(p.unit);
       const d = p.wind && p.wind.dirs[j];
       if(d != null) html += ' ' + windDirHtml(d);
     }
@@ -1409,8 +1427,9 @@ async function chartPNG(){
   if(tabs) title = 'Confronto schede — ' + withUnit(compareVar, chart._unit);
   else {
     const name = prettyName(currentStation.name || currentStation.scode);
+    const un = varUnit(currentVar === WARROW ? 'VVENTO' : currentVar, currentStation);
     title = name + ' — ' + (m && m.ss.length > 1 ? m.ss.map(s => varShort(s.v)).join(', ')
-                                              : withUnit(currentVar, varUnit(currentVar, currentStation)));
+                                              : withUnit(currentVar, un));
     if(currentVar === 'PREC' && (chartMode === 'compare' || chartMode === 'compare30'))
       what += ', pioggia cumulata dalla mezzanotte';
   }

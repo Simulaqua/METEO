@@ -26,17 +26,18 @@ let chartVar = null;
 const selVars = () => [currentVar].concat(extraVars).filter(Boolean);
 const maxVars = () => PHONE.matches ? 3 : 5;
 
-// Codice e ultimo dato nel titolo del nome; accanto, solo se i dati sono fermi da piu' di STALE_HOURS ore.
-// c = ora civile.
-function setMeta(code, c){
+// Codice e ultimo dato nel titolo del nome; accanto, solo se i dati sono fermi: oltre STALE_HOURS ore o tre
+// passi della serie (i dati giornalieri, come le polveri, non sono fermi dopo 3 ore). c = ora civile.
+function setMeta(code, c, table){
   let when = '', stale = false;
   if(c != null){
+    const limit = Math.max(STALE_HOURS * 3600, 3 * (table ? medianStep(table.x.filter(x => x != null)) : 0));
     const now = civT(Date.now() / 1000), d = new Date(c * 1000), n = new Date(now * 1000),
           hm = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()),
           today = d.toISOString().slice(0, 10) === n.toISOString().slice(0, 10);
     when = today ? hm : pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) +
            (d.getUTCFullYear() === n.getUTCFullYear() ? '' : '/' + d.getUTCFullYear()) + ' ' + hm;
-    stale = now - c > STALE_HOURS * 3600;
+    stale = now - c > limit;
     if(stale) when = (today ? 'alle ' : 'al ') + when;
   }
   el('stationName').title = code + (when && !stale ? ', ultimo dato ' + when : '');
@@ -46,6 +47,8 @@ async function selectStation(props){
   snapPause();
   closeSheet();
   const prevSel = selVars();
+  chartVar = null;
+  el('stationName').title = '';
   currentStation = props;
   selectedKey = props._region + '|' + props.scode;
   const region = props._region;
@@ -54,7 +57,7 @@ async function selectStation(props){
   currentUnits = unitsByRegion[region] || {};
   el('panel').scrollTop = 0;            // su telefono: la stazione si vede dall'inizio
   el('stationName').textContent = prettyName(props.name || props.scode);
-  setMeta(props.scode, civSec(props.latest_time));
+  el('stationMeta').textContent = '';
   const src = SOURCES[region];
   el('source').innerHTML = (src
     ? `Fonte: <a href="${src.url}" target="_blank" rel="noopener">${escHtml(src.name)}</a>. `
@@ -74,6 +77,7 @@ async function selectStation(props){
     props._tableAt = Date.now();
   }
 
+  setMeta(props.scode, civSec(props.latest_time), table);
   const dl = el('download');
   dl.href = `${DATA_BASE}/${region}/${props.series}`;
   dl.download = prettyName(props.name || props.scode).replace(/[^\w-]+/g,'_') + '_' + region + '.csv';
@@ -104,7 +108,6 @@ async function selectStation(props){
     extraVars = keep.slice(1);
     chartVar = currentVar;
     buildVarRow();
-    updateClimaBox();
     renderChart(currentVar);
   } else {
     const main = stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder);
@@ -162,7 +165,9 @@ function rowButton(id, text, extra){
 // Riga delle variabili: le misure principali in ordine fisico, piu' quelle scelte da "Altro".
 // Nei confronti si guarda una variabile alla volta: niente "+".
 function buildVarRow(){
-  const box = el('vars'), all = stationVars, cmp = isCompareMode();
+  const box = el('vars'), all = stationVars, cmp = isCompareMode(), f = document.activeElement;
+  const was = !box.contains(f) ? null
+            : f.id ? '#' + f.id : '.' + f.className + '[data-var="' + f.dataset.var + '"]';
   const sel = cmp ? [currentVar] : selVars();
   const main = all.filter(v => isMainVar(v, all)).sort(byVarOrder);
   const shown = main.concat(sel.filter(v => v && all.includes(v) && !main.includes(v)).sort(byVarOrder));
@@ -176,6 +181,10 @@ function buildVarRow(){
     box.appendChild(rowButton('stackbtn', 'Impilate', {
       'aria-pressed': String(stackMode), title: 'Una fascia per variabile, con cursore e zoom insieme'
     }));
+  // la riga si ricostruisce a ogni scelta: il fuoco della tastiera torna sullo stesso comando
+  const back = was && (box.querySelector(was) || box.querySelector(was.replace(/^\.vp/, '.vb')));
+  if(back) back.focus({ preventScroll:true });
+  updateClimaBox();
 }
 
 function drawVar(v){
@@ -189,16 +198,11 @@ function drawVar(v){
     }
     exitHist();
   }
-  if(v === WARROW && isCompareMode()){             // i confronti sono per una variabile vera
-    chartMode = 'week';
-    syncModes();
-  }
   currentVar = v;
   extraVars = [];
   if(v !== WROSE) chartVar = v;
   document.body.classList.toggle('rose-mode', v === WROSE);
   buildVarRow();
-  updateClimaBox();
   if(v === WROSE) updateWindRose();
   else renderChart(v);
   if(currentStation) updateHash();
@@ -266,12 +270,12 @@ const _fmtMon = s => s ? s.substr(4,2) + '/' + s.substr(0,4) : '';
 const _fmtDay = s => s ? s.substr(6,2) + '/' + s.substr(4,2) + '/' + s.substr(0,4) : '';
 async function updateClimaBox(){
   const box = el('climabox');
-  if(!currentStation || !currentVar || varCat(currentVar) !== 'indici'){
-    box.style.display = 'none';
+  if(!currentStation || !currentVar || varCat(currentVar) !== 'indici' || histMode){
+    box.hidden = true;
     box.innerHTML = '';
     return;
   }
-  box.style.display = 'block';
+  box.hidden = false;
   box.innerHTML = '<div class="hint">Carico la climatologia…</div>';
   const clima = await loadClimate(currentStation._region);
   if(!currentStation){ return; }
@@ -337,7 +341,7 @@ async function refreshStation(){
         if(varCat(v) === 'dirette' && t.cols[v][i] != null){ lastX = t.x[i]; break; }
       }
     }
-    setMeta(currentStation.scode, lastX ? civT(lastX) : null);
+    setMeta(currentStation.scode, lastX ? civT(lastX) : null, t);
   } catch(e){ setStatus('Aggiornamento non riuscito.'); }
   btn.innerHTML = icon;
   btn.disabled = false;
@@ -454,9 +458,8 @@ async function renderCompareView(){
   el('source').innerHTML = TZNOTE;
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
   el('windrose').innerHTML = '';
-  const cbx = el('climabox');
-  cbx.style.display = 'none';
-  cbx.innerHTML = '';
+  el('climabox').hidden = true;
+  el('climabox').innerHTML = '';
   history.replaceState(null, '', '#confronto');
   await ensureTabTables();
   const set = new Set();
@@ -475,6 +478,7 @@ function pickCompareVar(v){
   [...el('vars').children].forEach(x => {
     const on = x.dataset.var === v;
     x.classList.toggle('on', on);
+    x.querySelector('.vb').setAttribute('aria-pressed', String(on));
     const k = x.querySelector('.key');
     if(on && !k){
       const i = document.createElement('i');
@@ -524,13 +528,11 @@ async function pickMode(mode){
   if(mode === 'tabs'){ openCompareTab(); return; }
   if(histMode) exitHist();
   chartMode = mode;
-  if(isCompareMode()){
-    exitStack();
-    if(currentVar === WROSE || currentVar === WARROW){
-      const first = stationVars.slice().sort(byVarOrder).find(v => isMainVar(v, stationVars) && v !== WARROW);
-      currentVar = (chartVar && chartVar !== WARROW) ? chartVar : (first || currentVar);
-      document.body.classList.remove('rose-mode');
-    }
+  if(isCompareMode() && currentVar === WROSE){       // la rosa non ha giorni da confrontare: torna al grafico
+    const first = stationVars.slice().sort(byVarOrder).find(v => isMainVar(v, stationVars));
+    currentVar = stationVars.includes(chartVar) ? chartVar : (first || currentVar);
+    extraVars = extraVars.filter(v => v !== currentVar);
+    document.body.classList.remove('rose-mode');
   }
   syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
@@ -544,8 +546,11 @@ async function pickMode(mode){
 // periodo acceso (sottolineato); un confronto acceso accende "Confronta", che ne prende il nome
 const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g' };
 function syncModes(){
-  document.querySelectorAll('#modes .mode[data-mode]')
-    .forEach(b => b.classList.toggle('active', !histMode && b.dataset.mode === chartMode));
+  document.querySelectorAll('#modes .mode[data-mode]').forEach(b => {
+    const on = !histMode && b.dataset.mode === chartMode;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
   el('cmpMenu').querySelectorAll('[role="menuitemradio"]').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === chartMode);
     b.setAttribute('aria-checked', String(b.dataset.mode === chartMode));
@@ -583,6 +588,7 @@ function menuNav(menu, close){
     if(j == null) return;
     e.preventDefault();
     bs[j].focus({ preventScroll:true });
+    bs[j].scrollIntoView({ block:'nearest' });
   });
 }
 
@@ -663,7 +669,10 @@ function buildStationControls(){
   });
   el('altMenu').addEventListener('click', e => {
     const b = e.target.closest('[data-var]');
-    if(b){ altClose(true); drawVar(b.dataset.var); }
+    if(!b) return;
+    altClose();
+    drawVar(b.dataset.var);
+    if(el('altBtn')) el('altBtn').focus({ preventScroll:true });
   });
   el('cmpBtn').addEventListener('click', () => el('cmpMenu').hidden ? cmpOpen() : cmpClose());
   el('cmpMenu').addEventListener('click', e => {

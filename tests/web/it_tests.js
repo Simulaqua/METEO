@@ -861,6 +861,7 @@
     const row = () => [...el('vars').querySelectorAll('.vn')].map(e => e.dataset.var);
     const mainNow = () => stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder);
     const rgb = h => 'rgb(' + [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(', ') + ')';
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     setMapVar(''); await until(() => filterVar === '');
     eq('si apre sulla temperatura', await open(A), 'TEMP');
     eq('senza temperatura: la precipitazione', await open(B), 'PREC');
@@ -943,6 +944,73 @@
     log(currentVar === 'TDEW' && row().includes('TDEW') && el('altMenu').hidden, 'Altro: la scelta si vede e entra nella riga', JSON.stringify(row()));
     drawVar('TEMP'); await sleep(200);
     log(!row().includes('TDEW'), 'Altro: lasciata, esce dalla riga', JSON.stringify(row()));
+
+    // dalla revisione: niente doppioni, Impilate e variabili intatte dopo un confronto, fuoco, Altro lungo, climatologia
+    const A28 = (allFeatures.find(f => f.properties._region === 'FVG' && f.properties.scode === 'A280') || {}).properties;
+    log(!!A28, 'Arba (FVG/A280) trovata', '');
+    if(A28){
+      await open(A28); drawVar(WARROW); addVar('TEMP'); await sleep(200);
+      await pickMode('compare'); await sleep(300);
+      log(chartMode === 'compare' && !!chart && chart.series.length > 3, 'Vento: il confronto dei giorni è sulla velocità', chart && chart.series.length);
+      await pickMode('week'); await sleep(300);
+      eq('confronto e ritorno: le stesse variabili, nessun doppione', selVars(), [WARROW, 'TEMP']);
+      drawVar('TEMP'); await sleep(200);
+      el('altBtn').focus(); el('altBtn').click(); await sleep(150);
+      const am = el('altMenu'), ai = [...am.querySelectorAll('button')], last = ai[ai.length - 1];
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key:'End', bubbles:true })); await sleep(100);
+      const lr = last.getBoundingClientRect(), mr = am.getBoundingClientRect(), hit = document.elementFromPoint(lr.left + lr.width / 2, lr.top + lr.height / 2);
+      log(document.activeElement === last && lr.bottom <= mr.bottom + 1 && hit && last.contains(hit),
+          'Altro lungo (' + ai.length + ' voci): anche l\'ultima si vede e si tocca', JSON.stringify([Math.round(lr.bottom), Math.round(mr.bottom), am.scrollHeight, am.clientHeight]));
+      last.click(); await sleep(300);
+      log(document.activeElement === el('altBtn'), 'Altro: dopo la scelta il fuoco torna su "Altro"', document.activeElement && (document.activeElement.id || document.activeElement.className));
+    }
+    await open(A);
+    const fp = el('vars').querySelector('.vp[data-var="UMID"]'); fp.focus(); fp.click(); await sleep(200);
+    const fa1 = document.activeElement;
+    log(fa1 && fa1.classList.contains('vp') && fa1.dataset.var === 'UMID' && fa1.textContent === '×', '"+": il fuoco resta sul suo comando, ora "×"', fa1 && fa1.outerHTML.slice(0, 80));
+    const fn = el('vars').querySelector('.vb[data-var="PREC"]'); fn.focus(); fn.click(); await sleep(200);
+    const fa2 = document.activeElement;
+    log(fa2 && fa2.classList.contains('vb') && fa2.dataset.var === 'PREC', 'clic su un nome: il fuoco resta sul nome', fa2 && fa2.outerHTML.slice(0, 80));
+    drawVar('TEMP'); addVar('UMID'); await sleep(200);
+    el('stackbtn').click(); await until(() => stackObj); await sleep(200);
+    await pickMode('compare'); await sleep(300); await pickMode('week'); await until(() => stackObj, 4000);
+    log(!!stackObj && stackMode && selVars().join() === 'TEMP,UMID', 'Impilate resta dopo un confronto', JSON.stringify([stackMode, selVars()]));
+    setStackMode(false); await sleep(200);
+    eq('periodi: aria-pressed sul periodo scelto', [...document.querySelectorAll('#modes .mode')].map(b => b.getAttribute('aria-pressed')),
+       ['false', 'false', 'false', 'true']);
+    log(/Temperatura/.test(el('chartsum').textContent) && /Umidità/.test(el('chartsum').textContent),
+        'riassunto per chi usa un lettore di schermo', el('chartsum').textContent);
+    {
+      const k = chart.data[0].findIndex((x, i) => chart.data[1][i] != null && chart.data[2][i] != null);
+      chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 10 }); await sleep(100);
+      const keys = [...chart._labs.querySelectorAll('.cl-v .k')].map(e => e.style.background);
+      log(keys.length === 2 && keys.includes(rgb(varColor('TEMP'))) && keys.includes(rgb(varColor('UMID'))), 'cursore: ogni valore col trattino della sua linea', JSON.stringify(keys));
+    }
+    {                                                  // cinque valori in basso: nessuno esce dal grafico
+      const fake = { _labs: document.createElement('div'), cursor: { idx: 0, left: 50, idxs: null }, over: { clientWidth: 400, clientHeight: 300 },
+                     series: [{}].concat([1, 2, 3, 4, 5].map(() => ({ show: true, scale: 'y' }))), data: [[1794700000], [1], [2], [3], [4], [5]],
+                     valToPos: () => 296, scales: {}, _unit: 'x' };
+      cursorLabels(fake);
+      const tops = [...fake._labs.querySelectorAll('.cl-v')].map(e => parseFloat(e.style.top));
+      log(tops.length === 5 && tops.every(t => t >= 0 && t <= 300 - 16), 'cursore: valori fitti in basso restano dentro il grafico', JSON.stringify(tops));
+    }
+    {
+      const G = (stationVars.includes('GDD') && 'GDD') || stationVars.find(v => varCat(v) === 'indici');
+      if(G){
+        drawVar(G); await until(() => !el('climabox').hidden, 4000);
+        await setHistMode(true); await sleep(300);
+        log(!vis(el('climabox')), 'Storico: niente climatologia sotto', '');
+        await pickMode('week'); await sleep(300);
+        log(!vis(el('climabox')) && varCat(currentVar) !== 'indici', 'uscendo dallo Storico: niente climatologia della variabile di prima', currentVar);
+      }
+    }
+    {
+      await open(C); await sleep(200);
+      const k = chart.data[0].findIndex((x, i) => chart.data[1][i] != null);
+      chart.setCursor({ left: chart.valToPos(chart.data[0][k], 'x'), top: 10 }); await sleep(100);
+      const t = (chart._labs.querySelector('.cl-v') || {}).textContent || '';
+      log(/^-?\d+\.\d\d /.test(t), 'livelli: al centimetro (due decimali) anche al cursore', t);
+    }
 
     // pioggia: linee cumulate giornaliere (da zero a ogni mezzanotte; il primo giorno dal valore vero) e modo Oggi
     await open(B);

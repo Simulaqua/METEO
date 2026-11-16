@@ -52,6 +52,7 @@ body.view-station #panel { display:flex; }
 #stationName { font-size:17px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
 #stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
 #stationMeta:empty { display:none; }
+body.dark #stationMeta { color:#f0a35e; }
 #ptools, #modes, #pviews, #pact { display:flex; align-items:baseline; }
 #ptools { gap:6px 28px; flex-wrap:wrap; }
 #modes, #pviews { gap:14px; }
@@ -69,6 +70,10 @@ body.view-station #panel { display:flex; }
 #pact .act svg { width:14px; height:14px; vertical-align:-2px; fill:none; stroke:currentColor; stroke-width:2;
                  stroke-linecap:round; stroke-linejoin:round; }
 #cmpMenu, #altMenu { z-index:20; }                  /* sopra il grafico (etichette e "Tutto" stanno a 4-5) */
+#altMenu { overflow-y:auto; overscroll-behavior:contain; }   /* tante voci (Arba: 23): il menu scorre */
+#climabox[hidden] { display:none; }
+.sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+           clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .tb-menu hr { border:0; border-top:1px solid var(--line); margin:4px 0; flex:none; }
 /* riga 2: i nomi vanno a capo, mai nascosti */
 #pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 28px; flex:none; }
@@ -99,6 +104,8 @@ body:not(.view-compare) #tabsCsv, body.hist-mode #refresh, body.view-compare #re
 .cl-t { top:0; transform:translateX(-50%); color:var(--muted); }
 .cl-v { transform:translateX(8px); font-weight:600; color:var(--fg); }
 .cl-v.l { transform:translateX(calc(-100% - 8px)); }
+.cl-v .k { display:inline-block; width:10px; height:2px; margin-right:5px; border-radius:1px;
+           vertical-align:middle; }
 /* riquadro al passaggio dello Storico */
 .ctip { position:absolute; left:0; top:0; z-index:4; display:none; pointer-events:none; padding:3px 7px;
         background:rgba(255,255,255,.95); border:1px solid var(--line); border-radius:6px;
