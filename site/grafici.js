@@ -18,11 +18,12 @@ function windObsCount(t){
   }
   return n;
 }
-// La rosa segue il periodo scelto (Oggi, 24 h, 3 g, 7 g).
+// La rosa segue il periodo scelto (Oggi, 24 h, 3 g, 7 g) e prende il posto del grafico, grande come lui.
 function updateWindRose(){
   const box = el('windrose');
   const t = currentStation && currentStation._table;
   const dirs = t && t.cols['DVENTO'], sps = t && t.cols['VVENTO'];
+  box._rose = null;
   if(!dirs || !sps){ box.innerHTML = ''; return; }
   let lo = Infinity, hi = tableEnd(t, ['DVENTO', 'VVENTO']);
   t.x.forEach(x => { if(x != null && x < lo) lo = x; });
@@ -45,70 +46,77 @@ function updateWindRose(){
     grid[sec][ci]++;
   }
   if(n < 10){
-    box.innerHTML = '<div class="hint">Dati di vento insufficienti per la rosa.</div>';
+    box.innerHTML = '<div class="hint">Pochi dati di vento.</div>';
     return;
   }
-  let maxPct = 0;
-  const secPct = grid.map(cl => {
-    const tot = cl.reduce((a,b)=>a+b,0)/n*100;
-    if(tot>maxPct) maxPct=tot;
-    return tot;
-  });
-  const cx = 130, cy = 118, R = 92, calmR = 12;
+  const r = box._rose = { grid, n, calm, su, sv, ss };
+  const legend = _WR_CLASSES.map(c => `<span><i style="background:${c.c}"></i> ${c.l}</span>`).join(' ');
+  box.innerHTML = `<div class="wr-plot"></div><div class="wr-legend">m/s ${legend}</div>`;
+  const plot = box.firstChild, side = Math.min(plot.clientWidth, plot.clientHeight || plot.clientWidth);
+  plot.innerHTML = roseSvg(r, Math.max(160, side), 1);
+  el('chartsum').textContent = 'Rosa dei venti. ' + roseMean(r).text + '.';
+}
+// vento medio vettoriale (da dove spira) e scalare
+function roseMean(r){
+  const v = Math.hypot(r.su, r.sv) / r.n, from = (Math.atan2(-r.su, -r.sv) * 180 / Math.PI + 360) % 360;
+  return { v, from, text:`Vento medio ${v.toFixed(1)} m/s da ${_dirName(from)}; media scalare ` +
+           `${(r.ss / r.n).toFixed(1)} m/s; calme ${(r.calm / r.n * 100).toFixed(0)}%; ${r.n} osservazioni` };
+}
+// Rosa in un quadrato di S px; k ingrandisce scritte e tratti (PNG). I colori sono quelli del tema chiaro: il
+// tema scuro li cambia da stile.css (classi wr-*), l'immagine resta chiara.
+function roseSvg(r, S, k){
+  const { grid, n } = r, c = S / 2, R = c - 20 * k, calmR = Math.max(12 * k, R * 0.12);
+  const maxPct = Math.max(...grid.map(cl => cl.reduce((a, b) => a + b, 0) / n * 100));
   const step = maxPct <= 10 ? 2 : (maxPct <= 25 ? 5 : 10);
   const gridMax = Math.max(step, Math.ceil(maxPct / step) * step);
   const rOf = pct => calmR + (R - calmR) * pct / gridMax;
-  const P = (r, thDeg) => {
-    const a = thDeg * Math.PI/180;
-    return [(cx + r*Math.sin(a)).toFixed(1), (cy - r*Math.cos(a)).toFixed(1)];
+  const P = (rr, deg) => {
+    const a = deg * Math.PI / 180;
+    return [(c + rr * Math.sin(a)).toFixed(1), (c - rr * Math.cos(a)).toFixed(1)];
   };
+  const fs = px => (px * k).toFixed(1);
   let svg = '';
-  for(let g=step; g<=gridMax; g+=step){
-    const r = rOf(g).toFixed(1);
-    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d7dee6"/>`;
-    svg += `<text x="${cx+2}" y="${(cy - r + 3).toFixed(1)}" font-size="8" fill="#9aa5b1">${g}%</text>`;
+  for(let g = step; g <= gridMax; g += step){
+    const rr = rOf(g);
+    svg += `<circle class="wr-ring" cx="${c}" cy="${c}" r="${rr.toFixed(1)}" fill="none" stroke="#d7dee6"/>` +
+           `<text class="wr-t" x="${(c + 3 * k).toFixed(1)}" y="${(c - rr + 4 * k).toFixed(1)}" ` +
+           `font-size="${fs(10)}" fill="#8a96a3">${g}%</text>`;
   }
-  ['N','E','S','O'].forEach((lab,k) => {
-    const [x,y] = P(R+11, k*90);
-    svg += `<text x="${x}" y="${y}" font-size="11" font-weight="600" fill="#5a6b7b" text-anchor="middle" dominant-baseline="middle">${lab}</text>`;
+  ['N', 'E', 'S', 'O'].forEach((lab, q) => {
+    const [x, y] = P(R + 11 * k, q * 90);
+    svg += `<text class="wr-c" x="${x}" y="${y}" font-size="${fs(12)}" font-weight="600" fill="#5a6b7b" ` +
+           `text-anchor="middle" dominant-baseline="middle">${lab}</text>`;
   });
   const HALF = 10;                       // mezza ampiezza del settore in gradi (22.5 pieno: resta un gap)
-  for(let sec=0; sec<16; sec++){
+  for(let sec = 0; sec < 16; sec++){
     const th = sec * 22.5, t1 = th - HALF, t2 = th + HALF;
     let acc = 0;
-    for(let ci=0; ci<_WR_CLASSES.length; ci++){
+    for(let ci = 0; ci < _WR_CLASSES.length; ci++){
       const cnt = grid[sec][ci];
       if(!cnt) continue;
-      const p0 = acc/n*100, p1 = (acc+cnt)/n*100;
+      const ri = rOf(acc / n * 100), ro = rOf((acc + cnt) / n * 100);
       acc += cnt;
-      const ri = rOf(p0), ro = rOf(p1);
-      const [ax,ay] = P(ri,t1), [bx,by] = P(ro,t1), [dcx,dcy] = P(ro,t2), [ex,ey] = P(ri,t2);
-      svg += `<path d="M${ax},${ay} L${bx},${by} A${ro.toFixed(1)},${ro.toFixed(1)} 0 0 1 ${dcx},${dcy} `
-           + `L${ex},${ey} A${ri.toFixed(1)},${ri.toFixed(1)} 0 0 0 ${ax},${ay} Z" `
-           + `fill="${_WR_CLASSES[ci].c}" stroke="#fff" stroke-width="0.4"/>`;
+      const [ax, ay] = P(ri, t1), [bx, by] = P(ro, t1), [dx, dy] = P(ro, t2), [ex, ey] = P(ri, t2);
+      const o = ro.toFixed(1), i = ri.toFixed(1);
+      svg += `<path class="wr-p" d="M${ax},${ay} L${bx},${by} A${o},${o} 0 0 1 ${dx},${dy} ` +
+             `L${ex},${ey} A${i},${i} 0 0 0 ${ax},${ay} Z" ` +
+             `fill="${_WR_CLASSES[ci].c}" stroke="#fff" stroke-width="${fs(0.6)}"/>`;
     }
   }
-  svg += `<circle cx="${cx}" cy="${cy}" r="${calmR}" fill="#eef2f6" stroke="#d7dee6"/>`
-       + `<text x="${cx}" y="${cy+3}" font-size="8" fill="#7a8794" text-anchor="middle">calme</text>`;
+  svg += `<circle class="wr-calm" cx="${c}" cy="${c}" r="${calmR.toFixed(1)}" ` +
+         `fill="#eef2f6" stroke="#d7dee6"/>` +
+         `<text class="wr-t" x="${c}" y="${(c + 3 * k).toFixed(1)}" font-size="${fs(9)}" fill="#7a8794" ` +
+         `text-anchor="middle">calme</text>`;
   // vento medio vettoriale: freccia dal centro verso la provenienza (come i petali); i numeri al passaggio
-  const vspeed = Math.hypot(su, sv) / n, sspeed = ss / n;
-  const fromDeg = (Math.atan2(-su, -sv) * 180/Math.PI + 360) % 360;
-  const mean = `Vento medio ${vspeed.toFixed(1)} m/s da ${_dirName(fromDeg)}; media scalare ` +
-               `${sspeed.toFixed(1)} m/s; calme ${(calm/n*100).toFixed(0)}%; ${n} osservazioni`;
-  if(vspeed > 0.1){
-    const [hx,hy] = P(R*0.62, fromDeg);
-    svg += `<g><title>${mean}</title>` +
-           `<line x1="${cx}" y1="${cy}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="2"/>` +
-           `<circle cx="${hx}" cy="${hy}" r="2.5" fill="#c05621"/></g>`;
+  const m = roseMean(r);
+  if(m.v > 0.1){
+    const [hx, hy] = P(R * 0.62, m.from);
+    svg += `<g><title>${m.text}</title>` +
+           `<line x1="${c}" y1="${c}" x2="${hx}" y2="${hy}" stroke="#c05621" stroke-width="${fs(2)}"/>` +
+           `<circle cx="${hx}" cy="${hy}" r="${fs(2.5)}" fill="#c05621"/></g>`;
   }
-  el('chartsum').textContent = 'Rosa dei venti. ' + mean + '.';
-  const legend = _WR_CLASSES.map(c =>
-    `<span style="white-space:nowrap"><i style="display:inline-block;width:9px;height:9px;background:${c.c};border:1px solid #bbb;vertical-align:-1px"></i> ${c.l}</span>`
-  ).join(' ');
-  box.innerHTML =
-    `<svg viewBox="0 0 260 250" width="100%" font-family="system-ui, sans-serif" ` +
-    `style="max-width:300px;display:block;margin:0 auto">${svg}</svg>` +
-    `<div class="wr-legend">m/s ${legend}</div>`;
+  return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" ` +
+         `font-family="system-ui, sans-serif">${svg}</svg>`;
 }
 
 // CONFRONTO SCHEDE: stessa variabile, una serie per ogni stazione aperta in scheda
@@ -122,7 +130,7 @@ function renderCompareTabs(label, unit){
     t.props._table && (t.props._table.cols[label] || []).some(v => v != null));
   if(tabs.length < 2){
     el('chartlegend').innerHTML = '';
-    setStatus('Apri in schede almeno 2 stazioni che misurano ' + varLabel(label) + ', poi torna qui.');
+    setStatus('Servono almeno due schede con ' + varLabel(label) + '.');
     return;
   }
   setStatus('');
@@ -193,8 +201,9 @@ function renderCompareTabs(label, unit){
           ax = hi ? '#33475a' : AXTX();
     const lab = hi ? { labelFont: '700 24px system-ui, sans-serif', labelSize: 32, labelGap: 6 }
                    : { labelSize: 26, labelGap: 4 };
-    const yAx = Object.assign({ grid:{ stroke: grid }, size: hi ? 82 : 58, label: uLab, stroke: ax },
-                              lab, fnt);
+    const yAx = Object.assign({
+      grid:{ stroke: grid }, size: hi ? 82 : 58, label: uLab, stroke: ax, incrs: TICK_STEPS, values: tickTexts
+    }, lab, fnt);
     return {
       width: W, height: H, tzDate: TZ_CIV, legend: { show:false },
       scales: {
@@ -254,37 +263,13 @@ const isCompareMode = () => (chartMode === 'compare' || chartMode === 'compare30
 const GRID = () => document.body.classList.contains('dark') ? '#223146' : '#eef2f7';
 const AXTX = () => document.body.classList.contains('dark') ? '#c7d3e0' : '#1c2733';
 
+// valori al cursore accanto ai punti (cursorLabels); la colonna a destra la usa solo il Confronto schede
 function renderLegend(u){
-  const box = el('chartlegend');
-  box.innerHTML = '';
-  box._rows = null;
-  if(chartMode === 'compare30') return;                     // 30 giorni: niente elenco (troppi giorni)
-  if(!isCompareMode()){ addLabels(u); return; }             // valori accanto ai punti (cursorLabels)
-  const rows = [];
-  for(let i = 1; i < u.series.length; i++){
-    const s = u.series[i];
-    const stroke = (typeof s.stroke === 'function') ? s.stroke(u, i) : s.stroke;
-    const div = document.createElement('div');
-    div.className = 'lg';
-    div.innerHTML = `<span class="sw" style="background:${stroke||'#888'}"></span>`
-                  + `<span class="nm">${s.label || ''}</span><span class="vl"></span>`;
-    box.appendChild(div);
-    rows.push(div.querySelector('.vl'));
-  }
-  box._rows = rows;
+  el('chartlegend').innerHTML = '';
+  addLabels(u);
 }
-// Valori sotto il cursore. Indice per serie (cursor.idxs): per le barre quella sotto il cursore, per le altre
-// il punto valido piu' vicino (serie con orari diversi sono allineate con dei vuoti).
 function legendCursor(u){
-  if(u !== chart) return;
-  if(u._labs){ cursorLabels(u); return; }
-  const box = el('chartlegend'), idxs = u.cursor.idxs, gi = u.cursor.idx;
-  if(!box._rows) return;
-  for(let i = 1; i < u.series.length; i++){
-    const j = (idxs && idxs[i] !== undefined) ? idxs[i] : gi, d = u.data[i];
-    const v = (j != null && d && d[j] !== '') ? d[j] : null;
-    if(box._rows[i-1]) box._rows[i-1].textContent = v == null ? '' : v;
-  }
+  if(u === chart && u._labs) cursorLabels(u);
 }
 function addLabels(u){
   u._labs = document.createElement('div');
@@ -293,17 +278,42 @@ function addLabels(u){
   u.over.appendChild(u._labs);
 }
 const numTxt = (v, src) => CM_VARS.has(src) ? (+v).toFixed(2) : String(+(+v).toFixed(2));
+// Tacche dei valori: passi 1, 2, 5 (col 2.5 i decimali cambierebbero da una tacca all'altra), tutte con gli
+// stessi decimali, col punto e senza migliaia (uPlot userebbe la lingua del browser: "1.000", "2,5")
+const TICK_STEPS = [-3, -2, -1, 0, 1, 2, 3, 4, 5]
+  .flatMap(e => [1, 2, 5].map(k => +(k * Math.pow(10, e)).toPrecision(1)));
+const stepDecimals = step => {
+  let d = 0;
+  while(d < 3 && Math.abs(step * Math.pow(10, d) - Math.round(step * Math.pow(10, d))) > 1e-4) d++;
+  return d;
+};
+function tickTexts(u, splits, axis, space, incr){
+  const step = incr || (splits.length > 1 ? Math.abs(splits[1] - splits[0]) : 1), d = stepDecimals(step);
+  return splits.map(v => (Math.abs(v) < 1e-9 ? 0 : v).toFixed(d));
+}
 const unitTxt = un => un ? ' ' + escHtml(un) : '';
+// Confronto per giorni: oggi e il giorno col punto piu' vicino al puntatore (trenta valori non si leggono)
+function dayPair(u, at){
+  const today = u.series.findIndex(s => s.label === 'Oggi');
+  let best = -1, dist = Infinity;
+  for(let i = 1; i < u.series.length; i++){
+    const j = at(i), v = j != null ? u.data[i][j] : null;
+    if(i === today || v == null) continue;
+    const d = Math.abs(u.valToPos(v, u.series[i].scale) - u.cursor.top);
+    if(d < dist){ dist = d; best = i; }
+  }
+  return [today, best];
+}
 // Al cursore: il valore accanto a ogni punto, l'ora in alto; niente riquadro. Le etichette stanno sopra il
 // punto, a destra del cursore (a sinistra vicino al bordo destro), e non si sovrappongono.
 function cursorLabels(u){
   const box = u._labs, gi = u.cursor.idx, left = u.cursor.left;
   if(gi == null || left == null || left < 0){ box.hidden = true; return; }
   const m = u._m, idxs = u.cursor.idxs, at = i => (idxs && idxs[i] !== undefined) ? idxs[i] : gi;
-  const W = u.over.clientWidth, H = u.over.clientHeight, tags = [];
+  const W = u.over.clientWidth, H = u.over.clientHeight, tags = [], only = u._days ? dayPair(u, at) : null;
   for(let i = 1; i < u.series.length; i++){
     const j = at(i), v = (j != null && u.data[i]) ? u.data[i][j] : null;
-    if(v == null || v === '' || !u.series[i].show) continue;
+    if(v == null || v === '' || !u.series[i].show || (only && !only.includes(i))) continue;
     const s = m && m.ss[i - 1], sr = u.series[i];
     const c = s ? varColor(s.v) : (typeof sr.stroke === 'function' ? sr.stroke(u, i) : sr.stroke);
     let html;
@@ -314,6 +324,7 @@ function cursorLabels(u){
       const d = m && m.wind && i === m.wind.i ? m.wind.dirs[j] : null;
       if(d != null) html += ' ' + windDirHtml(d);
     }
+    if(only) html = sr.label + ' ' + html;
     tags.push({ y: u.valToPos(v, sr.scale), html: '<i class="k" style="background:' + c + '"></i>' + html });
   }
   tags.sort((a, b) => a.y - b.y);
@@ -322,7 +333,8 @@ function cursorLabels(u){
   for(let k = tags.length - 1; k >= 0; k--)          // troppi in fondo: risalgono, dentro il grafico
     tags[k].y = Math.min(tags[k].y, k === tags.length - 1 ? H - 16 : tags[k + 1].y - 16);
   const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null;
-  const tt = x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
+  const tt = u._days ? (u.data[0][gi] != null ? hhmm(u.data[0][gi]) : '')
+           : x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
   const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
   box.innerHTML = `<span class="cl-t" style="left:${tx}px">${tt}</span>` + tags.map(t =>
     `<span class="cl-v${side}" style="left:${left}px;top:${Math.round(t.y)}px">${t.html}</span>`).join('');
@@ -802,10 +814,10 @@ function cumAxis(hi, color){
       for(let k = 0; mn + k * st <= mx + 1e-9; k++) out.push(mn + k * st);
       return out;
     },
-    values: (u, ticks) => ticks.map(t => {
-      const d = t - u.scales.cum.min;
-      return String(+d.toFixed(Math.abs(d % 1) > 1e-9 ? 1 : 0));
-    })
+    values: (u, ticks) => {
+      const d = stepDecimals(ticks.length > 1 ? ticks[1] - ticks[0] : 1);
+      return ticks.map(t => Math.max(0, t - u.scales.cum.min).toFixed(d));
+    }
   }, hi ? { font: '20px system-ui, sans-serif', labelFont: '700 24px system-ui, sans-serif' } : {});
 }
 
@@ -907,9 +919,9 @@ function renderChart(label){
   const stk = stacked();
   document.body.classList.toggle('stacked', stk);
   if(stk){ renderStackView(); return; }
-  // La colonna a destra c'e' solo nel Confronto 7 giorni (elenco dei giorni con i valori); il confronto fra
-  // schede la gestisce da se', nei 30 giorni sarebbe troppo lunga. Va decisa PRIMA di creare il grafico.
-  el('chartlegend').style.display = chartMode === 'compare' ? '' : 'none';
+  // La colonna a destra (i nomi delle stazioni) c'e' solo nel Confronto schede, che la apre da se': va chiusa
+  // PRIMA di creare il grafico, che ne prende la larghezza.
+  el('chartlegend').style.display = 'none';
   const cv = label === WARROW ? 'VVENTO' : label, unit = varUnit(cv, currentStation);   // Vento: la velocita'
   if(chartMode === 'compare' || chartMode === 'compare30'){
     const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
@@ -1031,11 +1043,10 @@ function mainOpts(m, o){
   const scales = {};
   groups.forEach((g, k) => {
     const one = g.ss.length === 1 ? g.ss[0].v : null;
-    // tacche rade e numeri col punto, senza migliaia (uPlot userebbe la lingua del browser: "1,025")
     const a = Object.assign({
       scale: g.key, grid: k ? { show:false } : { stroke: grid }, label: g.unit,
       size: hi ? 82 : narrow ? 38 : 54, stroke: many && one ? col(one, true) : ax, space: hi ? 70 : 44,
-      values: (u, sp) => sp.map(v => String(Math.round(v * 1000) / 1000))
+      incrs: TICK_STEPS, values: tickTexts
     }, lab, fnt);
     if(k) a.side = 1;
     axes.push(g.dir ? dirAxis(a) : a);
@@ -1132,7 +1143,8 @@ function renderCompare(t, label, unit){
   const opts = hi => {
     const fnt = hi ? { font: '20px system-ui, sans-serif' } : {}, grid = hi ? '#e3e9f0' : GRID();
     const yAx = Object.assign({
-      grid:{ stroke: grid }, size: hi ? 82 : 58, label: unit, labelSize: hi ? 32 : 26, labelGap: hi ? 6 : 4
+      grid:{ stroke: grid }, size: hi ? 82 : 58, label: unit, labelSize: hi ? 32 : 26, labelGap: hi ? 6 : 4,
+      incrs: TICK_STEPS, values: tickTexts
     }, hi ? { stroke:'#33475a', labelFont:'700 24px system-ui, sans-serif' } : {}, fnt);
     return {
       width: chartWidth(), height: chartHeight(), tzDate: TZ_UTC, legend: { show:false },
@@ -1156,6 +1168,7 @@ function renderCompare(t, label, unit){
   };
   chart = new uPlot(opts(false), data, el('chart'));
   chart._hi = (W, H) => Object.assign(opts(true), { width: W, height: H });
+  Object.assign(chart, { _days: true, _unit: unit, _src: label, _dir: dir });
   renderLegend(chart);
   addZoomUI(chart, () => full, HOUR);
 }
@@ -1216,12 +1229,18 @@ function stackPanelOpts(p, o){
         grid:{stroke:grid}, stroke:ax, size: hi ? 46 : 30, values:(u, ticks) => ticks.map(fmtAxis)
       }, fnt)
     : { grid:{stroke:grid}, size:6, ticks:{show:false}, values:(u, ticks) => ticks.map(() => '') };
-  const axY = Object.assign({ grid:{stroke:grid}, size: hi ? 82 : 58, stroke: varColor(p.v, true, hi) }, fnt);
+  const axY = Object.assign({
+    grid:{stroke:grid}, size: hi ? 82 : 58, stroke: varColor(p.v, true, hi),
+    incrs: TICK_STEPS, values: tickTexts
+  }, fnt);
   const axes = [ axX, isDirVar(p.src) ? dirAxis(axY) : axY ];
   const scales = {
-    // Un intervallo piu' STRETTO della finestra e' uno zoom (trascinamento) e va accettato; uguale o piu'
-    // ampio (dati iniziali, doppio clic) torna alla finestra intera.
-    x:{ time:true, range:(u, a, b) => (a > o.win[0] + 1 || b < o.win[1] - 1) ? [a, b] : o.win },
+    // Un intervallo piu' STRETTO della finestra e' uno zoom e va accettato; quello dei dati (uPlot lo
+    // ripassa a ogni ridisegno) no: i dati possono cominciare dopo l'inizio della finestra.
+    x:{ time:true, range:(u, a, b) => {
+      const d = u.data[0], data = d.length > 0 && a === d[0] && b === d[d.length - 1];
+      return !data && (a > o.win[0] + 1 || b < o.win[1] - 1) ? [a, b] : o.win;
+    } },
     y: p.wind ? windY() : yScaleFor(p.src) };
   const rg = (o.rgut || 0) * (hi ? 82 / STACK_RGUT : 1);
   const h = Object.assign({}, hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks);
@@ -1497,22 +1516,18 @@ async function stackPNG(){
   return { blob: toPng(cv), fname: pngBase() + '_impilate_' + chartMode + '.png' };
 }
 
-// Rosa dei venti: il disegno della pagina, piu' grande, con la legenda delle velocita'
+// Rosa dei venti: lo stesso disegno della pagina, piu' grande, con la legenda delle velocita'
 async function rosePNG(){
-  const svg = el('windrose').querySelector('svg');
-  if(!svg || !currentStation) return null;
-  const W = 1000, SH = 760, SW = Math.round(SH * 260 / 250), TOP = 90, H = TOP + SH + 70;
+  const r = el('windrose')._rose;
+  if(!r || !currentStation) return null;
+  const W = 1000, SW = 760, SH = SW, TOP = 90, H = TOP + SH + 70;
   const { cv, ctx } = pngCanvas(W, H);
   pngHead(ctx, prettyName(currentStation.name || currentStation.scode) + ' — Rosa dei venti',
           MODE_TXT[chartMode] || '', true);
-  const c = svg.cloneNode(true);
-  c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  c.setAttribute('width', SW);
-  c.setAttribute('height', SH);
-  c.removeAttribute('style');
   const img = new Image();
   img.src = 'data:image/svg+xml;charset=utf-8,' +
-            encodeURIComponent(new XMLSerializer().serializeToString(c));
+            encodeURIComponent(roseSvg(r, SW * PNG_R, 1.9 * PNG_R)        // nitida sulla tela doppia
+              .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));
   await img.decode();
   ctx.drawImage(img, (W - SW) / 2, TOP, SW, SH);
   ctx.font = '18px system-ui, sans-serif';

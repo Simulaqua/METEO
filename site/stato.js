@@ -13,24 +13,24 @@ const _ageTxt = min => min < 90 ? Math.max(0, Math.round(min)) + ' min fa'
                      : min < 48*60 ? Math.round(min/60) + ' h fa'
                      : Math.round(min/1440) + ' g fa';
 
-// Freschezza ATTESA per fonte, in ore: cadenza tipica piu' il ritardo normale della sorgente
-// (LOM pubblica con 4-5 h di ritardo: non e' un guasto).
+// Freschezza ATTESA per fonte, in ore: passo dei dati piu' il ritardo normale della sorgente
+// (LOM e Piemonte pubblicano con 4-5 h di ritardo, ARPAE e OSMER con 1-2 h: non e' un guasto).
 // AQ_TN: il feed "last" di APPA Trento mostra un giorno, pubblicato lun-ven tra le 08 e le 10
 // (il giorno prima): dato di 9-35 h nei feriali, fino a ~83 h nel weekend (venerdi' e sabato non
 // compaiono mai). Con 36 e' verde nei feriali, giallo nel weekend, rosso solo oltre 108 h.
-const SRC_EXPECT = { VEN:1.5, LOM:6, ER:1, TN:1, BZ:1, FVG:1.5,
-  AQ_VEN:4, AQ_TN:36, AQ_BZ:4, AQ_ER:4, AQ_LOM:4,
-  PC_FVG:1, PC_TN:3, PC_PO:4, PC_PIE:2, PIE:2,
+// AQ_ER: ARPAE aggiorna una volta al giorno, fino alla mezzanotte appena passata.
+const SRC_EXPECT = { VEN:1.5, LOM:6, ER:2.5, TN:1, BZ:1, FVG:2.5,
+  AQ_VEN:4, AQ_TN:36, AQ_BZ:4, AQ_ER:32, AQ_LOM:6,
+  PC_FVG:2.5, PC_TN:3, PC_PO:4, PC_PIE:6, PIE:6,
   MAR_VEN:1, MAR_ER:1, MAR_FVG:3, ACQ_VEN:3, LAGHI:2, INV_ER:3, LIG:3 };
 
-// semaforo di una fonte: 'g' ok | 'y' in ritardo oppure troppe stazioni indietro | 'r' ferma
+// semaforo di una fonte: 'g' al suo passo | 'y' in ritardo | 'r' ferma. Le stazioni rimaste indietro non
+// contano: in molte reti alcune trasmettono solo ogni qualche ora o una volta al giorno.
 function srcState(reg, info, nowIt){
   const exp = SRC_EXPECT[reg] || 2;
   const ageH = (nowIt - isoCivil(info.latest)) / 3600000;
   if(ageH > Math.max(3 * exp, 6)) return 'r';
-  if(ageH > exp) return 'y';
-  if(info.n && info.old / info.n > 0.15) return 'y';   // oltre il 15% delle stazioni e' indietro di 3 h
-  return 'g';
+  return ageH > exp ? 'y' : 'g';
 }
 
 let _lastStatus = null;
@@ -74,7 +74,7 @@ function renderSrcPanel(){
   const regs = _lastStatus && _lastStatus.regions;
   let html = '<h4>Stato delle fonti</h4>';
   if(!regs){
-    html += '<div class="src-note">Stato non ancora disponibile (riprova fra qualche minuto).</div>';
+    html += '<div class="src-note">Stato non disponibile.</div>';
   } else {
     const nowIt = nowRome();
     REGIONS_ALL.forEach(reg => {
@@ -82,8 +82,6 @@ function renderSrcPanel(){
       if(!info) return;
       const st = srcState(reg, info, nowIt);
       const age = _ageTxt((nowIt - isoCivil(info.latest)) / 60000);
-      const lag = (st !== 'r' && info.n && info.old / info.n > 0.15)
-                ? ' · ' + info.old + '/' + info.n + ' staz. indietro' : '';
       const src = SOURCES[reg] || {};
       const name = src.name || reg;
       const durl = src.data || src.url;             // la pagina dei dati, se no il sito
@@ -93,10 +91,10 @@ function renderSrcPanel(){
         : name;
       html += '<div class="src-row"><span class="tl tl-' + st + '"></span>'
             + '<span class="src-name">' + label + '</span>'
-            + '<span class="src-age">' + age + lag + '</span></div>';
+            + '<span class="src-age">' + age + '</span></div>';
     });
     html += '<div class="src-note"><span class="tl tl-g" style="display:inline-block;vertical-align:-1px"></span> aggiornata &nbsp;'
-          + '<span class="tl tl-y" style="display:inline-block;vertical-align:-1px"></span> in ritardo / dati mancanti &nbsp;'
+          + '<span class="tl tl-y" style="display:inline-block;vertical-align:-1px"></span> in ritardo &nbsp;'
           + '<span class="tl tl-r" style="display:inline-block;vertical-align:-1px"></span> ferma</div>';
   }
 

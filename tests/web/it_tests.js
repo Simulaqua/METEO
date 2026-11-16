@@ -1191,7 +1191,6 @@
     const nAll = Math.max(raw.p.length, (raw.tm || []).length), first = d0 / 1000, last = first + 86400 * (nAll - 1);
     const FULL = { min:first - 43200, max:last + 43200 };
     const litR = () => [...el('hvRange').querySelectorAll('.on')].map(b => b.dataset.r);
-    const hintWant = () => matchMedia('(pointer: coarse)').matches ? 'due dita: zoom' : 'rotellina: zoom · trascina: sposta';
 
     // Tabella: una riga per mese (gen..dic) e in fondo tot/media, una colonna per anno (dal piu' vecchio); pioggia in mm
     // interi, temperatura con un decimale; mese mancante = cella vuota; incompleto = piu' chiaro col perche' (title);
@@ -1202,7 +1201,7 @@
       const t = tbl(), k = t ? [...t.rows[0].cells].findIndex(c => c.textContent.trim() === String(y)) : -1, tr = t && t.tBodies[0] && t.tBodies[0].rows[m];
       return k > 0 && tr ? tr.cells[k] : null;
     };
-    const barW = td => { const s = getComputedStyle(td); return s.backgroundImage === 'none' ? null : parseFloat(s.backgroundSize); };
+    const barW = td => getComputedStyle(td).backgroundImage === 'none' ? null : 100 * parseFloat(td.style.getPropertyValue('--f'));
     const checkTable = (isP, name) => {
       const E = expMonths(isP), ok = Object.values(E).filter(c => c.val != null), t = tbl();
       const years = [...new Set(Object.values(E).map(c => c.y))].sort((a, b) => a - b);
@@ -1219,7 +1218,7 @@
         eq(name + ': mese ' + tag + ' ' + (c.m + 1) + '/' + c.y + ' (valore, più chiaro, perché)', td && [td.textContent, td.classList.contains('part'), td.title],
            [num(c.val), !c.full, c.full ? '' : why(c)]);
       }
-      // pioggia: barra dietro il numero; temperatura: niente barra, colore dello scarto dalla media del mese (classe hv-k0..6)
+      // pioggia: barra prima del numero; temperatura: niente barra, colore dello scarto dalla media del mese (classe hv-k0..6)
       const kOf = td => { const k = [...td.classList].find(c => /^hv-k\d$/.test(c)); return k ? +k.slice(4) : null; };
       const bad = [];
       for(const y of years) for(let m = 0; m < 12; m++){
@@ -1282,13 +1281,9 @@
       else log(Math.abs(tw - avail) <= 1 && Math.abs(R(t).left - x0) <= 1, name + ': tabella larga quanto lo schermo', JSON.stringify([R(t).left, tw, x0, avail]));
     };
 
-    // grafici: chiave fissa in alto a destra (sopra i dati) ed etichetta dove sta il puntatore (mouse; al tocco sul telefono)
-    const okKey = (name, want) => {
-      const k = el('hvChart').querySelector('.hv-key'), w = histU && histU.over.parentNode;
-      eq(name + ': chiave', k ? [...k.children].filter(e => !e.classList.contains('hv-hint')).map(e => e.textContent.trim()) : null, want);
-      log(vis(k) && R(k).right <= R(w).right + 0.5 && R(k).right >= R(w).right - 60 && R(k).top >= R(w).top - 0.5 && R(k).bottom <= R(histU.over).top + 1,
-          name + ': chiave in alto a destra, sopra i dati', k && JSON.stringify([R(k).left, R(k).top, R(k).right, R(k).bottom, R(histU.over).top, R(w).right]));
-    };
+    // grafici: niente chiave sopra il grafico (i nomi sono nell'etichetta dove sta il puntatore; mouse, al tocco sul telefono)
+    const noKey = name => eq(name + ': niente chiave né suggerimenti sul grafico',
+                             [...el('hvChart').querySelectorAll('.hv-key, .hv-hint')].map(e => e.textContent), []);
     const tipAt = async (xv, yv) => {                                // mousemove vero sul grafico nel punto (xv, yv) dei suoi assi (yv null = a meta' altezza)
       const o = histU.over, r = R(o), x = r.left + histU.valToPos(xv, 'x'), y = r.top + (yv == null ? r.height / 2 : histU.valToPos(yv, 'y'));
       o.dispatchEvent(new MouseEvent('mouseenter', { clientX:x, clientY:y }));
@@ -1385,14 +1380,12 @@
        ['giorni Giorni', 'mesi Mesi', 'anni Anni', 'tabella Tabella']);
     el('histbtn').click(); await until(() => histMode && !!histU && histU.scales.x.min != null, 8000); await sleep(300);
     {
-      const sx = histU && histU.scales.x, hint = el('hvChart').querySelector('.hv-hint'), key = el('hvChart').querySelector('.hv-key');
+      const sx = histU && histU.scales.x;
       eq('dal pulsante lo Storico si apre su Giorni', histView, 'giorni');
       log(!!sx && Math.abs(sx.min - FULL.min) < 3600 && Math.abs(sx.max - FULL.max) < 3600, 'Giorni si apre su tutto il periodo (dal primo all\'ultimo giorno)',
           sx && JSON.stringify([(sx.min - FULL.min) / 3600, (sx.max - FULL.max) / 3600]));
       eq('Giorni su tutto il periodo: acceso "Tutto"', litR(), ['0']);
-      if(innerWidth > 720) log(vis(hint) && hint.textContent.trim() === hintWant(), 'Giorni: suggerimento "' + hintWant() + '" accanto alla chiave', hint ? hint.textContent : 'assente');
-      log(!vis(hint) || (hint.textContent.trim() === hintWant() && R(hint).right <= R(key).left - 4 && R(hint).left >= R(histU.over).left - 1 && R(hint).bottom <= R(histU.over).top + 1),
-          'Giorni: suggerimento sopra il grafico, senza coprire la chiave (o nascosto se non ci sta)', hint && key ? JSON.stringify([R(hint).left, R(hint).right, R(key).left]) : 'assente');
+      noKey('Giorni, apertura');
       noOverflow('Giorni, apertura');
     }
     await setHistMode(false);
@@ -1418,7 +1411,7 @@
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === true, 'Pioggia/Mesi: cumulata sull\'asse destro', histU && histU.series.map(s => s.scale).join(','));
-    okKey('Pioggia/Mesi', ['mm', 'incompleto']);
+    noKey('Pioggia/Mesi');
     await okTip('Pioggia/Mesi, agosto 2025', Date.UTC(2025, 7, 1) / 1000, monTxt(true, EP['2025-7']));
     await okTip('Pioggia/Mesi, settembre 2025 (incompleto)', Date.UTC(2025, 8, 1) / 1000, monTxt(true, EP['2025-8']));
     {                                                                // telefono: al tocco il riquadro compare, trascinando il dito lo segue
@@ -1444,10 +1437,12 @@
       const yrs = [...new Set(Object.values(EP).map(c => c.y))], k = yrs.indexOf(2025) + 1;
       const tot = r1(raw.p.reduce((a, x, i) => a + (dayOf(i).getUTCFullYear() === 2025 && x != null ? x : 0), 0));
       eq('Pioggia/Anni: cumulata del 2025 al 31/12', [histU.data[k][364], histU.series[k].label], [tot, '2025']);
-      let ax = null; try { ax = histU.axes[1].values(histU, [1000, 2.5, -10], 1, 50, 100); } catch(e){ ax = String(e); }
-      eq('Pioggia/Anni: asse col punto decimale e senza separatore delle migliaia', ax, ['1000', '2.5', '-10']);
+      let ax = null; try { ax = [histU.axes[1].values(histU, [0, 500, 1000, 1500], 1, 50, 500),
+                                 histU.axes[1].values(histU, [-0.5, 0, 0.5, 1], 1, 50, 0.5)]; } catch(e){ ax = String(e); }
+      eq('Pioggia/Anni: asse col punto, senza migliaia, gli stessi decimali su ogni tacca', ax,
+         [['0', '500', '1000', '1500'], ['-0.5', '0.0', '0.5', '1.0']]);
       okYears('Pioggia/Anni', true);
-      okKey('Pioggia/Anni', ['incompleto']);
+      noKey('Pioggia/Anni');
       const t = await tipAt(300, null), i = histU.cursor.idx, lab = new Date(Date.UTC(2023, 0, 1 + i));
       const cum = y => { let run = 0, first = -1, lastd = -1;                 // come il grafico: cumulata dal 1 gennaio, null fuori dai dati dell'anno
         raw.p.forEach((x, j) => { const d = dayOf(j); if(x == null || d.getUTCFullYear() !== y) return; const doy = doyOf(d);
@@ -1473,7 +1468,7 @@
     }
     histView = 'giorni'; await renderHist(); okView('Pioggia/Giorni');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === true, 'Pioggia/Giorni: cumulata sull\'asse destro', histU && histU.series.map(s => s.scale).join(','));
-    okKey('Pioggia/Giorni', ['mm', 'incompleto']);
+    noKey('Pioggia/Giorni');
     log(vis(el('hvRange')) && inside(el('hvRange')), 'Giorni: scelta del periodo visibile e dentro lo schermo', '');
     for(const [r, days] of [[30, 30], [90, 90], [365, 365], [0, raw.p.length]]){
       el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(150);
@@ -1507,7 +1502,6 @@
         log(W(s1) < W(s0) * 0.8 && Math.abs(valX(x75) - v) < 3600, 'Giorni: zoom attorno al puntatore (sotto il puntatore lo stesso giorno)', (valX(x75) - v) / 3600 + ' h');
         log(ev.defaultPrevented, 'Giorni: la rotellina sul grafico zooma e non fa scorrere la pagina', '');
         eq('Giorni: dopo lo zoom nessun periodo acceso', litR(), []);
-        log(W(s1) < W(s0) && !vis(el('hvChart').querySelector('.hv-hint')), 'Giorni: dopo il primo zoom il suggerimento sparisce', '');
         noOverflow('Pioggia/Giorni, dopo lo zoom');
       }
       {                                                              // trascinare col mouse: stessa larghezza, spostata di quanto si trascina (un decimo del grafico)
@@ -1600,7 +1594,7 @@
     }
     histVar = 'TEMP'; currentVar = 'TEMP'; histView = 'mesi'; await renderHist(); okView('Temperatura/Mesi');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Temperatura/Mesi: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
-    okKey('Temperatura/Mesi', ['min–max', 'media']);
+    noKey('Temperatura/Mesi');
     {
       const S = histU.series, big = k => { try { return !!S[k].points.show(histU, k, 0, histU.data[0].length - 1) && S[k].points.size > 3; } catch(e){ return true; } };
       log(S.length === 4 && histU.bands.length === 1 && S[3].width > Math.max(S[1].width, S[2].width) && ![1, 2, 3].some(big),
@@ -1638,7 +1632,7 @@
       const alpha = c => { const v = String(c).match(/[\d.]+/g) || []; return v.length > 3 ? +v[3] : 1; }, faint = cs.slice(1, tYears.length + 1);
       log(new Set(faint).size === 1 && alpha(faint[0]) <= 0.4 && S().slice(1, tYears.length + 1).every(s => s.width <= 1 && !(s.dash || []).length),
           'Temperatura/Anni: linee degli anni leggere, sottili, tutte dello stesso colore', JSON.stringify([faint, S().slice(1, tYears.length + 1).map(s => s.width)]));
-      okKey('Temperatura/Anni', ['min–max', 'media']);
+      noKey('Temperatura/Anni');
       const yp = el('hvChart').querySelector('.hv-yrs'), ypb = yp ? [...yp.querySelectorAll('button')] : [];
       eq('Temperatura/Anni: sopra il grafico un pulsante per anno, acceso l\'ultimo', [ypb.map(b => b.textContent.trim()), ypb.filter(b => b.classList.contains('on')).map(b => b.textContent.trim())],
          [tYears.map(String), [String(tLast)]]);
@@ -1647,11 +1641,13 @@
       const labs = () => [...histU.over.parentNode.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
       eq('Temperatura/Anni: niente nomi sul grafico (l\'anno lo dice il pulsante acceso)', labs().map(l => l.textContent.trim()), []);
       const tipFor = (y, m) => { const v = tMean(y, m), s = tStat(m);
-        return [MESI[m], ...(v != null ? [y + ' ' + withDev(v, s)] : []), ...(s ? ['media ' + f1(s.mean) + ' °C'] : []),
+        return [MESI[m], ...(v != null ? [y + ' ' + withDev(v, s)] : []),
+                ...(s ? ['media ' + f1(s.mean) + ' °C', 'min ' + f1(s.lo) + ' · max ' + f1(s.hi)] : []),
                 ...(v != null && !ET[y + '-' + m].full ? ['incompleto'] : [])].join(' | '); };
       await okTip('Temperatura/Anni, agosto', 7, tipFor(tLast, 7));
       const t = el('hvChart').querySelector('.ctip');
-      eq('Temperatura/Anni: nel riquadro i segni di anno e media (tratteggio)', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopStyle) : null, ['solid', 'dashed']);
+      eq('Temperatura/Anni: nel riquadro i segni di anno, media (tratteggio) e fascia (pieno)', t ? [...t.querySelectorAll('.sw')].map(s => getComputedStyle(s).borderTopStyle) : null,
+         ['solid', 'dashed', 'none']);
       const y0 = [histU.scales.y.min, histU.scales.y.max], prev = tYears[tYears.length - 2];
       ypb.find(b => b.textContent.trim() === String(prev)).click(); await until(() => histU && String(S()[N() - 1].label) === String(prev), 5000); await sleep(200);
       eq('Temperatura/Anni: clic su ' + prev + ': il suo anno in primo piano, le linee leggere restano', [histYear, String(S()[N() - 1].label), D(N() - 1), yearsData()],
@@ -1679,7 +1675,7 @@
     }
     histYear = null;
     histView = 'giorni'; await renderHist(); okView('Temperatura/Giorni');
-    okKey('Temperatura/Giorni', ['min–max', 'media']);
+    noKey('Temperatura/Giorni');
     for(const r of [30, 90, 365, 0]){ el('hvRange').querySelector('[data-r="' + r + '"]').click(); await sleep(100); }
     log(!!el('hvChart').querySelector('canvas') && !el('hvChart').querySelector('.hint'), 'Temperatura/Giorni: tutti i periodi senza errori', '');
     el('hvRange').querySelector('[data-r="30"]').click(); await sleep(150);
@@ -1811,7 +1807,7 @@
     await openCmp();
     log(vis(cm) && cb.getAttribute('aria-expanded') === 'true', 'Confronta: si apre', '');
     eq('Confronta: le tre voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
-       [['compare', 'Confronto 7 giorni'], ['compare30', 'Confronto 30 giorni'], ['tabs', 'Confronto schede']]);
+       [['compare', '7 giorni'], ['compare30', '30 giorni'], ['tabs', 'Schede']]);
     {
       const r = R(cm), b = R(item('tabs')), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       log(cm.contains(hit) && r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
@@ -1929,9 +1925,158 @@
     finish('MISURE ' + JSON.stringify(M));
   }
 
+  // niente scritte che non servono, numeri solo al cursore, difetti chiusi (Teolo: vento e Storico dal 2022;
+  // Chiampo a Chiampo: un livello che varia di pochi centimetri)
+  async function suitePulizia(){
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const R = e => e.getBoundingClientRect();
+    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc) || {}).properties;
+    const T = st('VEN', '170'), L = st('VEN', '679');
+    log(T && L, 'stazioni di prova trovate', JSON.stringify([!!T, !!L]));
+    if(!(T && L)) return finish();
+    const open = async p => {
+      await selectStation(p);
+      await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000);
+      await sleep(300);
+    };
+    const decs = s => (String(s).split('.')[1] || '').length;
+    const sameDecs = vals => {
+      const v = vals.filter(s => s !== '' && s != null);
+      return v.length > 1 && v.every(s => !/,/.test(s) && decs(s) === decs(v[0]));
+    };
+    const yVals = u => u.axes.filter(a => a.scale && a.scale !== 'x' && a._values && a._show !== false).map(a => a._values);
+    const lastOf = (u, i) => { const d = u.data[i]; for(let j = d.length - 1; j >= 0; j--) if(d[j] != null) return j; return -1; };
+    const labs = u => u._labs && !u._labs.hidden ? [...u._labs.querySelectorAll('.cl-v')].map(e => e.textContent.trim()) : [];
+
+    eq('titolo della pagina come il nome in alto', document.title, 'Simulaqua Meteo');
+    setMapVar(''); await until(() => filterVar === '');
+
+    // Fonti: verde quando una fonte va al suo passo normale, rosso solo quando e' ferma davvero
+    {
+      const now = nowRome(), ago = h => new Date(now - h * 3600e3).toISOString().slice(0, 16);
+      const S = (reg, h, old, n) => srcState(reg, { latest:ago(h), n:n || 100, old:old || 0 }, now);
+      eq('Fonti: ARPAE aria (una volta al giorno) dopo 17 h è verde', S('AQ_ER', 17), 'g');
+      eq('Fonti: ARPAE meteo dopo 2 h è verde', S('ER', 2), 'g');
+      eq('Fonti: OSMER dopo 2 h è verde', S('FVG', 2), 'g');
+      eq('Fonti: Piemonte dopo 5 h è verde', S('PIE', 5), 'g');
+      eq('Fonti: Bolzano con un terzo delle stazioni a passo lento è verde', S('BZ', 0.5, 76, 226), 'g');
+      eq('Fonti: Veneto fermo da 10 h è rosso', S('VEN', 10), 'r');
+      eq('Fonti: ARPAE aria ferma da 5 giorni è rossa', S('AQ_ER', 120), 'r');
+      await until(() => _lastStatus, 10000);
+      renderSrcPanel();
+      const tx = el('srcpanel').textContent;
+      log(!/staz\. indietro|dati mancanti/.test(tx), 'Fonti: niente conteggi di stazioni indietro', tx.slice(-120));
+    }
+
+    // tacche: passi 1, 2, 5 e gli stessi decimali su tutto l'asse
+    eq('tacche: stessi decimali, col punto', tickTexts(null, [175.8, 175.85, 175.9, 175.95, 176]),
+       ['175.80', '175.85', '175.90', '175.95', '176.00']);
+    eq('tacche: interi senza decimali né migliaia', tickTexts(null, [1000, 1500, 2000]), ['1000', '1500', '2000']);
+    log(TICK_STEPS.every(s => [1, 2, 5].some(k => Math.abs(s / Math.pow(10, Math.floor(Math.log10(s) + 1e-9)) - k) < 1e-9)),
+        'tacche: passi 1, 2, 5 (niente 2.5)', '');
+    await open(L);
+    log(yVals(chart).length > 0 && yVals(chart).every(sameDecs), 'livello: tacche con gli stessi decimali', JSON.stringify(yVals(chart)));
+
+    // scheda: il fondo dice la fonte e basta; il menu Confronta senza "Confronto" ripetuto
+    await open(T);
+    const src = el('source').textContent.trim();
+    log(!/Ora italiana/.test(src) && /Dati non validati\.$/.test(src), 'fondo: la fonte e "Dati non validati."', src);
+    eq('Confronta: 7 giorni, 30 giorni, Schede', [...el('cmpMenu').querySelectorAll('[data-mode]')].map(b => b.textContent.trim()),
+       ['7 giorni', '30 giorni', 'Schede']);
+
+    for(const vs of [['TEMP'], ['TEMP', 'PREC'], ['PREC'], [WARROW]]){
+      drawVar(vs[0]); vs.slice(1).forEach(addVar); await sleep(300);
+      const z = chart.over.querySelector('.zoomall');
+      log(!!z && z.style.display === 'none', 'grafico ' + vs.join('+') + ': "Tutto" nascosto finché non si fa zoom',
+          JSON.stringify([chart.scales.x.min, chart.scales.x.max, chart._m && chart._m.win]));
+    }
+    drawVar('TEMP'); await sleep(200);
+
+    // Impilate: "Tutto" solo dopo uno zoom; tacche coi decimali uguali
+    setStackMode(true, ['TEMP', 'UMID', 'PREC']);
+    await until(() => stackObj && stackObj.panels.length === 3, 8000); await sleep(300);
+    const za = () => stackObj.panels[0].u.over.querySelector('.zoomall');
+    log(!!za() && za().style.display === 'none', 'Impilate: "Tutto" nascosto finché non si fa zoom',
+        JSON.stringify(stackObj.panels.map(p => [p.v, p.u.scales.x.min - stackObj.win[0], p.u.scales.x.max - stackObj.win[1]])));
+    log(stackObj.panels.every(p => yVals(p.u).every(sameDecs)), 'Impilate: tacche con gli stessi decimali e col punto',
+        JSON.stringify(stackObj.panels.map(p => yVals(p.u))));
+    {
+      const w = stackObj.win, u0 = stackObj.panels[0].u;
+      u0.setScale('x', { min:w[0] + 86400, max:w[1] - 86400 }); await sleep(100);
+      log(za().style.display === '', 'Impilate: "Tutto" dopo lo zoom', za().style.display);
+      za().click(); await sleep(100);
+      log(za().style.display === 'none' && Math.abs(u0.scales.x.min - w[0]) < 2, 'Impilate: "Tutto" torna a tutto il periodo',
+          JSON.stringify([u0.scales.x.min, w[0]]));
+    }
+    setStackMode(false); await sleep(300);
+
+    // rosa dei venti grande come il grafico, coi testi della stessa misura
+    drawVar('TEMP'); await sleep(300);
+    const hChart = R(el('chart')).height;
+    drawVar(WROSE); await sleep(400);
+    {
+      const svg = el('windrose').querySelector('svg'), txt = svg ? [...svg.querySelectorAll('text')].map(t => R(t).height) : [];
+      log(!!svg && R(svg).height >= hChart * 0.8, 'rosa dei venti alta come il grafico',
+          JSON.stringify([svg && Math.round(R(svg).height), Math.round(hChart)]));
+      log(txt.length > 4 && Math.max(...txt) <= 18, 'rosa dei venti: scritte piccole come quelle dei grafici', JSON.stringify(txt.map(Math.round)));
+    }
+    drawVar('TEMP'); await sleep(300);
+
+    // Confronto 7 e 30 giorni: al cursore l'ora, oggi e il giorno piu' vicino; accanto al grafico nessun numero
+    for(const mode of ['compare', 'compare30']){
+      await pickMode(mode);
+      await until(() => chartMode === mode && chart && chart.series.length > 3, 12000); await sleep(300);
+      const iT = chart.series.findIndex(s => s.label === 'Oggi'), jT = iT > 0 ? lastOf(chart, iT) : -1;
+      if(jT >= 0) chart.setCursor({ left:chart.valToPos(chart.data[0][jT], 'x'), top:20 });
+      await sleep(100);
+      const l = labs(chart), tag = mode === 'compare' ? 'Confronto 7 giorni' : 'Confronto 30 giorni';
+      log(l.length === 2 && /^Oggi /.test(l.find(s => /^Oggi/.test(s)) || '') && l.some(s => /^\d\d\/\d\d /.test(s)),
+          tag + ': al cursore oggi e il giorno più vicino', JSON.stringify(l));
+      log(!!chart._labs && /\d\d:\d\d/.test(chart._labs.querySelector('.cl-t') ? chart._labs.querySelector('.cl-t').textContent : ''),
+          tag + ': al cursore l\'ora', chart._labs ? chart._labs.innerHTML.slice(0, 80) : 'niente');
+      eq(tag + ': accanto al grafico nessun elenco', el('chartlegend').textContent.trim(), '');
+    }
+    await pickMode('week'); await sleep(300);
+    pickMode('tabs'); await sleep(800);
+    eq('Confronto schede con una scheda sola: una riga', el('status').textContent, 'Servono almeno due schede con ' + varLabel('TEMP') + '.');
+    await open(T);
+
+    // Storico: sui grafici niente suggerimenti né chiavi (i nomi sono nel riquadro al passaggio)
+    for(const [v, w] of [['PREC', 'giorni'], ['PREC', 'mesi'], ['PREC', 'anni'], ['TEMP', 'giorni'], ['TEMP', 'mesi'], ['TEMP', 'anni']]){
+      await setHistMode(true, v, w);
+      await until(() => histMode && histVar === v && histView === w && !!histU, 12000); await sleep(300);
+      const bad = [...el('hvChart').querySelectorAll('.hv-hint, .hv-key')].filter(vis).map(e => e.textContent);
+      eq('Storico ' + v + '/' + w + ': niente scritte sul grafico', bad, []);
+    }
+    histU.setCursor({ left:histU.valToPos(6, 'x'), top:10 }); await sleep(150);
+    log(/min -?\d+\.\d · max -?\d+\.\d/.test(histU._tip.textContent), 'Storico, anni della temperatura: la fascia nel riquadro al passaggio',
+        histU._tip.textContent);
+    await setHistMode(true, 'PREC', 'tabella');
+    await until(() => histView === 'tabella' && !!el('hvTable').querySelector('td.b'), 12000); await sleep(300);
+    {
+      const cv = document.createElement('canvas').getContext('2d');
+      const covers = td => {                        // la barra arriva sotto il numero?
+        const cs = getComputedStyle(td), f = parseFloat(td.style.getPropertyValue('--f')), px = k => parseFloat(cs[k]) || 0;
+        cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        const r = R(td), cw = r.width - px('paddingLeft') - px('paddingRight') - px('borderLeftWidth') - px('borderRightWidth');
+        const end = r.left + px('borderLeftWidth') + px('paddingLeft') + (cw - 4 * cv.measureText('0').width) * f;
+        const rg = document.createRange();
+        rg.selectNodeContents(td);
+        return isNaN(f) || end > rg.getBoundingClientRect().left - 2;
+      };
+      const tds = [...el('hvTable').querySelectorAll('td.b')], bad = tds.filter(covers).map(td => td.textContent);
+      log(tds.length > 10 && !bad.length, 'Storico, tabella della pioggia: le barre non coprono i numeri', JSON.stringify(bad.slice(0, 8)));
+    }
+    await setHistMode(false); await sleep(200);
+    showMapView();
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
-            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede })[suite]())
+            hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
+            pulizia:suitePulizia })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

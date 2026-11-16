@@ -19,10 +19,9 @@ async function fhist(path){
 }
 const MESI_BR = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
 // histWin = finestra dopo uno zoom (resta fra le viste della stessa stazione);
-// hvHint = suggerimento dello zoom, da mostrare fino al primo zoom;
 // histYear = anno in primo piano negli Anni della temperatura (null = l'ultimo)
 let histMode = false, histVar = 'PREC', histView = 'giorni', histRange = 0,
-    histU = null, histData = null, histWin = null, hvHint = true, histYear = null;
+    histU = null, histData = null, histWin = null, histYear = null;
 const histCache = {};
 let _histIndexP = null;
 function histIndex(){
@@ -100,9 +99,9 @@ function histMonths(h, v){
 }
 
 // Tabella mesi x anni: una riga per mese, in fondo il totale (pioggia, mm interi) o la media delle medie
-// (temperatura); una colonna per anno dal piu' vecchio. Pioggia: dietro ogni numero una barra in proporzione
-// al mese piu' piovoso. Temperatura: la casella ha il colore dello scarto dalla media di quel mese fra gli
-// anni, con la chiave sopra. Incompleto = piu' chiaro, col perche'.
+// (temperatura); una colonna per anno dal piu' vecchio. Pioggia: a sinistra del numero una barra in
+// proporzione al mese piu' piovoso. Temperatura: la casella ha il colore dello scarto dalla media di quel
+// mese fra gli anni, con la chiave sopra. Incompleto = piu' chiaro, col perche'.
 function hvTableHtml(months, v){
   const isP = v === 'PREC', by = {}, vals = [];
   months.forEach(c => {
@@ -111,7 +110,7 @@ function hvTableHtml(months, v){
   const years = [...new Set(months.map(c => c.y))], hi = Math.max(...vals);
   const stat = isP ? null : hvTempStats(months).stat;
   const look = c => {
-    if(isP) return { cls:'b', css:'--w:' + (100 * (hi > 0 ? c.val / hi : 0)).toFixed(1) + '%' };
+    if(isP) return { cls:'b', css:'--f:' + (hi > 0 ? c.val / hi : 0).toFixed(3) };
     const s = stat[c.m];
     return { cls:c.have >= 10 && s ? 'hv-k' + hvDevClass(Math.round((c.val - s.mean) * 10) / 10) : '' };
   };
@@ -156,18 +155,19 @@ const hvDayLabel = ts => {
   return d.getUTCDate() + ' ' + MESI_BR[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 };
 
-// Niente legenda di uPlot: chiave, riquadro e nomi degli anni li aggiunge hvDecorate (20 px in alto).
+// Niente legenda: i nomi sono nel riquadro al passaggio e in fondo alle linee degli anni (hvDecorate); la
+// chiave c'e' solo nel PNG, dove il riquadro non c'e'.
 // Giorni: niente selezione col trascinamento ne' doppio clic di uPlot (li gestisce hvZoom).
 function hvBase(extra, days){
   return Object.assign({
-    width:histWidth(), height:histHeight(), tzDate:TZ_UTC, legend:{ show:false }, padding:[20, 12, 0, 0],
+    width:histWidth(), height:histHeight(), tzDate:TZ_UTC, legend:{ show:false }, padding:[12, 12, 0, 0],
     cursor:days
       ? {
           y:false, drag:{ x:false, y:false },
           bind:{ mousedown:() => null, mouseup:() => null, dblclick:() => null }
         }
       : { y:false, drag:{ x:true, y:false } },
-    hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears, hvHintFit] }
+    hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears] }
   }, extra);
 }
 // etichette dell'asse del tempo: mesi (gen, feb...) o giorni (5 mar), con l'anno sotto quando cambia
@@ -182,10 +182,8 @@ function hvTimeVals(u, ticks){
     return out;
   });
 }
-// Asse dei valori col punto decimale e senza migliaia (uPlot userebbe la lingua del browser: "1.000", "2,5")
 const hvYAxis = label => ({
-  grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label, labelSize:22,
-  values:(u, sp) => sp.map(v => String(Math.round(v * 1000) / 1000))
+  grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label, labelSize:22, incrs:TICK_STEPS, values:tickTexts
 });
 // Tacche del tempo mai piu' fitte di un giorno (lo zoom arriva a 3 giorni): giorni, mesi (30 giorni), anni
 const HV_INCRS = [1, 2, 3, 4, 5, 7, 10, 15].map(n => n * 86400)
@@ -198,8 +196,6 @@ const hvAxes = unit => [
 // sull'asse destro (riparte da zero al bordo sinistro anche con lo zoom, come nei grafici delle stazioni).
 // Temperatura: banda min-max, media in linea.
 const hvRainOpts = days => hvBase({
-  // 8 px in piu' in alto: l'etichetta piu' alta dell'asse destro non tocca la chiave
-  padding:[28, 12, 0, 0],
   scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] }, cum:cumY() },
   axes:hvAxes('mm').concat(cumAxis(false, CUMC())),
   series:[
@@ -338,7 +334,7 @@ function hvRainYearsView(h){
       Math.round(o.Y.arr[i]) + ' mm</span>')
   );
   const opts = hvBase({
-    padding:[20, 44, 0, 0],                                        // a destra il posto per il nome degli anni
+    padding:[12, 44, 0, 0],                                        // a destra il posto per il nome degli anni
     scales:{ x:{ time:false, range:[0, 365] }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.06, 1)] } },
     // spessore: ultimo anno 2.6, gli altri 1.6; incompleto 0.6 in meno (l'ultimo resta il piu' spesso)
     series:[{}].concat(lines.map((o, k) => ({
@@ -405,7 +401,8 @@ function hvCurveView(h){
   const read = i => {
     const s = stat[i], v = Y.val[i], lines = [];
     if(v != null) lines.push(hvSw(color, true) + Y.y + ' ' + hvDev(v, s));
-    if(s) lines.push(hvSw(AXTX(), true, 'dash') + 'media ' + fmt1(s.mean) + ' °C');
+    if(s) lines.push(hvSw(AXTX(), true, 'dash') + 'media ' + fmt1(s.mean) + ' °C',
+                     hvSw(band(2)) + 'min ' + fmt1(s.lo) + ' · max ' + fmt1(s.hi));
     return hvTip(MESI_BR[i], lines, v != null && !Y.mon[i].full);
   };
   const opts = hvBase({
@@ -462,8 +459,8 @@ function hvDaysView(h, v){
   return { opts:hvTempOpts(1.6, true), data:[h.x, h.tx, h.tn, h.tm], read, key:hvTempKey(), days:true };
 }
 
-// chiave in alto a destra, riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e
-// trascinamento) e nomi degli anni in fondo alle linee
+// riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e trascinamento) e nomi degli anni in
+// fondo alle linee
 function hvDecorate(u, r){
   const wrap = u.over.parentNode, add = (cls, html) => {
     const d = document.createElement('div');
@@ -472,9 +469,6 @@ function hvDecorate(u, r){
     wrap.appendChild(d);
     return d;
   };
-  if(r.key.length) u._key = add('hv-key', r.key.map(s => '<span>' + s + '</span>').join(''));
-  if(r.days && hvHint) u._hint = add('hv-hint',
-    matchMedia('(pointer: coarse)').matches ? 'due dita: zoom' : 'rotellina: zoom · trascina: sposta');
   u._ends = (r.ends || []).map(e => {
     const d = add('hv-yl', e.name);
     d.style.color = e.color;
@@ -497,13 +491,6 @@ function hvDecorate(u, r){
     if(e.pointerType !== 'mouse' && !u._pinch) at(e);
   });
   if(r.days) hvZoom(u);
-}
-function hvHintFit(u){
-  const h = u._hint;
-  if(!h) return;
-  h.hidden = false;
-  h.style.left = u.over.offsetLeft + 'px';
-  if(u._key && h.offsetLeft + h.offsetWidth > u._key.offsetLeft - 8) h.hidden = true;
 }
 
 // ---- Giorni: zoom sul tempo ----
@@ -533,11 +520,6 @@ function hvSetWin(u, min, max, user){
   if(user && changed){
     histWin = fw - w < 1 ? null : { min, max:min + w, key:hvKey(currentStation) };
     if(!histWin) histRange = 0;                                // tornati a tutto il periodo: e' "Tutto"
-    if(u._hint){
-      u._hint.remove();
-      u._hint = null;
-      hvHint = false;                                          // il suggerimento serve fino al primo zoom
-    }
   }
   hvRangeLit();
   return changed;
@@ -751,7 +733,7 @@ async function renderHist(){
   el('hvChart').innerHTML = '';
   el('hvTable').innerHTML = '';
   if(!h){
-    hvNoteSet(null, 'Storico non disponibile per questa stazione (si aggiorna ogni notte).');
+    hvNoteSet(null, 'Storico non disponibile.');
     return;
   }
   histData = h;
@@ -971,11 +953,13 @@ function hvDrawBox(ctx, c, base, ox, oy, Z){
     ctx.fillStyle = cs.backgroundColor;
     ctx.fillRect(x + b.l, y + b.t, w - b.l - b.r, h - b.t - b.b);
   }
-  const bw = c.style.getPropertyValue('--w');
-  if(bw){                                      // barra della pioggia dietro il numero
+  const f = c.style.getPropertyValue('--f');
+  if(f){                                       // barra della pioggia, a sinistra del numero (stile.css: 4ch)
     const pl = px('paddingLeft'), pr = px('paddingRight'), pt = px('paddingTop'), pb = px('paddingBottom');
+    ctx.font = cs.fontWeight + ' ' + parseFloat(cs.fontSize) * Z + 'px ' + cs.fontFamily;
     ctx.fillStyle = cs.getPropertyValue('--hvc').trim();
-    ctx.fillRect(x + b.l + pl, y + b.t + pt, (w - b.l - b.r - pl - pr) * parseFloat(bw) / 100,
+    ctx.fillRect(x + b.l + pl, y + b.t + pt,
+                 Math.max(0, (w - b.l - b.r - pl - pr - 4 * ctx.measureText('0').width) * parseFloat(f)),
                  h - b.t - b.b - pt - pb);
   }
   if(b.b && cs.borderBottomStyle !== 'none' && visible(cs.borderBottomColor)){

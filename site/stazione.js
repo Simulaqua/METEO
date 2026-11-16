@@ -15,7 +15,7 @@ function resetPanel(){
   document.body.classList.remove('rose-mode');
   el('windrose').innerHTML = '';
 }
-const TZNOTE = 'Ora italiana, dati non validati.';
+const TZNOTE = 'Dati non validati.';
 
 // variabile con cui si apre una stazione, se la mappa non ne ha scelta una
 const OPEN_ORDER = ['TEMP', 'PREC', 'LIVIDRO'];
@@ -71,7 +71,7 @@ async function selectStation(props){
     let csv;
     try {
       csv = await (await fdata(`${region}/${props.series}`)).text();
-    } catch(e){ setStatus('Serie non disponibile (' + e + ')'); return; }
+    } catch(e){ setStatus('Serie non disponibile.'); return; }
     table = parseCSV(csv);                // {header:[datetime,VAR,...], cols:{name:[...]}, x:[epoch]}
     props._table = table;
     props._tableAt = Date.now();
@@ -587,9 +587,10 @@ function buildStationControls(){
   window.addEventListener('resize', () => {
     clearTimeout(_rsT);           // ridisegna il grafico alla nuova taglia (evita canvas troppo alti)
     _rsT = setTimeout(() => {
-      if(currentStation && document.body.classList.contains('view-station') &&
-         !document.body.classList.contains('view-compare') && currentVar && currentVar !== WROSE && !histMode)
-        renderChart(currentVar);
+      if(!currentStation || !currentVar || histMode || !document.body.classList.contains('view-station') ||
+         document.body.classList.contains('view-compare')) return;
+      if(currentVar === WROSE) updateWindRose();
+      else renderChart(currentVar);
     }, 250);
   });
   el('refresh').addEventListener('click', refreshStation);
