@@ -116,7 +116,7 @@ function roseSvg(r, S, k){
            `<circle cx="${hx}" cy="${hy}" r="${fs(2.5)}" fill="#c05621"/></g>`;
   }
   return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" ` +
-         `font-family="system-ui, sans-serif">${svg}</svg>`;
+         `font-family='${FONT.replace(/"/g, '')}'>${svg}</svg>`;
 }
 
 // CONFRONTO SCHEDE: stessa variabile, una serie per ogni stazione aperta in scheda
@@ -197,13 +197,11 @@ function renderCompareTabs(label, unit){
     if(xs.length) full = [xs[0], xs[xs.length - 1]];
   }
   const opts = (hi, W, H) => {
-    const fnt = hi ? { font: '20px system-ui, sans-serif' } : {}, grid = hi ? '#e3e9f0' : GRID(),
-          ax = hi ? '#33475a' : AXTX();
-    const lab = hi ? { labelFont: '700 24px system-ui, sans-serif', labelSize: 32, labelGap: 6 }
-                   : { labelSize: 26, labelGap: 4 };
+    const fnt = { font: cssFont(hi ? 20 : 12) }, grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX();
     const yAx = Object.assign({
-      grid:{ stroke: grid }, size: hi ? 82 : 58, label: uLab, stroke: ax, incrs: TICK_STEPS, values: tickTexts
-    }, lab, fnt);
+      grid:{ stroke: grid }, size: hi ? 82 : 58, unit: uLab, unitSize: hi ? 20 : 12, stroke: ax,
+      incrs: TICK_STEPS, values: tickTexts
+    }, fnt);
     return {
       width: W, height: H, tzDate: TZ_CIV, legend: { show:false },
       scales: {
@@ -215,14 +213,12 @@ function renderCompareTabs(label, unit){
         y: yScaleFor(label)
       },
       series: [{ value: (u, ts) => ts==null ? '--' : fmtFull(ts) }].concat(specs.map(d => mkSeries(d, hi))),
-      axes: [
-        Object.assign({ grid:{ stroke: grid }, stroke: ax, values: (u, ticks) => ticks.map(fmtAxis) },
-                      hi ? { size: 46 } : {}, fnt),
-        dir ? dirAxis(yAx) : yAx
-      ],
+      axes: timeAxes(hi, ax, true).concat(dir ? dirAxis(yAx) : yAx),
+      padding: [hi ? 44 : 24, null, null, null],
       cursor: hi ? { show:false }
                  : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
-      hooks: hi ? { drawClear: [ dayBands ] } : { drawClear: [ dayBands ], setCursor: [ legendCursor ] }
+      hooks: hi ? { drawClear: [nightBandsHi], draw: [drawUnits] }
+                : { drawClear: [nightBands], draw: [drawUnits], setCursor: [legendCursor] }
     };
   };
   chart = new uPlot(opts(false, chartWidth(), chartHeight()), data, el('chart'));
@@ -343,13 +339,6 @@ function cursorLabels(u){
   box.hidden = false;
 }
 
-// Asse X: etichetta solo sull'ora tonda (a mezzanotte la data GG/MM): niente "11 11 11 12" con finestre
-// strette.
-function fmtAxis(ts){
-  const d = new Date(civT(ts)*1000);
-  if(d.getUTCMinutes() !== 0) return '';
-  return d.getUTCHours()===0 ? pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1) : String(d.getUTCHours());
-}
 function fmtFull(ts){
   const d = new Date(civT(ts)*1000);
   return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()+' ' +
@@ -373,19 +362,134 @@ function dayLabel(dayIdx){
 const TZ_UTC = ts => uPlot.tzDate(new Date(ts*1000), 'Etc/UTC');
 const TZ_CIV = ts => uPlot.tzDate(new Date(civT(ts)*1000), 'Etc/UTC');
 
-function dayBands(u){
+// Alba e tramonto (sole a -0.833 gradi, formule della NOAA) del giorno che comincia a day (00:00 UTC), in UTC
+function sunTimes(day, lat, lon){
+  const y0 = Date.UTC(new Date(day * 1000).getUTCFullYear(), 0, 1) / 1000, r = Math.PI / 180;
+  const g = 2 * Math.PI / 365 * Math.floor((day - y0) / DAY_S);
+  const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+                        - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g)
+             + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const c = Math.cos(90.833 * r) / (Math.cos(lat * r) * Math.cos(decl)) - Math.tan(lat * r) * Math.tan(decl);
+  const ha = Math.acos(Math.max(-1, Math.min(1, c))) / r;
+  return [day + (720 - 4 * (lon + ha) - eqt) * 60, day + (720 - 4 * (lon - ha) - eqt) * 60];
+}
+// Dietro i dati: la notte dal tramonto all'alba nel luogo della stazione (u._ll, se no quella aperta) e una
+// linea a ogni mezzanotte italiana. hi = PNG, sempre chiaro.
+function nightBands(u, hi){
   const s = u.scales.x;
   if(s.min == null) return;
-  const DAY = 86400, ctx = u.ctx, mid = d => civToUtc(d * DAY);       // mezzanotte italiana del giorno d
+  const ctx = u.ctx, { left, top, width, height } = u.bbox, x = v => u.valToPos(v, 'x', true);
+  const pr = ctx.canvas.width / Math.max(1, u.width), st = currentStation;
+  const ll = u._ll || (st && st._lat != null ? [st._lat, st._lon] : null);
   ctx.save();
-  ctx.fillStyle = 'rgba(30,45,60,0.045)';
-  for(let d = Math.floor(civT(s.min) / DAY); mid(d) < s.max; d++){
-    if((((d % 2) + 2) % 2) === 0) continue;
-    const x0 = Math.max(mid(d), s.min), x1 = Math.min(mid(d + 1), s.max);
-    const px0 = u.valToPos(x0, 'x', true), px1 = u.valToPos(x1, 'x', true);
-    ctx.fillRect(px0, u.bbox.top, px1 - px0, u.bbox.height);
+  ctx.beginPath();
+  ctx.rect(left, top, width, height);
+  ctx.clip();
+  if(ll){
+    const dark = hi !== true && document.body.classList.contains('dark');
+    ctx.fillStyle = dark ? 'rgba(0,0,0,0.3)' : 'rgba(58,86,140,0.075)';
+    for(let d = Math.floor(s.min / DAY_S) - 1; d * DAY_S < s.max; d++){
+      const set = sunTimes(d * DAY_S, ll[0], ll[1])[1], rise = sunTimes((d + 1) * DAY_S, ll[0], ll[1])[0];
+      if(rise > s.min && set < s.max) ctx.fillRect(x(set), top, x(rise) - x(set), height);
+    }
+  }
+  ctx.strokeStyle = hi === true ? '#e3e9f0' : GRID();
+  ctx.lineWidth = pr;
+  for(let d = Math.floor(civT(s.min) / DAY_S) + 1; civToUtc(d * DAY_S) < s.max; d++){
+    const xm = Math.round(x(civToUtc(d * DAY_S))) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(xm, top);
+    ctx.lineTo(xm, top + height);
+    ctx.stroke();
   }
   ctx.restore();
+}
+const nightBandsHi = u => nightBands(u, true);
+
+// Asse del tempo su due righe: sopra le ore (non la mezzanotte, confine dei giorni), sotto il giorno al
+// centro della parte visibile ("mar 17", sotto i 52 px al giorno solo "17"); show = false: niente scritte.
+const GIORNI = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+function hourTxt(ts){
+  const d = new Date(civT(ts) * 1000);
+  return d.getUTCMinutes() !== 0 || d.getUTCHours() === 0 ? '' : String(d.getUTCHours());
+}
+function daySplits(u, ai, mn, mx){
+  const out = [];
+  for(let d = Math.floor(civT(mn) / DAY_S); civToUtc(d * DAY_S) < mx; d++){
+    const a = Math.max(mn, civToUtc(d * DAY_S)), b = Math.min(mx, civToUtc((d + 1) * DAY_S));
+    if(b - a >= (mx - mn) * 0.08) out.push((a + b) / 2);
+  }
+  return out;
+}
+function dayTxt(u, splits){
+  const days = Math.max(1, (u.scales.x.max - u.scales.x.min) / DAY_S);
+  const wide = (u.over.clientWidth || u.width) / days >= 52;
+  return splits.map(v => {
+    const d = new Date(civT(v) * 1000);
+    return (wide ? GIORNI[d.getUTCDay()] + ' ' : '') + d.getUTCDate();
+  });
+}
+// Ore ogni 1, 2, 3, 6 o 12 (6, 12, 18 e non 8, 16); se fra due tacche non ci sono 40 px nemmeno a 12 ore,
+// niente ore: bastano i giorni
+const HOUR_INCRS = [1, 2, 3, 6, 12, 24, 168, 8760].map(h => h * 3600);
+const hoursOnly = (u, sp, ai, space, incr) => incr >= DAY_S ? sp.map(() => null) : sp;
+function timeAxes(hi, stroke, show){
+  return [
+    { scale:'x', side:2, stroke, font:cssFont(hi ? 20 : 12), size:show ? (hi ? 34 : 20) : 6, gap:hi ? 6 : 3,
+      space:40, incrs:HOUR_INCRS, filter:hoursOnly, grid:{ show:false },
+      ticks:{ show, size:hi ? 8 : 4, filter:hoursOnly },
+      values:(u, ts) => ts.map(t => show && t != null ? hourTxt(t) : '') },
+    { scale:'x', side:2, stroke, font:cssFont(hi ? 20 : 12, 600), size:hi ? 32 : 18, gap:0, show,
+      grid:{ show:false }, ticks:{ show:false }, splits:daySplits, values:dayTxt }
+  ];
+}
+
+// Unita' sopra il loro asse, in orizzontale (a.unit, a.unitSize px), del colore dell'asse
+function drawUnits(u){
+  const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width);
+  ctx.save();
+  ctx.textBaseline = 'bottom';
+  u.axes.forEach((a, i) => {
+    if(!a.unit || !a.show || !a._show || a._pos == null) return;
+    ctx.font = cssFont((a.unitSize || 12) * pr, 600);
+    ctx.fillStyle = typeof a.stroke === 'function' ? a.stroke(u, i) : a.stroke;
+    const w = ctx.measureText(a.unit).width;
+    const c = (a.side === 1 ? a._pos + a._size / 2 : a._pos - a._size / 2) * pr;   // centro dell'asse
+    const x = Math.max(2 * pr, Math.min(ctx.canvas.width - 2 * pr - w, c - w / 2));
+    ctx.fillText(a.unit, x, u.bbox.top - 7 * pr);
+  });
+  ctx.restore();
+}
+// Con piu' variabili, il nome di ognuna in fondo alla sua linea e nel suo colore; u._ends = i nomi scritti
+function endLabels(u, list){
+  const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width), sx = u.scales.x;
+  const { left, top, width } = u.bbox;
+  const tags = [];
+  list.forEach(o => {
+    const d = u.data[o.i];
+    let j = d.length - 1;
+    while(j >= 0 && (d[j] == null || u.data[0][j] > sx.max)) j--;
+    if(j < 0 || u.data[0][j] < sx.min) return;
+    tags.push({ o, x:Math.min(left + width - 2 * pr, u.valToPos(u.data[0][j], 'x', true) - 4 * pr),
+                y:Math.max(top + 14 * pr, u.valToPos(d[j], u.series[o.i].scale, true) - 7 * pr) });
+  });
+  tags.sort((a, b) => a.y - b.y);
+  for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 15 * pr);
+  ctx.save();
+  ctx.font = cssFont(12 * pr, 600);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 3 * pr;                 // bordo del colore del fondo: il nome si legge anche sopra le linee
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = document.body.classList.contains('dark') ? '#0e1621' : '#fff';
+  tags.forEach(t => {
+    ctx.strokeText(t.o.name, t.x, t.y);
+    ctx.fillStyle = t.o.color;
+    ctx.fillText(t.o.name, t.x, t.y);
+  });
+  ctx.restore();
+  u._ends = list.filter(o => tags.some(t => t.o === o)).map(o => o.name);
 }
 
 // LIVIDRO -> quota assoluta (m s.m.m.): il livello e' sommato allo zero idrometrico (zero_idro, dal PDF
@@ -455,7 +559,7 @@ function dirAxis(a){
 // barSlot e slotTxt restano sulla serie: li usano cursore, legenda e PNG.
 function mkSeries(d, hi){
   const s = {
-    label: d.label, stroke: d.color, width: d.width || (hi ? 2.5 : 1.5), spanGaps: !!d.spanGaps,
+    label: d.label, stroke: d.color, width: d.width || (hi ? 3 : 2), spanGaps: !!d.spanGaps,
     kind: d.kind || 'line'
   };
   if(d.scale) s.scale = d.scale;
@@ -473,7 +577,7 @@ function mkSeries(d, hi){
     s.width = hi ? 3 : 2;
     s.spanGaps = true;
     s.points = { show:false };
-  } else s.points = { show: d.pts == null ? true : d.pts, size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
+  } else s.points = { show: !!d.pts, size: hi ? (d.ptSizeHi || 8) : (d.ptSize || 5) };
   return s;
 }
 // punto del cursore: niente pallino sulle barre, normale su linee e puntini
@@ -810,7 +914,7 @@ const cumY = extra => ({ range:(u, mn, mx) => {
 function cumAxis(hi, color){
   return Object.assign({
     scale:'cum', side:1, grid:{ show:false }, stroke: color, size: hi ? 82 : 50,
-    label: 'cumulata (mm)', labelSize: hi ? 32 : 26, labelGap: hi ? 6 : 4,
+    unit: 'cumulata', unitSize: hi ? 20 : 12,
     splits: (u, ai, mn, mx) => {
       const st = niceStep(Math.max(mx - mn, 1) / 4), out = [];
       for(let k = 0; mn + k * st <= mx + 1e-9; k++) out.push(mn + k * st);
@@ -820,7 +924,7 @@ function cumAxis(hi, color){
       const d = stepDecimals(ticks.length > 1 ? ticks[1] - ticks[0] : 1);
       return ticks.map(t => Math.max(0, t - u.scales.cum.min).toFixed(d));
     }
-  }, hi ? { font: '20px system-ui, sans-serif', labelFont: '700 24px system-ui, sans-serif' } : {});
+  }, { font: cssFont(hi ? 20 : 12) });
 }
 
 // ZOOM: trascinamento col mouse (gia' in uPlot); sul telefono pizzico a due dita e trascinamento orizzontale
@@ -1022,9 +1126,7 @@ const windY = () => ({ range: (u, mn, mx) => [0, Math.max(1, (mx || 0) * 1.15)] 
 // Con piu' assi ognuno ha il colore della sua variabile; neutro se ne porta piu' d'una.
 function mainOpts(m, o){
   // schermo stretto (telefono): assi piu' sottili, il grafico resta largo anche con tre variabili
-  const hi = !!o.hi, narrow = !hi && o.w < 520, fnt = hi ? { font: '20px system-ui, sans-serif' } : {};
-  const lab = hi ? { labelFont: '700 24px system-ui, sans-serif', labelSize: 32, labelGap: 6 }
-                 : { labelSize: narrow ? 16 : 26, labelGap: narrow ? 2 : 4 };
+  const hi = !!o.hi, narrow = !hi && o.w < 520, fnt = { font: cssFont(hi ? 20 : 12) };
   const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(), CC = hi ? '#1a365d' : CUMC();
   const col = (v, text) => varColor(v, text, hi);
   const groups = mainAxes(m), many = groups.length > 1;
@@ -1035,21 +1137,18 @@ function mainOpts(m, o){
       label: varLabel(s.v) + (hi && s.unit ? ' (' + s.unit + ')' : ''), color: w ? withAlpha(c, 0.45) : c,
       kind: s.kind, scale: s.scale, align: s.rs && s.rs.align, slot: s.rs && s.rs.slot,
       slotTxt: (s.rs && s.rs.hourly) ? (s.src === 'PREC' ? 'range' : 'end') : '',
-      pts: w ? false : null, width: w ? (hi ? 1.6 : 1) : 0
+      width: w ? (hi ? 1.6 : 1) : 0
     }, hi));
   });
-  const axes = [
-    Object.assign({ grid:{ stroke: grid }, stroke: ax, values: (u, ticks) => ticks.map(fmtAxis) },
-                  hi ? { size: 46 } : {}, fnt)
-  ];
+  const axes = timeAxes(hi, ax, true);
   const scales = {};
   groups.forEach((g, k) => {
     const one = g.ss.length === 1 ? g.ss[0].v : null;
     const a = Object.assign({
-      scale: g.key, grid: k ? { show:false } : { stroke: grid }, label: g.unit,
+      scale: g.key, grid: k ? { show:false } : { stroke: grid }, unit: g.unit, unitSize: hi ? 20 : 12,
       size: hi ? 82 : narrow ? 38 : 54, stroke: many && one ? col(one, true) : ax, space: hi ? 70 : 44,
       incrs: TICK_STEPS, values: tickTexts
-    }, lab, fnt);
+    }, fnt);
     if(k) a.side = 1;
     axes.push(g.dir ? dirAxis(a) : a);
     scales[g.key] = g.ss.some(s => isRainVar(s.src)) ? rainY() : g.dir ? dirY()
@@ -1069,13 +1168,19 @@ function mainOpts(m, o){
     range: (u, a, b) => !w ? [a, b]
       : (w[0] === w[1] ? [w[0] - HOUR, w[1] + HOUR] : (zoom(a, b) ? [a, b] : [w[0], w[1]]))
   };
-  const hooks = hi ? { drawClear: [dayBands, gapBands(m.gaps, true)] }
-                   : { drawClear: [dayBands, gapBands(m.gaps)], setCursor: [legendCursor] };
+  const hooks = hi ? { drawClear: [nightBandsHi, gapBands(m.gaps, true)] }
+                   : { drawClear: [nightBands, gapBands(m.gaps)], setCursor: [legendCursor] };
   if(m.daily) addDailyHooks(hooks, m.daily, CC, hi);
   if(m.wind) hooks.draw = (hooks.draw || []).concat(
     drawArrows(m.wind.arrows, col(WARROW), hi, m.wind.dense, m.ss[m.wind.i - 1].scale));
+  hooks.draw = (hooks.draw || []).concat(drawUnits);
+  if(!hi && m.ss.length > 1){
+    const ends = m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) }));
+    hooks.draw.push(u => endLabels(u, ends));
+  }
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
+    padding: [hi ? 44 : 24, null, null, null],
     cursor: hi ? { show:false }
                : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } }
   };
@@ -1136,18 +1241,18 @@ function renderCompare(t, label, unit){
     }
     // spanGaps: la serie di oggi (a griglia piu' rada) resta una linea continua e visibile
     specs.push({
-      label: isToday ? 'Oggi' : dayLabel(day), color, isToday, spanGaps: true, pts: false,
+      label: isToday ? 'Oggi' : dayLabel(day), color, isToday, spanGaps: true,
       kind: dir ? 'dots' : 'line'
     });
     data.push(X.map(tod => m.has(tod) ? m.get(tod) : null));
   });
   const full = rain ? [0, DAY_S] : [X[0], X[X.length - 1]];
   const opts = hi => {
-    const fnt = hi ? { font: '20px system-ui, sans-serif' } : {}, grid = hi ? '#e3e9f0' : GRID();
+    const fnt = { font: cssFont(hi ? 20 : 12) }, grid = hi ? '#e3e9f0' : GRID();
     const yAx = Object.assign({
-      grid:{ stroke: grid }, size: hi ? 82 : 58, label: unit, labelSize: hi ? 32 : 26, labelGap: hi ? 6 : 4,
+      grid:{ stroke: grid }, size: hi ? 82 : 58, unit, unitSize: hi ? 20 : 12,
       incrs: TICK_STEPS, values: tickTexts
-    }, hi ? { stroke:'#33475a', labelFont:'700 24px system-ui, sans-serif' } : {}, fnt);
+    }, hi ? { stroke:'#33475a' } : {}, fnt);
     return {
       width: chartWidth(), height: chartHeight(), tzDate: TZ_UTC, legend: { show:false },
       // pioggia: l'asse va da 00 a 24 e parte da 0 mm
@@ -1163,9 +1268,10 @@ function renderCompare(t, label, unit){
                       hi ? { stroke:'#33475a', size:46 } : {}, fnt),
         dir ? dirAxis(yAx) : yAx
       ],
+      padding: [hi ? 44 : 24, null, null, null],
       cursor: hi ? { show:false }
                  : { y:false, drag:{ x:true, y:false }, dataIdx: cursorDataIdx, points:{ show: hoverPt } },
-      hooks: hi ? {} : { setCursor: [ legendCursor ] },
+      hooks: hi ? { draw: [drawUnits] } : { draw: [drawUnits], setCursor: [ legendCursor ] },
     };
   };
   chart = new uPlot(opts(false), data, el('chart'));
@@ -1214,7 +1320,7 @@ function stackPanelH(n){
 function stackPanelOpts(p, o){
   const hi = !!o.hi;
   // niente 'font: undefined': uPlot lo prenderebbe alla lettera
-  const fnt = hi ? { font: '20px system-ui, sans-serif' } : {};
+  const fnt = { font: cssFont(hi ? 20 : 12) };
   const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(), CC = hi ? '#1a365d' : CUMC();
   const color = varColor(p.v, false, hi);
   const series = [
@@ -1223,19 +1329,15 @@ function stackPanelOpts(p, o){
       label: p.label, color: p.wind ? withAlpha(color, 0.45) : color, kind: p.kind,
       align: p.rs && p.rs.align, slot: p.rs && p.rs.slot,
       slotTxt: (p.rs && p.rs.hourly) ? (p.src === 'PREC' ? 'range' : 'end') : '',
-      pts: !p.wind && p.npts <= 400, ptSize: 3, ptSizeHi: 6
+      ptSize: 3, ptSizeHi: 6
     }, hi)
   ];
-  const axX = o.last
-    ? Object.assign({
-        grid:{stroke:grid}, stroke:ax, size: hi ? 46 : 30, values:(u, ticks) => ticks.map(fmtAxis)
-      }, fnt)
-    : { grid:{stroke:grid}, size:6, ticks:{show:false}, values:(u, ticks) => ticks.map(() => '') };
+  const axX = timeAxes(hi, ax, o.last);
   const axY = Object.assign({
     grid:{stroke:grid}, size: hi ? 82 : 58, stroke: varColor(p.v, true, hi),
     incrs: TICK_STEPS, values: tickTexts
   }, fnt);
-  const axes = [ axX, isDirVar(p.src) ? dirAxis(axY) : axY ];
+  const axes = axX.concat(isDirVar(p.src) ? dirAxis(axY) : axY);
   const scales = {
     // Un intervallo piu' STRETTO della finestra e' uno zoom e va accettato; quello dei dati (uPlot lo
     // ripassa a ogni ridisegno) no: i dati possono cominciare dopo l'inizio della finestra.
@@ -1245,14 +1347,13 @@ function stackPanelOpts(p, o){
     } },
     y: p.wind ? windY() : yScaleFor(p.src) };
   const rg = (o.rgut || 0) * (hi ? 82 / STACK_RGUT : 1);
-  const h = Object.assign({}, hi ? { drawClear:[dayBands, gapBands(p.gaps, true)] } : o.hooks);
+  const h = Object.assign({}, hi ? { drawClear:[nightBandsHi, gapBands(p.gaps, true)] } : o.hooks);
   if(p.wind) h.draw = (h.draw || []).concat(drawArrows(p.wind.arrows, color, hi, p.wind.dense));
   if(p.cum){
     series.push(mkSeries({ label: 'Cumulata', color: CC, kind: 'cum', scale: 'cum' }, hi));
     const ca = cumAxis(hi, CC);
     ca.size = rg;
-    ca.label = null;
-    ca.labelSize = 0;
+    ca.unit = '';                             // il nome e l'unita' sono nella testata della fascia
     axes.push(ca);
     scales.cum = cumY(p.daily && (u => dailyTop(u, p.daily)));
   }
@@ -1360,7 +1461,7 @@ function createStack(host, cfg){
     root.appendChild(box);
     const opts = stackPanelOpts(p, {
       w:width(), h: ph + (last ? AX : 0), last, win, sync, rgut,
-      hooks:{ drawClear:[dayBands, gapBands(p.gaps)], setCursor:[onCursor], setScale:[onScale] }
+      hooks:{ drawClear:[nightBands, gapBands(p.gaps)], setCursor:[onCursor], setScale:[onScale] }
     });
     p.u = new uPlot(opts, p.data, box.querySelector('.stk-c'));
     addZoomUI(p.u, () => win, HOUR, i === 0);       // pizzico su qualunque pannello; "Tutto" sul primo
@@ -1397,10 +1498,10 @@ function pngHead(ctx, title, what, withSource, when){
   const src = withSource && currentStation && SOURCES[currentStation._region];
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#0f2233';
-  ctx.font = '700 32px system-ui, sans-serif';
+  ctx.font = cssFont(32, 700);
   ctx.fillText(title, 12, 44);
   ctx.fillStyle = '#5a6b7a';
-  ctx.font = '16px system-ui, sans-serif';
+  ctx.font = cssFont(16);
   const line = [what, src ? 'Fonte: ' + src.name : '', when || 'Ora italiana'].filter(Boolean);
   ctx.fillText(line.join('  ·  '), 12, 70);
 }
@@ -1430,7 +1531,7 @@ async function offPlot(opts, data, W, H){
 
 // legenda in colonna: segno della serie (barra, puntino o linea) e nome, fino a bottom
 function pngLegend(ctx, series, lx, ly, bottom){
-  ctx.font = '17px system-ui, sans-serif';
+  ctx.font = cssFont(17);
   for(let i = 1; i < series.length; i++){
     const s = series[i];
     if(!s.label) continue;
@@ -1508,7 +1609,7 @@ async function stackPNG(){
     ctx.fillStyle = varColor(p.v, false, true);
     ctx.fillRect(L + 6, y + 20, 22, 4);
     ctx.fillStyle = '#0f2233';
-    ctx.font = '700 22px system-ui, sans-serif';
+    ctx.font = cssFont(22, 700);
     ctx.fillText(p.label + (p.unit ? ' (' + p.unit + ')' : ''), L + 38, y + 28);
     y += HEAD;
     const h = PH + (last ? AXH : 0);
@@ -1535,7 +1636,7 @@ async function rosePNG(){
               .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));
   await img.decode();
   ctx.drawImage(img, (W - SW) / 2, TOP, SW, SH);
-  ctx.font = '18px system-ui, sans-serif';
+  ctx.font = cssFont(18);
   const items = _WR_CLASSES.map(k => ({ k, w: 22 + ctx.measureText(k.l).width + 24 }));
   let x = (W - (44 + items.reduce((a, it) => a + it.w, 0))) / 2;
   const y = TOP + SH + 44;
@@ -1554,26 +1655,22 @@ async function rosePNG(){
 
 // Pulsante PNG: l'immagine della vista mostrata
 async function exportPNG(){
-  const btn = el('exportpng');
-  if(btn.disabled) return;
-  const lbl = btn.textContent;
-  btn.textContent = '⏳';
-  btn.disabled = true;
+  const btn = el('expBtn');
+  if(btn.getAttribute('aria-busy') === 'true') return;
+  btn.setAttribute('aria-busy', 'true');
   try {
     const out = histMode ? await histPNG()
               : document.body.classList.contains('rose-mode') ? await rosePNG()
               : document.body.classList.contains('clima-mode') ? await climaPNG()
               : stackObj ? await stackPNG() : await chartPNG();
     if(!out) return;
-    btn.textContent = lbl;                  // pulsante libero prima del foglio di condivisione
-    btn.disabled = false;
+    btn.removeAttribute('aria-busy');       // pulsante libero prima del foglio di condivisione
     await deliverPNG(out.blob, out.fname);
   } catch(e){
     setStatus('Immagine non riuscita (' + e + ').');
     toast('PNG non riuscito');
   } finally {
-    btn.textContent = lbl;
-    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
   }
 }
 
@@ -1641,8 +1738,6 @@ function buildChartControls(){
     if(stackObj) stackObj.resize();
     if(histMode && histU) histU.setSize({ width: histWidth(), height: histHeight() });
   }).observe(el('panel'));
-  el('exportpng').addEventListener('click', exportPNG);
-  el('tabsCsv').addEventListener('click', exportTabsCSV);
   el('pngclose').addEventListener('click', closePngSheet);
   el('pngsheet').addEventListener('click', e => { if(e.target === el('pngsheet')) closePngSheet(); });
 }

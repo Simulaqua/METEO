@@ -42,6 +42,12 @@
         JSON.stringify([de.scrollWidth, pn.scrollWidth, pn.clientWidth, out.slice(0, 6)]));
   }
 
+  // il CSV dal menu Esporta, come lo sceglie chi usa la pagina
+  async function exportCsv(){
+    el('expBtn').click(); await sleep(60);
+    el('expMenu').querySelector('[data-act="csv"]').click(); await sleep(200);
+  }
+
   async function suiteCursor(){                       // registrazione del Cursore delle stazioni (FVG, PREC24)
     el('region').value = 'FVG';
     await loadRegions(REGION_GROUPS.FVG || ['FVG']);
@@ -405,8 +411,13 @@
     eq('etichetta: 02:30 della prima volta', fmtFull(U(10, 25, 0, 30)), '25/10/2026 02:30');
     eq('etichetta: 02:30 della seconda volta', fmtFull(U(10, 25, 1, 30)), '25/10/2026 02:30');
     eq('etichetta: estate e inverno', [fmtFull(U(7, 1, 10, 0)), fmtFull(U(12, 1, 11, 0))], ['01/07/2026 12:00', '01/12/2026 12:00']);
-    eq('asse: mezzanotte del 25 (CEST) e del 26 (CET)', [fmtAxis(U(10, 24, 22, 0)), fmtAxis(U(10, 25, 23, 0))], ['25/10', '26/10']);
-    eq('asse: le 2 della seconda volta', fmtAxis(U(10, 25, 1, 0)), '2');
+    eq('asse: a mezzanotte (CEST e CET) nessuna ora, il giorno sta sotto', [hourTxt(U(10, 24, 22, 0)), hourTxt(U(10, 25, 23, 0))], ['', '']);
+    eq('asse: le 2 della seconda volta', hourTxt(U(10, 25, 1, 0)), '2');
+    {                                                  // il 25/10 dura 25 ore: il suo nome sta a meta' delle sue 25
+      const sp = daySplits(null, 0, U(10, 24, 22, 0), U(10, 26, 23, 0));
+      eq('asse: un giorno sotto ciascun giorno, anche quello di 25 ore', sp, [(U(10, 24, 22, 0) + U(10, 25, 23, 0)) / 2,
+         (U(10, 25, 23, 0) + U(10, 26, 23, 0)) / 2]);
+    }
     eq('cursore: giorno e ora', fmtDayTime(U(10, 25, 1, 0)), '25/10 02:00');
 
     const rs = rainSeries(t.x, t.cols.PREC, 'PREC', t.x[0], t.x[t.x.length - 1], true);
@@ -425,10 +436,12 @@
     log(m.data[0].every((x, i) => i === 0 || x > m.data[0][i - 1]), 'grafico: tempo sempre crescente', JSON.stringify(m.data[0]));
     eq('grafico: valori nell\'ordine giusto', m.data[1], temps);
 
-    const rects = [], fake = { scales: { x: { min: U(10, 24, 12, 0), max: U(10, 26, 12, 0) } }, valToPos: v => v, bbox: { top: 0, height: 10 },
-                               ctx: { save(){}, restore(){}, fillRect(x, y, w){ rects.push([x, x + w]); } } };
-    dayBands(fake);
-    eq('bande: il 25/10 da mezzanotte a mezzanotte (25 ore)', rects, [[U(10, 24, 22, 0), U(10, 25, 23, 0)]]);
+    const mids = [], fake = { scales: { x: { min: U(10, 24, 12, 0), max: U(10, 26, 12, 0) } }, valToPos: v => v, width: 1,
+                              bbox: { left: 0, top: 0, width: 10, height: 10 }, _ll: [45.4, 11.9],
+                              ctx: { canvas: { width: 1 }, save(){}, restore(){}, beginPath(){}, rect(){}, clip(){}, fillRect(){},
+                                     lineTo(){}, stroke(){}, moveTo(x){ mids.push(x - 0.5); } } };
+    nightBands(fake);
+    eq('linee della mezzanotte italiana: il 25/10 dura 25 ore', mids, [U(10, 24, 22, 0), U(10, 25, 23, 0)]);
 
     // etichette civili scritte dal browser (Europe/Rome), indipendenti dal codice della pagina
     const civLab = s => new Date(s * 1000).toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 16).replace(' ', 'T');
@@ -437,8 +450,8 @@
     const host = document.createElement('div'); document.body.appendChild(host);
     const u = new uPlot(mainOpts(m2, { w: 900, h: 300 }), m2.data, host);
     await sleep(50);                                                   // uPlot disegna (e calcola le etichette) dopo un microtask
-    const labs = (u.axes[0]._values || []).filter(Boolean);
-    log(labs.includes('25/10') && labs.includes('26/10'), 'asse: date alla mezzanotte italiana', JSON.stringify(labs));
+    const labs = (u.axes[1]._values || []).filter(Boolean);
+    log(labs.some(t => / 25$/.test(t)) && labs.some(t => / 26$/.test(t)), 'asse: sotto le ore i giorni 25 e 26', JSON.stringify(labs));
     u.destroy(); host.remove();
 
     const hrs = []; for(let h = 0; h <= 25; h++) hrs.push(civLab(U(10, 23, 22, 0) + h * 3600) + ',' + h);
@@ -1443,7 +1456,7 @@
     checkTable(true, 'Pioggia/Tabella');
     noOverflow('Pioggia/Tabella');
     histView = 'mesi'; await renderHist();
-    log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('hvCsv')), 'comandi dentro lo schermo', '');
+    log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('expBtn')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
     log(!el('hvChart').querySelector('.hv-yrs'), 'Pioggia/Anni: niente scelta dell\'anno', '');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Pioggia/Anni: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
@@ -1706,7 +1719,7 @@
     window.Blob = function(parts, o){ csvText = (parts || []).join(''); return new OB(parts, o); };
     URL.createObjectURL = b => { csv = b; return 'blob:test'; };
     HTMLAnchorElement.prototype.click = function(){ if(this.download) csv = csv || true; else oclick.call(this); };
-    el('hvCsv').click(); await sleep(200);
+    await exportCsv();
     URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = oclick; window.Blob = OB;
     const lines = csv && csvText != null ? csvText.trim().split('\n') : [];
     const days = lines.slice(1).map(l => l.split(';')[0]);
@@ -1769,7 +1782,7 @@
     const open = async p => { await selectStation(p); await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000); await sleep(300); };
     const gap = id => Math.round(R(el(id)).top - R(el('tabbar')).bottom);        // dalla barra delle schede all'inizio del grafico
     const sameRow = es => es.length > 0 && Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
-    const acts = () => ['refresh', 'download', 'hvCsv', 'tabsCsv', 'exportpng', 'copylink'].filter(id => vis(el(id)));
+    const acts = () => ['refresh', 'expBtn'].filter(id => vis(el(id)));
     const tools = () => [...document.querySelectorAll('#modes .mode, #pviews .mode')].filter(vis);
     const names = () => [...el('vars').querySelectorAll('button')].filter(vis);
     const below = (es, top) => es.every(e => R(e).top >= top - 1);
@@ -1790,7 +1803,7 @@
     await open(P); await until(() => vis(el('histbtn')), 5000);
     const name = el('stationName');
     log(/^234\b/.test(name.title) && !vis(el('stationMeta')), 'riga 1: codice e ultimo dato nel titolo del nome, niente scritte accanto', name.title);
-    eq('riga 1: azioni', acts(), ['refresh', 'download', 'exportpng', 'copylink']);
+    eq('riga 1: azioni', acts(), ['refresh', 'expBtn']);
     eq('riga 1: periodi, Storico, Confronta', tools().map(b => b.dataset.mode || b.id), ['mn', 'day', 'day3', 'week', 'histbtn', 'cmpBtn']);
     if(!phone) log(sameRow([name, ...tools(), ...acts().map(el)]), 'riga 1: tutto sulla stessa riga',
                    JSON.stringify([name, ...tools(), ...acts().map(el)].map(e => Math.round(mid(e)))));
@@ -1864,12 +1877,12 @@
     log(document.body.classList.contains('view-compare') && !vis(cm) && el('stationName').textContent === 'Confronto schede',
         'Confronta: "Confronto schede" apre la scheda Confronto', '');
     eq('Confronto schede: niente Confronta né Storico', [vis(cb), vis(el('histbtn'))], [false, false]);
-    eq('Confronto schede: azioni', acts(), ['tabsCsv', 'exportpng', 'copylink']);
+    eq('Confronto schede: azioni', acts(), ['expBtn']);
     {
       let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
       window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
       HTMLAnchorElement.prototype.click = function(){ if(!this.download) oc.call(this); };
-      el('tabsCsv').click(); await sleep(100);
+      await exportCsv();
       window.Blob = OB; HTMLAnchorElement.prototype.click = oc;
       const lines = text ? text.trim().split('\n') : [];
       log(lines.length > 10 && /^datetime,".+",".+"/.test(lines[0]) && lines.slice(1).every(l => /^\d{4}-\d\d-\d\dT\d\d:\d\d,/.test(l)),
@@ -1891,7 +1904,7 @@
     log(histMode && hb.classList.contains('active') && hb.getAttribute('aria-pressed') === 'true' && hb.textContent.trim() === 'Storico',
         'Storico: acceso fra le viste', hb.outerHTML.slice(0, 120));
     log(![...el('vars').children].some(vis) && ['hvVar', 'hvView', 'hvRange'].every(id => vis(el(id))), 'Storico: nella riga 2 la sua barra', '');
-    eq('Storico: azioni', acts(), ['hvCsv', 'exportpng', 'copylink']);
+    eq('Storico: azioni', acts(), ['expBtn']);
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Storico: nessun periodo acceso', '');
     M.storico = gap('hvChart');
     if(!phone) log(M.storico <= 75, 'Storico (Valdagno): grafico a ' + M.storico + ' px dalla barra delle schede (al massimo 75)', M.storico);
@@ -1905,7 +1918,7 @@
     }
     el('hvView').querySelector('[data-w="mesi"]').click(); await until(() => histView === 'mesi' && !!histU, 8000); await sleep(300);
     log(!vis(el('hvRange')), 'Storico/Mesi: niente periodo dei giorni', '');
-    if(phone){ actsOk('telefono, Storico', ['hvCsv', 'exportpng', 'copylink']); noOverflow('telefono, Storico'); }
+    if(phone){ actsOk('telefono, Storico', ['expBtn']); noOverflow('telefono, Storico'); }
     document.querySelector('#modes [data-mode="day3"]').click(); await until(() => !histMode && !!el('chart').querySelector('canvas'), 8000); await sleep(300);
     log(!histMode && chartMode === 'day3' && !hb.classList.contains('active') && [...el('vars').children].some(vis),
         'un periodo esce dallo Storico: tornano le variabili', '');
@@ -1923,14 +1936,14 @@
       const h = last && document.elementFromPoint(R(last).left + R(last).width / 2, R(last).top + R(last).height / 2);
       log(!!h && last.contains(h), 'telefono, Arba: l\'ultimo comando si tocca', last ? last.textContent : '');
       log(n.every(e => R(e).height >= 28), 'telefono: comandi alti almeno 28 px', JSON.stringify(n.map(e => Math.round(R(e).height))));
-      actsOk('telefono, Arba', ['refresh', 'download', 'exportpng', 'copylink']);
+      actsOk('telefono, Arba', ['refresh', 'expBtn']);
       noOverflow('telefono, Arba');
       noScroller('telefono, Arba');
       M.telefono = gap('chart');
       const long = allFeatures.map(f => f.properties).filter(p => (p.variables || []).some(v => varCat(v) === 'dirette'))
                               .reduce((a, p) => prettyName(p.name || p.scode).length > prettyName(a.name || a.scode).length ? p : a);
       await open(long);
-      actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'download', 'exportpng', 'copylink']);
+      actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'expBtn']);
       noOverflow('telefono, nome lungo');
       log(name.scrollWidth <= name.clientWidth + 1, 'telefono, nome lungo: nome intero (va a capo, non tagliato)', JSON.stringify([name.scrollWidth, name.clientWidth]));
     }
@@ -2101,7 +2114,7 @@
       await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000);
       await sleep(300);
     };
-    const acts = () => ['refresh', 'download', 'hvCsv', 'tabsCsv', 'climaCsv', 'exportpng', 'copylink'].filter(id => vis(el(id)));
+    const acts = () => ['refresh', 'expBtn'].filter(id => vis(el(id)));
     // atteso, calcolato qui dal file: mesi completi (interi e col 90% dei giorni con almeno 20 ore), media fra gli anni
     const raw = await (await fetch('./_radar_test/_HIST/VEN/79.json')).json();
     const want = (() => {
@@ -2156,7 +2169,7 @@
        want.map(w => [w.nt, w.np]));
     log(climaU._labs && climaU._labs.hidden && !el('climaview').querySelector('.hv-key, .hv-hint'), 'a riposo nessun numero né scritta sul grafico', '');
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'nessun periodo acceso', '');
-    eq('azioni: CSV della climatologia, PNG, Link', acts(), ['climaCsv', 'exportpng', 'copylink']);
+    eq('azioni: solo Esporta', acts(), ['expBtn']);
     {
       const m = want.findIndex(w => w.tx != null && w.p != null);
       climaU.setCursor({ left:climaU.valToPos(m, 'x'), top:20 }); await sleep(120);
@@ -2179,7 +2192,7 @@
       window.Blob = function(parts, o){ csvText = (parts || []).join(''); return new OB(parts, o); };
       URL.createObjectURL = () => 'blob:test';
       HTMLAnchorElement.prototype.click = function(){ if(!this.download) oclick.call(this); };
-      el('climaCsv').click(); await sleep(200);
+      await exportCsv();
       window.Blob = OB; HTMLAnchorElement.prototype.click = oclick; URL.createObjectURL = oc;
       const lines = csvText ? csvText.trim().split('\n') : [];
       eq('CSV: intestazione e dodici mesi', [lines[0], lines.length], ['mese;anni_temperatura;tmin;tmedia;tmax;anni_pioggia;pioggia_mm', 13]);
@@ -2221,10 +2234,123 @@
     finish();
   }
 
+  // Rifinitura A della scheda: carattere, nome con la "i", Esporta, linee, nomi a fine linea, unita', tempo, notte
+  async function suiteRifinitura(){
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const R = e => e.getBoundingClientRect(), mid = e => (R(e).top + R(e).bottom) / 2, phone = innerWidth <= 720;
+    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc) || {}).properties;
+    const T = st('VEN', '170');
+    log(!!T, 'stazione di prova trovata', '');
+    if(!T) return finish();
+    const open = async p => {
+      await selectStation(p);
+      await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000);
+      await sleep(300);
+    };
+    const menu = () => [...el('expMenu').querySelectorAll('[data-act]')].filter(vis);
+    const pick = async act => { el('expBtn').click(); await sleep(60); menu().find(b => b.dataset.act === act).click(); await sleep(60); };
+    const blobText = async act => {                    // il testo del Blob nel momento in cui nasce (vedi la prova del CSV dello Storico)
+      let text = null; const OB = window.Blob, oc = URL.createObjectURL, ok = HTMLAnchorElement.prototype.click;
+      window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
+      URL.createObjectURL = () => 'blob:test';
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) ok.call(this); };
+      await pick(act); await sleep(200);
+      window.Blob = OB; URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ok;
+      return text;
+    };
+
+    if(document.fonts) await document.fonts.load('12px "IBM Plex Sans"');
+    log(/^"?IBM Plex Sans"?/.test(getComputedStyle(document.body).fontFamily) && document.fonts.check('12px "IBM Plex Sans"'),
+        'carattere IBM Plex Sans, caricato', getComputedStyle(document.body).fontFamily);
+    Object.assign(T, { quota:155, comune:'TEOLO', prov:'PD' });         // come nel geojson col nuovo export
+    setMapVar(''); await until(() => filterVar === '');
+    await open(T);
+
+    // nome grande, la "i" accanto: la scheda della stazione con un clic
+    const nm = el('stationName'), ib = el('stInfo'), card = el('stCard');
+    log(parseFloat(getComputedStyle(nm).fontSize) >= (phone ? 20 : 23), 'nome della stazione grande', getComputedStyle(nm).fontSize);
+    log(vis(ib) && ib.textContent.trim() === 'i' && R(ib).left - R(nm).right < 16 && R(ib).left >= R(nm).right - 1 &&
+        Math.abs(mid(ib) - mid(nm)) < 7, '"i" accanto al nome', JSON.stringify([R(nm).right, R(ib).left, mid(nm), mid(ib)].map(Math.round)));
+    ib.click(); await sleep(60);
+    eq('"i": un clic apre la scheda della stazione', [vis(card), ib.getAttribute('aria-expanded')], [true, 'true']);
+    const rows = [...card.querySelectorAll('dt')].map(d => [d.textContent.trim(), d.nextElementSibling.textContent.trim()]);
+    eq('"i": le voci', rows.map(r => r[0]), ['Dove', 'Rete', 'Coordinate', 'Codice', 'Misure', 'Ultimo dato']);
+    eq('"i": dove e rete', rows.slice(0, 2).map(r => r[1]), ['Teolo (PD), 155 m', 'ARPA Veneto']);
+    log(/^45\.343 N, 11\.677 E$/.test((rows[2] || [])[1]) && (rows[3] || [])[1] === '170', '"i": coordinate e codice', JSON.stringify(rows.slice(2, 4)));
+    log(/^temperatura, umidità, pioggia/.test((rows[4] || [])[1]) && /^\d\d\/\d\d alle \d\d:\d\d$/.test((rows[5] || [])[1]),
+        '"i": misure e ultimo dato', JSON.stringify(rows.slice(4)));
+    { const r = R(card); log(r.left >= -0.5 && r.right <= innerWidth + 0.5, '"i": dentro lo schermo', JSON.stringify([r.left, r.right].map(Math.round))); }
+    document.body.click(); await sleep(60);
+    eq('"i": un clic fuori la chiude', [vis(card), ib.getAttribute('aria-expanded')], [false, 'false']);
+    ib.click(); await sleep(60);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(60);
+    log(!vis(card), '"i": Esc la chiude', '');
+
+    // Esporta: un pulsante solo, con CSV, PNG e link; il CSV e' quello della vista
+    eq('azioni: Aggiorna ed Esporta', [...el('pact').children].filter(vis).map(e => e.id), ['refresh', 'expBtn']);
+    el('expBtn').click(); await sleep(60);
+    eq('Esporta: tre voci', menu().map(b => b.textContent.trim()), ['Dati (CSV)', 'Immagine (PNG)', 'Copia il link']);
+    el('expBtn').click(); await sleep(60);
+    log(!vis(el('expMenu')), 'Esporta: un secondo clic chiude', '');
+    {
+      const got = []; const ok = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function(){ got.push([this.getAttribute('href'), this.download]); };
+      await pick('csv');
+      HTMLAnchorElement.prototype.click = ok;
+      log(got.length === 1 && /\/VEN\/series\/170\.csv$/.test(got[0][0]) && got[0][1] === 'Teolo_VEN.csv', 'Esporta, CSV: la serie della stazione', JSON.stringify(got));
+      const pngs = [], real = window.deliverPNG;
+      window.deliverPNG = async (b, f) => { pngs.push(f); };
+      await pick('png'); await until(() => pngs.length, 8000);
+      window.deliverPNG = real;
+      log(pngs.length === 1 && /\.png$/.test(pngs[0]), 'Esporta, PNG', JSON.stringify(pngs));
+    }
+    await setHistMode(true, 'PREC', 'mesi'); await until(() => histMode && !!histU, 10000); await sleep(300);
+    eq('Storico: azioni', [...el('pact').children].filter(vis).map(e => e.id), ['expBtn']);
+    log(/^data;pioggia_mm/.test(await blobText('csv') || ''), 'Esporta nello Storico: il CSV giornaliero', '');
+    await setHistMode(false); await sleep(300);
+
+    // linee a 2 px senza pallini (il pallino solo al cursore); nomi in fondo alle linee quando sono due o piu'
+    drawVar('TEMP'); addVar('UMID'); await sleep(300);
+    const dots = (s, i) => typeof s.points.show === 'function' ? s.points.show(chart, i) : s.points.show;   // uPlot ne fa una funzione
+    const lines = chart.series.map((s, i) => [s, i]).filter(([s, i]) => i && s.kind === 'line');
+    log(lines.length === 2 && lines.every(([s, i]) => s.width === 2 && !dots(s, i)), 'linee a 2 px senza pallini',
+        JSON.stringify(lines.map(([s, i]) => [s.width, dots(s, i)])));
+    eq('nomi in fondo alle linee', chart._ends, ['Temperatura', 'Umidità']);
+    // unita' in orizzontale sopra il loro asse, del colore della variabile quando l'asse e' suo
+    const ys = () => chart.axes.filter(a => a.scale && a.scale !== 'x');
+    eq('unità sopra gli assi, niente scritte ruotate', ys().map(a => [a.label || null, a.unit]), [[null, '°C'], [null, '%']]);
+    drawVar('TEMP'); await sleep(300);
+    eq('una linea sola: niente nome in fondo', chart._ends || [], []);
+    // tempo su due righe: le ore, sotto i giorni
+    const xs = chart.axes.filter(a => a.scale === 'x');
+    eq('asse del tempo su due righe', xs.length, 2);
+    log((xs[0]._values || []).length > 0 && xs[0]._values.every(t => t === '' || /^\d{1,2}$/.test(t)), 'prima riga: le ore',
+        JSON.stringify((xs[0]._values || []).slice(0, 10)));
+    log((xs[1]._values || []).length >= 6 && xs[1]._values.every(t => /^((dom|lun|mar|mer|gio|ven|sab) )?\d{1,2}$/.test(t)),
+        'seconda riga: i giorni', JSON.stringify(xs[1]._values));
+    // notte vera: dal tramonto all'alba della stazione
+    const sun = sunTimes(Date.UTC(2026, 10, 17) / 1000, 45.34272761, 11.67713457);
+    log(Math.abs(sun[0] - Date.UTC(2026, 10, 17, 6, 13) / 1000) < 300 && Math.abs(sun[1] - Date.UTC(2026, 10, 17, 15, 43) / 1000) < 300,
+        'alba e tramonto di Teolo il 17/11', JSON.stringify(sun.map(t => new Date(t * 1000).toISOString().slice(11, 16))));
+    log((chart.hooks.drawClear || []).includes(nightBands), 'la notte dietro il grafico', '');
+
+    // telefono: nome e azioni su una riga; periodi, Storico e Confronta su un'altra (a 375 px)
+    if(phone){
+      const same = es => Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;
+      log(same([nm, el('refresh'), el('expBtn')]), 'telefono: nome e azioni sulla stessa riga', '');
+      const row2 = [...document.querySelectorAll('#modes .mode'), el('histbtn'), el('cmpBtn')].filter(vis);
+      if(innerWidth >= 370) log(same(row2), 'telefono: periodi, Storico e Confronta su una riga', JSON.stringify(row2.map(e => Math.round(mid(e)))));
+      noOverflow('telefono, rifinitura');
+    }
+    showMapView();
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
             hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
-            pulizia:suitePulizia, clima:suiteClima })[suite]())
+            pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

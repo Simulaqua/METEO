@@ -160,14 +160,14 @@ const hvDayLabel = ts => {
 // Giorni: niente selezione col trascinamento ne' doppio clic di uPlot (li gestisce hvZoom).
 function hvBase(extra, days){
   return Object.assign({
-    width:histWidth(), height:histHeight(), tzDate:TZ_UTC, legend:{ show:false }, padding:[12, 12, 0, 0],
+    width:histWidth(), height:histHeight(), tzDate:TZ_UTC, legend:{ show:false }, padding:[24, 12, 0, 0],
     cursor:days
       ? {
           y:false, drag:{ x:false, y:false },
           bind:{ mousedown:() => null, mouseup:() => null, dblclick:() => null }
         }
       : { y:false, drag:{ x:true, y:false } },
-    hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears] }
+    hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears, drawUnits] }
   }, extra);
 }
 // etichette dell'asse del tempo: mesi (gen, feb...) o giorni (5 mar), con l'anno sotto quando cambia
@@ -182,14 +182,14 @@ function hvTimeVals(u, ticks){
     return out;
   });
 }
-const hvYAxis = label => ({
-  grid:{ stroke:GRID() }, stroke:AXTX(), size:58, label, labelSize:22, incrs:TICK_STEPS, values:tickTexts
+const hvYAxis = unit => ({
+  grid:{ stroke:GRID() }, stroke:AXTX(), font:cssFont(12), size:58, unit, incrs:TICK_STEPS, values:tickTexts
 });
 // Tacche del tempo mai piu' fitte di un giorno (lo zoom arriva a 3 giorni): giorni, mesi (30 giorni), anni
 const HV_INCRS = [1, 2, 3, 4, 5, 7, 10, 15].map(n => n * 86400)
   .concat([1, 2, 3, 4, 6].map(n => n * 30 * 86400), [1, 2, 5, 10].map(n => n * 365 * 86400));
 const hvAxes = unit => [
-  { grid:{ stroke:GRID() }, stroke:AXTX(), values:hvTimeVals, incrs:HV_INCRS },
+  { grid:{ stroke:GRID() }, stroke:AXTX(), font:cssFont(12), values:hvTimeVals, incrs:HV_INCRS },
   hvYAxis(unit)
 ];
 // Mesi e Giorni (days). Pioggia: barre, le incomplete piu' chiare, e la cumulata del periodo mostrato
@@ -270,7 +270,7 @@ function hvMonthsView(h, v){
 
 // mesi sull'asse: uno si' e uno no se non ci stanno tutti (telefono: meno di 26 px a mese)
 const hvMonthAxis = (splits, right) => ({
-  grid:{ stroke:GRID() }, stroke:AXTX(), splits:() => splits,
+  grid:{ stroke:GRID() }, stroke:AXTX(), font:cssFont(12), splits:() => splits,
   values:(u, sp) => sp.map((i, k) =>
     (u.width - 58 - right) / 12 < 26 && k % 2 ? '' : MESI_BR[splits.indexOf(i)])
 });
@@ -334,7 +334,7 @@ function hvRainYearsView(h){
       Math.round(o.Y.arr[i]) + ' mm</span>')
   );
   const opts = hvBase({
-    padding:[12, 44, 0, 0],                                        // a destra il posto per il nome degli anni
+    padding:[24, 44, 0, 0],                                        // a destra il posto per il nome degli anni
     scales:{ x:{ time:false, range:[0, 365] }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.06, 1)] } },
     // spessore: ultimo anno 2.6, gli altri 1.6; incompleto 0.6 in meno (l'ultimo resta il piu' spesso)
     series:[{}].concat(lines.map((o, k) => ({
@@ -856,12 +856,9 @@ async function hvChartCanvas(h, title, what){
   });
   if(r.msg) return null;
   const W = 1500, H = 640, TOP = 124, L = 12, o = r.opts;
-  Object.assign(o, { width:W, height:H, hooks:{}, cursor:{ show:false } });
-  o.padding = [20, o.padding[1] * 2, 0, 0];                 // a destra il posto per i nomi degli anni
-  o.axes.forEach(a => Object.assign(a, {
-    font:'20px system-ui, sans-serif', labelFont:'700 22px system-ui, sans-serif',
-    size:(a.size || 50) * 1.5, labelSize:a.label ? 30 : 0
-  }));
+  Object.assign(o, { width:W, height:H, hooks:{ draw:[drawUnits] }, cursor:{ show:false } });
+  o.padding = [44, o.padding[1] * 2, 0, 0];                 // a destra il posto per i nomi degli anni
+  o.axes.forEach(a => Object.assign(a, { font:cssFont(20), unitSize:20, size:(a.size || 50) * 1.5 }));
   if(histView === 'giorni' && histU && histU.scales.x.min != null){
     const xr = [histU.scales.x.min, histU.scales.x.max];
     o.scales.x.range = () => xr;
@@ -878,7 +875,7 @@ async function hvChartCanvas(h, title, what){
 }
 // chiave della vista: segno (riquadro o linea, sottile o tratteggiata) e testo, in riga
 function hvDrawKey(ctx, keyEl, x, y){
-  ctx.font = '17px system-ui, sans-serif';
+  ctx.font = cssFont(17);
   ctx.textBaseline = 'middle';
   [...keyEl.children].forEach(span => {
     const sw = span.querySelector('.sw'), text = span.textContent.trim();
@@ -914,7 +911,7 @@ function hvDrawEnds(ctx, u, ends, ox, oy){
     ps[k].y = Math.min(ps[k].y, bottom);
     ps.slice(k + 1).forEach(q => { if(near(ps[k], q) && ps[k].y > q.y - H) ps[k].y = q.y - H; });
   }
-  ctx.font = '600 18px system-ui, sans-serif';
+  ctx.font = cssFont(18, 600);
   ctx.textBaseline = 'top';
   ps.forEach(p => {
     ctx.fillStyle = p.e.color;
@@ -1004,7 +1001,6 @@ function buildHistControls(){
     hvApplyRange();
     hvRangeLit();
   });
-  el('hvCsv').addEventListener('click', exportHistCSV);
   el('hvInfoBtn').addEventListener('click', () => hvInfo(el('hvInfo').hidden));
   el('hvInfoBtn').addEventListener('keydown', e => { if(e.key === 'Escape') hvInfo(false); });
 }

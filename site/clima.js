@@ -1,7 +1,7 @@
 // clima.js: la Climatologia della stazione, un climogramma dai dati giornalieri dello Storico. Per ogni mese
 // minima, media e massima (medie dei giorni completi) e pioggia, mediate fra gli anni dei soli mesi completi:
 // le regole dello Storico, giorno completo con almeno 20 ore e mese intero col 90% dei giorni completi.
-// I valori si leggono al cursore. L'ascoltatore del CSV e' in buildClimaControls(), chiamata dall'avvio.
+// I valori si leggono al cursore; CSV e PNG da Esporta.
 
 let climaU = null, climaData = null, _climaSeq = 0;
 
@@ -40,9 +40,7 @@ function climaYears(o){
 // delle due grandezze il suo asse sta a sinistra.
 function climaOpts(s, o){
   const hi = !!o.hi, has = climaHas(s), narrow = !hi && o.w < 520;
-  const fnt = hi ? { font:'20px system-ui, sans-serif' } : {};
-  const lab = hi ? { labelFont:'700 24px system-ui, sans-serif', labelSize:32, labelGap:6 }
-                 : { labelSize:narrow ? 16 : 26, labelGap:narrow ? 2 : 4 };
+  const fnt = { font:cssFont(hi ? 20 : 12) };
   const grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX(), size = hi ? 82 : narrow ? 38 : 54;
   const months = MESI_BR.map((_, m) => m);
   const axes = [Object.assign({
@@ -50,10 +48,10 @@ function climaOpts(s, o){
     // sul telefono un mese si' e uno no, se non ci stanno tutti
     values:(u, sp) => sp.map((m, k) => (u.width - 2 * size) / 12 < 26 && k % 2 ? '' : MESI_BR[m])
   }, fnt)];
-  const yAxis = (scale, label, stroke, right) => Object.assign({
-    scale, label, stroke, side:right ? 1 : 3, grid:right ? { show:false } : { stroke:grid }, size,
-    space:hi ? 70 : 44, incrs:TICK_STEPS, values:tickTexts
-  }, lab, fnt);
+  const yAxis = (scale, unit, stroke, right) => Object.assign({
+    scale, unit, unitSize:hi ? 20 : 12, stroke, side:right ? 1 : 3, size,
+    grid:right ? { show:false } : { stroke:grid }, space:hi ? 70 : 44, incrs:TICK_STEPS, values:tickTexts
+  }, fnt);
   if(has.t) axes.push(yAxis('y', '°C', ax, false));
   if(has.p) axes.push(yAxis('mm', 'mm', has.t ? varColor('PREC', true, hi) : ax, has.t));
   const rain = varColor('PREC', false, hi), red = '#e34948', blue = '#2b6cb0', ink = hi ? '#22303c' : AXTX();
@@ -63,7 +61,7 @@ function climaOpts(s, o){
     paths:uPlot.paths.bars({ size:[0.55, 64] }), points:{ show:false }
   });
   if(has.t){
-    const line = (label, color, width) => mkSeries({ label, color, width, kind:'line' }, hi);
+    const line = (label, color, width) => mkSeries({ label, color, width, kind:'line', pts:true }, hi);
     series.push(line('Temperatura massima (°C)', red), line('Temperatura minima (°C)', blue),
                 line('Temperatura media (°C)', ink, hi ? 3.5 : 2));
     bands.push({ series:[series.length - 3, series.length - 2], fill:withAlpha(red, 0.1) });
@@ -71,10 +69,10 @@ function climaOpts(s, o){
   const scales = { x:{ time:false, range:[-0.5, 11.5] } };
   if(has.p) scales.mm = rainY();
   return {
-    width:o.w, height:o.h, legend:{ show:false }, padding:[hi ? 16 : 12, has.p && has.t ? 0 : 12, 0, 0],
+    width:o.w, height:o.h, legend:{ show:false }, padding:[hi ? 44 : 24, has.p && has.t ? 0 : 12, 0, 0],
     scales, axes, series, bands,
     cursor:hi ? { show:false } : { y:false, drag:{ x:false, y:false }, points:{ show:hoverPt } },
-    hooks:hi ? {} : { setCursor:[u => { if(u._labs) cursorLabels(u); }] }
+    hooks:hi ? { draw:[drawUnits] } : { draw:[drawUnits], setCursor:[u => { if(u._labs) cursorLabels(u); }] }
   };
 }
 function climaSeries(s){
@@ -136,8 +134,4 @@ async function climaPNG(){
   plot.done();
   pngLegend(ctx, opts.series, L + W + 26, TOP + 30, TOP + H);
   return { blob:toPng(cv), fname:pngBase() + '_climatologia.png' };
-}
-
-function buildClimaControls(){
-  el('climaCsv').addEventListener('click', exportClimaCSV);
 }

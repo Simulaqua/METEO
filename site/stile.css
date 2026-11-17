@@ -1,5 +1,6 @@
 :root { --bg:#fff; --fg:#1c2733; --muted:#6b7a8d; --line:#e2e8f0; --accent:#2b6cb0;
-        --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; --bar:#f6f8fb; }
+        --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; --bar:#f6f8fb;
+        --font:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
             --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
 /* override scuri (scoped: il tema chiaro resta intatto) */
@@ -9,11 +10,11 @@ body.dark .btn:hover { background:var(--soft2); }
 body.dark #tabbar { background:var(--bar); }
 body.dark #tabbar .tab { background:var(--soft2); border-color:var(--line); color:var(--muted); }
 body.dark #tabbar .tab.active { background:var(--card); color:var(--fg); }
-body.dark #srcpanel, body.dark #notepanel { background:var(--card); border-color:var(--line); }
+body.dark #srcpanel, body.dark #notepanel, body.dark #stCard { background:var(--card); border-color:var(--line); }
 body.dark .vlab { background:rgba(21,31,45,.9); color:var(--fg); }
 * { box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; }   /* iPhone: niente ingrandimento automatico dei testi (sballa il layout) */
-html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--fg); background:var(--bg); }
+html,body { height:100%; margin:0; font-family:var(--font); color:var(--fg); background:var(--bg); }
 #app { display:flex; flex-direction:column; height:100%; }
 /* ---- layout: barra delle schede in alto, sotto la mappa (con ricerca e pillole sopra) o la scheda stazione ---- */
 #layout { display:flex; flex:1 1 auto; min-height:0; }
@@ -41,8 +42,22 @@ body.view-station #panel { display:flex; }
    piena scura. Le variabili sono chip a contorno: nel grafico col bordo e il velo del loro colore. */
 :root { --ctl:#cfd6de; } body.dark { --ctl:#34465b; }
 #phead { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; }
-#ptitle { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; margin-right:auto; min-width:0; }
-#stationName { font-size:17px; font-weight:600; line-height:24px; overflow-wrap:anywhere; }
+#ptitle { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; margin-right:auto; min-width:0; }
+#stationName { font-size:24px; font-weight:600; line-height:1.1; letter-spacing:-.01em; overflow-wrap:anywhere; }
+.ib { width:22px; height:22px; flex:none; padding:0; border:1px solid var(--ctl); border-radius:50%; background:var(--bg);
+      color:var(--muted); font:600 12px/1 var(--font); cursor:pointer; display:inline-flex; align-items:center;
+      justify-content:center; }
+.ib:hover, .ib[aria-expanded="true"] { border-color:var(--fg); color:var(--fg); }
+.ib[hidden] { display:none; }
+/* la scheda della stazione, sotto il nome */
+#stCard { position:absolute; left:0; top:calc(100% + 6px); z-index:25; width:max-content; max-width:min(380px, calc(100vw - 32px));
+          padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.18);
+          font-size:12px; line-height:1.5; }
+#stCard[hidden] { display:none; }
+#stCard h4, #notepanel h4 { margin:0 0 6px; font-size:13px; }
+#stCard dl, #notepanel dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; }
+#stCard dt, #notepanel dt { font-weight:600; }
+#stCard dd, #notepanel dd { margin:0; }
 #stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
 #stationMeta:empty { display:none; }
 body.dark #stationMeta { color:#f0a35e; }
@@ -67,8 +82,12 @@ body.dark #stationMeta { color:#f0a35e; }
 #stackbtn[aria-pressed="false"]:hover { background:var(--soft2); }
 #phead button:focus-visible, #pact .act:focus-visible, #vars button:focus-visible,
 .hv-seg button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-#pact .act svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2;
-                 stroke-linecap:round; stroke-linejoin:round; }
+#pact .act svg, #cmpBtn .chev { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2;
+                                 stroke-linecap:round; stroke-linejoin:round; }
+#expBtn { gap:6px; }
+#pact .act .chev, #cmpBtn .chev { width:12px; height:12px; margin-left:-1px; opacity:.7; }
+#cmpBtn .chev { margin-left:4px; }
+#expBtn[aria-busy="true"] { opacity:.5; }
 #cmpMenu, #altMenu { z-index:20; }                  /* sopra il grafico (etichette e "Tutto" stanno a 4-5) */
 #altMenu { overflow-y:auto; overscroll-behavior:contain; }   /* tante voci (Arba: 23): il menu scorre */
 .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
@@ -89,10 +108,8 @@ body.dark #stationMeta { color:#f0a35e; }
             background:none; color:var(--muted); font:inherit; font-size:14px; line-height:18px;
             cursor:pointer; }
 #vars .vp:hover { background:var(--soft2); color:var(--fg); }
-/* una sola azione CSV per vista: la serie, lo Storico o il Confronto schede */
-body.hist-mode #download, body.view-compare #download, body:not(.hist-mode) #hvCsv,
-body:not(.view-compare) #tabsCsv, body.hist-mode #refresh, body.view-compare #refresh { display:none; }
-body:not(.clima-mode) #climaCsv, body.clima-mode #download, body.clima-mode #refresh { display:none; }
+/* Aggiorna solo dove serve la serie dei 7 giorni */
+body.hist-mode #refresh, body.view-compare #refresh, body.clima-mode #refresh { display:none; }
 /* grafico + legenda in colonna a destra */
 #chartwrap { display:flex; flex:1 1 auto; min-height:200px; gap:6px; }
 #chart { flex:1 1 auto; min-width:0; }
@@ -116,7 +133,7 @@ body:not(.clima-mode) #climaCsv, body.clima-mode #download, body.clima-mode #ref
 body.dark .ctip { background:rgba(21,31,45,.95); }
 .ctip b { font-weight:600; }
 /* "Tutto": torna all'intero periodo dopo uno zoom (angolo in alto a destra del grafico) */
-.zoomall { position:absolute; top:4px; right:4px; z-index:5; padding:2px 9px; font:600 11px system-ui, sans-serif;
+.zoomall { position:absolute; top:4px; right:4px; z-index:5; padding:2px 9px; font:600 11px var(--font);
            color:var(--fg); background:var(--card); border:1px solid var(--line); border-radius:11px; cursor:pointer;
            box-shadow:0 1px 3px rgba(0,0,0,.12); }
 .zoomall:hover { background:var(--soft2); }
@@ -153,10 +170,6 @@ body.view-compare #cmpBtn, body.view-compare #histbtn { display:none !important;
 #notepanel { display:none; position:absolute; left:0; top:calc(100% + 8px); z-index:3; background:#fff;
              border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.18);
              padding:10px 12px; max-width:430px; font-size:12px; line-height:1.5; color:var(--fg); }
-#notepanel h4 { margin:0 0 6px; font-size:13px; }
-#notepanel dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; }
-#notepanel dt { font-weight:600; }
-#notepanel dd { margin:0; }
 @media (max-width:420px){ #notepanel dl { grid-template-columns:1fr; gap:1px; } #notepanel dd { margin-bottom:6px; } }
 /* rosa dei venti: pseudo-variabile "Rosa dei venti" -> mostrata al posto del grafico (non sempre) */
 #windrose { display:none; }
@@ -208,7 +221,7 @@ body.dark .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 .leaflet-right .mc-l { display:none; }
 #pillRow .mapctl { display:contents; }                                  /* telefono: pillole con la scritta */
 #pillRow .mc-pill { height:30px; gap:6px; padding:0 11px; border:1px solid var(--pl); border-radius:999px; background:var(--pbg);
-      box-shadow:0 1px 3px rgba(16,24,40,.2); font:500 13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      box-shadow:0 1px 3px rgba(16,24,40,.2); font:500 13px var(--font); }
 #pillRow .mc-pill.on { background:#e7eff9; color:#1f5a99; border-color:rgba(43,108,176,.35); font-weight:600; }
 body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 .mapctl svg, .dock svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:2;
@@ -408,7 +421,7 @@ body.dark .hv-k5 { background:#8a3b3b; }
 /* nota: "Dati dal ... al ..." e la "i" che apre il metodo */
 #hvNote { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; color:var(--muted); font-size:12px; line-height:1.5; }
 .hv-i { width:18px; height:18px; padding:0; border:1px solid var(--line); border-radius:50%; background:none; color:var(--muted); cursor:pointer;
-        font:600 11px/16px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+        font:600 11px/16px var(--font); }
 .hv-i[aria-expanded="true"] { background:var(--soft2); color:var(--fg); }
 @media (max-width:720px){ .hv-i { width:24px; height:24px; font-size:12px; line-height:22px; } }   /* da toccare col dito */
 #hvInfo { flex:1 0 100%; }
@@ -446,7 +459,7 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 .tb-q svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px; fill:none;
       stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
 #stationQ { width:100%; height:38px; padding:0 34px; border:1px solid var(--pl); border-radius:10px; background:var(--pbg);
-      color:var(--fg); box-shadow:var(--psh); font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; outline:none; }
+      color:var(--fg); box-shadow:var(--psh); font:14px var(--font); outline:none; }
 #stationQ::placeholder { color:var(--muted); }
 #stationQ:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(43,108,176,.2), var(--psh); }
 .tb-q kbd { position:absolute; right:9px; top:50%; transform:translateY(-50%); padding:0 5px; border:1px solid var(--pl);
@@ -466,7 +479,7 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 #pillRow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; pointer-events:none; }
 .pill { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 11px; border:1px solid var(--pl);
       border-radius:999px; background:var(--pbg); color:var(--ink); box-shadow:var(--psh); cursor:pointer; white-space:nowrap;
-      font:500 13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      font:500 13px var(--font); }
 .pill:hover { background:var(--soft2); }
 .pill.on { background:#e7eff9; color:#1f5a99; border-color:rgba(43,108,176,.35); font-weight:600; }
 body.dark .pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
@@ -481,18 +494,18 @@ body.dark .pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 .pm-list { display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
 .tb-menu button { display:flex; align-items:center; gap:10px; flex:none; width:100%; min-height:32px; padding:6px 10px; border:none;
       border-radius:8px; background:transparent; color:var(--fg); text-align:left; cursor:pointer;
-      font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      font:13px var(--font); }
 .tb-menu button:hover, .tb-menu button:focus-visible { background:var(--soft2); outline:none; }
 .tb-menu button.on { color:var(--accent); font-weight:600; }
 .tb-menu button.on::after { content:''; flex:none; margin-left:auto; width:5px; height:10px; border:solid currentColor;
       border-width:0 2px 2px 0; transform:translate(-3px, -2px) rotate(45deg); }
 .pm-filter { flex:none; height:32px; margin:0 0 4px; padding:0 10px; border:1px solid var(--pl); border-radius:8px; background:var(--bg);
-      color:var(--fg); outline:none; font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      color:var(--fg); outline:none; font:13px var(--font); }
 .pm-filter:focus { border-color:var(--accent); }
 /* ---- SCHEDA AL PASSAGGIO (mouse): accanto al puntino, lontana da barra, pulsanti e plancia ---- */
 #hoverCard { position:absolute; z-index:1115; width:260px; padding:10px 12px; pointer-events:none; background:var(--pbg);
       border:1px solid var(--pl); border-radius:12px; box-shadow:var(--psh); color:var(--fg);
-      font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      font:13px var(--font); }
 #hoverCard[hidden] { display:none; }
 .hc-name { font-size:13px; font-weight:600; }
 .hc-where { margin-top:2px; font-size:11px; color:var(--muted); }
@@ -518,7 +531,7 @@ body.dark .pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 #sheet { position:absolute; left:12px; bottom:12px; z-index:1110; display:flex; flex-direction:column; width:440px;
       max-width:calc(100% - 24px); padding:0 14px 12px;
       background:var(--pbg); border:1px solid var(--pl); border-radius:14px; box-shadow:var(--psh); color:var(--fg);
-      font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      font:13px var(--font); }
 #sheet[hidden] { display:none; }
 #sheet > * { flex:none; }
 #sheet > .sh-body { flex:0 1 auto; min-height:0; overflow-y:auto; }   /* altezza limitata (sheetFit): scorre solo il contenuto */
@@ -530,7 +543,7 @@ body.dark .pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 .sh-x svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 .sh-x:hover { background:var(--soft2); }
 .sh-open { display:block; width:100%; height:36px; margin-top:12px; border:1px solid var(--cool); border-radius:10px; background:none;
-      color:var(--cool); cursor:pointer; font:600 13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      color:var(--cool); cursor:pointer; font:600 13px var(--font); }
 #sheet .hc-name { font-size:15px; }
 #sheet .hc-val { font-size:26px; }
 #sheet .hc-spark svg { height:40px; }
@@ -569,6 +582,10 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #vars .vb { height:30px; }
   #vars .vp { width:28px; height:28px; line-height:28px; margin-right:1px; }
   #pact .act { padding:0 9px; }
+  #stationName { font-size:21px; }
+  #expBtn .lbl, #expBtn .chev { display:none; }
+  #phead .mode { padding:0 8px; }
+  #ptools { gap:8px; }
   /* su cellulare il grafico e' stretto: la legenda va SOTTO (non a destra) cosi' il grafico
      resta ampio. chartwrap in colonna, altezza fissa al grafico, legenda a piena larghezza.
      flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra

@@ -33,6 +33,9 @@ STATION_FIELDS = {'VEN': ('NOME', 'Y', 'X'),
                   'TN': ('nome', 'latitudine', 'longitudine'),
                   'BZ': ('NAME_I', 'LAT', 'LONG'),
                   'FVG': ('station_name', None, None)}
+# Quota in metri, comune e provincia, dove stazioni.json li ha: la scheda li mostra nella "i" della stazione.
+ALT_FIELDS = {'VEN': 'QUOTA', 'LOM': 'QUOTA', 'TN': 'quota', 'BZ': 'ALT', 'FVG': 'station_altitude'}
+PLACE_FIELDS = {'VEN': ('COMUNE', 'PROVINCIA'), 'LOM': (None, 'PROVINCIA')}
 
 # Cursore del tempo: un fotogramma per ora tonda (solare) degli ultimi 7 giorni, con l'ultima lettura
 # non più vecchia della tolleranza in minuti (più stretta per gli accumuli brevi).
@@ -223,8 +226,10 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
         if lat is None or lon is None:
             no_coord.append([scode, name])
         else:
+            properties = station_properties(scode, name, per_var, zeros.get(scode))
+            properties.update(station_place(region, meta))
             features.append({'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
-                             'properties': station_properties(scode, name, per_var, zeros.get(scode))})
+                             'properties': properties})
     comune.save_json({'type': 'FeatureCollection', 'name': region, 'features': features},
                      os.path.join(out_dir, 'stations.geojson'))
     print('Stations on map (with lat/lon): ' + str(len(features)))
@@ -232,6 +237,21 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
         print('Stazioni senza coordinate, non in mappa: ' + str(len(no_coord)) + ' (' +
               ', '.join(scode for scode, _ in no_coord) + ')')
     return [feature['properties']['scode'] for feature in features]
+
+
+def station_place(region, meta):
+    """{'quota': metri interi, 'comune': ..., 'prov': ...} con i soli campi che la regione ha e che sono
+    leggibili."""
+    place = {}
+    quota = coordinate(meta.get(ALT_FIELDS.get(region)))
+    if quota is not None:
+        place['quota'] = int(round(quota))
+    town_field, province_field = PLACE_FIELDS.get(region, (None, None))
+    for key, field in (('comune', town_field), ('prov', province_field)):
+        value = str(meta.get(field) or '').strip() if field else ''
+        if value:
+            place[key] = value
+    return place
 
 
 def station_properties(scode, name, per_var, zero):

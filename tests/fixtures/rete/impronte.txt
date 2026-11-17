@@ -2622,7 +2622,7 @@ b598ec59ea501525a8fa90b84441b98c58ea223d  site/BZ/snap/PREC3.json
 149fd0ac8489a22a8aed9d2b2a8ebf627994f4ad  site/BZ/snap/UMID.json
 f52364d813359220358f79b003084a5b801df883  site/BZ/snap/VVENTO.json
 dbe77c0c3430bb1fda4e4f040abc8fa0b29bc712  site/BZ/snap/VVENTOMAX.json
-00b5ed66f86537d9f6f8caac1368100c2acf4d5e  site/BZ/stations.geojson
+b86914b8b63b277656c12470de500f1c0e465d63  site/BZ/stations.geojson
 e4f567155e01e9d1bc7a21ceee38b24f5a049f7f  site/BZ/units.json
 c625617da5ebbf330fa57e561021b6cac39967da  site/ER/series/10.csv
 9a1a71215c5441d3dfd2499233b8630743840117  site/ER/series/10141.csv
@@ -4036,7 +4036,7 @@ e0c8d4f2e5dcef74b9ef7b023a22c14eb98bcb22  site/FVG/series30/ZON.csv
 55e5c6a1b75667773286cc36123b4792bed81e6d  site/FVG/snap/TEMP.json
 423ca9fb63166105e87e70a8ad00af415b7f3ea0  site/FVG/snap/UMID.json
 23cd9c691e1c8af3f969630dfbcd28d08f9cc8ab  site/FVG/snap/VVENTO.json
-b8acc3636644973bc37e2caf4e697c94f2818438  site/FVG/stations.geojson
+252694cd1d17324f0c1d655637a65d13f83c033b  site/FVG/stations.geojson
 cccc1aa799167e0cd67eccec5933cc3b3367e7d3  site/FVG/units.json
 44e19c255f15c8f601e039aea2bd7261d0262b7a  site/INV_ER/series/CONCA.csv
 095ac9bebd428ded2266a3633f4f5164729f4805  site/INV_ER/series/RIDRACOLI.csv
@@ -5182,7 +5182,7 @@ ac926d1aef7b1dbabe6b9418b88028ff88c73f68  site/LOM/snap/PREC6.json
 e34fcaae480dfd38932e0ffd005461e58a33a205  site/LOM/snap/TEMP.json
 82647121847b6463c9bc222a63cc1cc6e54b9670  site/LOM/snap/UMID.json
 f148f3035e06a9ed8b904196ab7958f28b7ed9fa  site/LOM/snap/VVENTO.json
-f0d7c4a8082ee4fe0f5a62cd7627a31ac1f21226  site/LOM/stations.geojson
+a97371d1331e0cd353d1c0b09a1e04f398027c3c  site/LOM/stations.geojson
 590a491598e65f49a9b250b8cc7161e7261b7b9f  site/LOM/units.json
 bc89590e6582135abc69eb730c23154fd92f384e  site/MAR_ER/series/Bellocchio.csv
 17d0539c0b50568adf36c51c24f95ef62e48e3cc  site/MAR_ER/series/Bocca_Scanno.csv
@@ -7523,7 +7523,7 @@ dfcde07474a0fde5a0f1054af86bab4dacd0a0c6  site/TN/snap/PREC6.json
 cf475e87a112477c765d8a448ffd950988d3f910  site/TN/snap/TEMP.json
 757e3952fbdafdc9e9b04e9ade22b4e1307decf3  site/TN/snap/UMID.json
 068e23b5c24f7be515d34e836fb7b49b9666ed43  site/TN/snap/VVENTO.json
-5483bbef5d608ae6f4a1a50d3c040f5863ce66e7  site/TN/stations.geojson
+734c67899b8e6a4702626c02739bfa270aa08ec6  site/TN/stations.geojson
 3db0ff45b281bf1da108411660a3216bd5554996  site/TN/units.json
 e39a94a00aa339b4db76d92da30ddc1b92a9dd66  site/VEN/series/1.csv
 094cf6d643ce47b9d2e756eeb2ffde56b32055a6  site/VEN/series/100.csv
@@ -8226,5 +8226,5 @@ f2899f6bff6667644a6c91fe747393617205861f  site/VEN/snap/PRESS.json
 c6c6a68031bd615f737e79965315dee67911c624  site/VEN/snap/TEMP.json
 46c7e36924fd2ed942a03861c5503dd47cb0afd4  site/VEN/snap/UMID.json
 f0527297d0fe827763d2235dd3c093c47d9a2978  site/VEN/snap/VVENTO.json
-4489e3c1e123d93502efaada1514da3e56f44db9  site/VEN/stations.geojson
+3633e9784d52f49d72be647de742a6091e7a491e  site/VEN/stations.geojson
 120c13172408b5d56ba1454b8bc2a79f63a42f4f  site/VEN/units.json

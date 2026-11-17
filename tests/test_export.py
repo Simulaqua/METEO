@@ -8,6 +8,7 @@
 import calendar, datetime, json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import comune
 import export_web as ew
 from tests import rete
 
@@ -42,7 +43,7 @@ def export(folder, archive, epoch=rete.EPOCH):
                     day_files.setdefault(path, {})[scode] = {
                         'STAZIONE': meta,
                         'MISURE': {'ISTANTE': [moment for moment, _ in day_points],
-                                   'VALORE': [value for _, value in day_points]}}
+                                   comune.value_key(region): [value for _, value in day_points]}}
         for path, records in day_files.items():
             write_json(path, records)
     return rete.run([sys.executable, 'export_web.py', '-r', 'all', '--site-dir', 'site'], folder, epoch=epoch)
@@ -126,6 +127,30 @@ class TestMappa(unittest.TestCase):
             with open(os.path.join(folder, 'site', 'LAGHI', 'series', 'S1.csv'), encoding='utf-8') as fp:
                 rows = fp.read().splitlines()
         self.assertEqual(rows[1].split(',')[0], '2026-07-03T12:00')
+
+    def test_quota_e_luogo_in_mappa(self):
+        # la "i" della scheda: quota, comune e provincia dove stazioni.json li ha (campi diversi per rete)
+        temp = {'TEMP': [('202611051200', 9.5)]}
+        archive = {
+            'VEN': {'170': ({'NOME': 'Teolo', 'X': '11.677', 'Y': '45.343', 'QUOTA': '155', 'COMUNE': 'TEOLO',
+                             'PROVINCIA': 'PD'}, temp),
+                    '9': ({'NOME': 'Porto Tolle', 'X': '12.4', 'Y': '44.9', 'QUOTA': '-3', 'COMUNE': ' ',
+                           'PROVINCIA': ''}, temp)},
+            'LOM': {'A': ({'NOME': 'Milano', 'LAT': 45.47, 'LON': 9.19, 'QUOTA': '120',
+                           'PROVINCIA': 'MI'}, temp)},
+            'BZ': {'B': ({'NAME_I': 'Vetta', 'LAT': 46.7, 'LONG': 11.3, 'ALT': 1448.7}, temp)},
+            'LIG': {'C': (station(44.4, 8.9), temp)},
+            'TN': {'D': ({'nome': 'Passo', 'latitudine': 46.1, 'longitudine': 11.1, 'quota': '-'}, temp)}}
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, archive))
+            got = {region: stations_on_map(folder, region) for region in archive}
+        place = lambda p: {k: p[k] for k in ('quota', 'comune', 'prov') if k in p}
+        self.assertEqual(place(got['VEN']['170']), {'quota': 155, 'comune': 'TEOLO', 'prov': 'PD'})
+        self.assertEqual(place(got['VEN']['9']), {'quota': -3})             # comune e provincia vuoti
+        self.assertEqual(place(got['LOM']['A']), {'quota': 120, 'prov': 'MI'})
+        self.assertEqual(place(got['BZ']['B']), {'quota': 1449})
+        self.assertEqual(place(got['LIG']['C']), {})                       # la Liguria non ha la quota
+        self.assertEqual(place(got['TN']['D']), {})                        # quota illeggibile: niente
 
     def test_stazioni_senza_coordinate_nel_log(self):
         lakes = {'S1': (station(45.6, 10.6), LAKE_LEVEL), 'S2': (station('', ''), LAKE_LEVEL)}

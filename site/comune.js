@@ -6,6 +6,9 @@
 // cache), riprova da jsDelivr (stesso repo, branch data; fino a ~12 h di ritardo).
 // Solo online: in locale (DATA_BASE '.') nessun fallback.
 const DATA_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@data';
+// Il carattere della pagina (IBM Plex Sans, da jsDelivr in index.html), anche nei grafici disegnati su canvas
+const FONT = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const cssFont = (px, weight) => (weight ? weight + ' ' : '') + px + 'px ' + FONT;
 async function fdata(path, opts){
   try {
     const r = await fetch(DATA_BASE + '/' + path, opts);
@@ -351,7 +354,6 @@ document.addEventListener('DOMContentLoaded', () => {
   buildStationControls();
   buildSearchControls();
   buildHistControls();
-  buildClimaControls();
   buildStatusControls();
   loadRegions(REGIONS_ALL).then(() => applyHash());
 });

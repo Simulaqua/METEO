@@ -7,6 +7,9 @@ function resetPanel(){
   el('stationName').textContent = 'Seleziona una stazione';
   el('stationName').title = '';
   el('stationMeta').textContent = '';
+  el('stInfo').hidden = true;
+  cardClose();
+  expClose();
   el('vars').innerHTML = '';
   el('source').innerHTML = '';
   cmpClose();
@@ -25,11 +28,13 @@ let stationVars = [];
 let chartVar = null;
 const selVars = () => [currentVar].concat(extraVars).filter(Boolean);
 const maxVars = () => PHONE.matches ? 3 : 5;
+let stLast = null;                                   // ora civile dell'ultimo dato, per la "i" della stazione
 
 // Codice e ultimo dato nel titolo del nome; accanto, solo se i dati sono fermi: oltre STALE_HOURS ore o tre
 // passi della serie (i dati giornalieri, come le polveri, non sono fermi dopo 3 ore). c = ora civile.
 function setMeta(code, c, table){
   let when = '', stale = false;
+  stLast = c;
   if(c != null){
     const limit = Math.max(STALE_HOURS * 3600, 3 * (table ? medianStep(table.x.filter(x => x != null)) : 0));
     const now = civT(Date.now() / 1000), d = new Date(c * 1000), n = new Date(now * 1000),
@@ -78,10 +83,9 @@ async function selectStation(props){
   }
 
   setMeta(props.scode, civSec(props.latest_time), table);
-  const dl = el('download');
-  dl.href = `${DATA_BASE}/${region}/${props.series}`;
-  dl.download = prettyName(props.name || props.scode).replace(/[^\w-]+/g,'_') + '_' + region + '.csv';
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
+  el('stInfo').hidden = false;
+  cardClose();
 
   stationVars = ((props.variables && props.variables.length) ? props.variables : table.header.slice(1))
     .slice();
@@ -423,6 +427,8 @@ async function renderCompareView(){
   el('panel').scrollTop = 0;
   el('stationName').textContent = 'Confronto schede';
   el('stationName').title = '';
+  el('stInfo').hidden = true;
+  cardClose();
   el('stationMeta').textContent = openTabs.length ? '' : 'nessuna scheda aperta';
   el('source').innerHTML = TZNOTE;
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
@@ -536,6 +542,74 @@ function cmpClose(refocus){
   el('cmpBtn').setAttribute('aria-expanded', 'false');
   if(refocus) el('cmpBtn').focus({ preventScroll:true });
 }
+// La "i" della stazione: dove sta (se la fonte lo dice), rete, coordinate, codice, misure, ultimo dato
+function stationCard(){
+  const p = currentStation, rows = [];
+  const prov = p.prov ? ' (' + p.prov + ')' : '';
+  const town = p.comune ? prettyName(p.comune) + prov : p.prov ? 'provincia di ' + p.prov : '';
+  const where = [town, p.quota != null ? p.quota + ' m' : ''].filter(Boolean).join(', ');
+  if(where) rows.push(['Dove', where]);
+  rows.push(['Rete', (SOURCES[p._region] || {}).name || p._region]);
+  if(p._lat != null) rows.push(['Coordinate', p._lat.toFixed(3) + ' N, ' + p._lon.toFixed(3) + ' E']);
+  rows.push(['Codice', p.scode]);
+  const main = stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder)
+                          .map(v => varShort(v).toLowerCase());
+  if(main.length) rows.push(['Misure', main.join(', ')]);
+  if(stLast != null){
+    const d = new Date(stLast * 1000);
+    rows.push(['Ultimo dato', pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' alle ' +
+               pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())]);
+  }
+  return '<h4>' + escHtml(prettyName(p.name || p.scode)) + '</h4><dl>' +
+         rows.map(([k, v]) => '<dt>' + k + '</dt><dd>' + escHtml(v) + '</dd>').join('') + '</dl>';
+}
+function cardOpen(){
+  if(!currentStation) return;
+  el('stCard').innerHTML = stationCard();
+  el('stCard').hidden = false;
+  el('stInfo').setAttribute('aria-expanded', 'true');
+}
+function cardClose(){
+  el('stCard').hidden = true;
+  el('stInfo').setAttribute('aria-expanded', 'false');
+}
+
+// Esporta: i dati della vista mostrata (la serie, lo Storico, la Climatologia o le schede confrontate),
+// l'immagine o il link
+function expOpen(){
+  const m = el('expMenu');
+  m.hidden = false;
+  el('expBtn').setAttribute('aria-expanded', 'true');
+  placeMenu(m, el('expBtn'));
+  m.querySelector('button').focus({ preventScroll:true });
+}
+function expClose(refocus){
+  const m = el('expMenu');
+  if(m.hidden) return;
+  m.hidden = true;
+  el('expBtn').setAttribute('aria-expanded', 'false');
+  if(refocus) el('expBtn').focus({ preventScroll:true });
+}
+function exportData(){
+  if(document.body.classList.contains('view-compare')) exportTabsCSV();
+  else if(histMode) exportHistCSV();
+  else if(currentVar === WCLIMA) exportClimaCSV();
+  else if(currentStation){
+    const p = currentStation, a = document.createElement('a');
+    a.href = `${DATA_BASE}/${p._region}/${p.series}`;
+    a.download = prettyName(p.name || p.scode).replace(/[^\w-]+/g, '_') + '_' + p._region + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+}
+async function copyLink(){
+  try {
+    await navigator.clipboard.writeText(location.href);
+    toast('Link copiato');
+  } catch(e){ toast('Link non copiato'); }
+}
+
 function menuNav(menu, close){
   menu.addEventListener('keydown', e => {
     const bs = [...menu.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
@@ -607,11 +681,13 @@ function buildStationControls(){
     }, 250);
   });
   el('refresh').addEventListener('click', refreshStation);
-  el('copylink').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(location.href); } catch(e){}
-    const b = el('copylink');
-    b.textContent = 'copiato ✓';
-    setTimeout(() => { b.textContent = 'Link'; }, 1500);
+  el('stInfo').addEventListener('click', () => el('stCard').hidden ? cardOpen() : cardClose());
+  el('expBtn').addEventListener('click', () => el('expMenu').hidden ? expOpen() : expClose());
+  el('expMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if(!b) return;
+    expClose(true);
+    ({ csv:exportData, png:exportPNG, link:copyLink })[b.dataset.act]();
   });
   el('tabMap').addEventListener('click', showMapView);
   document.querySelectorAll('#modes .mode[data-mode]')
@@ -641,19 +717,25 @@ function buildStationControls(){
   });
   menuNav(el('cmpMenu'), cmpClose);
   menuNav(el('altMenu'), altClose);
+  menuNav(el('expMenu'), expClose);
   document.addEventListener('click', e => {
     if(!e.target.closest('#cmpMenu, #cmpBtn')) cmpClose();
     if(!e.target.closest('#altMenu, #altBtn')) altClose();
+    if(!e.target.closest('#expMenu, #expBtn')) expClose();
+    if(!e.target.closest('#stCard, #stInfo')) cardClose();
   });
   document.addEventListener('keydown', e => {
     if(e.key !== 'Escape') return;
     cmpClose(el('cmpMenu').contains(document.activeElement));
     altClose(el('altMenu').contains(document.activeElement));
+    expClose(el('expMenu').contains(document.activeElement));
+    if(!el('stCard').hidden){ cardClose(); el('stInfo').focus({ preventScroll:true }); }
   });
   // I menu sono fissi: non seguirebbero il comando se scorre il pannello
-  el('panel').addEventListener('scroll', () => { cmpClose(); altClose(); }, { passive:true });
+  el('panel').addEventListener('scroll', () => { cmpClose(); altClose(); expClose(); }, { passive:true });
   window.addEventListener('resize', () => {
     if(!el('cmpMenu').hidden) placeMenu(el('cmpMenu'), el('cmpBtn'));
     if(!el('altMenu').hidden && el('altBtn')) placeMenu(el('altMenu'), el('altBtn'));
+    if(!el('expMenu').hidden) placeMenu(el('expMenu'), el('expBtn'));
   });
 }

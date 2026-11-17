@@ -19,6 +19,8 @@
     tests/web/run.sh "it_live.html?suite=stazione"    # scheda: apertura, variabili, "+" e assi, Impilate, Altro, link, PNG
     tests/web/run.sh "it_live.html?suite=pulizia"     # niente scritte inutili: Fonti, tacche, fondo, Confronta, "Tutto", rosa, confronti per giorni, Storico, tabella
     tests/web/run.sh "it_local.html?suite=clima"      # Climatologia in "Altro": medie dei mesi completi (Valdagno), cursore, CSV, PNG, link
+    tests/web/run.sh "it_live.html?suite=rifinitura"  # scheda: carattere, «i» della stazione, Esporta, linee, notte, assi del tempo, unità, nomi
+    tests/web/run.sh "w.html?w=375&h=812&src=it_live.html%3Fsuite%3Drifinitura"   # telefono (anche 320x640): nome e azioni su una riga
     tests/web/run.sh "w.html?w=375&h=812&src=it_live.html%3Fsuite%3Dlayout"   # ingombri a 375 px
     tests/web/run.sh "it_local.html?suite=storico"    # Storico: pulsante, viste (Giorni, Mesi, Anni, Tabella), zoom dei Giorni (rotellina, trascinamento, doppio clic, due dita), colori degli anni, tabella con barre, riquadro al passaggio, "i", CSV, link H:VAR:VIEW
     tests/web/run.sh "w.html?w=375&h=812&src=it_local.html%3Fsuite%3Dstorico"   # lo stesso a 375 px (anche 320x640, 430x932, 1024x768)
