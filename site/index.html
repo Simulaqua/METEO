@@ -68,21 +68,26 @@
         <button id="regPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le regioni</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
         <button id="varPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le variabili</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
         <button id="srcinfo" class="pill" title="Stato delle fonti dati"><span id="srcdot"></span>Fonti</button>
+        <button id="noteBtn" class="pill" aria-label="Note" title="Note" aria-expanded="false" aria-controls="notepanel">i</button>
         <button id="moreBtn" class="pill" aria-haspopup="menu" aria-expanded="false" aria-label="Altro" title="Altro">⋯</button>
       </div>
       <div id="moreMenu" class="tb-menu" role="menu" hidden>
-        <button id="noteBtn" role="menuitem" tabindex="-1">Note</button>
         <button id="themeBtn" role="menuitem" tabindex="-1">Tema scuro</button>
         <button id="resetBtn" role="menuitem" tabindex="-1">Azzera i filtri</button>
       </div>
       <div id="pillMenu" class="tb-menu" role="menu" hidden></div>
       <div id="srcpanel"></div>
-      <div id="notepanel">
-        <b>Note</b> — Sito amatoriale, senza fini di lucro. I dati appartengono agli enti indicati nel pannello
-        fonti e sono ridistribuiti così come pubblicati dalle rispettive API aperte, senza validazione: possono
-        contenere errori, ritardi o lacune, e fanno fede esclusivamente i canali ufficiali. Le grandezze derivate,
-        gli indici e la climatologia sono elaborazioni non ufficiali di questo sito. Non usare per finalità di
-        allertamento o sicurezza: per le allerte consultare la Protezione Civile e i bollettini ufficiali.
+      <div id="notepanel" role="dialog" aria-label="Note">
+        <h4>Note</h4>
+        <dl>
+          <dt>Progetto</dt><dd>Sito amatoriale, senza fini di lucro.</dd>
+          <dt>Dati</dt><dd>Degli enti elencati in Fonti, ripresi così come li pubblicano le loro API aperte, senza
+            validazione: possono avere errori, ritardi o lacune. Fanno fede solo i canali ufficiali.</dd>
+          <dt>Elaborazioni</dt><dd>Grandezze derivate, indici e climatologia sono calcoli di questo sito, non
+            ufficiali.</dd>
+          <dt>Allerte</dt><dd>Non usare per allerte o sicurezza: per le allerte valgono la Protezione Civile e i
+            bollettini ufficiali.</dd>
+        </dl>
       </div>
     </div>
     <!-- scheda al passaggio del mouse su un puntino (una sola, riposizionata) -->

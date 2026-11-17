@@ -455,7 +455,21 @@
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     log(!vis(el('sidebar')), 'niente barra laterale', '');
     log(vis(el('topbar')) && vis(el('stationQ')), 'ricerca sopra la mappa', '');
-    eq('pillole', ['pgPill', 'regPill', 'varPill', 'srcinfo', 'moreBtn'].map(id => vis(el(id))), [true, true, true, true, true]);
+    eq('pillole', ['pgPill', 'regPill', 'varPill', 'srcinfo', 'noteBtn', 'moreBtn'].map(id => vis(el(id))), [true, true, true, true, true, true]);
+    {                                                                // Note: la "i" fra Fonti e ⋯, un clic e si leggono
+      const b = el('noteBtn'), row = [...el('pillRow').children].map(e => e.id);
+      eq('Note: chip "i" fra Fonti e ⋯', [b.textContent.trim(), b.getAttribute('aria-label'), row.indexOf('noteBtn') - row.indexOf('srcinfo'),
+                                          row.indexOf('moreBtn') - row.indexOf('noteBtn')], ['i', 'Note', 1, 1]);
+      eq('menu ⋯ senza Note', [...el('moreMenu').querySelectorAll('button')].map(x => x.textContent.trim()), ['Tema scuro', 'Azzera i filtri']);
+      b.click(); await sleep(50);
+      const n = el('notepanel'), r = n.getBoundingClientRect();
+      eq('Note: un clic le apre', [getComputedStyle(n).display, b.getAttribute('aria-expanded')], ['block', 'true']);
+      eq('Note: a voci', [...n.querySelectorAll('dt')].map(x => x.textContent.trim()), ['Progetto', 'Dati', 'Elaborazioni', 'Allerte']);
+      log(r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5, 'Note: dentro lo schermo',
+          JSON.stringify([r.left, r.right, r.bottom].map(Math.round)));
+      b.click(); await sleep(50);
+      eq('Note: un secondo clic le chiude', [getComputedStyle(n).display, b.getAttribute('aria-expanded')], ['none', 'false']);
+    }
     {                                                                // computer: pillole sulla riga della ricerca (piu' mappa); telefono: sotto
       const q = el('stationQ').getBoundingClientRect(), p = el('pillRow').getBoundingClientRect(), mid = r => (r.top + r.bottom) / 2;
       const box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);

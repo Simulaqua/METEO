@@ -106,7 +106,7 @@ function buildStatusControls(){
     e.stopPropagation();                           // menu, ricerca e Note si chiudono qui
     closeMenu();
     closeSearch();
-    el('notepanel').style.display = 'none';
+    showNotes(false);
     const p = el('srcpanel');
     if(p.style.display === 'block'){ p.style.display = 'none'; return; }
     renderSrcPanel();

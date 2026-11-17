@@ -331,17 +331,21 @@ function chooseSearch(f){
   pickStation(f);
 }
 
+// Note: la "i" accanto a Fonti le apre e le chiude
+function showNotes(on){
+  el('notepanel').style.display = on ? 'block' : 'none';
+  el('noteBtn').setAttribute('aria-expanded', String(on));
+}
 function buildSearchControls(){
   el('noteBtn').addEventListener('click', (e) => {
     e.stopPropagation();                           // gli altri pannelli si chiudono qui
     el('srcpanel').style.display = 'none';
+    closeMenu();
     closeSearch();
-    const n = el('notepanel');
-    n.style.display = (n.style.display === 'block') ? 'none' : 'block';
+    showNotes(el('notepanel').style.display !== 'block');
   });
   document.addEventListener('click', (e) => {
-    const n = el('notepanel');
-    if(n.style.display === 'block' && !n.contains(e.target)) n.style.display = 'none';
+    if(el('notepanel').style.display === 'block' && !el('notepanel').contains(e.target)) showNotes(false);
   });
   // tema chiaro/scuro, ricordato; al cambio si ridisegna il grafico per griglia e assi
   try { if(localStorage.getItem('theme') === 'dark'){ document.body.classList.add('dark'); } } catch(e){}
