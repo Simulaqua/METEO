@@ -1,7 +1,7 @@
 // mappa.js: la mappa: sfondi, puntini e colori, legenda e plancia, Cursore, pulsanti, radar, schede.
 // Gli ascoltatori sono in initMap() e buildMapControls(), chiamate all'avvio (comune.js).
 
-const DOT_COLOR   = '#2b6cb0';
+const DOT_COLOR   = '#6795A1', DOT_LINE = '#264E5D';      // senza variabile: secondario, bordo principale
 const NEUTRAL_COLOR = '#9aa5b1';               // valore non disponibile (il puntino resta cliccabile)
 
 // Niente colormap per i LIVELLI (ogni stazione ha il proprio zero: i valori non sono confrontabili) e per
@@ -251,7 +251,7 @@ function renderMarkers(){
   list.forEach(f => {
     const p = f.properties;
     const isSel = featKey(f) === selectedKey;
-    let fill = DOT_COLOR, stroke = DOT_COLOR;
+    let fill = DOT_COLOR, stroke = DOT_LINE;
     if(cmVar){
       const nv = valFor(p);
       if(nv == null) fill = NEUTRAL_COLOR;

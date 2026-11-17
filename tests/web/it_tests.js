@@ -2372,6 +2372,16 @@
         'alba e tramonto di Teolo il 17/11', JSON.stringify(sun.map(t => new Date(t * 1000).toISOString().slice(11, 16))));
     log((chart.hooks.drawClear || []).includes(nightBands), 'la notte dietro il grafico', '');
 
+    {                                                  // colori dell'interfaccia (quelli dei dati restano i loro)
+      const rgb = h => 'rgb(' + [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ') + ')';
+      const act = document.querySelector('#modes .mode.active'), bg = () => getComputedStyle(act).backgroundColor;
+      eq('colore principale: il periodo scelto', [bg(), getComputedStyle(act).color], [rgb('#264E5D'), rgb('#FFFFFF')]);
+      eq('puntini delle stazioni senza variabile: secondario, bordo principale', [DOT_COLOR, DOT_LINE].map(c => c.toUpperCase()),
+         ['#6795A1', '#264E5D']);
+      document.body.classList.add('dark');
+      eq('tema scuro: il periodo scelto col secondario', bg(), rgb('#6795A1'));
+      document.body.classList.remove('dark');
+    }
     // telefono: nome e azioni su una riga; periodi, Storico e Confronta su un'altra (a 375 px)
     if(phone){
       const same = es => Math.max(...es.map(mid)) - Math.min(...es.map(mid)) <= 6;

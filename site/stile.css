@@ -1,8 +1,14 @@
-:root { --bg:#fff; --fg:#1c2733; --muted:#6b7a8d; --line:#e2e8f0; --accent:#2b6cb0;
+:root { --bg:#fff; --fg:#1c2733; --muted:#6b7a8d; --line:#e2e8f0;
         --card:#fff; --soft:#f7fafc; --soft2:#eef2f7; --side:#fbfcfe; --bar:#f6f8fb;
         --font:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 body.dark { --bg:#0e1621; --fg:#dce6f2; --muted:#8fa1b5; --line:#26364a;
             --card:#151f2d; --soft:#1a2636; --soft2:#223146; --side:#121b28; --bar:#101927; }
+/* colore principale #264E5D, secondario #6795A1; sul tema scuro fa da principale il secondario, che sul fondo
+   scuro si vede. --atint, --atext, --aline: fondo, scritta e bordo delle pillole scelte */
+:root { --accent:#264E5D; --on-accent:#fff; --atint:#e7eef0; --atext:#264E5D; --aline:rgba(103,149,161,.55);
+        --aring:rgba(38,78,93,.18); }
+body.dark { --accent:#6795A1; --on-accent:#0e1621; --atint:rgba(103,149,161,.22); --atext:#b3cad0;
+            --aring:rgba(103,149,161,.3); }
 /* override scuri (scoped: il tema chiaro resta intatto) */
 body.dark input { background:var(--card); color:var(--fg); border-color:var(--line); }
 body.dark .btn { background:var(--soft); color:var(--fg); border-color:var(--line); }
@@ -28,7 +34,8 @@ html,body { height:100%; margin:0; font-family:var(--font); color:var(--fg); bac
 #tabbar .tab.active { background:#fff; color:var(--fg); font-weight:600; }
 #tabbar .tab .x { color:#9aa8b8; font-size:14px; line-height:1; }
 #tabbar .tab .x:hover { color:#d33; }
-#tabbar .brand { align-self:center; padding:0 10px 6px 4px; font-size:14px; font-weight:700; white-space:nowrap; }
+#tabbar .brand { align-self:center; padding:0 10px 6px 4px; font-size:14px; font-weight:700;
+                 white-space:nowrap; color:var(--atext); }
 #views { flex:1 1 auto; position:relative; min-height:0; }
 .btn { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#f7fafc;
        font-size:13px; cursor:pointer; color:var(--fg); }
@@ -75,8 +82,8 @@ body.dark #stationMeta { color:#f0a35e; }
 .hv-seg button { padding:0 10px; background:var(--bg); color:var(--fg); font:inherit; font-size:12.5px;
                  cursor:pointer; white-space:nowrap; }
 #ptools .mode.active, .hv-seg button.on, #stackbtn[aria-pressed="true"] {
-  background:var(--fg); color:var(--bg); }
-#ptools .mode.active, #stackbtn[aria-pressed="true"] { border-color:var(--fg); }
+  background:var(--accent); color:var(--on-accent); }
+#ptools .mode.active, #stackbtn[aria-pressed="true"] { border-color:var(--accent); }
 #modes .mode.active { border-color:var(--ctl); }
 #pact .act { padding:0 8px; color:var(--muted); }
 #ptools .mode:not(.active):hover, #pact .act:hover, .hv-seg button:not(.on):hover, #altBtn:hover,
@@ -196,10 +203,10 @@ body.clima-mode #chartwrap { display:none; }
 .wd-ar { display:inline-block; font-style:normal; font-weight:400; line-height:1; width:.9em; text-align:center; margin-left:.12em; transform-origin:50% 55%; }
 /* ---- MAPPA: in alto a destra sfondi, Pioggia · Cursore · Radar e zoom; in basso la PLANCIA (tempo, legenda, crediti in
    un solo pannello, che sul telefono si chiude). Un solo materiale per tutti: --pbg sfondo, --pl bordo, --psh ombra ---- */
-:root { --pbg:rgba(255,255,255,.96); --pl:rgba(16,24,40,.14); --pl2:rgba(16,24,40,.08); --trk:#e1e7ee; --buf:#b8cbe1; --ink:#3b4a5c;
+:root { --pbg:rgba(255,255,255,.96); --pl:rgba(16,24,40,.14); --pl2:rgba(16,24,40,.08); --trk:#e1e7ee; --buf:#bacdd2; --ink:#3b4a5c;
         --psh:0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.12);
         --warm:#e26952; --rise:#c0392b; --cool:#2b6cb0; }        /* andamento (temperatura / altro), variazione su e giu' */
-body.dark { --pbg:rgba(21,31,45,.96); --pl:rgba(255,255,255,.14); --pl2:rgba(255,255,255,.07); --trk:#2c3c51; --buf:#45607f; --ink:#c3cfdc;
+body.dark { --pbg:rgba(21,31,45,.96); --pl:rgba(255,255,255,.14); --pl2:rgba(255,255,255,.07); --trk:#2c3c51; --buf:#406a78; --ink:#c3cfdc;
             --psh:0 6px 18px rgba(0,0,0,.35); --warm:#ff8a6e; --rise:#ff7b6b; --cool:#7fb0e6; }
 .leaflet-top.leaflet-right .leaflet-control { margin:12px 12px 0 0; }
 .leaflet-top.leaflet-right .leaflet-control + .leaflet-control { margin-top:8px; }
@@ -215,8 +222,7 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
 .mc-pill { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 9px; border:none; border-radius:7px;
       background:transparent; color:var(--ink); font-size:12px; cursor:pointer; white-space:nowrap; }
 .mc-pill:hover { background:var(--soft2); }
-.mc-pill.on { background:#e7eff9; color:#1f5a99; font-weight:600; }
-body.dark .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
+.mc-pill.on { background:var(--atint); color:var(--atext); font-weight:600; }
 .mc-pill.dim { opacity:.55; }                 /* Radar: nascosto dallo zoom o non disponibile */
 .leaflet-right .mapctl { flex-direction:column; padding:2px; }          /* desktop: colonna di icone */
 .leaflet-right .mc-pill { width:28px; padding:0; justify-content:center; }
@@ -224,8 +230,8 @@ body.dark .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
 #pillRow .mapctl { display:contents; }                                  /* telefono: pillole con la scritta */
 #pillRow .mc-pill { height:30px; gap:6px; padding:0 11px; border:1px solid var(--pl); border-radius:999px; background:var(--pbg);
       box-shadow:0 1px 3px rgba(16,24,40,.2); font:500 13px var(--font); }
-#pillRow .mc-pill.on { background:#e7eff9; color:#1f5a99; border-color:rgba(43,108,176,.35); font-weight:600; }
-body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
+#pillRow .mc-pill.on { background:var(--atint); color:var(--atext); border-color:var(--aline);
+                       font-weight:600; }
 .mapctl svg, .dock svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:2;
       stroke-linecap:round; stroke-linejoin:round; }
 .dock { position:absolute; left:12px; right:12px; bottom:12px; z-index:1100; display:flex; flex-direction:column;
@@ -238,7 +244,8 @@ body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5;
 .dk-time button, .dk-toggle { align-items:center; justify-content:center; border:none; background:transparent;
       color:var(--ink); cursor:pointer; padding:0; height:30px; min-width:26px; border-radius:7px; font-size:12px; }
 .dk-time button:hover, .dk-toggle:hover { background:var(--soft2); }
-.dk-time #tsPlay { width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; margin-right:2px; }
+.dk-time #tsPlay { width:32px; height:32px; border-radius:50%; background:var(--accent);
+                   color:var(--on-accent); margin-right:2px; }
 .dk-time #tsPlay svg { width:15px; height:15px; fill:currentColor; stroke:none; }
 #tsLab { display:flex; flex-direction:column; justify-content:center; min-width:66px; margin-left:4px; line-height:1.15; white-space:nowrap; }
 #tsLab span { font-size:15px; font-weight:600; }
@@ -316,7 +323,8 @@ body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5;
 .pm-chips button { height:28px; padding:0 10px; border:1px solid var(--pl); border-radius:7px; background:transparent;
       color:var(--fg); font-size:12px; cursor:pointer; }
 .pm-seg button:hover, .pm-chips button:hover { background:var(--soft2); }
-.pm-seg button.on, .pm-chips button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.pm-seg button.on, .pm-chips button.on { background:var(--accent); border-color:var(--accent);
+                                          color:var(--on-accent); }
 /* plancia chiusa (solo telefono): play, ora, cursore, nome e scala compatta, crediti */
 .dock.min #tsPrev, .dock.min #tsNext, .dock.min #tsSpeed, .dock.min #tsClose, .dock.min .dk-ticks, .dock.min #tsLab small,
 .dock.min .sc-full, .dock.min .dk-nd, .dock.min .dk-sta, .dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg { display:none; }
@@ -464,7 +472,7 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 #stationQ { width:100%; height:38px; padding:0 34px; border:1px solid var(--pl); border-radius:10px; background:var(--pbg);
       color:var(--fg); box-shadow:var(--psh); font:14px var(--font); outline:none; }
 #stationQ::placeholder { color:var(--muted); }
-#stationQ:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(43,108,176,.2), var(--psh); }
+#stationQ:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--aring), var(--psh); }
 .tb-q kbd { position:absolute; right:9px; top:50%; transform:translateY(-50%); padding:0 5px; border:1px solid var(--pl);
       border-radius:4px; font:11px ui-monospace,Menlo,monospace; color:var(--muted); pointer-events:none; }
 #stationQ:focus + kbd, #stationQ:not(:placeholder-shown) + kbd { display:none; }
@@ -484,8 +492,7 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
       border-radius:999px; background:var(--pbg); color:var(--ink); box-shadow:var(--psh); cursor:pointer; white-space:nowrap;
       font:500 13px var(--font); }
 .pill:hover { background:var(--soft2); }
-.pill.on { background:#e7eff9; color:#1f5a99; border-color:rgba(43,108,176,.35); font-weight:600; }
-body.dark .pill.on { background:rgba(99,164,232,.22); color:#a9cdf5; }
+.pill.on { background:var(--atint); color:var(--atext); border-color:var(--aline); font-weight:600; }
 .pill svg { width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round;
       stroke-linejoin:round; opacity:.7; }
 #moreBtn, #noteBtn { width:30px; padding:0; justify-content:center; font-size:15px; }
