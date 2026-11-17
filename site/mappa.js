@@ -838,10 +838,11 @@ const radarUi = { prevVar:'', openedBar:false, switching:false, busy:false, stat
 const radarDotsVar = () => (Radar.on && Radar.product && Radar.product.dots) || '';
 const radarDotsOn = () => radarUi.stations && !!radarDotsVar() && snap.var === radarDotsVar();
 // Ultimo fotogramma orario delle stazioni non successivo all'istante del radar (stessa ora civile "ingenua"),
-// dentro l'intervallo del loro Cursore: oltre snap.kmax l'ora e' ancora incompleta (fonti in ritardo)
+// anche oltre l'ultima ora completa: ogni stazione mostra il suo valore appena arriva, grigia finche' manca
+// (le fonti arrivano con ritardi diversi)
 function snapIndexAt(civ){
   let i = -1;
-  for(let j = snap.k0; j <= snap.kmax && j < snap.T.length && snap.T[j] <= civ; j++) i = j;
+  for(let j = snap.k0; j < snap.T.length && snap.T[j] <= civ; j++) i = j;
   return i;
 }
 // A ogni fotogramma del radar: puntini all'ora delle stazioni corrispondente, scritta accanto a "Stazioni"

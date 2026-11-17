@@ -89,12 +89,20 @@
     log(tk.length >= 4 && tk.every(t => /^\d\d:00$/.test(t)), 'barra radar: ore piene', JSON.stringify(tk));
     const staT = () => (el('mcStaTime') || {}).textContent || '';
     log(/^\d\d:00$/.test(staT()), 'ora delle stazioni accanto a "Stazioni"', staT());
-    // all'ultimo fotogramma i puntini usano l'ultima ora COMPLETA delle stazioni (come il loro Cursore), non una
-    // ora ancora vuota per i ritardi delle fonti
+    // i puntini seguono il radar fino all'ultima ora delle stazioni, anche se non e' ancora completa: ogni
+    // stazione col suo valore appena arriva, grigia finche' manca
     await until(() => snap.T.length);
-    eq('stazioni all\'ultima ora completa', snap.k, Math.min(snap.kmax, snap.k));
-    log(staT() === fmtFrame(snap.T[snap.k]).slice(-5) && snap.k <= snap.kmax,
-        'etichetta = ora usata dai puntini', staT() + ' k=' + snap.k + ' kmax=' + snap.kmax);
+    {
+      const keep = { T:snap.T, k0:snap.k0, kmax:snap.kmax };
+      Object.assign(snap, { T:[0, 3600, 7200, 10800], k0:0, kmax:1 });
+      const got = [snapIndexAt(5000), snapIndexAt(10800), snapIndexAt(99999)];
+      Object.assign(snap, keep);
+      eq('ora delle stazioni per un istante del radar, oltre l\'ultima ora completa', got, [1, 3, 3]);
+    }
+    const civR = Radar.source.civ(Radar.source.max());
+    eq('all\'ultimo fotogramma: l\'ultima ora delle stazioni non dopo il radar', snap.k,
+       snap.T.reduce((a, t, j) => j >= snap.k0 && t <= civR ? j : a, -1));
+    log(staT() === fmtFrame(snap.T[snap.k]).slice(-5), 'etichetta = ora usata dai puntini', staT() + ' k=' + snap.k);
     log(el('colorbar').textContent.includes('Pioggia adesso') && el('colorbar').textContent.includes('mm/h') &&
         el('colorbar').contains(el('mcStations')), 'legenda unica radar/stazioni', el('colorbar').textContent);
     eq('in alto solo Pioggia, Cursore, Radar', [...document.querySelectorAll('.mapctl button')].map(b => b.id), ['mcRain', 'mcSnap', 'mcRadar']);
