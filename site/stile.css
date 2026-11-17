@@ -37,9 +37,10 @@ html,body { height:100%; margin:0; font-family:var(--font); color:var(--fg); bac
 #panel { position:absolute; inset:0; z-index:1200; background:var(--bg); display:none;
          flex-direction:column; padding:8px 16px 14px; gap:8px; overflow:auto; }
 body.view-station #panel { display:flex; }
-/* Scheda della stazione: riga 1 nome | periodi | Storico, Confronta | azioni; riga 2 le variabili; poi il
-   grafico. Periodi e viste dello Storico in gruppi a segmenti, il resto in pulsanti a contorno: la scelta e'
-   piena scura. Le variabili sono chip a contorno: nel grafico col bordo e il velo del loro colore. */
+/* Scheda della stazione: riga 1 nome e azioni; riga 2 le variabili e, a destra, periodi, Storico e
+   Confronta; poi il grafico. Periodi e viste dello Storico in gruppi a segmenti, il resto in pulsanti a
+   contorno: la scelta e' piena scura. Le variabili sono chip a contorno: nel grafico col bordo e il velo del
+   loro colore. */
 :root { --ctl:#cfd6de; } body.dark { --ctl:#34465b; }
 #phead { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; }
 #ptitle { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; margin-right:auto; min-width:0; }
@@ -61,11 +62,11 @@ body.view-station #panel { display:flex; }
 #stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
 #stationMeta:empty { display:none; }
 body.dark #stationMeta { color:#f0a35e; }
-#ptools { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; }
+#ptools { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; margin-left:auto; }
 #pviews, #pact { display:flex; align-items:center; gap:6px; }
 #ptools[hidden], #pact[hidden], #pbar[hidden] { display:none; }
 #modes, .hv-seg { display:inline-flex; border:1px solid var(--ctl); border-radius:7px; overflow:hidden; }
-#phead .mode, #pact .act, #vars .vn, #altBtn, #stackbtn {
+#ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn {
   display:inline-flex; align-items:center; height:24px; padding:0 10px; margin:0; border:1px solid var(--ctl);
   border-radius:7px; background:var(--bg); color:var(--fg); font:inherit; font-size:12.5px; cursor:pointer;
   white-space:nowrap; text-decoration:none; }
@@ -73,14 +74,14 @@ body.dark #stationMeta { color:#f0a35e; }
 #modes .mode:first-child, .hv-seg button:first-child { border-left:0; }
 .hv-seg button { padding:0 10px; background:var(--bg); color:var(--fg); font:inherit; font-size:12.5px;
                  cursor:pointer; white-space:nowrap; }
-#phead .mode.active, .hv-seg button.on, #stackbtn[aria-pressed="true"] {
+#ptools .mode.active, .hv-seg button.on, #stackbtn[aria-pressed="true"] {
   background:var(--fg); color:var(--bg); }
-#phead .mode.active, #stackbtn[aria-pressed="true"] { border-color:var(--fg); }
+#ptools .mode.active, #stackbtn[aria-pressed="true"] { border-color:var(--fg); }
 #modes .mode.active { border-color:var(--ctl); }
 #pact .act { padding:0 8px; color:var(--muted); }
-#phead .mode:not(.active):hover, #pact .act:hover, .hv-seg button:not(.on):hover, #altBtn:hover,
+#ptools .mode:not(.active):hover, #pact .act:hover, .hv-seg button:not(.on):hover, #altBtn:hover,
 #stackbtn[aria-pressed="false"]:hover { background:var(--soft2); }
-#phead button:focus-visible, #pact .act:focus-visible, #vars button:focus-visible,
+#phead button:focus-visible, #ptools button:focus-visible, #vars button:focus-visible,
 .hv-seg button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 #pact .act svg, #cmpBtn .chev { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2;
                                  stroke-linecap:round; stroke-linejoin:round; }
@@ -94,8 +95,9 @@ body.dark #stationMeta { color:#f0a35e; }
            clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .tb-menu hr { border:0; border-top:1px solid var(--line); margin:4px 0; flex:none; }
 /* riga 2: le chip vanno a capo, mai nascoste; tutta la chip si tocca (il nome, poi il "+") */
-#pbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; }
-#vars { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+/* le variabili vanno a capo nel loro spazio, i tempi restano in alto a destra */
+#pbar { display:flex; align-items:flex-start; gap:6px 16px; flex:none; }
+#vars { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex:1 1 auto; min-width:0; }
 #vars .vn, #altBtn, #stackbtn { border-radius:12px; }
 #vars .vn { padding:0; }
 #vars .vn:hover { border-color:#aeb8c4; }
@@ -353,7 +355,8 @@ body.dark #pillRow .mc-pill.on { background:rgba(99,164,232,.22); color:#a9cdf5;
 body.hist-mode #histview { display:flex; flex:1 1 auto; min-height:0; }
 body.hist-mode #chartwrap, body.hist-mode #windrose, body.hist-mode #vars { display:none; }
 .hv-bar { display:none; }
-body.hist-mode .hv-bar { display:contents; }        /* nella riga 2, al posto delle variabili */
+body.hist-mode .hv-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:1 1 auto;
+                         min-width:0; }       /* nella riga 2, al posto delle variabili */
 /* Pioggia e Temperatura come le chip delle variabili: la scelta col bordo, il velo e il trattino del suo
    colore */
 #hvVar { border:0; border-radius:0; overflow:visible; gap:6px; }
@@ -569,14 +572,13 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #srcpanel, #notepanel { right:0; min-width:0; max-width:none; }
   #sheet { left:8px; right:8px; bottom:8px; width:auto; max-width:none; }
   #panel { padding:10px 12px 18px; }
-  /* riga 1: nome e azioni (il nome va a capo); sotto periodi, Storico e Confronta; poi le variabili */
-  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 12px;
-           grid-template-areas:"name act" "tools tools"; }
-  #ptitle { grid-area:name; }
-  #pact { grid-area:act; }
-  #ptools { grid-area:tools; gap:8px 10px; }
+  /* riga 1: nome e azioni (il nome va a capo); sotto periodi, Storico e Confronta su una riga loro; poi le
+     variabili */
+  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 12px; }
+  #pbar { flex-wrap:wrap; gap:8px; }
+  #ptools { order:-1; flex:1 0 100%; margin-left:0; gap:8px; }
   /* comandi alti 32 px, da toccare col dito */
-  #phead .mode, #pact .act, #vars .vn, #altBtn, #stackbtn, #hvVar button { height:32px; font-size:14px; }
+  #ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn, #hvVar button { height:32px; font-size:14px; }
   #modes .mode, .hv-seg button { height:30px; font-size:14px; }
   #vars .vn, #altBtn, #stackbtn, #hvVar button, #hvVar button:first-child { border-radius:16px; }
   #vars .vb { height:30px; }
@@ -584,8 +586,7 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #pact .act { padding:0 9px; }
   #stationName { font-size:21px; }
   #expBtn .lbl, #expBtn .chev { display:none; }
-  #phead .mode { padding:0 8px; }
-  #ptools { gap:8px; }
+  #ptools .mode { padding:0 8px; }
   /* su cellulare il grafico e' stretto: la legenda va SOTTO (non a destra) cosi' il grafico
      resta ampio. chartwrap in colonna, altezza fissa al grafico, legenda a piena larghezza.
      flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra

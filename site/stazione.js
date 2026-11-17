@@ -173,6 +173,8 @@ function rowButton(id, text, extra){
   Object.entries(extra || {}).forEach(([k, val]) => b.setAttribute(k, val));
   return b;
 }
+const altButton = () => rowButton('altBtn', 'Altro',
+  { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'altMenu' });
 // La riga si ricostruisce a ogni scelta: il fuoco della tastiera torna sullo stesso comando.
 function keepFocus(box, build){
   const f = document.activeElement;
@@ -195,9 +197,7 @@ function fillVarRow(){
   const plus = !cmp && !histMode && !isView(currentVar);
   box.innerHTML = '';
   shown.forEach(v => box.appendChild(varItem(v, sel.includes(v), plus && v !== currentVar && !isView(v))));
-  if(all.some(v => !isMainVar(v, all)))
-    box.appendChild(rowButton('altBtn', 'Altro',
-      { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'altMenu' }));
+  if(all.some(v => !isMainVar(v, all))) box.appendChild(altButton());
   if(sel.length >= 2 && !cmp)
     box.appendChild(rowButton('stackbtn', 'Impilate', {
       'aria-pressed': String(stackMode), title: 'Una fascia per variabile, con cursore e zoom insieme'
@@ -241,11 +241,14 @@ function addVar(v){
   updateHash();
 }
 
-// "Altro": misure secondarie, derivate, indici (e la rosa), in tre gruppi
+// "Altro": misure secondarie, derivate, indici (e la rosa), in tre gruppi; nel Confronto schede quelle
+// delle schede aperte
 function altOpen(){
   const m = el('altMenu'), b = el('altBtn');
   if(!b) return;
-  const rest = stationVars.filter(v => !isMainVar(v, stationVars)).sort(byVarOrder), sel = selVars();
+  const cmp = document.body.classList.contains('view-compare');
+  const all = cmp ? compareVars : stationVars, sel = cmp ? [compareVar] : selVars();
+  const rest = all.filter(v => !isMainVar(v, all)).sort(byVarOrder);
   m.innerHTML = '';
   ['dirette', 'derivate', 'indici'].map(c => rest.filter(v => varCat(v) === c)).filter(g => g.length)
     .forEach((g, k) => {
@@ -408,13 +411,16 @@ function closeCompare(){
     document.body.classList.contains('view-station') && currentStation ? tabKeyOf(currentStation) : null
   );
 }
-// riga della scheda Confronto: le variabili delle schede aperte, una alla volta
+// riga della scheda Confronto: una variabile alla volta; come nella scheda le misure principali e quella
+// scelta, il resto in "Altro"
 let compareVars = [];
 function buildCompareRow(){
-  const box = el('vars');
+  const box = el('vars'), all = compareVars, main = all.filter(v => isMainVar(v, all));
+  const shown = main.concat(compareVar && !main.includes(compareVar) ? [compareVar] : []);
   keepFocus(box, () => {
     box.innerHTML = '';
-    compareVars.forEach(v => box.appendChild(varItem(v, v === compareVar, false)));
+    shown.forEach(v => box.appendChild(varItem(v, v === compareVar, false)));
+    if(all.some(v => !isMainVar(v, all))) box.appendChild(altButton());
   });
 }
 // vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
@@ -707,7 +713,8 @@ function buildStationControls(){
     const b = e.target.closest('[data-var]');
     if(!b) return;
     altClose();
-    drawVar(b.dataset.var);
+    if(document.body.classList.contains('view-compare')) pickCompareVar(b.dataset.var);
+    else drawVar(b.dataset.var);
     if(el('altBtn')) el('altBtn').focus({ preventScroll:true });
   });
   el('cmpBtn').addEventListener('click', () => el('cmpMenu').hidden ? cmpOpen() : cmpClose());

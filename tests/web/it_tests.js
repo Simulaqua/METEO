@@ -1768,7 +1768,8 @@
     finish();
   }
 
-  // Scheda della stazione: riga 1 nome | periodi | Storico, Confronta | azioni; riga 2 le variabili; poi il grafico.
+  // Scheda della stazione: riga 1 nome e azioni; riga 2 le variabili e, a destra, periodi, Storico e Confronta (sul
+  // telefono i tempi hanno una riga loro, sopra le variabili); poi il grafico.
   // Desktop (w.html 1024x768): grafico entro 75 px dalla barra delle schede. Telefono (w.html 320/375/430, FVG/A280 con
   // molte variabili): niente scorre di lato, tutto va a capo e resta dentro lo schermo, le azioni restano visibili.
   async function suiteSchede(){
@@ -1804,14 +1805,17 @@
     const name = el('stationName');
     log(/^234\b/.test(name.title) && !vis(el('stationMeta')), 'riga 1: codice e ultimo dato nel titolo del nome, niente scritte accanto', name.title);
     eq('riga 1: azioni', acts(), ['refresh', 'expBtn']);
-    eq('riga 1: periodi, Storico, Confronta', tools().map(b => b.dataset.mode || b.id), ['mn', 'day', 'day3', 'week', 'histbtn', 'cmpBtn']);
-    if(!phone) log(sameRow([name, ...tools(), ...acts().map(el)]), 'riga 1: tutto sulla stessa riga',
-                   JSON.stringify([name, ...tools(), ...acts().map(el)].map(e => Math.round(mid(e)))));
-    else log(sameRow([name, ...acts().map(el)]) && below(tools(), R(name).bottom), 'riga 1 (telefono): nome e azioni, sotto periodi e viste',
-             JSON.stringify([name, ...tools(), ...acts().map(el)].map(e => Math.round(mid(e)))));
-    const n2 = names();
-    log(n2.length >= 3 && below(n2, Math.max(...tools().map(e => R(e).bottom))) && n2.every(e => R(e).bottom <= R(el('chart')).top + 1),
-        'riga 2: le variabili fra la prima riga e il grafico', JSON.stringify(n2.map(e => Math.round(mid(e)))));
+    log(sameRow([name, ...acts().map(el)]), 'riga 1: il nome e le azioni', JSON.stringify([name, ...acts().map(el)].map(e => Math.round(mid(e)))));
+    eq('periodi, Storico, Confronta', tools().map(b => b.dataset.mode || b.id), ['mn', 'day', 'day3', 'week', 'histbtn', 'cmpBtn']);
+    const n2 = names(), tl = tools();
+    log(n2.length >= 3 && below([...n2, ...tl], R(name).bottom) && [...n2, ...tl].every(e => R(e).bottom <= R(el('chart')).top + 1),
+        'variabili e tempi fra il nome e il grafico', JSON.stringify([...n2, ...tl].map(e => Math.round(mid(e)))));
+    if(!phone){
+      log(sameRow([n2[0], ...tl]), 'riga 2: le variabili e, sulla stessa riga, periodi, Storico e Confronta',
+          JSON.stringify([n2[0], ...tl].map(e => Math.round(mid(e)))));
+      eq('riga 2: i tempi a destra, allineati alle azioni', Math.round(Math.max(...tl.map(e => R(e).right))), Math.round(R(el('expBtn')).right));
+    } else log(below(n2, Math.max(...tl.map(e => R(e).bottom))), 'telefono: periodi e viste su una riga, poi le variabili',
+               JSON.stringify([...tl, ...n2].map(e => Math.round(mid(e)))));
     {                                                   // ogni comando ha il suo bordo: si vede dove cliccare
       const boxes = [el('modes'), ...document.querySelectorAll('#pviews .mode, #pact .act, #vars .vn, #altBtn, #stackbtn')].filter(vis);
       log(boxes.length > 8 && boxes.every(e => getComputedStyle(e).borderTopWidth !== '0px'), 'comandi con il bordo (chip e gruppi a segmenti)',
@@ -1878,6 +1882,12 @@
         'Confronta: "Confronto schede" apre la scheda Confronto', '');
     eq('Confronto schede: niente Confronta né Storico', [vis(cb), vis(el('histbtn'))], [false, false]);
     eq('Confronto schede: azioni', acts(), ['expBtn']);
+    {                                                   // la legenda delle stazioni accanto al grafico, mai sotto le linee
+      const a = R(chart.root.querySelector('canvas')), b = R(el('chartlegend'));
+      const cross = a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+      log(vis(el('chartlegend')) && !cross, 'Confronto schede: la legenda non sta sotto le linee',
+          JSON.stringify([a.left, a.right, a.bottom, b.left, b.top].map(Math.round)));
+    }
     {
       let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
       window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
@@ -1895,6 +1905,25 @@
       window.deliverPNG = real;
       log(!!got && got.kb > 40 && /^confronto_schede_/.test(got.f), 'Confronto schede: PNG', JSON.stringify(got));
     }
+    {                                                   // come nella scheda: in vista le principali, il resto in "Altro"
+      const all = compareVars.slice(), main = all.filter(v => isMainVar(v, all)), rest = all.filter(v => !isMainVar(v, all));
+      const chips = () => [...el('vars').querySelectorAll('.vn')].map(e => e.dataset.var);
+      log(rest.length > 0, 'Confronto schede: le schede hanno anche misure secondarie', JSON.stringify(rest));
+      eq('Confronto schede: in vista le misure principali', chips(), main);
+      log(vis(el('altBtn')), 'Confronto schede: il resto in "Altro"', '');
+      if(vis(el('altBtn'))){
+        el('altBtn').click(); await sleep(60);
+        const items = [...el('altMenu').querySelectorAll('[data-var]')].map(b => b.dataset.var), v = items[0];
+        eq('Confronto schede: "Altro" elenca le altre', items.slice().sort(), rest.slice().sort());
+        el('altMenu').querySelector('[data-var="' + v + '"]').click();
+        await until(() => compareVar === v, 8000); await sleep(300);
+        const on = el('vars').querySelector('.vn.on');
+        log(compareVar === v && el('altMenu').hidden && chips().includes(v) && !!on && on.dataset.var === v,
+            'Confronto schede: scelta da "Altro", confrontata e nella riga', JSON.stringify([compareVar, chips()]));
+        el('vars').querySelector('.vn[data-var="' + main[0] + '"] .vb').click(); await sleep(300);
+        eq('Confronto schede: tornando a una principale, l\'altra lascia la riga', chips(), main);
+      }
+    }
     closeCompare(); await sleep(100);
 
     // Storico: "Storico" acceso fra le viste; nella riga 2 la sua barra; un periodo ne esce
@@ -1904,6 +1933,8 @@
     log(histMode && hb.classList.contains('active') && hb.getAttribute('aria-pressed') === 'true' && hb.textContent.trim() === 'Storico',
         'Storico: acceso fra le viste', hb.outerHTML.slice(0, 120));
     log(![...el('vars').children].some(vis) && ['hvVar', 'hvView', 'hvRange'].every(id => vis(el(id))), 'Storico: nella riga 2 la sua barra', '');
+    if(!phone) log(sameRow([el('hvVar'), ...tools()]), 'Storico: la sua barra e i tempi sulla stessa riga',
+                   JSON.stringify([el('hvVar'), ...tools()].map(e => Math.round(mid(e)))));
     eq('Storico: azioni', acts(), ['expBtn']);
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Storico: nessun periodo acceso', '');
     M.storico = gap('hvChart');
@@ -1946,6 +1977,13 @@
       actsOk('telefono, nome lungo (' + prettyName(long.name) + ')', ['refresh', 'expBtn']);
       noOverflow('telefono, nome lungo');
       log(name.scrollWidth <= name.clientWidth + 1, 'telefono, nome lungo: nome intero (va a capo, non tagliato)', JSON.stringify([name.scrollWidth, name.clientWidth]));
+    } else {                                            // tante variabili: a capo a sinistra, i tempi restano in alto a destra
+      await open(A);
+      const n = names(), tl = tools(), left = Math.min(...tl.map(e => R(e).left));
+      log(n.length >= 7 && sameRow([n[0], ...tl]) && n.every(e => R(e).right <= left - 8),
+          'Arba: le variabili vanno a capo a sinistra, i tempi restano in alto a destra',
+          JSON.stringify([Math.round(left), ...new Set(n.map(e => Math.round(mid(e))))]));
+      noOverflow('Arba');
     }
     showMapView();
     eq('errori JS', window.__errs, []);

@@ -221,6 +221,11 @@ function renderCompareTabs(label, unit){
                 : { drawClear: [nightBands], draw: [drawUnits], setCursor: [legendCursor] }
     };
   };
+  // i nomi delle stazioni prima del grafico: il grafico prende la larghezza che la colonna gli lascia
+  el('chartlegend').style.display = '';
+  el('chartlegend').innerHTML = specs.map((d, k) =>
+    '<div class="lg-row"><span class="lg-sw" style="background:' + COLS[k % COLS.length] + '"></span>'
+    + escHtml(d.label) + '</div>').join('');
   chart = new uPlot(opts(false, chartWidth(), chartHeight()), data, el('chart'));
   chart._hi = (W, H) => opts(true, W, H);
   chart._unit = uLab;
@@ -228,10 +233,6 @@ function renderCompareTabs(label, unit){
   chart._dir = dir;
   addLabels(chart);
   addZoomUI(chart, () => full, HOUR);
-  el('chartlegend').style.display = '';
-  el('chartlegend').innerHTML = specs.map((d, k) =>
-    '<div class="lg-row"><span class="lg-sw" style="background:' + COLS[k % COLS.length] + '"></span>'
-    + escHtml(d.label) + '</div>').join('');
 }
 
 // ------------------------------------------------------------------------------------------------

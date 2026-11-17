@@ -129,25 +129,12 @@
     </div>
     <div id="prodMenu" class="dk-menu" role="menu" aria-label="Cosa mostra la mappa"></div>
     <div id="panel">
-      <!-- riga 1: nome | periodi | Storico e Confronta | azioni; riga 2: le variabili (nello Storico la sua barra) -->
+      <!-- riga 1: nome e azioni; riga 2: le variabili (nello Storico la sua barra) e, a destra, periodi,
+           Storico e Confronta -->
       <div id="phead">
         <div id="ptitle"><span id="stationName">Seleziona una stazione</span><button id="stInfo" class="ib" type="button"
              aria-label="La stazione" title="La stazione" aria-expanded="false" aria-controls="stCard" hidden>i</button><span
              id="stationMeta"></span><div id="stCard" role="dialog" aria-label="La stazione" hidden></div></div>
-        <div id="ptools" hidden>
-          <div id="modes" role="group" aria-label="Periodo">
-            <button class="mode" data-mode="mn" title="Da mezzanotte">Oggi</button>
-            <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
-            <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
-            <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
-          </div>
-          <div id="pviews">
-            <button id="histbtn" class="mode" aria-pressed="false" title="Pioggia e temperatura di tutti gli anni"
-                    style="display:none">Storico</button>
-            <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronta</span><svg
-                    class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
-          </div>
-        </div>
         <div id="pact" hidden>
           <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
           <button id="expBtn" class="act" aria-haspopup="menu" aria-expanded="false" aria-controls="expMenu" title="Esporta"><svg
@@ -161,6 +148,20 @@
           <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
           <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="tabella">Tabella</button></div>
           <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
+        </div>
+        <div id="ptools" hidden>
+          <div id="modes" role="group" aria-label="Periodo">
+            <button class="mode" data-mode="mn" title="Da mezzanotte">Oggi</button>
+            <button class="mode" data-mode="day" title="Ultime 24 ore">24 h</button>
+            <button class="mode" data-mode="day3" title="Ultimi 3 giorni">3 g</button>
+            <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
+          </div>
+          <div id="pviews">
+            <button id="histbtn" class="mode" aria-pressed="false" title="Pioggia e temperatura di tutti gli anni"
+                    style="display:none">Storico</button>
+            <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronta</span><svg
+                    class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
+          </div>
         </div>
       </div>
       <div id="expMenu" class="tb-menu" role="menu" aria-label="Esporta" hidden>
