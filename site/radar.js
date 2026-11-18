@@ -363,9 +363,28 @@ const Radar = (() => {
     },
   };
 
+  // Pioggia del radar nel punto delle stazioni (punti/<REG>.json, scritto dal Pi): {t, s:{scode:[mm]}}, o
+  // null. La scheda la chiede a ogni apertura: si tiene quanto il giro dell'indice.
+  const pointsCache = new Map();
+  function points(region, fresh){
+    const hit = pointsCache.get(region);
+    if(hit && !fresh && Date.now() - hit.at < POLL_MS) return hit.p;
+    const p = (async () => {
+      for(const base of [BASE, FALLBACK]){
+        try {
+          const r = await fetch(base + '/punti/' + region + '.json', { cache:'no-store' });
+          if(r.ok) return await r.json();
+        } catch(e){}
+      }
+      return null;
+    })();
+    pointsCache.set(region, { at:Date.now(), p });
+    return p;
+  }
+
   return {
     init(o){ opt = o || {}; map = opt.map; cur = opt.product || ''; },
-    enable, disable, poll, source, utcToCivil, classLabel, gridPixel, setProduct,
+    enable, disable, poll, source, utcToCivil, classLabel, gridPixel, setProduct, points,
     products: () => order.map(key => ({
       key, group:all[key].group || '', label:all[key].label || key, name:nameOf(all[key]),
       unit:all[key].unit || '', frames:all[key].frames.length

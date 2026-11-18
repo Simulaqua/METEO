@@ -48,9 +48,21 @@ function setMeta(code, c, table){
   el('stationName').title = code + (when && !stale ? ', ultimo dato ' + when : '');
   el('stationMeta').textContent = stale ? 'dati fermi ' + when : '';
 }
+// Pioggia del radar nel punto della stazione (punti/<REG>.json del Pi), per le barre accanto al
+// pluviometro. Se arriva dopo il grafico, il grafico della pioggia si ridisegna.
+async function loadRadarPoints(props, fresh){
+  if(typeof Radar === 'undefined' || !Radar.points) return;
+  const all = await Radar.points(props._region, fresh);
+  const v = all && all.s && all.s[props.scode];
+  props._radar = v && v.some(x => x != null) ? { t:all.t, v } : null;
+  const m = chart && chart._m;
+  if(props._radar && currentStation === props && m && m.st === props && m.s1 && m.s1.src === 'PREC'
+     && !m.radar && !isCompareMode() && !histMode) renderChart(currentVar);
+}
 async function selectStation(props){
   snapPause();
   closeSheet();
+  const radarLoad = props._radar === undefined ? loadRadarPoints(props) : null;
   const prevSel = selVars();
   chartVar = null;
   el('stationName').title = '';
@@ -81,6 +93,8 @@ async function selectStation(props){
     props._table = table;
     props._tableAt = Date.now();
   }
+  // il radar di solito arriva con la serie; se tarda, il grafico esce subito e si ridisegna dopo
+  if(radarLoad) await Promise.race([radarLoad, new Promise(r => setTimeout(r, 1500))]);
 
   setMeta(props.scode, civSec(props.latest_time), table);
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
@@ -301,6 +315,7 @@ async function refreshStation(){
     const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
     const t = parseCSV(csv);
     currentStation._table = t;
+    await loadRadarPoints(currentStation, true);
     if(currentVar === WROSE) updateWindRose();
     else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
       if(currentVar && (currentVar === WARROW || t.cols[currentVar])) renderChart(currentVar);

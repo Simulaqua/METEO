@@ -316,6 +316,8 @@ function cursorLabels(u){
     if(u._fmt) html = u._fmt(i, v);
     else if(m && i === m.iCum)
       html = 'tot ' + fmtNum(round2(v - (u.scales.cum.min || 0))) + unitTxt(m.s1.unit);
+    else if(m && (i === m.iHalf || i === m.iRadar))
+      html = (i === m.iRadar ? 'Radar ' : '') + numTxt(v, 'PREC') + unitTxt(m.s1.unit);
     else if(s ? isDirVar(s.src) : u._dir) html = windDirHtml(v);
     else {
       html = numTxt(v, s ? s.src : u._src) + unitTxt(s ? s.unit : u._unit);
@@ -543,6 +545,18 @@ function withAlpha(c, a){
 }
 // barre: align 1 = la barra parte dall'x (x = inizio ora), -1 = finisce all'x (x = ora della lettura)
 const rainBars = align => uPlot.paths.bars({ size:[0.9, 60], align: align || 0 });
+// Dove c'e' anche il radar l'intervallo si divide: a sinistra il pluviometro, a destra il radar. x = inizio
+// dell'intervallo (align 1) o fine (align -1).
+const halfBars = (align, slot, right) => {
+  const shift = (right ? 0.5 : 0.05) * slot - (align === -1 ? slot : 0);
+  return uPlot.paths.bars({
+    size:[0.45, 28], align:1,
+    disp: {
+      x0: { unit:1, values:u => u.data[0].map(x => x == null ? null : x + shift) },
+      size: { unit:1, values:() => [0.45 * slot] }
+    }
+  });
+};
 // asse Y della pioggia da 0, con un po' di margine sopra la barra piu' alta
 const rainY = () => ({
   range:(u, mn, mx) => [0, mx > 0 ? Math.max(1, uPlot.rangeNum(0, mx, 0.1, true)[1]) : 1]
@@ -563,10 +577,15 @@ function mkSeries(d, hi){
     kind: d.kind || 'line'
   };
   if(d.scale) s.scale = d.scale;
-  if(d.kind === 'bars'){
-    s.fill = withAlpha(d.color, d.alpha == null ? 0.6 : d.alpha);
+  if(d.kind === 'bars' || d.kind === 'radar'){
+    // radar: barra vuota col bordo; il fondo appena tinto resta se la barra e' troppo stretta per il bordo
+    const radar = d.kind === 'radar';
+    s.kind = 'bars';
+    s.radar = radar;
+    s.fill = withAlpha(d.color, radar ? 0.12 : (d.alpha == null ? 0.6 : d.alpha));
+    if(radar) s.width = hi ? 2 : 1.5;
     s.points = { show:false };
-    s.paths = rainBars(d.align);
+    s.paths = d.half ? halfBars(d.align, d.slot, d.half === 'right') : rainBars(d.align);
     s.barAlign = d.align || 0;
     s.barSlot = d.slot || 0;
     s.slotTxt = d.slotTxt || '';
@@ -737,6 +756,30 @@ function rainSeries(xs, ys, v, from, to, hourly){
     if(to - X[n - 1] > thr) addGap(gaps, X[n - 1], to);
   }
   return { x: X, y: Y, align: -1, slot: step || HOUR, hourly: false, step, gaps };
+}
+// Pioggia del radar negli stessi intervalli delle barre del pluviometro (pts = {t, v}: mm dei 5 minuti che
+// finiscono a t); dopo l'ultima lettura si continua col passo della stazione. Un intervallo vale con tutti i
+// suoi fotogrammi; l'ultimo, come l'ultima barra del pluviometro, anche a meta'.
+const RADAR_STEP = 300;
+function radarBars(pts, rs){
+  const T = pts.t, V = pts.v, n = T.length, slot = rs.hourly ? HOUR : rs.step;
+  if(!n || !slot || slot % RADAR_STEP) return null;
+  const starts = rs.x.filter(x => x != null).map(x => rs.hourly ? x : x - slot);
+  for(let a = starts.length ? starts[starts.length - 1] + slot : T[0] - RADAR_STEP; a < T[n - 1]; a += slot)
+    starts.push(a);
+  const X = [], Y = [], need = slot / RADAR_STEP;
+  let k = 0;
+  for(const a of starts){
+    if(a < T[0] - RADAR_STEP || a >= T[n - 1]) continue;
+    while(k < n && T[k] <= a) k++;
+    let sum = 0, cnt = 0;
+    for(let j = k; j < n && T[j] <= a + slot; j++) if(V[j] != null){ sum += V[j]; cnt++; }
+    if(cnt === need || (cnt && a + slot >= T[n - 1])){
+      X.push(rs.hourly ? a : a + slot);
+      Y.push(round2(sum));
+    }
+  }
+  return X.length ? { x:X, y:Y, slot, align:rs.align } : null;
 }
 // pioggia cumulata dall'inizio della finestra (solo PREC): sale dentro ogni barra; ultimo punto a fine
 // finestra
@@ -1081,8 +1124,16 @@ function mainModel(st, vars, mode){
   const cum = (ss.length === 1 && s1.src === 'PREC') ? rainCum(s1.rs, to) : null;
   // in MN la linea del giorno coinciderebbe con la cumulata
   const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
+  // il radar nel punto della stazione: nei suoi intervalli la barra del pluviometro passa nella serie a meta'
+  const radar = (s1 && s1.src === 'PREC' && st._radar) ? radarBars(st._radar, s1.rs) : null;
+  const inRadar = new Set(radar ? radar.x : []);
   const tabs = ss.map(s => [s.x, s.y]);
+  if(radar) tabs[0] = [s1.x, s1.y.map((y, j) => inRadar.has(s1.x[j]) ? null : y)];
   if(cum) tabs.push([cum.x, cum.y]);
+  if(radar){
+    const j = s1.x.map((x, k) => k).filter(k => inRadar.has(s1.x[k]));
+    tabs.push([j.map(k => s1.x[k]), j.map(k => s1.y[k])], [radar.x, radar.y]);
+  }
   // con orari diversi i vuoti restano "undefined"
   let data = tabs.length > 1 ? uPlot.join(tabs) : [s1.x, s1.y];
   // MN senza letture di oggi: due punti vuoti tengono l'asse del tempo da mezzanotte
@@ -1099,11 +1150,15 @@ function mainModel(st, vars, mode){
       dirs: X.map(x => at.has(x) ? at.get(x) : null)
     };
   }
+  const win = mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null);
+  // l'ultima barra del radar per intero, anche oltre l'ultima lettura della stazione
+  if(radar && win)
+    win[1] = Math.max(win[1], radar.x[radar.x.length - 1] + (radar.align === 1 ? radar.slot : 0));
+  const iCum = cum ? ss.length + 1 : null, iHalf = radar ? ss.length + (cum ? 2 : 1) : null;
   return {
-    st, vars, ss, s1, cum, daily, wind, data,
-    win: mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null),
+    st, vars, ss, s1, cum, daily, wind, data, win, radar,
     gaps: [].concat(...ss.map(s => s.rs ? s.rs.gaps : [])),
-    iCum: cum ? ss.length + 1 : null
+    iCum, iHalf, iRadar: radar ? iHalf + 1 : null
   };
 }
 // Un asse per unita' di misura (temperatura e rugiada sullo stesso): il primo a sinistra, gli altri a destra.
@@ -1159,6 +1214,13 @@ function mainOpts(m, o){
     axes.push(cumAxis(hi, CC));
     scales.cum = cumY(m.daily && (u => dailyTop(u, m.daily)));
   }
+  if(m.radar){
+    // la meta' del pluviometro senza nome (nel PNG non si ripete nella legenda)
+    const r = m.radar, d = { color:col(m.s1.v), scale:m.s1.scale, align:r.align, slot:r.slot,
+                             slotTxt:m.s1.rs.hourly ? 'range' : '' };
+    series.push(mkSeries(Object.assign({ label:'', kind:'bars', half:'left' }, d), hi),
+                mkSeries(Object.assign({ label:'Radar', kind:'radar', half:'right' }, d), hi));
+  }
   // Un intervallo dentro la finestra e piu' stretto e' uno zoom e va accettato; il resto (anche dati che
   // sporgono, come l'inizio della cumulata prima di mezzanotte) torna alla finestra intera.
   const w = m.win;
@@ -1174,10 +1236,9 @@ function mainOpts(m, o){
   if(m.wind) hooks.draw = (hooks.draw || []).concat(
     drawArrows(m.wind.arrows, col(WARROW), hi, m.wind.dense, m.ss[m.wind.i - 1].scale));
   hooks.draw = (hooks.draw || []).concat(drawUnits);
-  if(!hi && m.ss.length > 1){
-    const ends = m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) }));
-    hooks.draw.push(u => endLabels(u, ends));
-  }
+  const ends = (m.ss.length > 1 ? m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) })) : [])
+    .concat(m.radar ? [{ i:m.iRadar, name:'Radar', color:col(m.s1.v) }] : []);
+  if(!hi && ends.length) hooks.draw.push(u => endLabels(u, ends));
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
     padding: [hi ? 44 : 24, null, null, null],
@@ -1543,6 +1604,11 @@ function pngLegend(ctx, series, lx, ly, bottom){
     if(s.kind === 'bars'){
       ctx.fillStyle = s.fill;
       ctx.fillRect(lx + 6, ly - 15, 18, 18);
+      if(s.radar){
+        ctx.strokeStyle = s.stroke;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(lx + 7, ly - 14, 16, 16);
+      }
     } else if(s.kind === 'dots'){
       ctx.fillStyle = s.stroke;
       ctx.beginPath();

@@ -2423,10 +2423,77 @@
     finish();
   }
 
+  // Nuove funzioni della scheda: radar alla stazione, Vicine, evento di pioggia, bilancio idrico, neve
+  // fresca, giorni di PM10. I dati che il Pi non pubblica ancora sono costruiti qui sulla serie vera.
+  async function suiteNuove(){
+    const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
+    const st = (reg, sc) => (allFeatures.find(f => f.properties._region === reg && f.properties.scode === sc)
+                             || {}).properties;
+    const P = st('VEN', '234');                                     // Padova: pioggia, temperatura
+    log(!!P, 'stazione di prova trovata', '');
+    if(!P) return finish();
+    const open = async (p, v) => {
+      await selectStation(p);
+      await until(() => currentStation === p && !!el('chart').querySelector('canvas'), 8000);
+      if(v && currentVar !== v) drawVar(v);
+      await sleep(300);
+    };
+    const realPoints = Radar.points;
+    window.__errs = [];
+
+    // radar: 0.1 mm ogni 5 minuti dalle 6 ore prima dell'ultima lettura a 2 ore dopo (stazione in ritardo)
+    await open(P, 'PREC');
+    const ys = P._table.cols.PREC, last = P._table.x.filter((x, i) => x != null && ys[i] != null).pop();
+    const T = [];
+    for(let x = Math.floor(last / 300) * 300 - 6 * HOUR + 300; x <= last + 2 * HOUR; x += 300) T.push(x);
+    const fake = { t:T, s:{ [P.scode]:T.map(() => 0.1) } };
+    Radar.points = async reg => reg === P._region ? fake : null;
+    const radarVals = () => {
+      const iR = chart && chart._m && chart._m.iRadar;
+      return iR ? chart.data[iR].map((v, j) => v == null ? null : [chart.data[0][j], v]).filter(Boolean) : [];
+    };
+    for(const [mode, tag] of [['day3', '3 g'], ['day', '24 h']]){
+      await pickMode(mode); await sleep(200);
+      P._radar = undefined;
+      await loadRadarPoints(P); await sleep(400);
+      const m = chart._m, R = radarVals(), slot = m.radar ? m.radar.slot : 0;
+      log(!!m.iRadar && chart.series[m.iRadar].label === 'Radar', tag + ': c\'è la serie del radar', '');
+      const per = Math.round(10 * slot / 300) / 100;               // 0.1 mm per fotogramma dell'intervallo
+      log(R.length > 2 && R.slice(0, -1).every(([, v]) => Math.abs(v - per) < 1e-9),
+          tag + ': intervalli completi = somma dei 5 minuti', JSON.stringify([per, R.slice(0, 3)]));
+      log(R.length && R[R.length - 1][1] <= per + 1e-9, tag + ': l\'ultimo intervallo può essere a metà',
+          JSON.stringify(R.slice(-2)));
+      const end = R.length ? R[R.length - 1][0] : 0;
+      log(end > last, tag + ': il radar va oltre l\'ultima lettura della stazione', JSON.stringify([end, last]));
+      log((chart._ends || []).includes('Radar'), tag + ': la chiave «Radar»', JSON.stringify(chart._ends));
+      if(R.length){
+        const [x] = R[1] || R[0];
+        chart.setCursor({ left:chart.valToPos(x + (m.radar.align === 1 ? slot / 2 : -slot / 2), 'x'), top:20 });
+        await sleep(100);
+        const txt = chart._labs ? chart._labs.textContent : '';
+        log(/Radar \d+\.?\d* mm/.test(txt), tag + ': al cursore «Radar … mm»', txt);
+      }
+      noOverflow('radar ' + tag);
+    }
+    // senza file del radar: il grafico di oggi, senza errori
+    Radar.points = async () => null;
+    P._radar = undefined;
+    await loadRadarPoints(P);
+    renderChart('PREC'); await sleep(300);
+    log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'), 'senza radar: niente serie né chiave', '');
+    Radar.points = realPoints;
+    P._radar = undefined;
+
+    await pickMode('week');
+    showMapView();
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
             hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
-            pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura })[suite]())
+            pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura, nuove:suiteNuove })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();
