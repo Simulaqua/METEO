@@ -350,6 +350,11 @@ function cursorLabels(u){
     if(only) html = sr.label + ' ' + html;
     tags.push({ y: u.valToPos(v, sr.scale), html: '<i class="k" style="background:' + c + '"></i>' + html });
   }
+  // dentro un evento di pioggia: il suo totale, in alto accanto alla sua linea
+  const evs = m && m.events, xv = evs && evs.length ? u.posToVal(left, 'x') : null;
+  const ev = xv == null ? null : evs.find(e => xv >= e.a && xv <= e.b);
+  if(ev) tags.push({ y:0, html:'<i class="k" style="background:' + varColor(m.s1.v) + '"></i>'
+                                + eventTxt(ev, m.s1.unit) });
   tags.sort((a, b) => a.y - b.y);
   tags.forEach(t => { t.y = Math.min(Math.max(t.y - 18, 16), H - 16); });
   for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
@@ -804,6 +809,55 @@ function radarBars(pts, rs){
   }
   return X.length ? { x:X, y:Y, slot, align:rs.align } : null;
 }
+// Evento di pioggia: letture con pioggia separate da meno di 6 ore asciutte, almeno 2 mm in tutto. La lettura
+// a x copre (x - step, x]. -> [{a: inizio, b: fine, mm}]
+const EVENT_DRY = 6 * HOUR, EVENT_MM = 2;
+function rainEvents(xs, ys, step){
+  const out = [];
+  let ev = null;
+  for(let i = 0; i < xs.length; i++){
+    const x = xs[i], v = ys[i];
+    if(x == null || !(v > 0)) continue;
+    if(ev && x - step - ev.b < EVENT_DRY){
+      ev.b = x;
+      ev.mm += v;
+    } else {
+      if(ev && ev.mm >= EVENT_MM) out.push(ev);
+      ev = { a:x - step, b:x, mm:v };
+    }
+  }
+  if(ev && ev.mm >= EVENT_MM) out.push(ev);
+  return out.map(e => ({ a:e.a, b:e.b, mm:round2(e.mm) }));
+}
+const eventTxt = (e, unit) => {
+  const h = (e.b - e.a) / HOUR;
+  return 'Evento ' + numTxt(e.mm, 'PREC') + unitTxt(unit) + ' in '
+       + (h >= 1 ? Math.round(h) + ' h' : Math.round(h * 60) + ' min');
+};
+// la linea di ogni evento in cima all'area del grafico, coi trattini ai capi (u._evDrawn = gli eventi visti)
+function drawEvents(events, color, hi){
+  return u => {
+    const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width), { left, top, width } = u.bbox;
+    const y = top + (hi ? 8 : 5) * pr, tick = (hi ? 5 : 3) * pr, drawn = [];
+    ctx.save();
+    ctx.strokeStyle = withAlpha(color, 0.8);
+    ctx.lineWidth = (hi ? 3 : 2) * pr;
+    ctx.beginPath();
+    events.forEach(e => {
+      const x1 = Math.max(left, u.valToPos(e.a, 'x', true));
+      const x2 = Math.min(left + width, u.valToPos(e.b, 'x', true));
+      if(x2 <= x1) return;
+      ctx.moveTo(x1, y);
+      ctx.lineTo(x2, y);
+      if(x1 > left){ ctx.moveTo(x1, y - tick); ctx.lineTo(x1, y + tick); }
+      if(x2 < left + width){ ctx.moveTo(x2, y - tick); ctx.lineTo(x2, y + tick); }
+      drawn.push([e.a, e.b]);
+    });
+    ctx.stroke();
+    ctx.restore();
+    u._evDrawn = drawn;
+  };
+}
 // pioggia cumulata dall'inizio della finestra (solo PREC): sale dentro ogni barra; ultimo punto a fine
 // finestra
 function rainCum(rs, to){
@@ -1179,8 +1233,10 @@ function mainModel(st, vars, mode){
   if(radar && win)
     win[1] = Math.max(win[1], radar.x[radar.x.length - 1] + (radar.align === 1 ? radar.slot : 0));
   const iCum = cum ? ss.length + 1 : null, iHalf = radar ? ss.length + (cum ? 2 : 1) : null;
+  // su tutta la serie: un evento cominciato prima della finestra conta per intero
+  const events = (s1 && s1.src === 'PREC') ? rainEvents(t.x, s1.ys, s1.rs.step || HOUR) : null;
   return {
-    st, vars, ss, s1, cum, daily, wind, data, win, radar,
+    st, vars, ss, s1, cum, daily, wind, data, win, radar, events,
     gaps: [].concat(...ss.map(s => s.rs ? s.rs.gaps : [])),
     iCum, iHalf, iRadar: radar ? iHalf + 1 : null
   };
@@ -1260,6 +1316,7 @@ function mainOpts(m, o){
   if(m.wind) hooks.draw = (hooks.draw || []).concat(
     drawArrows(m.wind.arrows, col(WARROW), hi, m.wind.dense, m.ss[m.wind.i - 1].scale));
   hooks.draw = (hooks.draw || []).concat(drawUnits);
+  if(m.events && m.events.length) hooks.draw.push(drawEvents(m.events, col(m.s1.v), hi));
   const ends = (m.ss.length > 1 ? m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) })) : [])
     .concat(m.radar ? [{ i:m.iRadar, name:'Radar', color:col(m.s1.v) }] : []);
   if(!hi && ends.length) hooks.draw.push(u => endLabels(u, ends));

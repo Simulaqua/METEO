@@ -2538,6 +2538,44 @@
     await pickMode('day3');
     log(chartMode === 'day3' && !el('cmpBtn').classList.contains('active'), 'Vicine: un periodo ne esce', '');
 
+    // Evento di pioggia: piogge separate da meno di 6 ore asciutte, almeno 2 mm
+    {
+      const X = [...Array(48).keys()].map(k => 1800000000 + k * 1800), Y = X.map(() => 0);
+      [4, 5, 6, 7, 8, 9].forEach(k => { Y[k] = 1; });               // 6 mm
+      [20, 21].forEach(k => { Y[k] = 0.5; });                       // dopo 5 h asciutte: stesso evento
+      Y[36] = 1.5;                                                  // dopo 7 h: evento nuovo...
+      [44, 45].forEach(k => { Y[k] = 1.2; });                       // ...che con questi arriva a 3.9 mm
+      eq('Evento: separati da 6 ore asciutte, almeno 2 mm', rainEvents(X, Y, 1800),
+         [{ a:X[3], b:X[21], mm:7 }, { a:X[35], b:X[45], mm:3.9 }]);
+      Y[36] = 0; Y[44] = Y[45] = 0.9;
+      eq('Evento: sotto i 2 mm non c\'è', rainEvents(X, Y, 1800).length, 1);
+    }
+    {
+      await open(P, 'PREC'); await pickMode('day');
+      const tb = P._table, keep = tb.cols.PREC.slice(), n = tb.x.length;
+      const end = tb.x.filter(x => x != null).pop(), idx = [];
+      for(let i = n - 1; i >= 0 && idx.length < 30; i--)
+        if(tb.x[i] != null && tb.x[i] <= end - 3 * HOUR) idx.push(i);
+      tb.cols.PREC = tb.cols.PREC.map((v, i) => v == null ? v : 0);
+      idx.slice(0, 10).forEach(i => { tb.cols.PREC[i] = 1; });     // 10 letture da 1 mm
+      renderChart('PREC'); await sleep(300);
+      const ev = chart._m.events || [];
+      log(ev.length === 1 && Math.abs(ev[0].mm - 10) < 1e-9, 'Evento: trovato nella serie',
+          JSON.stringify(ev));
+      log((chart._evDrawn || []).length === 1, 'Evento: la linea in cima al grafico',
+          JSON.stringify(chart._evDrawn));
+      if(ev.length){
+        chart.setCursor({ left:chart.valToPos((ev[0].a + ev[0].b) / 2, 'x'), top:40 }); await sleep(100);
+        const txt = chart._labs ? chart._labs.textContent : '';
+        log(/Evento 10 mm in \d+ h/.test(txt), 'Evento: al cursore il totale e la durata', txt);
+      }
+      tb.cols.PREC = tb.cols.PREC.map(v => v == null ? v : 0);
+      renderChart('PREC'); await sleep(200);
+      eq('Evento: senza pioggia nessuna linea', (chart._evDrawn || []).length, 0);
+      tb.cols.PREC = keep;
+      renderChart('PREC'); await sleep(200);
+    }
+
     await pickMode('week');
     showMapView();
     eq('errori JS', window.__errs, []);
