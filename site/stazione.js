@@ -53,12 +53,14 @@ function setMeta(code, c, table){
 // pluviometro. Se arriva dopo il grafico, il grafico della pioggia si ridisegna.
 async function loadRadarPoints(props, fresh){
   if(typeof Radar === 'undefined' || !Radar.points) return;
+  const seq = props._radarSeq = (props._radarSeq || 0) + 1;
   const all = await Radar.points(props._region, fresh);
+  if(props._radarSeq !== seq) return;              // nel frattempo e' partita una richiesta piu' nuova
   const v = all && all.s && all.s[props.scode];
   props._radar = v && v.some(x => x != null) ? { t:all.t, v } : null;
   const m = chart && chart._m;
-  if(props._radar && currentStation === props && m && m.st === props && m.s1 && m.s1.src === 'PREC'
-     && !m.radar && !isCompareMode() && !histMode) renderChart(currentVar);
+  if(currentStation === props && m && m.st === props && m.s1 && m.s1.src === 'PREC'
+     && m.radarSrc !== props._radar && !isCompareMode() && !histMode) renderChart(currentVar);
 }
 async function selectStation(props){
   snapPause();

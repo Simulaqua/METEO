@@ -2473,6 +2473,9 @@
         const txt = chart._labs ? chart._labs.textContent : '';
         log(/Radar \d+\.?\d* mm/.test(txt), tag + ': al cursore «Radar … mm»', txt);
       }
+      if(mode === 'day3' && R.length)
+        log(chart.scales.x.max >= R[R.length - 1][0] + slot - 1, tag + ': l\'ultima barra del radar per intero',
+            JSON.stringify([chart.scales.x.max, R[R.length - 1][0] + slot]));
       if(mode === 'day3' && R.length){                 // dopo l'ultima lettura: in alto l'ora dell'intervallo
         chart.setCursor({ left:chart.valToPos(R[R.length - 1][0] + slot / 2, 'x'), top:20 }); await sleep(100);
         const top = chart._labs && chart._labs.querySelector('.cl-t');
@@ -2770,6 +2773,34 @@
         await pickMode('compare'); await sleep(300);
         log(![...el('vars').querySelectorAll('.vn')].some(e => e.dataset.var === SNOWNEW) && !nearOk(SNOWNEW),
             'revisione: niente neve fresca nei confronti', '');
+        await pickMode('week');
+      }
+      // «Oggi» da mezzanotte anche quando la prima lettura del giorno arriva dopo (qui alle 01:00)
+      {
+        await open(P, 'TEMP');
+        const tb = P._table, keepT = tb.cols.TEMP, mid = civMidnight(civDay(Date.now() / 1000));
+        tb.cols.TEMP = keepT.map((v, i) => tb.x[i] >= mid && tb.x[i] < mid + HOUR ? null : v);
+        await pickMode('mn'); await sleep(300);
+        eq('difetti vecchi: Oggi parte da mezzanotte', chart.scales.x.min, mid);
+        tb.cols.TEMP = keepT;
+        await pickMode('week');
+      }
+      // dati giornalieri (polveri) in 24 h e Oggi: almeno gli ultimi due valori, coi punti
+      {
+        const L = allFeatures.map(f => f.properties).find(p => p._region === 'AQ_LOM' && (p.variables || []).includes('PM10'));
+        if(L){
+          await open(L, 'PM10');
+          for(const md of ['day', 'mn']){
+            await pickMode(md); await sleep(300);
+            const vals = chart.data[1].filter(v => v != null).length, s = chart.series[1];
+            const dots = typeof s.points.show === 'function' ? s.points.show(chart, 1) : s.points.show;
+            log(vals >= 2 && !!dots, 'difetti vecchi: PM10 giornaliero in ' + md + ' non e\' vuoto', JSON.stringify([vals, !!dots]));
+          }
+          await pickMode('week');
+        }
+        await open(P, 'TEMP'); await pickMode('day'); await sleep(300);
+        const span = chart.scales.x.max - chart.scales.x.min;
+        log(span <= DAY_S + 2 * HOUR, 'difetti vecchi: le misure orarie in 24 h restano su 24 ore', span);
         await pickMode('week');
       }
       // bilancio: il giorno in corso non conta

@@ -1388,7 +1388,17 @@ function mainModel(st, vars, mode){
   }
   const end = tableEnd(t, vars.map(src));
   if(end != null) hi = end;
-  const ok = lo !== Infinity && hi >= lo, from = ok ? modeStart(mode, lo, hi) : 0;
+  const ok = lo !== Infinity && hi >= lo;
+  let from = ok ? modeStart(mode, lo, hi) : 0;
+  // Dati giornalieri (le polveri): in 24 h e Oggi il periodo parte almeno dal penultimo valore, coi punti; se
+  // no il grafico resterebbe vuoto
+  const dailyVars = new Set();
+  if(ok && rawMode(mode)) vars.map(src).forEach(c => {
+    const col = t.cols[c] || [], xs = t.x.filter((x, i) => x != null && col[i] != null);
+    if(xs.length < 2 || medianStep(xs) < 12 * HOUR) return;
+    dailyVars.add(c);
+    if(xs.filter(x => x >= from).length < 2) from = Math.min(from, xs[xs.length - 2]);
+  });
   // MN appena dopo mezzanotte, senza letture: almeno un'ora vuota
   const to = ok ? (mode === 'mn' ? Math.max(hi, from + HOUR) : hi) : 0;
   const ss = vars.map(v => {
@@ -1405,7 +1415,7 @@ function mainModel(st, vars, mode){
       return Object.assign(s, { kind: 'bars', x: rs.x, y: rs.y, rs, ys });
     }
     const ls = lineSeries(t.x, ys, from, to);
-    return Object.assign(s, { kind: isDirVar(c) ? 'dots' : 'line', x: ls.x, y: ls.y });
+    return Object.assign(s, { kind: isDirVar(c) ? 'dots' : 'line', x: ls.x, y: ls.y, pts: dailyVars.has(c) });
   });
   const s1 = ss[0];
   const cum = (ss.length === 1 && s1.src === 'PREC') ? rainCum(s1.rs, to) : null;
@@ -1447,7 +1457,7 @@ function mainModel(st, vars, mode){
   // su tutta la serie: un evento cominciato prima della finestra conta per intero
   const events = (s1 && s1.src === 'PREC') ? rainEvents(t.x, s1.ys, s1.rs.step || HOUR) : null;
   return {
-    st, vars, ss, s1, cum, daily, wind, data, win, radar, events,
+    st, vars, ss, s1, cum, daily, wind, data, win, radar, events, radarSrc: st._radar,
     gaps: [].concat(...ss.map(s => s.rs ? s.rs.gaps : [])),
     iCum, iHalf, iRadar: radar ? iHalf + 1 : null
   };
@@ -1483,7 +1493,7 @@ function mainOpts(m, o){
       label: varLabel(s.v) + (hi && s.unit ? ' (' + s.unit + ')' : ''), color: w ? withAlpha(c, 0.45) : c,
       kind: s.kind, scale: s.scale, align: s.rs && s.rs.align, slot: s.rs && s.rs.slot,
       slotTxt: s.src === SNOWNEW ? 'day' : (s.rs && s.rs.hourly) ? (s.src === 'PREC' ? 'range' : 'end') : '',
-      width: w ? (hi ? 1.6 : 1) : 0
+      width: w ? (hi ? 1.6 : 1) : 0, pts: s.pts
     }, hi));
   });
   const axes = timeAxes(hi, ax, true);
@@ -1513,9 +1523,11 @@ function mainOpts(m, o){
                 mkSeries(Object.assign({ label:'Radar', kind:'radar', half:'right' }, d), hi));
   }
   // Un intervallo dentro la finestra e piu' stretto e' uno zoom e va accettato; il resto (anche dati che
-  // sporgono, come l'inizio della cumulata prima di mezzanotte) torna alla finestra intera.
-  const w = m.win;
-  const zoom = (a, b) => a >= w[0] - 1 && b <= w[1] + 1 && (a > w[0] + 1 || b < w[1] - 1);
+  // sporgono, come l'inizio della cumulata prima di mezzanotte) torna alla finestra intera. La prima
+  // richiesta di uPlot e' l'estensione dei dati: non e' uno zoom anche quando i dati partono dopo la
+  // finestra (la prima lettura di Oggi dopo mezzanotte) o finiscono prima (l'ultima barra del radar).
+  const w = m.win, X = m.data[0], dataSpan = (a, b) => X.length && a === X[0] && b === X[X.length - 1];
+  const zoom = (a, b) => !dataSpan(a, b) && a >= w[0] - 1 && b <= w[1] + 1 && (a > w[0] + 1 || b < w[1] - 1);
   scales.x = {
     time:true,
     range: (u, a, b) => !w ? [a, b]
