@@ -1781,6 +1781,7 @@ e40d7d85787f2292997059de4e267db555878b15  site/ACQ_VEN/series30/500031867.csv
 1d0f35c9c776f5adc91954c9b2b2d460e96e662c  site/ACQ_VEN/series30/500036100.csv
 5f5fdedae4622e457dd65c91f638b72be25f866d  site/ACQ_VEN/stations.geojson
 6a86813f9318dbe2b1f67c1f2b1cf0fbd65065f4  site/ACQ_VEN/units.json
+35bc548b97f29a226e2562c7bc7cba444c8e3b6c  site/AQ_BZ/pm10_anno.json
 5fe39baf647e9a4c856ee4319414a9957df18a76  site/AQ_BZ/series/AB2.csv
 f867f68f9c202df667d3397f97a0d3faaba4c1ec  site/AQ_BZ/series/AB3.csv
 ff2afcbba5ff1ea690c74a663e923d966892a23e  site/AQ_BZ/series/AU.csv
@@ -1823,6 +1824,7 @@ e23606b08a876033770d62d36942e3933c295467  site/AQ_BZ/series30/RE.csv
 95cfb19f776aae3b72ff389dbb128cabe97ce006  site/AQ_BZ/series30/RE1.csv
 5e0617837d5c69c6994d3ba6f0acb53fdb4b580d  site/AQ_BZ/stations.geojson
 17d39eccb42c35a993020696bbcb332873b1fde3  site/AQ_BZ/units.json
+85236a5b43eff7c8bc814642bb2e514da5af14a5  site/AQ_ER/pm10_anno.json
 26a88e9531d66afbe38c46e12848c8a3158a0aee  site/AQ_ER/series/10000001.csv
 abd610f892faa98535aa7b6216528ec557c5c328  site/AQ_ER/series/10000002.csv
 e1b60c7593b29649f5588daa344e0b5579bf5004  site/AQ_ER/series/10000059.csv
@@ -1915,6 +1917,7 @@ e72b90a4ecf8c77ea5246531098c28c66715f203  site/AQ_ER/series30/9000068.csv
 e096e4732ed0eaedf5a8c1f16161a81ac67e6fec  site/AQ_ER/series30/9000083.csv
 e6e45867f20e1d5337deb59350e878a88a26792e  site/AQ_ER/stations.geojson
 cbccbca8b152b48653239afae63a1f6a13140a9d  site/AQ_ER/units.json
+59c0ec1f5bf3c3731deeb2bacc98b2a1c8fd257c  site/AQ_LOM/pm10_anno.json
 5d46cc87d34abb117650fa313f305aafd891737f  site/AQ_LOM/series/1264.csv
 5f622e11eab378f455e0c0f7eca601d90277c79b  site/AQ_LOM/series/1265.csv
 71eecc9e23d4f01ea004cad53b80a1d086d55c69  site/AQ_LOM/series/1266.csv
@@ -2087,6 +2090,7 @@ ccac9c16bb1b75b7a45d97121288226db061574f  site/AQ_LOM/series30/709.csv
 7ae37da0a6b479b5eb64ce26bacde01d786b76cc  site/AQ_LOM/series30/9157.csv
 8f83b3c6d437e19eebd2aeee937c48497d8bbfe7  site/AQ_LOM/stations.geojson
 cbccbca8b152b48653239afae63a1f6a13140a9d  site/AQ_LOM/units.json
+a6f5a281501897eba8adf61e172d78106fedb1e7  site/AQ_TN/pm10_anno.json
 78ff2741dfa2a58621953e46cc0eb86ef98423e8  site/AQ_TN/series/A22__Avio.csv
 9ba586aedd2fbff4f5ce57654216057805d9aebe  site/AQ_TN/series/Borgo_Valsugana.csv
 42e7fa12dcbde041346dc2ad6ebca039ee3d2672  site/AQ_TN/series/Monte_Gaza.csv
@@ -2105,6 +2109,7 @@ f162ed05063fba0786c7e8ae24876c8fc927771a  site/AQ_TN/series30/Monte_Gaza.csv
 834652a66d4d905c01bc841fb528af902968ff7e  site/AQ_TN/series30/Via_Bolzano.csv
 7896651837dc84857b9d930435896573a5afc2f9  site/AQ_TN/stations.geojson
 6c0be0d4c15242ba4001e209258aee087573b878  site/AQ_TN/units.json
+4036e8c24b0a85222c835bb7742f60d21ba3fb3d  site/AQ_VEN/pm10_anno.json
 095181166741b7e77cc5820d899ce2d899cc881d  site/AQ_VEN/series/500000016.csv
 89641c95e02817c68b5efec7725f98eae264d6f4  site/AQ_VEN/series/500000020.csv
 92618129956cb7b1e55d07aafccfb0d36819911c  site/AQ_VEN/series/500000021.csv

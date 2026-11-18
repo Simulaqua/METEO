@@ -12,6 +12,7 @@ function resetPanel(){
   expClose();
   el('vars').innerHTML = '';
   el('source').innerHTML = '';
+  el('pm10year').hidden = true;
   cmpClose();
   altClose();
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = true;
@@ -243,6 +244,7 @@ function drawVar(v){
   if(v === WROSE) updateWindRose();
   else if(v === WCLIMA) renderClima();
   else renderChart(v);
+  if(isView(v) && v !== WBIL) el('pm10year').hidden = true;
   if(currentStation) updateHash();
 }
 // "+": aggiunge la variabile al grafico (asse a destra, del suo colore); "×" la toglie

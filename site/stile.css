@@ -153,6 +153,16 @@ body.dark .ctip { background:rgba(21,31,45,.95); }
 body.view-compare #cmpBtn, body.view-compare #histbtn { display:none !important; }
 .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
 .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
+/* PM10: i giorni dell'anno sotto il grafico (anno, striscia, mesi, frase) */
+#pm10year { display:grid; grid-template-columns:auto 1fr; column-gap:8px; row-gap:2px; align-items:center;
+            margin-top:10px; font-size:12px; }
+#pm10year[hidden] { display:none; }
+.py-year { font-weight:600; color:var(--muted); }
+#pm10year svg { width:100%; height:12px; display:block; shape-rendering:crispEdges; touch-action:pan-y; }
+.py-track { fill:var(--line); opacity:.6; }
+.py-months { position:relative; height:14px; color:var(--muted); font-size:11px; }
+.py-m { position:absolute; top:0; }
+.py-txt { grid-column:1 / -1; margin-top:2px; }
 /* Vicine: sotto il nome distanza e quota */
 .lg-row.two { align-items:flex-start; padding:2px 0; }
 .lg-row.two .lg-sw { margin-top:3px; }

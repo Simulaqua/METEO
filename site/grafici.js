@@ -1186,10 +1186,65 @@ function tableEnd(t, vars){
   return null;
 }
 
+// PM10: i giorni dell'anno con la media oltre il limite (pm10_anno.json del Pi), sotto il grafico
+const pm10Years = new Map();
+async function loadPm10Year(region){
+  const hit = pm10Years.get(region);
+  if(hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.p;
+  const p = fdata(region + '/pm10_anno.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  pm10Years.set(region, { at:Date.now(), p });
+  return p;
+}
+const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre',
+              'ottobre', 'novembre', 'dicembre'];
+const dalTxt = d => {                    // "dal 3 luglio", "dall'8 luglio", "dal 1° luglio"
+  const n = d.getUTCDate();
+  return (n === 8 || n === 11 ? 'dall\'' + n : 'dal ' + (n === 1 ? '1°' : n)) + ' ' + MESI[d.getUTCMonth()];
+};
+let _pmSeq = 0;
+async function showPm10Year(){
+  const box = el('pm10year'), st = currentStation, seq = ++_pmSeq;
+  if(!st || currentVar !== 'PM10' || !st._region.startsWith('AQ_') || isCompareMode() || histMode){
+    box.hidden = true;
+    return;
+  }
+  const y = await loadPm10Year(st._region), arr = y && y.s && y.s[st.scode];
+  if(seq !== _pmSeq) return;
+  if(!arr || !arr.some(v => v != null)){ box.hidden = true; return; }
+  const year = y.anno, days = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 864e5;
+  const over = v => v != null && v > y.soglia, dayOf = i => new Date(Date.UTC(year, 0, 1 + i));
+  const first = arr.findIndex(v => v != null), n = arr.filter(over).length, c = varColor('PM10');
+  const unit = varUnit('PM10', st) || 'µg/m³';
+  const sentence = (n ? n + (n === 1 ? ' giorno' : ' giorni') : 'Nessun giorno') + ' oltre il limite, '
+                 + 'ammessi ' + y.ammessi + (first > 0 ? ', ' + dalTxt(dayOf(first)) : '');
+  const rects = arr.map((v, i) => v == null ? ''
+    : '<rect' + (over(v) ? ' class="over"' : ' fill-opacity="0.22"') + ' x="' + i + '" width="1" height="10"'
+      + ' fill="' + c + '"/>').join('');
+  const months = [0, 3, 6, 9].map(m => '<span class="py-m" style="left:'
+    + (100 * (Date.UTC(year, m, 1) - Date.UTC(year, 0, 1)) / 864e5 / days).toFixed(2) + '%">'
+    + MESI[m].slice(0, 3) + '</span>').join('');
+  box.innerHTML = '<span class="py-year">' + year + '</span><svg viewBox="0 0 ' + days
+    + ' 10" preserveAspectRatio="none" role="img" aria-label="' + escHtml(sentence) + '">'
+    + '<rect class="py-track" width="' + days + '" height="10"/>' + rects + '</svg>'
+    + '<span></span><div class="py-months">' + months + '</div><div class="py-txt" title="Limite: media del '
+    + 'giorno oltre ' + y.soglia + ' ' + unit + ', al massimo ' + y.ammessi + ' giorni l\'anno">'
+    + escHtml(sentence) + '</div>';
+  const sv = box.querySelector('svg'), tx = box.querySelector('.py-txt');
+  sv.addEventListener('pointermove', e => {
+    const r = sv.getBoundingClientRect(), i = Math.floor((e.clientX - r.left) / r.width * days), v = arr[i];
+    if(v == null){ tx.textContent = sentence; return; }
+    const d = dayOf(i);
+    tx.textContent = pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ': ' + v + ' ' + unit;
+  });
+  sv.addEventListener('pointerleave', () => { tx.textContent = sentence; });
+  box.hidden = false;
+}
+
 // grafico principale: 'week' (7 g), 'day3' (3 g), 'day' (24 h), 'mn' (da mezzanotte), con le variabili
 // scelte; 'compare'/'compare30' -> renderCompare (una variabile)
 function renderChart(label){
   clearChart();
+  showPm10Year();
   const stk = stacked();
   document.body.classList.toggle('stacked', stk);
   if(stk){ renderStackView(); return; }

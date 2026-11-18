@@ -2647,6 +2647,41 @@
       } else log(true, 'Neve fresca: nessuna stazione con la neve in Veneto (prova saltata)', '');
     }
 
+    // PM10: la striscia dell'anno sotto il grafico e i giorni oltre il limite (file del Pi finto)
+    {
+      const A = allFeatures.map(f => f.properties).find(p => p._region === 'AQ_VEN' && (p.variables || []).includes('PM10'));
+      log(!!A, 'PM10: stazione dell\'aria trovata', '');
+      if(A){
+        const y = new Date().getFullYear(), jan1 = Date.UTC(y, 0, 1) / 1000;
+        const today = Math.floor((Date.now() / 1000 - jan1) / DAY_S), from = Math.floor((Date.UTC(y, 6, 8) / 1000 - jan1) / DAY_S);
+        const arr = [...Array(today + 1).keys()].map(i => i < from ? null : (i % 7 === 0 && i < from + 23 * 7 ? 60 : 30));
+        const n = arr.filter(v => v > 50).length;
+        const realYear = window.loadPm10Year;
+        window.loadPm10Year = async reg => reg === A._region ? { anno:y, soglia:50, ammessi:35, s:{ [A.scode]:arr } } : null;
+        await open(A, 'PM10');
+        await until(() => vis(el('pm10year')), 5000); await sleep(200);
+        const box = el('pm10year'), txt = () => box.querySelector('.py-txt').textContent;
+        log(vis(box), 'PM10: la striscia sotto il grafico', '');
+        eq('PM10: la frase', txt(), n + ' giorni oltre il limite, ammessi 35, dall\'8 luglio');
+        eq('PM10: un trattino pieno per giorno oltre il limite', box.querySelectorAll('rect.over').length, n);
+        eq('PM10: i mesi', [...box.querySelectorAll('.py-m')].map(e => e.textContent), ['gen', 'apr', 'lug', 'ott']);
+        {
+          const sv = box.querySelector('svg'), r = sv.getBoundingClientRect(), days = sv.viewBox.baseVal.width;
+          const i = arr.findIndex(v => v > 50), x = r.left + (i + 0.5) / days * r.width;
+          sv.dispatchEvent(new PointerEvent('pointermove', { clientX:x, clientY:r.top + 4, bubbles:true }));
+          await sleep(50);
+          log(/^\d\d\/\d\d: 60 µg\/m³$/.test(txt()), 'PM10: al passaggio giorno e media', txt());
+          sv.dispatchEvent(new PointerEvent('pointerleave', { bubbles:true }));
+          await sleep(50);
+          log(/oltre il limite/.test(txt()), 'PM10: fuori dalla striscia torna la frase', txt());
+        }
+        noOverflow('PM10');
+        const other = stationVars.find(v => v !== 'PM10' && isMainVar(v, stationVars));
+        if(other){ drawVar(other); await sleep(300); log(!vis(box), 'PM10: con un\'altra misura la striscia sparisce', other); }
+        window.loadPm10Year = realYear;
+      }
+    }
+
     await pickMode('week');
     showMapView();
     eq('errori JS', window.__errs, []);

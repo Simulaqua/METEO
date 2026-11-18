@@ -103,6 +103,34 @@ class TestSerie30(unittest.TestCase):
         self.assertTrue(all(float(r[k]) > 0 for r in rows[1:] if r[k]))
 
 
+class TestPm10Anno(unittest.TestCase):
+
+    def test_medie_giornaliere(self):
+        # una media del PM10 per stazione e giorno dal 1 gennaio, come la da' ogni fonte: ER il giorno prima
+        # alle 00:00, LOM il giorno stesso, VEN aggiornata piu' volte (vale l'ultima), TN e BZ le orarie
+        hours = lambda day, vals: [(day + '%02d00' % h, v) for h, v in enumerate(vals)]
+        archive = {
+            'AQ_ER': {'E1': (station(44.5, 11.3), {'PM10': [('202611030000', 60.0), ('202611040000', 50.4)]})},
+            'AQ_LOM': {'L1': (station(45.5, 9.2), {'PM10': [('202611030000', 50.6)]})},
+            'AQ_VEN': {'V1': (station(45.4, 11.9), {'PM10': [('202611030155', 40.0), ('202611032355', 52.0)]})},
+            'AQ_TN': {'T1': (station(46.1, 11.1), {'PM10': hours('20261103', [55.0] * 24)
+                                                            + hours('20261104', [80.0] * 10)})},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, archive))
+            got = dict((r, comune.load_json(os.path.join(folder, 'site', r, 'pm10_anno.json'))) for r in archive)
+        day = lambda d: datetime.date(2026, 11, d).timetuple().tm_yday - 1
+        self.assertEqual([got['AQ_ER'][k] for k in ('anno', 'soglia', 'ammessi')], [2026, 50, 35])
+        er = got['AQ_ER']['s']['E1']
+        self.assertEqual(len(er), day(5) + 1)                                # fino a oggi
+        self.assertEqual((er[day(2)], er[day(3)]), (60, 50))                 # il giorno prima; 50.4 -> 50
+        self.assertEqual(got['AQ_LOM']['s']['L1'][day(3)], 51)               # 50.6 -> 51
+        self.assertEqual(got['AQ_VEN']['s']['V1'][day(3)], 52)               # l'ultima del giorno
+        tn = got['AQ_TN']['s']['T1']
+        self.assertEqual((tn[day(3)], tn[day(4)]), (55, None))               # 10 orarie non bastano
+        self.assertEqual(er[:day(2)], [None] * day(2))
+
+
 class TestMappa(unittest.TestCase):
 
     def test_coordinata_nan_fuori_dalla_mappa(self):

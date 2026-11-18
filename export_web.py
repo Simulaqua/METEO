@@ -13,6 +13,7 @@ import bisect
 import calendar
 import csv
 import datetime
+import glob
 import math
 import os
 import sys
@@ -118,7 +119,60 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
     on_map = write_map(region, data, station_meta, zeros, coords, out_dir)
     comune.save_json(units, os.path.join(out_dir, 'units.json'))
     write_snapshots(data, on_map, units, out_dir)
+    if region.startswith('AQ_'):
+        write_pm10_year(region, parse_dir, out_dir)
     print('Export written to ' + out_dir)
+
+
+# Giorni di superamento del PM10 (scheda della stazione dell'aria): una media per stazione e giorno dal 1
+# gennaio, come la da' ogni fonte. ER: il valore alle 00:00 e' la media del giorno prima (reftime = fine
+# giornata); VEN: la media del giorno e' aggiornata piu' volte, vale l'ultima; LOM: un valore al giorno;
+# TN e BZ: le orarie, con almeno 18.
+PM10_SHIFT = {'AQ_ER': -1}
+PM10_LAST = {'AQ_VEN'}
+PM10_MIN_HOURS = 18
+
+
+def pm10_year(parse_dir, region, today):
+    """{scode: [media intera, o None, per ogni giorno dal 1 gennaio dell'anno di today a today]}."""
+    value_key = comune.value_key(region)
+    jan1 = datetime.date(today.year, 1, 1)
+    out = {}
+    for fn in sorted(glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-%d*.json*' % today.year))):
+        try:
+            day = datetime.datetime.strptime(os.path.basename(fn)[5:13], '%Y%m%d').date()
+        except ValueError:
+            continue
+        day += datetime.timedelta(days=PM10_SHIFT.get(region, 0))
+        if day.year != today.year or day > today:
+            continue
+        for scode, rec in comune.load_json(fn).items():
+            m = (rec or {}).get('MISURE') or {}
+            pairs = sorted(zip(m.get('ISTANTE') or [], m.get(value_key) or []))
+            vals = [x for x in (comune.to_float(v) for _, v in pairs)
+                    if x is not None and quality.valid('PM10', x)]
+            if region in PM10_LAST:
+                mean = vals[-1] if vals else None
+            elif len(vals) == 1 or len(vals) >= PM10_MIN_HOURS:
+                mean = sum(vals) / len(vals)
+            else:
+                mean = None
+            if mean is not None:
+                days = out.setdefault(scode, [None] * ((today - jan1).days + 1))
+                days[(day - jan1).days] = int(math.floor(mean + 0.5))
+    return out
+
+
+def write_pm10_year(region, parse_dir, out_dir):
+    """<REGIONE>/pm10_anno.json; si rifa' solo quando l'archivio del PM10 e' piu' nuovo del file."""
+    files = glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-*.json*'))
+    target = os.path.join(out_dir, 'pm10_anno.json')
+    if not files or (os.path.exists(target)
+                     and os.path.getmtime(target) >= max(os.path.getmtime(f) for f in files)):
+        return
+    today = comune.now_solar().date()
+    comune.save_json({'anno': today.year, 'soglia': 50, 'ammessi': 35,
+                      's': pm10_year(parse_dir, region, today)}, target)
 
 
 def read_window(parse_dir, region, cutoff, prec_cutoff):
