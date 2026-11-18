@@ -342,6 +342,59 @@ def prune(out_dir, keep, key=PRODUCT):
     return removed
 
 
+# --- pioggia del radar alle stazioni (barre della scheda) --------------------------------------------------
+# I PNG hanno solo le classi: i valori veri ci sono solo qui, prima della classificazione. Di ogni fotogramma
+# SRI si legge il pixel di ogni stazione con la pioggia; lo stato tiene la finestra fra un giro e l'altro.
+POINTS_KEY = 'SRI'
+POINTS_STATE = '.punti.json'
+
+
+def load_stations(site_dir):
+    ''' {regione: [(scode, lat, lon)]} delle stazioni con la pioggia, da site/<REG>/stations.geojson. '''
+    out = {}
+    for fn in sorted(glob.glob(os.path.join(site_dir, '*', 'stations.geojson'))):
+        st = []
+        for f in comune.load_json(fn).get('features') or []:
+            prop, geo = f.get('properties') or {}, f.get('geometry') or {}
+            lon_lat = geo.get('coordinates') or []
+            if 'PREC' in (prop.get('variables') or []) and len(lon_lat) == 2:
+                st.append((prop['scode'], lon_lat[1], lon_lat[0]))
+        if st:
+            out[os.path.basename(os.path.dirname(fn))] = st
+    return out
+
+
+def station_index(grid, stations):
+    ''' {regione: [(scode, indice piatto del suo pixel, None se fuori dalla griglia)]} '''
+    out = {}
+    for reg, sts in stations.items():
+        out[reg] = []
+        for sc, lat, lon in sts:
+            r, c = grid_pixel(grid, lon, lat)
+            inside = 0 <= r < grid['height'] and 0 <= c < grid['width']
+            out[reg].append((sc, r * grid['width'] + c if inside else None))
+    return out
+
+
+def sample_points(vals, index):
+    ''' mm caduti nel passo del fotogramma in ogni stazione (mm/h x passo); None = nessun dato. '''
+    flat, hours = np.asarray(vals).ravel(), STEP_S / 3600.0
+    return dict((reg, dict((sc, None if i is None or not np.isfinite(flat[i])
+                            else round(float(flat[i]) * hours, 2)) for sc, i in sts))
+                for reg, sts in index.items())
+
+
+def write_points(out_dir, times, state, stations):
+    ''' punti/<REG>.json = {t: istanti della finestra, s: {scode: [mm | null]}}; via le regioni sparite. '''
+    folder = os.path.join(out_dir, 'punti')
+    for reg, sts in stations.items():
+        cols = dict((sc, [state.get(str(t), {}).get(reg, {}).get(sc) for t in times]) for sc, _, _ in sts)
+        comune.save_json({'t': times, 's': cols}, os.path.join(folder, reg + '.json'))
+    for fn in glob.glob(os.path.join(folder, '*.json')):
+        if os.path.basename(fn)[:-len('.json')] not in stations:
+            os.remove(fn)
+
+
 def write_manifest(out_dir, windows, grid, updated):
     ''' index.json letto dal sito: per ogni prodotto (nell'ordine del menu) metadati, palette e fotogrammi
         presenti. windows = {chiave: istanti della finestra}. '''
@@ -387,10 +440,12 @@ def http_bytes(url):
 
 
 # --- un giro ------------------------------------------------------------------------------------------------
-def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, products=None):
+def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, products=None, site_dir=None):
     ''' Aggiorna out_dir alle ultime 6 ore di ogni prodotto. A turno fra i prodotti, prima il fotogramma
         mancante piu' recente di ciascuno; il primo si prova sempre, gli altri finche' resta budget (cadenza
-        5 min). Un fotogramma (o un prodotto) che fallisce resta mancante e si riprova al giro dopo. '''
+        5 min). Un fotogramma (o un prodotto) che fallisce resta mancante e si riprova al giro dopo.
+        Con site_dir scrive anche la pioggia SRI alle stazioni (punti/); un fotogramma gia' fatto ma senza
+        punti (primo giro, riavvio) rilegge il suo GeoTIFF col budget che resta. '''
     start = clock()
     prods = PRODUCTS if products is None else products
     grid = merc_grid()
@@ -410,6 +465,10 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
         raise RuntimeError('nessun prodotto disponibile: ' + '; '.join(errors[:3]))
     reuse = set(p['api'] for p in prods if p.get('combine'))   # in memoria solo cio' che serve due volte
     cache, luts, got = {}, {}, [0]
+    stations = load_stations(site_dir) if site_dir and POINTS_KEY in windows else {}
+    state_fn = os.path.join(out_dir, POINTS_STATE)
+    state = comune.load_json(state_fn) if stations else {}
+    index = station_index(grid, stations)
 
     def tif(api, t):
         if (api, t) in cache:
@@ -438,6 +497,8 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
                         tif(p['api'], t - p['combine']), luts[p['grid']], grid, p)),
                     p)
             png = render_values(vals, p)
+            if stations and p['key'] == POINTS_KEY:
+                state[str(t)] = sample_points(vals, index)
         except Exception as e:                        # rete, 404, GeoTIFF inatteso: si riprova al giro dopo
             errors.append('%s: %s' % (frame_name(t, p['key']), e))
             continue
@@ -446,6 +507,24 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
             fp.write(png)
         os.replace(fn + '.tmp', fn)
         new += 1
+    if stations:
+        sri = product(POINTS_KEY)
+        for t in reversed(windows[POINTS_KEY]):
+            if str(t) in state or not os.path.exists(os.path.join(out_dir, frame_name(t, POINTS_KEY))):
+                continue
+            if clock() - start >= budget_s:
+                break
+            try:
+                if sri['grid'] not in luts:
+                    luts[sri['grid']] = load_or_build_lut(out_dir, grid, sri['grid'])
+                state[str(t)] = sample_points(
+                    frame_values(tif(sri['api'], t), luts[sri['grid']], grid, sri), index)
+            except Exception as e:
+                errors.append('%s (punti): %s' % (frame_name(t, POINTS_KEY), e))
+        window_keys = set(str(t) for t in windows[POINTS_KEY])
+        state = dict((k, v) for k, v in state.items() if k in window_keys)
+        comune.save_json(state, state_fn)
+        write_points(out_dir, windows[POINTS_KEY], state, stations)
     step = dict((p['key'], p['step']) for p in prods)
     for k in windows:
         # un fotogramma in piu' prima della finestra: l'indice puo' restare in cache su raw fino a 5 min
@@ -464,7 +543,8 @@ def run_once(out_dir, fetch_json, fetch_bytes, clock=time.time, budget_s=240, pr
 
 
 # --- pubblicazione sul branch 'radar' ---------------------------------------------------------------------
-IGNORED = '.gitignore\n.lut-*\n.state.json\n*.tmp\n'   # sul branch solo indice, licenza e fotogrammi
+# sul branch: indice, licenza, fotogrammi e punti
+IGNORED = '.gitignore\n.lut-*\n.state.json\n.punti.json\n*.tmp\n'
 
 
 def _git(work, *args):
@@ -507,13 +587,24 @@ def publish(out_dir, remote, branch=BRANCH, squash=False):
     return m[-1] if m else '0 bytes'                  # quanto e' viaggiato davvero (niente di nuovo: 0)
 
 
-def publish_if_changed(out_dir, remote, branch=BRANCH):
-    ''' Pubblica se i fotogrammi sono cambiati dall'ultimo push riuscito (.state.json). Compatta (squash) alla
-        prima pubblicazione del giorno UTC e dopo 3 push falliti di fila; un push fallito si ripete.
-        -> 'si' | 'no' | 'errore' '''
+def content_digest(out_dir):
+    ''' Impronta di cio' che si pubblica: i fotogrammi dell'indice e i file punti/ (senza punti e' quella di
+        prima, cosi' l'aggiornamento non forza un push). '''
     with open(os.path.join(out_dir, 'index.json'), encoding='utf-8') as fp:
         prods = json.load(fp)['products']
-    digest = hashlib.sha1(json.dumps([[k, prods[k]['frames']] for k in sorted(prods)]).encode()).hexdigest()
+    h = hashlib.sha1(json.dumps([[k, prods[k]['frames']] for k in sorted(prods)]).encode())
+    for fn in sorted(glob.glob(os.path.join(out_dir, 'punti', '*.json'))):
+        with open(fn, 'rb') as fp:
+            h.update(os.path.basename(fn).encode() + fp.read())
+    return h.hexdigest()
+
+
+def publish_if_changed(out_dir, remote, branch=BRANCH):
+    ''' Pubblica se fotogrammi o punti sono cambiati dall'ultimo push riuscito (.state.json). Compatta
+        (squash) alla prima pubblicazione del giorno UTC e dopo 3 push falliti di fila; un push fallito si
+        ripete.
+        -> 'si' | 'no' | 'errore' '''
+    digest = content_digest(out_dir)
     state_fn = os.path.join(out_dir, '.state.json')
     state = {}
     if os.path.exists(state_fn):
@@ -541,10 +632,12 @@ def main(argv=None, fetch_json=dpc_json, fetch_bytes=http_bytes, products=None):
     ap.add_argument('--out', default=os.path.join(_BASE_DIR, 'radar_out'), help='cartella di lavoro')
     ap.add_argument('--no-push', action='store_true', help='non pubblicare su GitHub (prove)')
     ap.add_argument('--remote', default=REMOTE, help='repo git di destinazione')
+    ap.add_argument('--site', default=os.path.join(_BASE_DIR, 'site'),
+                    help='cartella del sito con le stazioni (per la pioggia alle stazioni)')
     a = ap.parse_args(argv)
     stamp = time.strftime('%Y-%m-%d %H:%MZ', time.gmtime())
     try:
-        s = run_once(a.out, fetch_json, fetch_bytes, products=products)
+        s = run_once(a.out, fetch_json, fetch_bytes, products=products, site_dir=a.site)
     except Exception as e:
         print('%s ERRORE giro radar: %s' % (stamp, e))
         return 1

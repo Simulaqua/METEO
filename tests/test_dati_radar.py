@@ -303,6 +303,107 @@ class TestGiro(unittest.TestCase):
         self.assertEqual(s['missing'], 72 - s['new'])
 
 
+UDINE = (13.23, 46.06)
+
+
+def write_stations(site, reg, feats):
+    ''' site/<reg>/stations.geojson come lo scrive export_web: feats = [(scode, lon, lat, variabili)] '''
+    fn = os.path.join(site, reg, 'stations.geojson')
+    os.makedirs(os.path.dirname(fn), exist_ok=True)
+    with open(fn, 'w', encoding='utf-8') as fp:
+        json.dump({'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+             'properties': {'scode': sc, 'name': sc, 'variables': vs}} for sc, lon, lat, vs in feats]}, fp)
+
+
+def udine_mm5():
+    ''' mm caduti in 5 minuti a Udine nel fixture, ricavati a mano dal GeoTIFF grezzo '''
+    g = dr.merc_grid()
+    r, c = dr.grid_pixel(g, *UDINE)
+    src = int(dr.build_lut(g)[r * 773 + c])
+    return round(float(RAW[src // 1200, src % 1200]) * 300 / 3600, 2)
+
+
+class TestPunti(unittest.TestCase):
+    ''' Valori del radar nel punto di ogni stazione con la pioggia, per le barre della scheda. '''
+
+    def setUp(self):
+        self.out, self.site = tempfile.mkdtemp(), tempfile.mkdtemp()
+        write_stations(self.site, 'FVG', [('UD', UDINE[0], UDINE[1], ['TEMP', 'PREC']),
+                                          ('SOLO_T', 13.0, 46.0, ['TEMP']),
+                                          ('FUORI', 20.0, 46.5, ['PREC'])])
+        os.makedirs(os.path.join(self.site, 'VUOTA'))
+
+    def tearDown(self):
+        shutil.rmtree(self.out, ignore_errors=True)
+        shutil.rmtree(self.site, ignore_errors=True)
+
+    def run_once(self, dpc, site=True, **kw):
+        return dr.run_once(self.out, dpc.fetch_json, dpc.fetch_bytes, clock=dpc.clock, products=SRI_ONLY,
+                           site_dir=self.site if site else None, **kw)
+
+    def punti(self):
+        with open(os.path.join(self.out, 'punti', 'FVG.json'), encoding='utf-8') as fp:
+            return json.load(fp)
+
+    def test_load_stations(self):
+        st = dr.load_stations(self.site)
+        self.assertEqual(sorted(st), ['FVG'])
+        self.assertEqual(st['FVG'], [('UD', UDINE[1], UDINE[0]), ('FUORI', 46.5, 20.0)])
+
+    def test_points_written(self):
+        self.run_once(FakeDPC())
+        p = self.punti()
+        self.assertEqual(p['t'], dr.frame_times(T_LAST * 1000))
+        self.assertEqual(sorted(p['s']), ['FUORI', 'UD'])
+        want = udine_mm5()
+        self.assertGreater(want, 0)
+        self.assertEqual(p['s']['UD'], [want] * 72)
+        self.assertEqual(p['s']['FUORI'], [None] * 72)         # fuori dalla griglia: nessun dato
+
+    def test_points_follow_window(self):
+        self.run_once(FakeDPC())
+        self.run_once(FakeDPC(last=T_LAST + 300))
+        p = self.punti()
+        self.assertEqual(p['t'][-1], T_LAST + 300)
+        self.assertEqual(len(p['t']), 72)
+        self.assertEqual(p['s']['UD'], [udine_mm5()] * 72)
+        with open(os.path.join(self.out, '.punti.json'), encoding='utf-8') as fp:
+            self.assertEqual(sorted(int(t) for t in json.load(fp)), p['t'])   # lo stato resta nella finestra
+
+    def test_points_backfill(self):
+        self.run_once(FakeDPC(), site=False)
+        stamps = lambda: dict((fn, os.path.getmtime(os.path.join(self.out, fn))) for fn in pngs(self.out))
+        before = stamps()
+        dpc = FakeDPC()
+        s = self.run_once(dpc)
+        self.assertEqual(s['new'], 0)
+        self.assertEqual(len(dpc.downloads), 72)                 # GeoTIFF riletti per i punti
+        self.assertEqual(self.punti()['s']['UD'], [udine_mm5()] * 72)
+        self.assertEqual(stamps(), before)                       # i PNG non si riscrivono
+        again = FakeDPC()
+        self.run_once(again)
+        self.assertEqual(again.downloads, [])
+
+    def test_points_backfill_budget(self):
+        self.run_once(FakeDPC(), site=False)
+        s = self.run_once(FakeDPC(clock_step=10.0), budget_s=30)
+        self.assertLess(sum(v is not None for v in self.punti()['s']['UD']), 72)
+        self.assertEqual(s['failed'], 0)
+        for _ in range(30):
+            self.run_once(FakeDPC(clock_step=10.0), budget_s=30)
+        self.assertEqual(self.punti()['s']['UD'], [udine_mm5()] * 72)
+
+    def test_ignored_and_digest(self):
+        self.assertIn('.punti.json', dr.IGNORED.split('\n'))
+        self.run_once(FakeDPC())
+        d1 = dr.content_digest(self.out)
+        p = self.punti()
+        p['s']['UD'][0] = 9.99
+        comune.save_json(p, os.path.join(self.out, 'punti', 'FVG.json'))
+        self.assertNotEqual(dr.content_digest(self.out), d1)
+
+
 class TestPubblicazione(unittest.TestCase):
 
     def setUp(self):
