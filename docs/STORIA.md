@@ -17,7 +17,7 @@ su GitHub Pages. Il Mac serve per sviluppare, provare e installare sul Pi.
 - **Letture**: `quality.py` scarta in lettura i valori impossibili e le sentinelle (-999...). `derive.py` calcola
   al volo le grandezze derivate (non si archiviano mai).
 - **Dall'archivio al sito**: `export_web.py` scrive i file del sito (ultimi 7 e 30 giorni, geojson, fotogrammi del
-  cursore); `history.py` gli aggregati giornalieri di pioggia e temperatura di tutto l'archivio (lo "Storico", da
+  cursore e, per le stazioni dell'aria, `pm10_anno.json` con le medie del PM10 dal 1 gennaio); `history.py` gli aggregati giornalieri di pioggia e temperatura di tutto l'archivio (lo "Storico", da
   cui la pagina calcola anche la Climatologia); `status.py` lo stato del sito (`STATUS/status.json`).
 - **Pubblicazione**: `publish.sh` (ogni 10 minuti) esporta e pubblica; `delta_names.py` e' un suo aiuto per il push
   incrementale; `publish_history.sh` pubblica lo Storico una volta al giorno (07:20).
@@ -42,7 +42,8 @@ su GitHub Pages. Il Mac serve per sviluppare, provare e installare sul Pi.
      repository locale persistente in `site/.git` manda solo i file cambiati (poche centinaia di KB a giro).
    - `gh-pages`: la pagina e gli avvisi, solo quando cambiano.
    - `history`: lo Storico, ricreato ogni giorno.
-   - `radar`: i fotogrammi del radar, scritti da `dati_radar.py` ogni 5 minuti.
+   - `radar`: i fotogrammi del radar e la pioggia nel punto delle stazioni (`punti/<REG>.json`), scritti da
+     `dati_radar.py` ogni 5 minuti.
 3. La pagina scarica i dati dal ramo `data` e disegna mappa e grafici.
 
 Esiste anche un ramo `sources` con una copia del codice, aggiornata a mano.
@@ -109,3 +110,11 @@ altre e passa da sola.
   ascoltatori in una funzione sua e la pagina parte con `avvio`, in fondo a `comune.js`. Poiche' GitHub Pages tiene
   i file in cache 10 minuti, `publish.sh` scrive in `index.html` un `?v=` (le prime 8 cifre dello sha1 del file)
   dopo ogni nome: una pagina nuova chiede sempre file nuovi, e quelli non cambiati restano in cache.
+- **Il radar nella scheda.** I fotogrammi pubblicati hanno solo le classi di colore; i valori veri li legge
+  `dati_radar.py` nel punto di ogni stazione con la pioggia, prima della classificazione (`punti/<REG>.json`, mm in
+  ogni 5 minuti delle ultime 6 ore). La pagina li somma negli stessi intervalli delle barre del pluviometro.
+- **PM10, giorni oltre il limite.** Si contano dal nostro archivio (da luglio 2026) con la regola di ogni fonte:
+  l'Emilia-Romagna segna alle 00:00 la media del giorno prima, la Lombardia quella del giorno, il Veneto aggiorna
+  la media del giorno piu' volte (vale l'ultima), Trentino e Alto Adige danno le orarie (media con almeno 18).
+- **Normale del periodo rimandata** (18 novembre 2026). Lo Storico e' troppo corto per una normale; E-OBS ha una
+  licenza solo per ricerca e didattica non commerciali, ERA5-Land vuole un account Copernicus.
