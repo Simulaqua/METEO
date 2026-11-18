@@ -26,10 +26,10 @@ def station(lat, lon):
     return {'NOME': 'Prova', 'LAT': lat, 'LON': lon}
 
 
-def export(folder, archive, epoch=rete.EPOCH):
+def export(folder, archive, epoch=rete.EPOCH, args=()):
     """L'export di tutte le regioni in folder, con l'orologio fermo a epoch, sull'archivio
     {regione: {scode: (record di stazioni.json, {variabile: [(istante, valore)]})}}; le letture di una variabile vanno
-    nel file del loro giorno. Ritorna il processo."""
+    nel file del loro giorno. args = opzioni in piu' di export_web.py. Ritorna il processo."""
     rete.copy_programs(folder)
     for region, stations in archive.items():
         parsed = os.path.join(folder, region, 'data-parsed')
@@ -46,7 +46,8 @@ def export(folder, archive, epoch=rete.EPOCH):
                                    comune.value_key(region): [value for _, value in day_points]}}
         for path, records in day_files.items():
             write_json(path, records)
-    return rete.run([sys.executable, 'export_web.py', '-r', 'all', '--site-dir', 'site'], folder, epoch=epoch)
+    return rete.run([sys.executable, 'export_web.py', '-r', 'all', '--site-dir', 'site'] + list(args), folder,
+                    epoch=epoch)
 
 
 def stations_on_map(folder, region):
@@ -80,6 +81,26 @@ class TestOraLegaleExport(unittest.TestCase):
         self.assertEqual(len(frames), 168)
         self.assertEqual([datetime.datetime.utcfromtimestamp(t).strftime('%d %H:%M') for t in frames[-5:]],
                          ['25 01:00', '25 02:00', '25 02:00', '25 03:00', '25 04:00'])
+
+
+class TestSerie30(unittest.TestCase):
+
+    def test_et0_senza_le_altre_derivate(self):
+        # il bilancio idrico della scheda vuole l'evapotraspirazione anche sui 30 giorni: la serie la porta, una al
+        # giorno, senza le altre derivate (rugiada, gradi-giorno, cumulate della pioggia)
+        temp = [(day + '%02d00' % h, 10.0 + h / 2.0) for day in ('20261103', '20261104') for h in range(24)]
+        rain = [(moment, 0.2) for moment, _ in temp]
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, {'LIG': {'A': (station(44.4, 8.9), {'TEMP': temp, 'PREC': rain,
+                                                                            'UMID': [(m, 70) for m, _ in temp]})}},
+                              args=['--days', '30', '--series-dir', 'series30', '--series-only']))
+            with open(os.path.join(folder, 'site', 'LIG', 'series30', 'A.csv'), encoding='utf-8') as fp:
+                rows = [r.split(',') for r in fp.read().splitlines()]
+        self.assertEqual(sorted(rows[0][1:]), ['ET0', 'PREC', 'TEMP', 'UMID'])
+        k = rows[0].index('ET0')
+        days = [r[0] for r in rows[1:] if r[k]]
+        self.assertEqual(days, ['2026-11-03T12:00', '2026-11-04T12:00'])
+        self.assertTrue(all(float(r[k]) > 0 for r in rows[1:] if r[k]))
 
 
 class TestMappa(unittest.TestCase):

@@ -104,6 +104,8 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
     if not series_only:
         add_derived(data, units, station_meta)
         drop_extra_prec(data, cutoff)
+    else:
+        add_et0(data, station_meta)
 
     series_dir = os.path.join(out_dir, series_subdir)
     os.makedirs(series_dir, exist_ok=True)
@@ -160,6 +162,15 @@ def read_file(path, var, value_key, var_cutoff, plausible, data, units, station_
                 data.setdefault(scode, {}).setdefault(var, {})[moment] = value
         if scode not in station_meta:
             station_meta[scode] = record.get('STAZIONE', {})
+
+
+def add_et0(data, station_meta):
+    """Nella serie a 30 giorni delle derivate entra solo l'ET0: il bilancio idrico della scheda."""
+    try:
+        for scode, per_var in data.items():
+            per_var.update(derive.daily_et0(per_var, station_meta.get(scode, {})))
+    except Exception as e:
+        print('WARN: ET0 non calcolata (' + str(e) + ')', file=sys.stderr)
 
 
 def add_derived(data, units, station_meta):

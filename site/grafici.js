@@ -355,6 +355,8 @@ function cursorLabels(u){
   const ev = xv == null ? null : evs.find(e => xv >= e.a && xv <= e.b);
   if(ev) tags.push({ y:0, html:'<i class="k" style="background:' + varColor(m.s1.v) + '"></i>'
                                 + eventTxt(ev, m.s1.unit) });
+  const extra = u._extra && u._extra(gi);
+  if(extra) tags.push({ y:0, html:extra });
   tags.sort((a, b) => a.y - b.y);
   tags.forEach(t => { t.y = Math.min(Math.max(t.y - 18, 16), H - 16); });
   for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
@@ -464,6 +466,19 @@ function dayTxt(u, splits){
 // niente ore: bastano i giorni
 const HOUR_INCRS = [1, 2, 3, 6, 12, 24, 168, 8760].map(h => h * 3600);
 const hoursOnly = (u, sp, ai, space, incr) => incr >= DAY_S ? sp.map(() => null) : sp;
+// Sui 30 giorni del bilancio i giorni sono troppi per un nome ciascuno: una data ogni qualche giorno
+function dateAxis(hi, stroke){
+  return {
+    scale:'x', side:2, stroke, font:cssFont(hi ? 20 : 12), size:hi ? 40 : 24, gap:hi ? 6 : 3,
+    space:hi ? 90 : 48, incrs:[1, 2, 5, 7, 10, 15].map(n => n * DAY_S), grid:{ show:false },
+    ticks:{ show:true, size:hi ? 8 : 4 },
+    values:(u, ts) => ts.map(t => {
+      if(t == null) return '';
+      const d = new Date(civT(t) * 1000);
+      return d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
+    })
+  };
+}
 function timeAxes(hi, stroke, show){
   return [
     { scale:'x', side:2, stroke, font:cssFont(hi ? 20 : 12), size:show ? (hi ? 34 : 20) : 6, gap:hi ? 6 : 3,
@@ -480,6 +495,7 @@ function drawUnits(u){
   const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width);
   ctx.save();
   ctx.textBaseline = 'bottom';
+  ctx.textAlign = 'left';                 // uPlot lascia quello dell'ultimo asse disegnato
   u.axes.forEach((a, i) => {
     if(!a.unit || !a.show || !a._show || a._pos == null) return;
     ctx.font = cssFont((a.unitSize || 12) * pr, 600);
@@ -1148,6 +1164,7 @@ function renderChart(label){
   // La colonna a destra (i nomi delle stazioni) c'e' solo nel Confronto schede, che la apre da se': va chiusa
   // PRIMA di creare il grafico, che ne prende la larghezza.
   el('chartlegend').style.display = 'none';
+  if(label === WBIL){ renderBilancio(); return; }
   const cv = label === WARROW ? 'VVENTO' : label, unit = varUnit(cv, currentStation);   // Vento: la velocita'
   if(chartMode === 'compare' || chartMode === 'compare30'){
     const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
@@ -1164,6 +1181,100 @@ function renderChart(label){
   addZoomUI(chart, () => m.win, HOUR);
   el('chartsum').textContent = chartSummary(m);
 }
+// BILANCIO IDRICO, giorno civile per giorno: pioggia del giorno (valida se le letture coprono almeno 20
+// ore) ed ET0 (una al giorno). Un giorno senza l'una o l'altra non entra in nessuna delle due cumulate, che
+// restano piatte: il bilancio non pende da una parte. null con meno di 20 giorni validi.
+const BIL_HOURS = 20, BIL_DAYS = 20;
+function waterBalance(t){
+  const P = t.cols.PREC || [], E = t.cols.ET0 || [], byDay = new Map();
+  for(let i = 0; i < t.x.length; i++){
+    const x = t.x[i];
+    if(x == null) continue;
+    const d = civDay(x - 1);
+    let o = byDay.get(d);
+    if(!o) byDay.set(d, o = { p:0, hours:new Set(), e:null });
+    if(P[i] != null){
+      o.p += P[i];
+      o.hours.add(Math.floor((x - 1) / HOUR));
+    }
+    if(E[i] != null) o.e = E[i];
+  }
+  const days = [...byDay.keys()].sort((a, b) => a - b);
+  if(!days.length) return null;
+  const x = [civMidnight(days[0])], p = [0], e = [0], rows = [];
+  let cp = 0, ce = 0, valid = 0;
+  days.forEach(d => {
+    const o = byDay.get(d), rain = o.hours.size >= BIL_HOURS ? round2(o.p) : null;
+    const ok = rain != null && o.e != null;
+    if(ok){
+      cp += rain;
+      ce += o.e;
+      valid++;
+    }
+    x.push(civMidnight(d + 1));
+    p.push(round2(cp));
+    e.push(round2(ce));
+    rows.push({ d, p:rain, e:o.e, ok });
+  });
+  return valid >= BIL_DAYS ? { x, p, e, valid, rows } : null;
+}
+// La vista: due linee cumulate da zero; al cursore le due e il bilancio
+let _bilSeq = 0;
+async function renderBilancio(){
+  const st = currentStation, seq = ++_bilSeq;
+  clearChart();
+  el('chartlegend').innerHTML = '';
+  if(!(await ensureTable30()) || seq !== _bilSeq || currentStation !== st || currentVar !== WBIL) return;
+  const b = waterBalance(st._table30);
+  if(!b){ setStatus('Dati insufficienti per il bilancio.'); return; }
+  setStatus('');
+  const opts = (hi, W, H) => {
+    const fnt = { font:cssFont(hi ? 20 : 12) }, grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX();
+    const cP = varColor('PREC', false, hi), cE = varColor('ET0', false, hi);
+    const ends = [{ i:1, name:'Pioggia', color:cP }, { i:2, name:'Evapotraspirazione', color:cE }];
+    return {
+      width:W, height:H, tzDate:TZ_CIV, legend:{ show:false },
+      scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(1, mx * 1.08)] } },
+      series:[{ value:(u, ts) => ts == null ? '--' : fmtFull(ts) },
+              mkSeries({ label:'Pioggia', color:cP }, hi),
+              mkSeries({ label:'Evapotraspirazione', color:cE }, hi)],
+      axes:[dateAxis(hi, ax), Object.assign({
+        grid:{ stroke:grid }, size:hi ? 82 : 58, unit:'mm', unitSize:hi ? 20 : 12, stroke:ax,
+        incrs:TICK_STEPS, values:tickTexts
+      }, fnt)],
+      padding:[hi ? 44 : 24, null, null, null],
+      cursor:hi ? { show:false }
+                : { y:false, drag:{ x:true, y:false }, dataIdx:cursorDataIdx, points:{ show:hoverPt } },
+      hooks:hi ? { draw:[drawUnits] }
+               : { draw:[drawUnits, u => endLabels(u, ends)], setCursor:[legendCursor] }
+    };
+  };
+  chart = new uPlot(opts(false, chartWidth(), chartHeight()), [b.x, b.p, b.e], el('chart'));
+  chart._hi = (W, H) => opts(true, W, H);
+  chart._bil = b;
+  chart._fmt = (i, v) => fmtNum(v) + ' mm';
+  chart._top = gi => {
+    const d = new Date(civT(b.x[gi] - 1) * 1000);
+    return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1);
+  };
+  chart._extra = gi => 'Bilancio ' + fmtNum(round2(b.p[gi] - b.e[gi])) + ' mm';
+  addLabels(chart);
+  const n = b.p.length - 1;
+  el('chartsum').textContent = 'Bilancio idrico degli ultimi 30 giorni: pioggia ' + fmtNum(b.p[n]) +
+    ' mm, evapotraspirazione ' + fmtNum(b.e[n]) + ' mm.';
+}
+function exportBilancioCSV(){
+  const b = chart && chart._bil;
+  if(!b || !currentStation) return;
+  const c = v => v == null ? '' : v;
+  const rows = ['giorno;pioggia_mm;et0_mm;nel_bilancio;pioggia_cumulata;et0_cumulata;bilancio']
+    .concat(b.rows.map((r, k) => [new Date(r.d * DAY_S * 1000).toISOString().slice(0, 10), c(r.p), c(r.e),
+                                  r.ok ? 'si' : 'no', b.p[k + 1], b.e[k + 1], round2(b.p[k + 1] - b.e[k + 1])]
+      .join(';')));
+  saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }),
+           'bilancio_' + pngBase() + '.csv');
+}
+
 // per chi usa un lettore di schermo: l'ultimo valore di ogni variabile e la sua ora
 function chartSummary(m){
   return m.ss.map(s => {
@@ -1735,6 +1846,7 @@ async function chartPNG(){
                                               : withUnit(currentVar, un));
     if(currentVar === 'PREC' && (chartMode === 'compare' || chartMode === 'compare30'))
       what += ', pioggia cumulata dalla mezzanotte';
+    if(currentVar === WBIL) what = 'Ultimi 30 giorni, cumulate';
   }
   pngHead(ctx, title, what, !tabs);
   ctx.drawImage(plot.u.ctx.canvas, L, TOP, W_PLOT, H_PLOT);
@@ -1742,6 +1854,7 @@ async function chartPNG(){
   pngLegend(ctx, series, L + W_PLOT + 26, TOP + 30, totH - 24);
   const fname = tabs ? 'confronto_schede_' + compareVar + '_' + chartMode + '.png'
               : near ? pngBase() + '_vicine_' + currentVar + '.png'
+              : currentVar === WBIL ? pngBase() + '_bilancio.png'
               : pngBase() + '_' + (m ? m.vars.join('-') : currentVar) + '_' + chartMode + '.png';
   return { blob: toPng(cv), fname };
 }

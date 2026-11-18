@@ -104,6 +104,7 @@ async function selectStation(props){
   stationVars = ((props.variables && props.variables.length) ? props.variables : table.header.slice(1))
     .slice();
   if(windObsCount(table) >= 10) stationVars.push(WARROW, WROSE);
+  if(stationVars.includes('PREC') && stationVars.includes('ET0')) stationVars.push(WBIL);
   const hasHist = stationHistVars(props).length > 0;
   if(hasHist) stationVars.push(WCLIMA);              // la Climatologia viene dai dati dello Storico
   extraVars = [];
@@ -351,10 +352,13 @@ async function refreshStation(){
     const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
     const t = parseCSV(csv);
     currentStation._table = t;
+    currentStation._table30 = null;                // il bilancio e i 30 giorni si riprendono freschi
+    if(chartMode === 'compare30') await ensureTable30();
     await loadRadarPoints(currentStation, true);
     if(currentVar === WROSE) updateWindRose();
     else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
-      if(currentVar && (currentVar === WARROW || t.cols[currentVar])) renderChart(currentVar);
+      if(currentVar && (currentVar === WARROW || currentVar === WBIL || t.cols[currentVar]))
+        renderChart(currentVar);
       else drawVar(t.header[1]);
     }
     // Ultimo dato MISURATO: salta le righe con sole derivate/indici (GDD/ET0 alle 12:00 solari, la mattina
@@ -554,7 +558,7 @@ async function pickMode(mode){
   if(histMode) exitHist();
   chartMode = mode;
   // la rosa non ha giorni da confrontare, la Climatologia nessun periodo: torna al grafico
-  if(currentVar === WCLIMA || (isCompareMode() && currentVar === WROSE)){
+  if(currentVar === WCLIMA || currentVar === WBIL || (isCompareMode() && currentVar === WROSE)){
     const first = stationVars.slice().sort(byVarOrder).find(v => isMainVar(v, stationVars));
     currentVar = stationVars.includes(chartVar) ? chartVar : (first || currentVar);
     extraVars = extraVars.filter(v => v !== currentVar);
@@ -576,7 +580,7 @@ async function pickMode(mode){
 // periodo acceso (sottolineato); un confronto acceso accende "Confronta", che ne prende il nome
 const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g', near:'Vicine' };
 function syncModes(){
-  const free = histMode || currentVar === WCLIMA;          // viste senza periodo
+  const free = histMode || currentVar === WCLIMA || currentVar === WBIL;     // viste senza periodo
   document.querySelectorAll('#modes .mode[data-mode]').forEach(b => {
     const on = !free && b.dataset.mode === chartMode;
     b.classList.toggle('active', on);
@@ -665,6 +669,7 @@ function exportData(){
     exportCompareCSV(pngBase() + '_vicine_' + currentVar + '.csv');
   else if(histMode) exportHistCSV();
   else if(currentVar === WCLIMA) exportClimaCSV();
+  else if(currentVar === WBIL) exportBilancioCSV();
   else if(currentStation){
     const p = currentStation, a = document.createElement('a');
     a.href = `${DATA_BASE}/${p._region}/${p.series}`;

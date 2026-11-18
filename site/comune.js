@@ -48,10 +48,12 @@ const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PI
 const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (misure dirette): velocita' con le frecce
 const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
 const WCLIMA = 'CLIMATOLOGIA';                   // pseudo-variabile (indici): apre il climogramma
-const isView = v => v === WROSE || v === WCLIMA;   // viste che prendono il posto del grafico
+const WBIL = 'BILANCIO';                          // pseudo-variabile (indici): pioggia ed ET0 dei 30 giorni
+// viste che prendono il posto del grafico
+const isView = v => v === WROSE || v === WCLIMA || v === WBIL;
 const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE]);
 const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48',
-                              'GDD','HDD','CDD','ET0', WCLIMA]);
+                              'GDD','HDD','CDD','ET0', WBIL, WCLIMA]);
 
 const RAIN_VARS = ['PREC1','PREC3','PREC6','PREC12','PREC24','PREC48'];
 const isRain = v => RAIN_VARS.indexOf(v) >= 0;
@@ -80,7 +82,7 @@ const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOM
   'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA',
   'VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS', 'VISIB',
   'TDEW', 'TAPP', 'VPD', 'QSPEC', 'PSLM', 'UWND', 'VWND', WROSE,
-  'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'GDD', 'HDD', 'CDD', 'ET0', 'EAQI', 'O3_8H',
+  'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'GDD', 'HDD', 'CDD', 'ET0', WBIL, 'EAQI', 'O3_8H',
   WCLIMA];
 const SECONDARY = new Set(['VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS',
                            'VISIB']);
@@ -110,7 +112,7 @@ const VAR_COLORS = {
   UMID:'#2bb39a', QSPEC:'#0b7285', VPD:'#e8590c',
   PREC:'#1f6fd1', PREC1:'#1f6fd1', PREC3:'#1f6fd1', PREC6:'#1f6fd1', PREC12:'#1f6fd1', PREC24:'#1f6fd1',
   PREC48:'#1f6fd1', PREC_TYPE:'#74c0fc', LIVNEVE:'#74c0fc',
-  [WARROW]:'#a23b9e', [WROSE]:'#a23b9e', [WCLIMA]:INK,
+  [WARROW]:'#a23b9e', [WROSE]:'#a23b9e', [WCLIMA]:INK, [WBIL]:INK,
   VVENTO:'#a23b9e', VVENTOSCAL:'#a23b9e', DVENTO:'#a23b9e',
   VVENTOMAX:'#f08c00', DVENTOMAX:'#f08c00', UWND:'#a23b9e', VWND:'#5f3dc4',
   PRESS:INK, PSLM:'#868e96', RADSOL:'#eda100', SOLEGG:'#f08c00', CLOUDINESS:'#868e96', VISIB:'#868e96',
@@ -193,7 +195,7 @@ const VAR_LABELS = {
   // pseudo-variabili
   FRECCEVENTO:'Vento',
   ROSAVENTO:'Rosa dei venti',
-  CLIMATOLOGIA:'Climatologia'
+  CLIMATOLOGIA:'Climatologia', BILANCIO:'Bilancio idrico'
 };
 const varLabel = v => VAR_LABELS[v] || v;
 

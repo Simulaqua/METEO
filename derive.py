@@ -207,25 +207,33 @@ def _derive_accumulations(per_var, meta):
                 put(out, name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0" (residui ~1e-16)
 
     # Gradi-giorno (GDD base 10, HDD base 18, CDD base 21) ed ET0: valori giornalieri marcati alle 12:00.
-    # ET0 Penman-Monteith dove ci sono tutti gli input (T, umidita', radiazione, vento), altrimenti
-    # Hargreaves (sola temperatura).
-    Td = _daily_agg(per_var, 'TEMP')
-    RHd = _daily_agg(per_var, 'UMID')
-    RAd = _daily_agg(per_var, 'RADSOL')
-    Wd = _daily_agg(per_var, 'VVENTO')
-    Pd = _daily_agg(per_var, 'PRESS')
-    lat = _first_number(meta, LAT_KEYS)
-    z = _first_number(meta, ALT_KEYS)
-    for day, a in Td.items():
-        if a[3] < 6:
-            continue
+    for day, a in _daily_temp(per_var):
         tmin, tmax, tmean = a[0], a[1], a[2] / a[3]
         stamp = day + '1200'
         put(out, 'GDD', stamp, round(max(0.0, (tmax + tmin) / 2 - 10.0), 1))
         put(out, 'HDD', stamp, round(max(0.0, 18.0 - tmean), 1))
         put(out, 'CDD', stamp, round(max(0.0, tmean - 21.0), 1))
-        if lat is None:
-            continue
+    out.update(daily_et0(per_var, meta))
+    return out
+
+def _daily_temp(per_var):
+    ''' (giorno, [min, max, somma, n]) della temperatura, solo i giorni con almeno 6 letture. '''
+    return [(day, a) for day, a in _daily_agg(per_var, 'TEMP').items() if a[3] >= 6]
+
+def daily_et0(per_var, meta):
+    ''' {'ET0': {giorno + '1200': mm}}: Penman-Monteith dove ci sono tutti gli input (T, umidita',
+        radiazione, vento), altrimenti Hargreaves (sola temperatura). Anche da sola, per la serie a 30
+        giorni che non ha le altre derivate. '''
+    out = {}
+    lat, z = _first_number(meta, LAT_KEYS), _first_number(meta, ALT_KEYS)
+    if lat is None:
+        return out
+    RHd = _daily_agg(per_var, 'UMID')
+    RAd = _daily_agg(per_var, 'RADSOL')
+    Wd = _daily_agg(per_var, 'VVENTO')
+    Pd = _daily_agg(per_var, 'PRESS')
+    for day, a in _daily_temp(per_var):
+        tmin, tmax, tmean = a[0], a[1], a[2] / a[3]
         doy = datetime.datetime.strptime(day, '%Y%m%d').timetuple().tm_yday
         rh_a, ra_a, w_a = RHd.get(day), RAd.get(day), Wd.get(day)
         et0 = None
@@ -241,7 +249,7 @@ def _derive_accumulations(per_var, meta):
         if et0 is None and tmax > tmin:
             et0 = 0.0023 * (tmean + 17.8) * math.sqrt(tmax - tmin) * _Ra(lat, doy) * 0.408
         if et0 is not None:
-            put(out, 'ET0', stamp, round(max(0.0, et0), 2))
+            put(out, 'ET0', day + '1200', round(max(0.0, et0), 2))
     return out
 
 # --- API pubblica

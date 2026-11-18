@@ -1096,7 +1096,7 @@
       const kw = chart._m.wind.dirs.findIndex((d, i) => d != null && chart.data[1][i] != null);
       if(kw >= 0){
         chart.setCursor({ left: chart.valToPos(chart.data[0][kw], 'x'), top: 20 }); await sleep(200);
-        log(/m\/s <span class="wdir"/.test(chart._labs.innerHTML), 'Vento: al cursore la velocità e da dove viene', chart._labs.textContent);
+        log(/(m\/s|km\/h) <span class="wdir"/.test(chart._labs.innerHTML), 'Vento: al cursore la velocità e da dove viene', chart._labs.textContent);
       }
       addVar('PRESS'); await sleep(300);
       log(chart._m.wind && chart._m.wind.i === 1 && chart.series.length >= 3, 'Vento con la pressione: frecce sulla sua linea', '');
@@ -2575,6 +2575,51 @@
       tb.cols.PREC = keep;
       renderChart('PREC'); await sleep(200);
     }
+
+    // Bilancio idrico: 30 giorni interi (fino a ieri), 1 mm di pioggia e 2 mm di ET0 al giorno; due giorni senza ET0
+    const today = civDay(Date.now() / 1000), t30 = { header:['datetime', 'PREC', 'ET0'], x:[], cols:{ PREC:[], ET0:[] } };
+    for(let d = 0; d < 30; d++){
+      const D = civMidnight(today - 30 + d);
+      for(let h = 1; h <= 24; h++){
+        t30.x.push(D + h * HOUR);
+        t30.cols.PREC.push(h === 6 || h === 18 ? 0.5 : 0);
+        t30.cols.ET0.push(h === 12 && d !== 3 && d !== 4 ? 2 : null);
+      }
+    }
+    {
+      const b = waterBalance(t30);
+      eq('Bilancio: giorni validi, uno senza ET0 non conta', b && b.valid, 28);
+      eq('Bilancio: cumulate alla fine', b && [b.p[b.p.length - 1], b.e[b.e.length - 1]], [28, 56]);
+      const few = { header:t30.header, x:t30.x, cols:{ PREC:t30.cols.PREC, ET0:t30.cols.ET0.map((v, i) => i < 24 * 11 ? null : v) } };
+      eq('Bilancio: meno di 20 giorni validi, niente', waterBalance(few), null);
+    }
+    await open(P, 'PREC');
+    log(stationVars.includes(WBIL) && varCat(WBIL) === 'indici', 'Bilancio: in «Altro», fra gli indici', JSON.stringify(stationVars));
+    P._table30 = t30;
+    drawVar(WBIL);
+    await until(() => chart && chart._bil, 8000); await sleep(300);
+    log(!!chart && chart.series.length === 3 && chart.series[1].label === 'Pioggia' && chart.series[2].label === 'Evapotraspirazione',
+        'Bilancio: pioggia ed evapotraspirazione cumulate', chart && JSON.stringify(chart.series.map(s => s.label)));
+    log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Bilancio: senza periodo', '');
+    {
+      const j = chart.data[0].length - 1;
+      chart.setCursor({ left:chart.valToPos(chart.data[0][j], 'x') - 2, top:30 }); await sleep(100);
+      const txt = chart._labs ? chart._labs.textContent : '';
+      log(/Bilancio -28(\.0)? mm/.test(txt), 'Bilancio: al cursore il bilancio', txt);
+    }
+    {
+      let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
+      window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) oc.call(this); };
+      exportData(); await sleep(100);
+      window.Blob = OB; HTMLAnchorElement.prototype.click = oc;
+      log(!!text && text.split('\n')[0].startsWith('giorno;pioggia_mm;et0_mm'), 'Bilancio: CSV', text && text.split('\n')[0]);
+    }
+    P._table30 = { header:t30.header, x:t30.x, cols:{ PREC:t30.cols.PREC, ET0:t30.cols.ET0.map(() => null) } };
+    drawVar('PREC'); drawVar(WBIL); await sleep(500);
+    eq('Bilancio: dati insufficienti, la frase', el('status').textContent, 'Dati insufficienti per il bilancio.');
+    P._table30 = null;
+    drawVar('PREC'); await pickMode('week');
 
     await pickMode('week');
     showMapView();
