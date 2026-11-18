@@ -105,6 +105,7 @@ async function selectStation(props){
     .slice();
   if(windObsCount(table) >= 10) stationVars.push(WARROW, WROSE);
   if(stationVars.includes('PREC') && stationVars.includes('ET0')) stationVars.push(WBIL);
+  if(stationVars.includes('LIVNEVE')) stationVars.push(SNOWNEW);
   const hasHist = stationHistVars(props).length > 0;
   if(hasHist) stationVars.push(WCLIMA);              // la Climatologia viene dai dati dello Storico
   extraVars = [];

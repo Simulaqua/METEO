@@ -2621,6 +2621,32 @@
     P._table30 = null;
     drawVar('PREC'); await pickMode('week');
 
+    // Neve fresca: mattina (mediana 6-10) meno la mattina prima; sotto 2 cm conta 0, le altezze negative 0
+    {
+      const d0 = civDay(Date.now() / 1000) - 6, ts = { header:['datetime', 'LIVNEVE'], x:[], cols:{ LIVNEVE:[] } };
+      const morning = [20, 21, 35, null, 40, 30], put = (d, h, v) => { ts.x.push(civToUtc((d0 + d) * DAY_S + h * HOUR)); ts.cols.LIVNEVE.push(v); };
+      morning.forEach((m, d) => {
+        for(let h = 0; h < 24; h++){
+          if(h >= 6 && h < 10){ if(m != null) put(d, h, m + (h === 7 ? 1 : 0)); }
+          else put(d, h, h === 14 ? 90 : (h === 22 ? -3 : (m || 0)));       // picco e negativi fuori dalla mattina
+        }
+      });
+      const fs = freshSnow(ts);
+      eq('Neve fresca: un giorno per giorno civile', fs.x.length, 6);
+      eq('Neve fresca: soglia, mattina mancante, scioglimento', fs.y, [null, 0, 14, null, null, 0]);
+    }
+    {
+      const S = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('LIVNEVE') && p._region === 'VEN');
+      if(S){
+        await open(S);
+        log(stationVars.includes(SNOWNEW) && varCat(SNOWNEW) === 'derivate', 'Neve fresca: in «Altro», fra le derivate', '');
+        drawVar(SNOWNEW); await sleep(400);
+        const s = chart && chart._m && chart._m.ss[0];
+        log(!!s && s.kind === 'bars' && s.rs.slot === DAY_S, 'Neve fresca: una barra al giorno', s && JSON.stringify([s.kind, s.rs.slot]));
+        eq('Neve fresca: in cm', s && s.unit, 'cm');
+      } else log(true, 'Neve fresca: nessuna stazione con la neve in Veneto (prova saltata)', '');
+    }
+
     await pickMode('week');
     showMapView();
     eq('errori JS', window.__errs, []);

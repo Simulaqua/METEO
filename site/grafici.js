@@ -550,6 +550,7 @@ function varScale(v, st, units){
 }
 function varUnit(v, st, units){
   units = units || currentUnits;
+  if(v === SNOWNEW) v = 'LIVNEVE';
   return (v === 'LIVIDRO' && st && st.zero_idro != null) ? 'm s.m.m.' : (units[v] || '');
 }
 function applyOff(arr, off, scale){
@@ -687,6 +688,10 @@ function slotTimeTxt(u, si, j){
   const end = civT(x + HOUR - 1) + 1;
   if(s.slotTxt === 'range') return fmtDayTime(x) + '–' + hhmm(end);
   if(s.slotTxt === 'end') return fmtDayTimeC(end);
+  if(s.slotTxt === 'day'){
+    const d = new Date(civT(x) * 1000);
+    return GIORNI[d.getUTCDay()] + ' ' + pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1);
+  }
   return fmtDayTime(x);
 }
 function gapBands(gaps, hi){
@@ -824,6 +829,33 @@ function radarBars(pts, rs){
     }
   }
   return X.length ? { x:X, y:Y, slot, align:rs.align } : null;
+}
+// Neve fresca stimata, giorno civile per giorno: la mattina (mediana delle letture fra le 6 e le 10) meno
+// quella del giorno prima. Sotto i 2 cm conta 0 (il sensore oscilla di 1-2 cm), le altezze negative 0;
+// senza una delle due mattine il giorno resta vuoto. -> {x: le 8 del mattino del giorno, fine delle 24 ore
+// in cui e' caduta, y: cm | null}
+const SNOW_MIN = 2;
+function freshSnow(t){
+  const H = t.cols.LIVNEVE || [], morning = new Map();
+  for(let i = 0; i < t.x.length; i++){
+    if(t.x[i] == null || H[i] == null) continue;
+    const c = civT(t.x[i]), hour = Math.floor((c % DAY_S) / HOUR), d = Math.floor(c / DAY_S);
+    if(hour < 6 || hour >= 10) continue;
+    if(!morning.has(d)) morning.set(d, []);
+    morning.get(d).push(Math.max(0, H[i]));
+  }
+  const median = a => {
+    const s = a.slice().sort((p, q) => p - q), k = s.length >> 1;
+    return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
+  };
+  const xs = t.x.filter(x => x != null), x = [], y = [];
+  if(!xs.length) return { x, y };
+  for(let d = civDay(xs[0]); d <= civDay(xs[xs.length - 1]); d++){
+    const a = morning.get(d), b = morning.get(d - 1), diff = a && b ? median(a) - median(b) : null;
+    x.push(civToUtc(d * DAY_S + 8 * HOUR));
+    y.push(diff == null ? null : (diff >= SNOW_MIN ? Math.round(diff * 10) / 10 : 0));
+  }
+  return { x, y };
 }
 // Evento di pioggia: letture con pioggia separate da meno di 6 ore asciutte, almeno 2 mm in tutto. La lettura
 // a x copre (x - step, x]. -> [{a: inizio, b: fine, mm}]
@@ -1302,6 +1334,12 @@ function mainModel(st, vars, mode){
   const ss = vars.map(v => {
     const c = src(v), ys = applyOff(t.cols[c] || [], varOffset(c, st), varScale(c, st));
     const s = { v, src: c, unit: varUnit(c, st) };
+    if(c === SNOWNEW){                   // una barra per le 24 ore fino alla mattina del giorno
+      const fs = freshSnow(t), keep = fs.x.map(x => x > from && x - DAY_S < to);
+      const x = fs.x.filter((_, j) => keep[j]), y = fs.y.filter((_, j) => keep[j]);
+      return Object.assign(s, { kind:'bars', x, y,
+                                rs:{ x, y, align:-1, slot:DAY_S, hourly:false, step:DAY_S, gaps:[] } });
+    }
     if(isRainVar(c)){
       const rs = rainSeries(t.x, ys, c, from, to, !rawMode(mode));
       return Object.assign(s, { kind: 'bars', x: rs.x, y: rs.y, rs, ys });
@@ -1382,7 +1420,7 @@ function mainOpts(m, o){
     series.push(mkSeries({
       label: varLabel(s.v) + (hi && s.unit ? ' (' + s.unit + ')' : ''), color: w ? withAlpha(c, 0.45) : c,
       kind: s.kind, scale: s.scale, align: s.rs && s.rs.align, slot: s.rs && s.rs.slot,
-      slotTxt: (s.rs && s.rs.hourly) ? (s.src === 'PREC' ? 'range' : 'end') : '',
+      slotTxt: s.src === SNOWNEW ? 'day' : (s.rs && s.rs.hourly) ? (s.src === 'PREC' ? 'range' : 'end') : '',
       width: w ? (hi ? 1.6 : 1) : 0
     }, hi));
   });
@@ -1397,7 +1435,7 @@ function mainOpts(m, o){
     }, fnt);
     if(k) a.side = 1;
     axes.push(g.dir ? dirAxis(a) : a);
-    scales[g.key] = g.ss.some(s => isRainVar(s.src)) ? rainY() : g.dir ? dirY()
+    scales[g.key] = g.ss.some(s => isRainVar(s.src) || s.src === SNOWNEW) ? rainY() : g.dir ? dirY()
                   : g.ss.some(s => s.v === WARROW) ? windY() : {};
   });
   if(m.cum){
