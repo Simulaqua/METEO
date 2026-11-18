@@ -4,6 +4,9 @@
 # Una fonte nuova: tests/registratore.py registra, poi attesi, con lo script di prima; poi la sua prova qui.
 #   /usr/bin/python3 -m unittest tests.test_scarico -v
 import base64, contextlib, glob, gzip, importlib.util, io, json, os, re, sys, tempfile, unittest, urllib.parse
+from unittest import mock
+
+import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests import registratore
@@ -64,6 +67,17 @@ def same(name, content, expected, json_equal, decoded):
         # non l'ordine delle stazioni (export_web ne dipende) né i tipi dei valori (1, 1.0 e true)
         content = json.dumps(json.loads(content.decode('utf-8')), separators=(',', ':')).encode('ascii')
     return content == expected
+
+
+ER_REF = 1793869200000                  # 2026-11-05 09:00 UTC
+ER_QUARTER = 15 * 60 * 1000
+
+
+class Answer:
+    """Risposta finta di dati_emilia_romagna.call: il corpo JSON di data."""
+
+    def __init__(self, data):
+        self.content = json.dumps(data).encode('utf-8')
 
 
 class TestScarico(unittest.TestCase):
@@ -186,8 +200,73 @@ class TestScarico(unittest.TestCase):
     def test_veneto_ieri(self):
         self.check_source('veneto', 'ieri', 'dati_veneto.py', ['-date', 'y'], json_equal=True)
 
+    def test_veneto_valore_arrivato_dopo(self):
+        # ARPAV a volte pubblica '>>' al posto di un valore e lo mette poco dopo: il giro con un aggiornamento
+        # della stazione scrive il valore al posto di '>>' e le misure che mancano, anche prima dell'ultima
+        # salvata; un numero già salvato resta
+        ven = load_file(os.path.join(registratore.PROJECT, 'dati_veneto.py'))
+        station = ''.join('<%s>%s</%s>' % (field, value, field) for field, value in [
+            ('IDSTAZ', '610'), ('NOME', 'Fener'), ('X', '11.9'), ('Y', '45.9'), ('QUOTA', '175'),
+            ('TIPOSTAZ', 'METEO'), ('COMUNE', 'SETTEVILLE'), ('PROVINCIA', 'BL'),
+            ('ATTIVAZIONE', '09/01/2021')])
+        rows = [('2030', '0.0'), ('2100', '0.0'), ('2130', '0.2'), ('2200', '0.4'), ('2230', '0.0')]
+        data = ''.join('<DATI ISTANTE="20261117%s"><VM>%s</VM></DATI>' % row for row in rows)
+        with tempfile.TemporaryDirectory() as folder:
+            ven.DOWNLOAD_DIR = os.path.join(folder, 'data-downloaded')
+            ven.PARSE_DIR = os.path.join(folder, 'data-parsed')
+            ven.STATIONS_JSON = os.path.join(ven.PARSE_DIR, 'stazioni.json')
+            day = os.path.join(ven.PARSE_DIR, 'PREC', 'PREC-20261117.json')
+            os.makedirs(os.path.dirname(day))
+            os.makedirs(os.path.join(ven.DOWNLOAD_DIR, 'meteo'))
+            with open(ven.STATIONS_JSON, 'w', encoding='utf-8') as fp:
+                json.dump({'610': {'IDSTAZ': '610', 'LINKSTAZ': '0610.xml'}}, fp)
+            with open(day, 'w', encoding='utf-8') as fp:
+                json.dump({'610': {'ISTANTERUN': '202611172215', 'ORALEGALE': 0, 'STAZIONE': {},
+                                   'SENSORE': {},
+                                   'MISURE': {'ISTANTE': ['202611172030', '202611172130', '202611172200'],
+                                              'ORALEGALE': [7, 7, 7], 'VM': ['0.0', '>>', '0.1']}}}, fp)
+            with open(os.path.join(ven.DOWNLOAD_DIR, 'meteo', '20261118-084800-0610.xml'), 'w') as fp:
+                fp.write('<CONTENITORE><ISTANTERUN>202611180847</ISTANTERUN><STAZIONE>%s<SENSORE>'
+                         '<TYPE>PREC</TYPE>%s</SENSORE></STAZIONE></CONTENITORE>' % (station, data))
+            with contextlib.redirect_stdout(io.StringIO()):
+                ven.parse('20261118-084800', ['2026', '11', '17'])
+            measures = read_json(day)['610']['MISURE']
+        dst = int(ven.comune.is_dst_civil(ven.datetime.datetime.now()))
+        self.assertEqual(measures['ISTANTE'], ['20261117' + moment for moment, _ in rows])
+        self.assertEqual(measures['VM'], ['0.0', '0.0', '0.2', '0.1', '0.0'])
+        self.assertEqual(measures['ORALEGALE'], [7, dst, dst, 7, dst])
+
     def test_fvg(self):
         self.check_source('fvg', 'normale', 'dati_fvg.py', [])
+
+    def fvg_home(self, answers):
+        """dati_fvg.home_page con comune.get che dà, una chiamata dopo l'altra, answers (un'eccezione si
+        solleva): il contenuto salvato (None se il giro si ferma), le attese e l'uscita."""
+        fvg = load_file(os.path.join(registratore.PROJECT, 'dati_fvg.py'))
+        waits = []
+        fvg.time = mock.Mock(sleep=waits.append)
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(fvg.comune, 'get', side_effect=answers), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            path = os.path.join(folder, 'home.html')
+            try:
+                fvg.home_page(path)
+            except SystemExit as stop:
+                return None, waits, str(stop)
+            with open(path, 'rb') as fp:
+                return fp.read(), waits, output.getvalue()
+
+    def test_fvg_rete_assente(self):
+        # di notte la rete del Pi manca per una decina di minuti e la fonte ha solo l'ultima ora: senza la
+        # pagina principale il giro riprova dopo 5 minuti, fino a 3 tentativi, poi si ferma con l'errore
+        down = requests.ConnectionError('rete assente')
+        page = mock.Mock(content=b'<a href="stazioni/101.xml">')
+        content, waits, output = self.fvg_home([down, page])
+        self.assertEqual((content, waits), (b'<a href="stazioni/101.xml">', [300]))
+        self.assertIn('riprovo fra 300 s', output)
+        content, waits, error = self.fvg_home([down, down, down])
+        self.assertEqual((content, waits), (None, [300, 300]))
+        self.assertEqual(error, 'Error downloading https://dev.meteo.fvg.it: rete assente')
 
     def test_trentino(self):
         self.check_source('trentino', 'normale', 'dati_trentino.py', [])
@@ -253,6 +332,58 @@ class TestScarico(unittest.TestCase):
         for offset, expected in [(0, 0), (5 * minute, 0), (14 * minute + 59999, 0), (15 * minute, 15 * minute),
                                  (35 * minute, 30 * minute)]:
             self.assertEqual(er.quarter_hour(base + offset), base + expected, offset)
+
+    def er_run(self, saved, backfill_error=False):
+        """Un giro di dati_emilia_romagna (download e parse) in una cartella temporanea, con la stazione 7
+        nell'archivio di TEMP agli istanti saved (ora solare, valore 0.0). L'API finta ha il campione di
+        riferimento alle 09:00 UTC del 2026-11-05 e a ogni time risponde con i valori di un'ora prima
+        (283.15 K, cioè 10.0 °C); con backfill_error le richieste prima del time del giro sono un errore di
+        rete. Restituisce i time chiesti, l'uscita del giro e le MISURE di TEMP della stazione 7."""
+        er = load_file(os.path.join(registratore.PROJECT, 'dati_emilia_romagna.py'))
+        station = {'idstazione': '7', 'nomestaz': 'S. Pietro Capofiume', 'lat': '4465378', 'lon': '1162264',
+                   'precedente': 'N'}
+        asked = []
+
+        def call(endpoint, params, timeout, debug=False):
+            if endpoint == 'get-time-series':
+                return Answer([{'t': ER_REF + 7 * 60 * 1000, 'v': 0.5}])
+            asked.append(int(params['time']))
+            if backfill_error and asked[-1] < ER_REF:
+                raise requests.ConnectionError('rete assente')
+            return Answer([{'time': str(asked[-1] - 3600 * 1000)}, dict(station, value=283.15)])
+
+        with tempfile.TemporaryDirectory() as folder:
+            er.call = call
+            er.DOWNLOAD_DIR = os.path.join(folder, 'data-downloaded')
+            er.PARSE_DIR = os.path.join(folder, 'data-parsed')
+            er.STATIONS_JSON = os.path.join(er.PARSE_DIR, 'stazioni.json')
+            day = os.path.join(er.PARSE_DIR, 'TEMP', 'TEMP-20261105.json')
+            os.makedirs(os.path.dirname(day))
+            with open(day, 'w', encoding='utf-8') as fp:
+                json.dump({'7': {'STAZIONE': {'SCODE': '7'}, 'UM': '°C',
+                                 'MISURE': {'ISTANTE': saved, 'VALORE': [0.0] * len(saved)}}}, fp)
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                er.parse(er.download())
+            return asked, output.getvalue(), read_json(day)['7']['MISURE']
+
+    def test_emilia_romagna_quarti_mancanti(self):
+        # il campione di riferimento a volte salta un quarto d'ora e un giro fallito ne perde uno: ogni giro
+        # chiede anche i quarti delle 2 ore prima che mancano nell'archivio, dopo il primo che c'è (con
+        # l'archivio vuoto o dopo un buco più lungo niente, ci pensa recover.py), e li inserisce in ordine
+        asked, _, measures = self.er_run(['202611050745', '202611050800', '202611050815', '202611050845'])
+        self.assertEqual(sorted(set(asked)), [ER_REF - 2 * ER_QUARTER, ER_REF])
+        self.assertEqual(len(asked), 12)                # le 6 variabili a ogni time
+        self.assertEqual(measures['ISTANTE'], ['202611050745', '202611050800', '202611050815',
+                                               '202611050830', '202611050845', '202611050900'])
+        self.assertEqual(measures['VALORE'], [0.0, 0.0, 0.0, 10.0, 0.0, 10.0])
+
+    def test_emilia_romagna_quarti_mancanti_errore(self):
+        # un errore di rete ferma il recupero, così un server lento non accumula attese: resta il quarto del
+        # giro, gli altri li chiede il giro dopo
+        asked, output, measures = self.er_run(['202611050745', '202611050800'], backfill_error=True)
+        self.assertEqual(len(asked), 7)                 # le 6 variabili del giro, poi il primo errore
+        self.assertIn('SKIP', output)
+        self.assertEqual(measures['ISTANTE'], ['202611050745', '202611050800', '202611050900'])
 
     def test_recover_er(self):
         # registrato dal vivo; file di partenza: ER/data-parsed/stazioni.json con le prime 3 stazioni di

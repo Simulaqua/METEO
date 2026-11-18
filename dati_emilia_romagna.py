@@ -2,11 +2,13 @@
 # dati_emilia_romagna.py - stazioni ARPAE dell'Emilia-Romagna (ER), API della mappa "Allerta Meteo" (JSON).
 # Per ogni variabile (descrittore BUFR) una chiamata dà tutte le stazioni a un istante; in testa alla risposta
 # {'time': epoch in ms UTC} è l'istante dei valori, un'ora prima del time chiesto.
-# Ogni giro aggiunge i valori a ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json (ora solare): un punto a giro,
-# quindi il cron lo lancia ogni 15 minuti.
+# Ogni giro aggiunge i valori a ER/data-parsed/<VAR>/<VAR>-AAAAMMGG.json (ora solare): un punto a giro, più
+# i quarti d'ora recenti che mancano, quindi il cron lo lancia ogni 15 minuti.
 # Uso: python3 dati_emilia_romagna.py [--debug]
 import argparse
+import bisect
 import datetime
+import glob
 import json
 import os
 import sys
@@ -32,6 +34,10 @@ VARIABLES = {
 # l'istante del giro è l'ultimo campione di livello di questa stazione (Cesenatico porto, affidabile),
 # arrotondato per difetto al quarto d'ora
 REF_STATION = '5444'
+QUARTER_MS = 15 * 60 * 1000
+# il campione di riferimento a volte salta un quarto d'ora e un giro fallito ne perde uno: ogni giro chiede
+# anche i quarti delle ultime 2 ore che mancano nell'archivio (un buco più lungo lo ricuce recover.py)
+BACKFILL_QUARTERS = 8
 # il feed dà la temperatura in kelvin e la pressione in pascal
 VALUE_CONV = {
     'TEMP': lambda v: round(v - 273.15, 1),
@@ -50,7 +56,7 @@ def call(endpoint, params, timeout, debug=False):
 
 def quarter_hour(ms):
     """Epoch in ms arrotondato per difetto al quarto d'ora: le stazioni misurano ogni 15 minuti."""
-    return ms - ms % (15 * 60 * 1000)
+    return ms - ms % QUARTER_MS
 
 
 def reference_time(debug=False):
@@ -71,9 +77,22 @@ def reference_time(debug=False):
         int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000))
 
 
+def fetch(var, time_ms, path, debug=False):
+    """Salva in path la risposta di var al time chiesto e restituisce l'istante dei suoi valori (None se
+    manca); requests.RequestException su errore di rete o di HTTP."""
+    r = call('get-sensor-values-no-time', {'variabile': VARIABLES[var][0], 'time': str(time_ms)}, 90, debug)
+    with open(path, 'wb') as fp:
+        fp.write(r.content)
+    try:
+        return answer_time(json.loads(r.content.decode('utf-8', 'replace')))
+    except ValueError:
+        return None
+
+
 def download(debug=False):
-    """Scarica la risposta di ogni variabile in DOWNLOAD_DIR/dati/ (un file ciascuna); restituisce il
-    prefisso del giro AAAAMMGG-HHMMSS. Una variabile che non arriva si salta."""
+    """Scarica la risposta di ogni variabile in DOWNLOAD_DIR/dati/ (un file ciascuna), poi quelle dei quarti
+    d'ora mancanti; restituisce il prefisso del giro AAAAMMGG-HHMMSS. Una variabile che non arriva si
+    salta."""
     folder = os.path.join(DOWNLOAD_DIR, RAW_SUBDIR)
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
@@ -83,17 +102,55 @@ def download(debug=False):
           % (ref_ms, datetime.datetime.utcfromtimestamp(ref_ms / 1000).strftime('%Y-%m-%d %H:%M')))
     # time = istante del giro: la risposta ha i valori di un'ora prima. Un'ora più tardi darebbero valori
     # freschi, ma il 3-9% non è ancora arrivato e non si recupererebbe più
+    answered = []
     for var in sorted(VARIABLES):
         name = stamp + '-' + var + '.json'
         try:
-            r = call('get-sensor-values-no-time',
-                     {'variabile': VARIABLES[var][0], 'time': str(ref_ms)}, 90, debug)
+            answered.append(fetch(var, ref_ms, os.path.join(folder, name), debug))
         except requests.RequestException as error:
             print('SKIP %s (%s)' % (name, error))
-            continue
-        with open(os.path.join(folder, name), 'wb') as fp:
-            fp.write(r.content)
+    answered = [ms for ms in answered if ms is not None]
+    if answered:
+        backfill(folder, stamp, ref_ms, ref_ms - answered[0], debug)
     return stamp
+
+
+def backfill(folder, stamp, ref_ms, lag_ms, debug=False):
+    """Scarica, dal più vecchio, i quarti d'ora prima di ref_ms che mancano nell'archivio (file
+    <prefisso>-<VAR>-<time>.json); al primo errore di rete smette, li chiede il giro dopo."""
+    for time_ms in missing_times(ref_ms, lag_ms):
+        for var in sorted(VARIABLES):
+            name = '%s-%s-%d.json' % (stamp, var, time_ms)
+            try:
+                fetch(var, time_ms, os.path.join(folder, name), debug)
+            except requests.RequestException as error:
+                print('SKIP %s (%s)' % (name, error))
+                return
+
+
+def missing_times(ref_ms, lag_ms):
+    """I time dei BACKFILL_QUARTERS quarti d'ora prima di ref_ms la cui risposta (con i valori di lag_ms
+    prima) manca nell'archivio, dal più vecchio. Solo dopo il primo quarto che c'è: con l'archivio vuoto o
+    dopo un buco più lungo della finestra non si chiede niente."""
+    times = [ref_ms - k * QUARTER_MS for k in range(BACKFILL_QUARTERS, 0, -1)]
+    moments = [solar_moment(time_ms - lag_ms) for time_ms in times]
+    saved = saved_moments({moment[:8] for moment in moments})
+    present = [i for i, moment in enumerate(moments) if moment in saved]
+    if not present:
+        return []
+    first = present[0]
+    return [time_ms for time_ms, moment in zip(times[first:], moments[first:]) if moment not in saved]
+
+
+def saved_moments(days):
+    """Gli istanti (ora solare) che l'archivio ha in almeno una variabile, nei file dei giorni days."""
+    saved = set()
+    for var in VARIABLES:
+        for day in days:
+            archive = comune.load_json(os.path.join(PARSE_DIR, var, var + '-' + day + '.json'))
+            for record in archive.values():
+                saved.update(record.get('MISURE', {}).get('ISTANTE', []))
+    return saved
 
 
 def answer_time(readings):
@@ -120,9 +177,62 @@ def coordinate(value):
     return degrees if abs(degrees) > 0.001 else None
 
 
+def add_answer(path, var, stations, debug=False):
+    """Mette i valori della risposta in path nel file del giorno di var, a ogni stazione che non ha già
+    quell'istante; restituisce l'istante e le letture aggiunte, None se la risposta non ha l'istante."""
+    readings = comune.load_json(path)
+    answered_ms = answer_time(readings)
+    if answered_ms is None:
+        print('WARN: [ER] variabile %s saltata (risposta senza istante)' % var)
+        return None
+    moment = solar_moment(answered_ms)
+    day_path = os.path.join(PARSE_DIR, var, var + '-' + moment[:8] + '.json')
+    archive = comune.load_json(day_path)
+    added = 0
+    for item in readings:
+        if not isinstance(item, dict) or 'idstazione' not in item:
+            continue                        # il primo elemento è l'intestazione {'time': ...}
+        value = item.get('value')
+        if value is None or item.get('precedente') == 'S':
+            # nessun campione a quell'istante; con 'precedente' S è un valore ripetuto: la pioggia di
+            # 30 minuti alle :15 e alle :45 si conterebbe due volte nelle somme di derive.py
+            continue
+        if var in VALUE_CONV:
+            try:
+                value = VALUE_CONV[var](float(value))
+            except (TypeError, ValueError):
+                continue
+        code = item.get('idstazione')
+        lat, lon = coordinate(item.get('lat')), coordinate(item.get('lon'))
+        if code not in stations:
+            stations[code] = {'SCODE': code, 'NOME': item.get('nomestaz'), 'LAT': lat, 'LON': lon}
+        elif stations[code].get('LAT') is None and lat is not None:
+            # prende le coordinate del primo valore che le ha; STAZIONE è lo stesso dizionario,
+            # quindi le prendono anche i record creati in questo giro
+            stations[code]['LAT'] = lat
+            stations[code]['LON'] = lon
+        if code not in archive:
+            archive[code] = {
+                'STAZIONE': stations[code],
+                'UM': VARIABLES[var][1],
+                'MISURE': {'ISTANTE': [], 'VALORE': []}
+            }
+        measures = archive[code]['MISURE']
+        if moment in measures['ISTANTE']:
+            continue
+        at = bisect.bisect(measures['ISTANTE'], moment)
+        measures['ISTANTE'].insert(at, moment)
+        measures['VALORE'].insert(at, value)
+        added += 1
+    comune.save_json(archive, day_path)
+    if debug:
+        print('  %s: %d stazioni' % (os.path.basename(day_path), len(archive)))
+    return moment, added
+
+
 def parse(stamp, debug=False):
-    """Il valore di ogni stazione va nel file del giorno all'istante della risposta, se più recente
-    dell'ultimo salvato; una risposta senza istante si salta, con un avviso.
+    """Le risposte del giro, quella dell'istante del giro e quelle dei quarti d'ora mancanti, vanno nei file
+    del giorno (vedi add_answer); una risposta senza istante si salta, con un avviso.
     In stazioni.json entrano le stazioni con un valore, con nome e coordinate della prima apparizione."""
     for var in sorted(VARIABLES):
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
@@ -132,56 +242,15 @@ def parse(stamp, debug=False):
     added = 0
     # in ordine alfabetico: se un file rotto ferma il giro, restano scritte le variabili precedenti
     for var in sorted(VARIABLES):
-        path = os.path.join(folder, stamp + '-' + var + '.json')
-        if not os.path.exists(path):
-            continue                        # non scaricata in questo giro
-        readings = comune.load_json(path)
-        answered_ms = answer_time(readings)
-        if answered_ms is None:
-            print('WARN: [ER] variabile %s saltata (risposta senza istante)' % var)
-            continue
-        moment = solar_moment(answered_ms)
-        moments.add(moment)
-        unit = VARIABLES[var][1]
-        day_path = os.path.join(PARSE_DIR, var, var + '-' + moment[:8] + '.json')
-        archive = comune.load_json(day_path)
-        for item in readings:
-            if not isinstance(item, dict) or 'idstazione' not in item:
-                continue                    # il primo elemento è l'intestazione {'time': ...}
-            value = item.get('value')
-            if value is None or item.get('precedente') == 'S':
-                # nessun campione a quell'istante; con 'precedente' S è un valore ripetuto: la pioggia di
-                # 30 minuti alle :15 e alle :45 si conterebbe due volte nelle somme di derive.py
-                continue
-            if var in VALUE_CONV:
-                try:
-                    value = VALUE_CONV[var](float(value))
-                except (TypeError, ValueError):
-                    continue
-            code = item.get('idstazione')
-            lat, lon = coordinate(item.get('lat')), coordinate(item.get('lon'))
-            if code not in stations:
-                stations[code] = {'SCODE': code, 'NOME': item.get('nomestaz'), 'LAT': lat, 'LON': lon}
-            elif stations[code].get('LAT') is None and lat is not None:
-                # prende le coordinate del primo valore che le ha; STAZIONE è lo stesso dizionario,
-                # quindi le prendono anche i record creati in questo giro
-                stations[code]['LAT'] = lat
-                stations[code]['LON'] = lon
-            if code not in archive:
-                archive[code] = {
-                    'STAZIONE': stations[code],
-                    'UM': unit,
-                    'MISURE': {'ISTANTE': [], 'VALORE': []}
-                }
-            measures = archive[code]['MISURE']
-            if measures['ISTANTE'] and int(moment) <= int(measures['ISTANTE'][-1]):
-                continue
-            measures['ISTANTE'].append(moment)
-            measures['VALORE'].append(value)
-            added += 1
-        comune.save_json(archive, day_path)
-        if debug:
-            print('  %s: %d stazioni' % (os.path.basename(day_path), len(archive)))
+        paths = [os.path.join(folder, stamp + '-' + var + '.json')]
+        paths += sorted(glob.glob(os.path.join(folder, stamp + '-' + var + '-*.json')))
+        for path in paths:
+            if not os.path.exists(path):
+                continue                    # non scaricata in questo giro
+            result = add_answer(path, var, stations, debug)
+            if result:
+                moments.add(result[0])
+                added += result[1]
     comune.save_json(stations, STATIONS_JSON, sort_keys=True)
     print('[ER] istante %s | nuove letture inserite: %d' % (', '.join(sorted(moments)) or '-', added))
 

@@ -106,9 +106,28 @@ def read_station(root, var):
     return run, info, sensor, measures
 
 
+def merge(saved, measures, begin, end, dst):
+    """Mette nelle MISURE saved, in ordine di istante, le misure del giorno [begin, end] che non hanno e il
+    valore al posto di uno non numerico: ARPAV a volte pubblica '>>' e il valore poco dopo. Un numero già
+    salvato resta. Restituisce le letture aggiunte o cambiate."""
+    rows = dict(zip(saved['ISTANTE'], zip(saved['ORALEGALE'], saved['VM'])))
+    changed = 0
+    for moment, value in measures:
+        if not int(begin) <= int(moment) <= int(end):
+            continue
+        old = rows.get(moment)
+        if old is None or (comune.to_float(old[1]) is None and comune.to_float(value) is not None):
+            rows[moment] = (dst, value)
+            changed += 1
+    saved['ISTANTE'] = sorted(rows)
+    saved['ORALEGALE'] = [rows[moment][0] for moment in saved['ISTANTE']]
+    saved['VM'] = [rows[moment][1] for moment in saved['ISTANTE']]
+    return changed
+
+
 def parse(stamp, date, debug=False):
     """Nel file del giorno: dati di stazione e sensore del giro e, se la stazione si è aggiornata
-    (ISTANTERUN), le sue misure del giorno successive all'ultima salvata."""
+    (ISTANTERUN), le sue misure del giorno (vedi merge)."""
     for var in VARIABLES:
         os.makedirs(os.path.join(PARSE_DIR, var), exist_ok=True)
     stations = comune.load_json(STATIONS_JSON)
@@ -138,13 +157,9 @@ def parse(stamp, date, debug=False):
             run, info, sensor, measures = read_station(root, var)
             if debug:
                 print('  %s %s: aggiornamento %s' % (var, code, run))
-            since = int(begin)
             if code in archive:
                 record = archive[code]
                 last_run = record['ISTANTERUN']
-                saved = record.get('MISURE', {}).get('ISTANTE', [])
-                if saved:                       # una stazione già nel file può non avere ancora misure
-                    since = max(since, int(saved[-1]) + 1)
             else:
                 record = {
                     'ISTANTERUN': None, 'ORALEGALE': None, 'STAZIONE': None, 'SENSORE': None,
@@ -158,12 +173,7 @@ def parse(stamp, date, debug=False):
             record['ORALEGALE'] = dst
             if run == last_run:                 # stesso aggiornamento della stazione: niente di nuovo
                 continue
-            for moment, value in measures:
-                if since <= int(moment) <= int(end):
-                    record['MISURE']['ISTANTE'].append(moment)
-                    record['MISURE']['VM'].append(value)
-                    record['MISURE']['ORALEGALE'].append(dst)
-                    added += 1
+            added += merge(record['MISURE'], measures, begin, end, dst)
         comune.save_json(archive, path)
     print('[VEN] giorno %s | nuove letture inserite: %d' % (begin[:8], added))
 

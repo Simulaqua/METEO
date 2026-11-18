@@ -9,11 +9,19 @@ import argparse
 import datetime
 import os
 import re
+import sys
+import time
 import xml.etree.ElementTree as ET
+
+import requests
 
 import comune
 
 HOME_URL = 'https://dev.meteo.fvg.it'
+# di notte la rete del Pi manca per una decina di minuti e la fonte ha solo l'ultima ora: senza la pagina
+# principale il giro riprova più tardi, invece di perdere l'ora
+HOME_TRIES = 3
+HOME_WAIT = 300                         # secondi
 STATION_URL = 'https://dev.meteo.fvg.it/xml/stazioni/'
 DOWNLOAD_DIR = os.path.join(comune.region_dir('FVG'), 'data-downloaded')
 RAW_SUBDIR = 'dati'
@@ -42,6 +50,23 @@ META_TAGS = {'observation_time', 'observation_date', 'observation_hour',
              'station_id', 'station_name', 'station_altitude'}
 
 
+def home_page(path):
+    """Salva in path la pagina principale e la restituisce. Senza rete riprova dopo HOME_WAIT secondi, fino a
+    HOME_TRIES tentativi, poi ferma il giro."""
+    for attempt in range(1, HOME_TRIES + 1):
+        try:
+            content = comune.get(HOME_URL).content
+            break
+        except requests.RequestException as error:
+            if attempt == HOME_TRIES:
+                sys.exit('Error downloading ' + HOME_URL + ': ' + str(error))
+            print('Pagina principale non scaricata (%s): riprovo fra %d s' % (error, HOME_WAIT))
+            time.sleep(HOME_WAIT)
+    with open(path, 'wb') as fp:
+        fp.write(content)
+    return content
+
+
 def download():
     """Scarica la pagina principale e il file di ogni stazione in DOWNLOAD_DIR/dati/;
     restituisce il prefisso del giro AAAAMMGG-HHMMSS."""
@@ -50,7 +75,7 @@ def download():
     os.makedirs(folder, exist_ok=True)
     os.makedirs(PARSE_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    home = comune.save_url(HOME_URL, os.path.join(folder, stamp + '-home.html'))
+    home = home_page(os.path.join(folder, stamp + '-home.html'))
     # codici come 101, G201, A009; i link <codice>_week.xml (aggregati giornalieri) restano fuori per il '_'
     codes = sorted(set(re.findall(r'stazioni/([A-Za-z0-9]+)\.xml', home.decode('utf-8', 'replace'))))
     print('Pagina principale: %d stazioni' % len(codes))
