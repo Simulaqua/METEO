@@ -394,6 +394,24 @@ class TestPunti(unittest.TestCase):
             self.run_once(FakeDPC(clock_step=10.0), budget_s=30)
         self.assertEqual(self.punti()['s']['UD'], [udine_mm5()] * 72)
 
+    def test_sample_negative_and_sparse(self):
+        # negativi del DPC = asciutto; nello stato solo dove piove o manca il dato (quasi sempre e' asciutto)
+        got = dr.sample_points(np.array([[-5.0, 1.2, np.nan, 0.0]], dtype=np.float32),
+                               {'R': [('neg', 0), ('rain', 1), ('nan', 2), ('dry', 3), ('out', None)]})
+        self.assertEqual(got, {'R': {'rain': 0.1, 'nan': None, 'out': None}})
+
+    def test_points_dry_station(self):
+        g = dr.merc_grid()
+        lut = dr.build_lut(g)
+        k = next(k for k in range(lut.size) if lut[k] >= 0 and RAW.ravel()[lut[k]] == 0)
+        r, c = divmod(k, g['width'])
+        lon, lat = float(g['lon'][r, c]), float(g['lat'][r, c])
+        write_stations(self.site, 'FVG', [('ASCIUTTA', lon, lat, ['PREC'])])
+        self.run_once(FakeDPC())
+        self.assertEqual(self.punti()['s']['ASCIUTTA'], [0] * 72)
+        with open(os.path.join(self.out, '.punti.json'), encoding='utf-8') as fp:
+            self.assertNotIn('ASCIUTTA', fp.read())
+
     def test_ignored_and_digest(self):
         self.assertIn('.punti.json', dr.IGNORED.split('\n'))
         self.run_once(FakeDPC())

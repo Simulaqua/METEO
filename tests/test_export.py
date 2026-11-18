@@ -5,7 +5,7 @@
 #   25/10 alle 01:00 UTC = 02:00 solari: le 03:00 CEST tornano 02:00 CET (l'ora 02:00-03:00 si ripete)
 # Le altre prove lanciano l'export vero (export) su un archivio scritto apposta, con l'orologio fermo di tests/rete.py.
 #   /usr/bin/python3 -m unittest tests.test_export -v
-import calendar, datetime, json, os, sys, tempfile, unittest
+import calendar, datetime, gzip, json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import comune
@@ -110,11 +110,15 @@ class TestPm10Anno(unittest.TestCase):
         # alle 00:00, LOM il giorno stesso, VEN aggiornata piu' volte (vale l'ultima), TN e BZ le orarie
         hours = lambda day, vals: [(day + '%02d00' % h, v) for h, v in enumerate(vals)]
         archive = {
-            'AQ_ER': {'E1': (station(44.5, 11.3), {'PM10': [('202611030000', 60.0), ('202611040000', 50.4)]})},
+            'AQ_ER': {'E1': (station(44.5, 11.3), {'PM10': [('202611030000', 60.0), ('202611040000', 50.4)]}),
+                      # il vecchio portale (fino a settembre) segnava la fine giornata alle 23:00
+                      'E2': (station(44.6, 11.4), {'PM10': [('202607082300', 55.0)]})},
             'AQ_LOM': {'L1': (station(45.5, 9.2), {'PM10': [('202611030000', 50.6)]})},
             'AQ_VEN': {'V1': (station(45.4, 11.9), {'PM10': [('202611030155', 40.0), ('202611032355', 52.0)]})},
             'AQ_TN': {'T1': (station(46.1, 11.1), {'PM10': hours('20261103', [55.0] * 24)
-                                                            + hours('20261104', [80.0] * 10)})},
+                                                            + hours('20261104', [80.0] * 10)}),
+                      # una sola oraria nel giorno (l'ora 24 del giorno prima, d'inverno): non e' una media
+                      'T2': (station(46.2, 11.2), {'PM10': [('202611050000', 70.0)]})},
         }
         with tempfile.TemporaryDirectory() as folder:
             rete.check(export(folder, archive))
@@ -129,6 +133,21 @@ class TestPm10Anno(unittest.TestCase):
         tn = got['AQ_TN']['s']['T1']
         self.assertEqual((tn[day(3)], tn[day(4)]), (55, None))               # 10 orarie non bastano
         self.assertEqual(er[:day(2)], [None] * day(2))
+        jul8 = datetime.date(2026, 7, 8).timetuple().tm_yday - 1
+        self.assertEqual(got['AQ_ER']['s']['E2'][jul8], 55)                  # il giorno della fine giornata
+        self.assertNotIn('T2', got['AQ_TN']['s'])
+
+    def test_json_prima_del_gz(self):
+        # lo stesso giorno compresso e non compresso: vale il .json, come nella lettura dell'archivio
+        with tempfile.TemporaryDirectory() as folder:
+            parsed = os.path.join(folder, 'data-parsed')
+            rec = lambda v: {'L1': {'STAZIONE': {}, 'MISURE': {'ISTANTE': ['202611030000'], 'VALORE': [v]}}}
+            write_json(os.path.join(parsed, 'PM10', 'PM10-20261103.json'), rec(60.0))
+            gz = os.path.join(parsed, 'PM10', 'PM10-20261103.json.gz')
+            with gzip.open(gz, 'wt', encoding='utf-8') as fp:
+                json.dump(rec(40.0), fp)
+            row = ew.pm10_year(parsed, 'AQ_LOM', datetime.date(2026, 11, 5))['L1']
+        self.assertEqual(row[datetime.date(2026, 11, 3).timetuple().tm_yday - 1], 60)
 
 
 class TestMappa(unittest.TestCase):

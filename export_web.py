@@ -125,54 +125,76 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
 
 
 # Giorni di superamento del PM10 (scheda della stazione dell'aria): una media per stazione e giorno dal 1
-# gennaio, come la da' ogni fonte. ER: il valore alle 00:00 e' la media del giorno prima (reftime = fine
-# giornata); VEN: la media del giorno e' aggiornata piu' volte, vale l'ultima; LOM: un valore al giorno;
-# TN e BZ: le orarie, con almeno 18.
-PM10_SHIFT = {'AQ_ER': -1}
+# gennaio, come la da' ogni fonte. ER e LOM: un valore al giorno; VEN: la media del giorno e' aggiornata piu'
+# volte, vale l'ultima; TN e BZ: le orarie, con almeno 18.
+PM10_DAILY = {'AQ_ER', 'AQ_LOM'}
 PM10_LAST = {'AQ_VEN'}
 PM10_MIN_HOURS = 18
+
+
+def pm10_day(region, instant):
+    """Il giorno di una lettura. ER segna la fine della giornata (le 00:00 del giorno dopo; il vecchio
+    portale, fino a settembre 2026, le 23:00): conta il minuto prima."""
+    t = datetime.datetime.strptime(instant, '%Y%m%d%H%M')
+    if region == 'AQ_ER':
+        t -= datetime.timedelta(minutes=1)
+    return t.date()
 
 
 def pm10_year(parse_dir, region, today):
     """{scode: [media intera, o None, per ogni giorno dal 1 gennaio dell'anno di today a today]}."""
     value_key = comune.value_key(region)
     jan1 = datetime.date(today.year, 1, 1)
-    out = {}
-    for fn in sorted(glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-%d*.json*' % today.year))):
-        try:
-            day = datetime.datetime.strptime(os.path.basename(fn)[5:13], '%Y%m%d').date()
-        except ValueError:
-            continue
-        day += datetime.timedelta(days=PM10_SHIFT.get(region, 0))
-        if day.year != today.year or day > today:
-            continue
+    # lo stesso giorno compresso e non: prima il .gz, cosi' a parita' d'istante vince il .json
+    files = sorted(glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-%d*.json*' % today.year)),
+                   key=lambda f: (os.path.basename(f)[:13], not f.endswith('.gz')))
+    readings = {}
+    for fn in files:
         for scode, rec in comune.load_json(fn).items():
             m = (rec or {}).get('MISURE') or {}
-            pairs = sorted(zip(m.get('ISTANTE') or [], m.get(value_key) or []))
-            vals = [x for x in (comune.to_float(v) for _, v in pairs)
-                    if x is not None and quality.valid('PM10', x)]
+            per = readings.setdefault(scode, {})
+            for instant, v in zip(m.get('ISTANTE') or [], m.get(value_key) or []):
+                x = comune.to_float(v)
+                if x is not None and quality.valid('PM10', x):
+                    per[instant] = x
+    out = {}
+    for scode, per in readings.items():
+        days = {}
+        for instant in sorted(per):
+            try:
+                day = pm10_day(region, instant)
+            except ValueError:
+                continue
+            if day.year == today.year and day <= today:
+                days.setdefault(day, []).append(per[instant])
+        row = [None] * ((today - jan1).days + 1)
+        for day, vals in days.items():
             if region in PM10_LAST:
-                mean = vals[-1] if vals else None
-            elif len(vals) == 1 or len(vals) >= PM10_MIN_HOURS:
+                mean = vals[-1]
+            elif region in PM10_DAILY or len(vals) >= PM10_MIN_HOURS:
                 mean = sum(vals) / len(vals)
             else:
-                mean = None
-            if mean is not None:
-                days = out.setdefault(scode, [None] * ((today - jan1).days + 1))
-                days[(day - jan1).days] = int(math.floor(mean + 0.5))
+                continue
+            row[(day - jan1).days] = int(math.floor(mean + 0.5))
+        if any(v is not None for v in row):
+            out[scode] = row
     return out
 
 
 def write_pm10_year(region, parse_dir, out_dir):
-    """<REGIONE>/pm10_anno.json; si rifa' solo quando l'archivio del PM10 e' piu' nuovo del file."""
-    files = glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-*.json*'))
-    target = os.path.join(out_dir, 'pm10_anno.json')
-    if not files or (os.path.exists(target)
-                     and os.path.getmtime(target) >= max(os.path.getmtime(f) for f in files)):
-        return
-    today = comune.now_solar().date()
-    comune.save_json({'anno': today.year, 'soglia': 50, 'ammessi': 35,
-                      's': pm10_year(parse_dir, region, today)}, target)
+    """<REGIONE>/pm10_anno.json; si rifa' solo quando l'archivio del PM10 e' piu' nuovo del file. Un errore
+    qui non ferma l'export delle regioni dopo."""
+    try:
+        files = glob.glob(os.path.join(parse_dir, 'PM10', 'PM10-*.json*'))
+        target = os.path.join(out_dir, 'pm10_anno.json')
+        if not files or (os.path.exists(target)
+                         and os.path.getmtime(target) >= max(os.path.getmtime(f) for f in files)):
+            return
+        today = comune.now_solar().date()
+        comune.save_json({'anno': today.year, 'soglia': 50, 'ammessi': 35,
+                          's': pm10_year(parse_dir, region, today)}, target)
+    except Exception as e:
+        print('WARN: pm10_anno.json non scritto (' + str(e) + ')', file=sys.stderr)
 
 
 def read_window(parse_dir, region, cutoff, prec_cutoff):

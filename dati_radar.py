@@ -377,18 +377,25 @@ def station_index(grid, stations):
 
 
 def sample_points(vals, index):
-    ''' mm caduti nel passo del fotogramma in ogni stazione (mm/h x passo); None = nessun dato. '''
-    flat, hours = np.asarray(vals).ravel(), STEP_S / 3600.0
-    return dict((reg, dict((sc, None if i is None or not np.isfinite(flat[i])
-                            else round(float(flat[i]) * hours, 2)) for sc, i in sts))
-                for reg, sts in index.items())
+    ''' mm caduti nel passo del fotogramma in ogni stazione (mm/h x passo; i negativi del DPC sono asciutto).
+        Solo dove piove o manca il dato (None): quasi sempre e' asciutto e lo stato resta piccolo. '''
+    flat, hours, out = np.asarray(vals).ravel(), STEP_S / 3600.0, {}
+    for reg, sts in index.items():
+        row = out[reg] = {}
+        for sc, i in sts:
+            v = None if i is None or not np.isfinite(flat[i]) else round(max(0.0, float(flat[i])) * hours, 2)
+            if v != 0:
+                row[sc] = v
+    return out
 
 
 def write_points(out_dir, times, state, stations):
-    ''' punti/<REG>.json = {t: istanti della finestra, s: {scode: [mm | null]}}; via le regioni sparite. '''
+    ''' punti/<REG>.json = {t: istanti della finestra, s: {scode: [mm | null]}}; via le regioni sparite.
+        Assente da un fotogramma campionato = asciutta; fotogramma senza punti = nessun dato. '''
     folder = os.path.join(out_dir, 'punti')
     for reg, sts in stations.items():
-        cols = dict((sc, [state.get(str(t), {}).get(reg, {}).get(sc) for t in times]) for sc, _, _ in sts)
+        frames = [state.get(str(t), {}).get(reg) for t in times]
+        cols = dict((sc, [None if f is None else f.get(sc, 0) for f in frames]) for sc, _, _ in sts)
         comune.save_json({'t': times, 's': cols}, os.path.join(folder, reg + '.json'))
     for fn in glob.glob(os.path.join(folder, '*.json')):
         if os.path.basename(fn)[:-len('.json')] not in stations:
