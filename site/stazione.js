@@ -203,8 +203,10 @@ function keepFocus(box, build){
 function buildVarRow(){
   keepFocus(el('vars'), fillVarRow);
 }
+// variabili della riga: nelle Vicine solo quelle che valgono
+const rowVars = () => chartMode === 'near' ? stationVars.filter(nearOk) : stationVars;
 function fillVarRow(){
-  const box = el('vars'), all = stationVars, cmp = isCompareMode();
+  const box = el('vars'), all = rowVars(), cmp = isCompareMode();
   const sel = cmp ? [currentVar] : selVars();
   const main = all.filter(v => isMainVar(v, all)).sort(byVarOrder);
   const shown = main.concat(sel.filter(v => v && all.includes(v) && !main.includes(v)).sort(byVarOrder));
@@ -261,7 +263,7 @@ function altOpen(){
   const m = el('altMenu'), b = el('altBtn');
   if(!b) return;
   const cmp = document.body.classList.contains('view-compare');
-  const all = cmp ? compareVars : stationVars, sel = cmp ? [compareVar] : selVars();
+  const all = cmp ? compareVars : rowVars(), sel = cmp ? [compareVar] : selVars();
   const rest = all.filter(v => !isMainVar(v, all)).sort(byVarOrder);
   m.innerHTML = '';
   ['dirette', 'derivate', 'indici'].map(c => rest.filter(v => varCat(v) === c)).filter(g => g.length)
@@ -293,16 +295,50 @@ function altClose(refocus){
   }
 }
 
-async function ensureTabTables(){
-  for(const t of openTabs){
-    if(t.props._table) continue;
-    try {
-      const csv = await (await fdata(`${t.props._region}/${t.props.series}`)).text();
-      t.props._table = parseCSV(csv);
-      t.props._tableAt = Date.now();
-    } catch(e){}
-  }
+async function ensureTable(p){
+  if(p._table) return;
+  try {
+    p._table = parseCSV(await (await fdata(`${p._region}/${p.series}`)).text());
+    p._tableAt = Date.now();
+  } catch(e){}
 }
+async function ensureTabTables(){
+  for(const t of openTabs) await ensureTable(t.props);
+}
+const hasData = (p, v) => !!p._table && (p._table.cols[v] || []).some(x => x != null);
+
+// VICINE: la stazione e le piu' vicine con la stessa misura. Le grandezze di un corpo d'acqua non valgono (la
+// vicina misura un'altra acqua); temperatura e pressione dipendono dalla quota.
+const NEAR_KM = 25, NEAR_N = 3, NEAR_DZ = { TEMP:300, TDEW:300, TAPP:300, PRESS:50 };
+const WATER_VARS = new Set(['LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO',
+  'DEFLUSSO', 'VOLINVASO', 'MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA',
+  'CONDUCIBILITA']);
+const nearOk = v => !!v && !isView(v) && v !== WARROW && !WATER_VARS.has(v);
+function distKm(a, b){
+  const r = Math.PI / 180, dLat = (b._lat - a._lat) * r, dLon = (b._lon - a._lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a._lat * r) * Math.cos(b._lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+// Fino a NEAR_N stazioni entro NEAR_KM con dati di v nella serie a 7 giorni, dalla piu' vicina. Dove la rete
+// non da' la quota vale la sola distanza.
+async function nearStations(props, v){
+  const dz = NEAR_DZ[v];
+  const sameHeight = p => dz == null || p.quota == null || props.quota == null
+                          || Math.abs(p.quota - props.quota) <= dz;
+  const near = allFeatures.map(f => f.properties)
+    .filter(p => p !== props && p._lat != null && (p.variables || []).includes(v) && sameHeight(p))
+    .map(p => ({ props:p, km:distKm(props, p) }))
+    .filter(o => o.km <= NEAR_KM)
+    .sort((a, b) => a.km - b.km);
+  const out = [];
+  for(const o of near){
+    if(out.length >= NEAR_N) break;
+    await ensureTable(o.props);
+    if(hasData(o.props, v)) out.push(o);
+  }
+  return out;
+}
+const fmtKm = km => (km < 10 ? Math.round(km * 10) / 10 : Math.round(km)) + ' km';
 
 async function refreshStation(){
   if(!currentStation) return;
@@ -439,7 +475,7 @@ function buildCompareRow(){
   });
 }
 // una scheda entra nel confronto di v se la sua tabella ha almeno un valore di v
-const tabHas = (t, v) => !!t.props._table && (t.props._table.cols[v] || []).some(x => x != null);
+const tabHas = (t, v) => hasData(t.props, v);
 // vista della scheda Confronto: le variabili con dati in almeno due schede aperte, una curva per stazione
 async function renderCompareView(){
   exitHist();
@@ -463,7 +499,7 @@ async function renderCompareView(){
   if(!compareVars.includes(compareVar))
     compareVar = compareVars.includes(currentVar) ? currentVar : compareVars[0] || null;
   buildCompareRow();
-  if(['compare','compare30','tabs'].indexOf(chartMode) >= 0) chartMode = 'week';
+  if(['compare','compare30','tabs','near'].indexOf(chartMode) >= 0) chartMode = 'week';
   syncModes();
   if(compareVar) renderCompareTabs(compareVar);
   else {
@@ -511,7 +547,7 @@ async function ensureTable30(){
   } catch(e){ setStatus('Serie a 30 giorni non ancora disponibile.'); return false; }
 }
 
-// Periodi (Oggi, 24 h, 3 g, 7 g) e, nel menu "Confronta", Confronto 7 giorni / 30 giorni / schede.
+// Periodi (Oggi, 24 h, 3 g, 7 g) e, nel menu "Confronta", Confronto 7 giorni / 30 giorni / schede / Vicine.
 // Un periodo chiude lo Storico e la Climatologia; la rosa segue il periodo.
 async function pickMode(mode){
   if(mode === 'tabs'){ openCompareTab(); return; }
@@ -524,6 +560,10 @@ async function pickMode(mode){
     extraVars = extraVars.filter(v => v !== currentVar);
     document.body.classList.remove('rose-mode', 'clima-mode');
   }
+  if(mode === 'near' && !nearOk(currentVar)){
+    const ok = rowVars();
+    currentVar = ok.filter(v => isMainVar(v, ok)).sort(byVarOrder)[0] || ok[0] || currentVar;
+  }
   syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
   buildVarRow();
@@ -534,7 +574,7 @@ async function pickMode(mode){
   updateHash();
 }
 // periodo acceso (sottolineato); un confronto acceso accende "Confronta", che ne prende il nome
-const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g' };
+const CMP_LABEL = { compare:'Confronto 7 g', compare30:'Confronto 30 g', near:'Vicine' };
 function syncModes(){
   const free = histMode || currentVar === WCLIMA;          // viste senza periodo
   document.querySelectorAll('#modes .mode[data-mode]').forEach(b => {
@@ -557,6 +597,7 @@ function syncModes(){
 // fuori chiude.
 function cmpOpen(){
   const m = el('cmpMenu');
+  m.querySelector('[data-mode="near"]').hidden = !stationVars.some(nearOk);
   m.hidden = false;
   el('cmpBtn').setAttribute('aria-expanded', 'true');
   placeMenu(m, el('cmpBtn'));
@@ -618,7 +659,10 @@ function expClose(refocus){
   if(refocus) el('expBtn').focus({ preventScroll:true });
 }
 function exportData(){
-  if(document.body.classList.contains('view-compare')) exportTabsCSV();
+  if(document.body.classList.contains('view-compare'))
+    exportCompareCSV('confronto_schede_' + compareVar + '.csv');
+  else if(chartMode === 'near' && chart && chart._near)
+    exportCompareCSV(pngBase() + '_vicine_' + currentVar + '.csv');
   else if(histMode) exportHistCSV();
   else if(currentVar === WCLIMA) exportClimaCSV();
   else if(currentStation){
@@ -639,7 +683,7 @@ async function copyLink(){
 
 function menuNav(menu, close){
   menu.addEventListener('keydown', e => {
-    const bs = [...menu.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    const bs = [...menu.querySelectorAll('button:not([hidden])')], i = bs.indexOf(document.activeElement);
     if(e.key === 'Tab'){ close(true); if(e.shiftKey) e.preventDefault(); return; }
     const j = {
       ArrowDown:Math.min(i + 1, bs.length - 1), ArrowUp:Math.max(i - 1, 0), Home:0, End:bs.length - 1

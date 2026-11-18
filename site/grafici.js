@@ -121,15 +121,35 @@ function roseSvg(r, S, k){
 
 // CONFRONTO SCHEDE: stessa variabile, una serie per ogni stazione aperta in scheda
 function renderCompareTabs(label, unit){
+  renderCompareSet(label, unit, openTabs, 'Servono almeno due schede con ' + varLabel(label) + '.');
+}
+// VICINE: la stazione e le vicine (stazione.js), come il Confronto schede; sotto il nome distanza e quota
+let _nearSeq = 0;
+async function renderNear(label, unit){
+  const st = currentStation, seq = ++_nearSeq;
+  clearChart();
+  el('chartlegend').innerHTML = '';
+  setStatus('Cerco le stazioni vicine…');
+  const near = await nearStations(st, label);
+  if(seq !== _nearSeq || currentStation !== st || chartMode !== 'near') return;
+  setStatus('');
+  const list = [{ props:st, km:0, sub:'' }].concat(near.map(o => Object.assign(o, {
+    sub:fmtKm(o.km) + (o.props.quota != null ? ', ' + o.props.quota + ' m' : '')
+  })));
+  renderCompareSet(label, unit, list, 'Nessuna stazione vicina con questa misura.');
+  if(chart) chart._near = list;
+}
+// Stessa variabile, una serie per stazione: list = [{props, sub}], why = la frase se meno di due hanno dati
+function renderCompareSet(label, unit, list, why){
   if(unit === undefined){
-    const t0 = openTabs.find(t => (unitsByRegion[t.props._region] || {})[label]);
+    const t0 = list.find(t => (unitsByRegion[t.props._region] || {})[label]);
     unit = t0 ? (unitsByRegion[t0.props._region] || {})[label] : '';
   }
   clearChart();
-  const tabs = openTabs.filter(t => tabHas(t, label));
+  const tabs = list.filter(t => tabHas(t, label));
   if(tabs.length < 2){
     el('chartlegend').innerHTML = '';
-    setStatus('Servono almeno due schede con ' + varLabel(label) + '.');
+    setStatus(why);
     return;
   }
   setStatus('');
@@ -222,9 +242,12 @@ function renderCompareTabs(label, unit){
   };
   // i nomi delle stazioni prima del grafico: il grafico prende la larghezza che la colonna gli lascia
   el('chartlegend').style.display = '';
-  el('chartlegend').innerHTML = specs.map((d, k) =>
-    '<div class="lg-row"><span class="lg-sw" style="background:' + COLS[k % COLS.length] + '"></span>'
-    + escHtml(d.label) + '</div>').join('');
+  el('chartlegend').innerHTML = specs.map((d, k) => {
+    const sub = tabs[k].sub;
+    return '<div class="lg-row' + (sub ? ' two' : '') + '"><span class="lg-sw" style="background:'
+      + COLS[k % COLS.length] + '"></span><span>' + escHtml(d.label)
+      + (sub ? '<span class="lg-sub">' + escHtml(sub) + '</span>' : '') + '</span></div>';
+  }).join('');
   chart = new uPlot(opts(false, chartWidth(), chartHeight()), data, el('chart'));
   chart._hi = (W, H) => opts(true, W, H);
   chart._unit = uLab;
@@ -255,7 +278,7 @@ function fmtDayTimeC(c){
   return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1)+' '+pad(d.getUTCHours())+':'+pad(d.getUTCMinutes());
 }
 function fmtDayTime(ts){ return fmtDayTimeC(civT(ts)); }
-const isCompareMode = () => (chartMode === 'compare' || chartMode === 'compare30' || chartMode === 'tabs');
+const isCompareMode = () => ['compare', 'compare30', 'tabs', 'near'].includes(chartMode);
 const GRID = () => document.body.classList.contains('dark') ? '#223146' : '#eef2f7';
 const AXTX = () => document.body.classList.contains('dark') ? '#c7d3e0' : '#1c2733';
 
@@ -1078,6 +1101,7 @@ function renderChart(label){
     return;
   }
   if(chartMode === 'tabs'){ renderCompareTabs(cv, unit); return; }
+  if(chartMode === 'near'){ renderNear(cv, unit); return; }
   const m = mainModel(currentStation, selVars(), chartMode);
   chart = new uPlot(mainOpts(m, { w: chartWidth(), h: chartHeight() }), m.data, el('chart'));
   chart._m = m;
@@ -1544,7 +1568,7 @@ function createStack(host, cfg){
 // ------------------------------------------------------------------------------------------------
 const PNG_R = 2;
 const MODE_TXT = { week:'Ultimi 7 giorni', day3:'Ultimi 3 giorni', day:'Ultime 24 ore', mn:'Da mezzanotte',
-                   compare:'Confronto 7 giorni', compare30:'Confronto 30 giorni' };
+                   compare:'Confronto 7 giorni', compare30:'Confronto 30 giorni', near:'Ultimi 7 giorni' };
 function pngCanvas(W, H){
   const cv = document.createElement('canvas');
   cv.width = W * PNG_R;
@@ -1642,7 +1666,11 @@ async function chartPNG(){
   const totW = L + W_PLOT + W_LEG, totH = TOP + H_PLOT + 18, { cv, ctx } = pngCanvas(totW, totH);
   const m = chart._m, withUnit = (v, un) => varLabel(v) + (un ? ' (' + un + ')' : '');
   let title, what = MODE_TXT[chartMode] || '';
+  const near = !tabs && chartMode === 'near';
   if(tabs) title = 'Confronto schede — ' + withUnit(compareVar, chart._unit);
+  else if(near)
+    title = 'Vicine di ' + prettyName(currentStation.name || currentStation.scode) + ' — '
+          + withUnit(currentVar, chart._unit);
   else {
     const name = prettyName(currentStation.name || currentStation.scode);
     const un = varUnit(currentVar === WARROW ? 'VVENTO' : currentVar, currentStation);
@@ -1656,7 +1684,8 @@ async function chartPNG(){
   plot.done();
   pngLegend(ctx, series, L + W_PLOT + 26, TOP + 30, totH - 24);
   const fname = tabs ? 'confronto_schede_' + compareVar + '_' + chartMode + '.png'
-                     : pngBase() + '_' + (m ? m.vars.join('-') : currentVar) + '_' + chartMode + '.png';
+              : near ? pngBase() + '_vicine_' + currentVar + '.png'
+              : pngBase() + '_' + (m ? m.vars.join('-') : currentVar) + '_' + chartMode + '.png';
   return { blob: toPng(cv), fname };
 }
 
@@ -1740,9 +1769,9 @@ async function exportPNG(){
   }
 }
 
-// CSV del Confronto schede: una colonna per stazione, sugli istanti del grafico (ora italiana)
-function exportTabsCSV(){
-  if(!chart || !document.body.classList.contains('view-compare')) return;
+// CSV del Confronto schede e delle Vicine: una colonna per stazione, sugli istanti del grafico (ora italiana)
+function exportCompareCSV(fname){
+  if(!chart) return;
   const q = s => '"' + String(s).replace(/"/g, '""') + '"';
   const rows = [['datetime'].concat(chart.series.slice(1).map(s => q(s.label))).join(',')];
   chart.data[0].forEach((x, i) => {
@@ -1750,8 +1779,7 @@ function exportTabsCSV(){
     if(vals.some(v => v !== ''))
       rows.push([new Date(civT(x) * 1000).toISOString().slice(0, 16)].concat(vals).join(','));
   });
-  saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }),
-           'confronto_schede_' + compareVar + '.csv');
+  saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }), fname);
 }
 
 // ------------------------------------------------------------------------------------------------

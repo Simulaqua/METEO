@@ -1845,8 +1845,8 @@
         'Confronta: chiuso all\'inizio', cb.outerHTML.slice(0, 120));
     await openCmp();
     log(vis(cm) && cb.getAttribute('aria-expanded') === 'true', 'Confronta: si apre', '');
-    eq('Confronta: le tre voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
-       [['compare', '7 giorni'], ['compare30', '30 giorni'], ['tabs', 'Schede']]);
+    eq('Confronta: le quattro voci', [...cm.querySelectorAll('[data-mode]')].map(b => [b.dataset.mode, b.textContent.trim()]),
+       [['compare', '7 giorni'], ['compare30', '30 giorni'], ['tabs', 'Schede'], ['near', 'Vicine']]);
     {
       const r = R(cm), b = R(item('tabs')), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       log(cm.contains(hit) && r.left >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5,
@@ -1856,9 +1856,9 @@
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown', bubbles:true }));
     eq('Confronta: freccia giù', fa().dataset.mode, 'compare30');
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'End', bubbles:true }));
-    eq('Confronta: Fine', fa().dataset.mode, 'tabs');
+    eq('Confronta: Fine', fa().dataset.mode, 'near');
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowUp', bubbles:true }));
-    eq('Confronta: freccia su', fa().dataset.mode, 'compare30');
+    eq('Confronta: freccia su', fa().dataset.mode, 'tabs');
     esc(); await sleep(60);
     log(!vis(cm) && fa() === cb && cb.getAttribute('aria-expanded') === 'false', 'Confronta: Esc chiude e il fuoco torna al comando', fa() && (fa().id || fa().tagName));
     await openCmp();
@@ -1875,7 +1875,7 @@
           'Confronta: ' + lab + ' scelto, acceso sul comando', [chartMode, vis(cm), cb.className, cb.textContent, lit.length].join(' | '));
       log(!!chart && chart.series.length > 3 && !el('vars').querySelector('.vp'), 'Confronta: ' + lab + ': giorni sovrapposti, niente "+"', chart && chart.series.length);
       await openCmp();
-      eq('Confronta: ' + lab + ' segnato nel menu', [...cm.querySelectorAll('[data-mode]')].map(b => b.classList.contains('on')), [m === 'compare', m === 'compare30', false]);
+      eq('Confronta: ' + lab + ' segnato nel menu', [...cm.querySelectorAll('[data-mode]')].map(b => b.classList.contains('on')), [m === 'compare', m === 'compare30', false, false]);
       esc(); await sleep(60);
     }
     document.querySelector('#modes [data-mode="week"]').click(); await until(() => chartMode === 'week'); await sleep(200);
@@ -2070,8 +2070,8 @@
     await open(T);
     const src = el('source').textContent.trim();
     log(!/Ora italiana/.test(src) && /Dati non validati\.$/.test(src), 'fondo: la fonte e "Dati non validati."', src);
-    eq('Confronta: 7 giorni, 30 giorni, Schede', [...el('cmpMenu').querySelectorAll('[data-mode]')].map(b => b.textContent.trim()),
-       ['7 giorni', '30 giorni', 'Schede']);
+    eq('Confronta: 7 giorni, 30 giorni, Schede, Vicine', [...el('cmpMenu').querySelectorAll('[data-mode]')].map(b => b.textContent.trim()),
+       ['7 giorni', '30 giorni', 'Schede', 'Vicine']);
 
     for(const vs of [['TEMP'], ['TEMP', 'PREC'], ['PREC'], [WARROW]]){
       drawVar(vs[0]); vs.slice(1).forEach(addVar); await sleep(300);
@@ -2483,6 +2483,60 @@
     log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'), 'senza radar: niente serie né chiave', '');
     Radar.points = realPoints;
     P._radar = undefined;
+
+    // Vicine: voce in Confronta; la stazione e fino a 3 vicine entro 25 km, dalla più vicina
+    await open(P, 'TEMP');
+    await pickMode('week');
+    const items = [...el('cmpMenu').querySelectorAll('[data-mode]')].map(b => b.dataset.mode + ':' + b.textContent.trim());
+    eq('Vicine: ultima voce del menu Confronta', items[items.length - 1], 'near:Vicine');
+    await pickMode('near');
+    await until(() => chartMode === 'near' && !!chart && !!chart._near, 15000); await sleep(300);
+    const nb = (chart && chart._near) || [];
+    log(nb.length >= 2 && nb.length <= 4 && nb[0].props === P, 'Vicine: la stazione e fino a 3 vicine',
+        JSON.stringify(nb.map(o => o.props.name)));
+    log(nb.slice(1).every((o, k) => o.km <= 25 && (k === 0 || o.km >= nb[k].km)), 'Vicine: entro 25 km, dalla più vicina',
+        JSON.stringify(nb.map(o => o.km)));
+    log(nb.slice(1).every(o => o.props.quota == null || Math.abs(o.props.quota - P.quota) <= 300),
+        'Vicine: per la temperatura quota entro 300 m', JSON.stringify(nb.map(o => o.props.quota)));
+    const lrows = [...el('chartlegend').querySelectorAll('.lg-row')].map(r => r.textContent.trim());
+    log(lrows.length === nb.length && lrows.slice(1).every(t => /\d+(\.\d)? km, \d+ m$/.test(t)),
+        'Vicine: accanto al nome distanza e quota', JSON.stringify(lrows));
+    log(el('cmpBtn').classList.contains('active') && el('cmpBtn').textContent.trim() === 'Vicine',
+        'Vicine: acceso su Confronta', el('cmpBtn').textContent);
+    log(!el('vars').querySelector('.vp'), 'Vicine: una variabile alla volta, niente «+»', '');
+    {
+      let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
+      window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) oc.call(this); };
+      exportData(); await sleep(100);
+      window.Blob = OB; HTMLAnchorElement.prototype.click = oc;
+      const head = text ? text.split('\n')[0].split(',') : [];
+      eq('Vicine: CSV con una colonna per stazione', head.length, nb.length + 1);
+    }
+    {
+      const got = await chartPNG();
+      log(!!got && /vicine/.test(got.fname), 'Vicine: PNG', got && got.fname);
+    }
+    const W = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('LIVIDRO')
+                                                       && (p.variables || []).includes('PREC'));
+    if(W){
+      await open(W, 'PREC'); await pickMode('near'); await sleep(800);
+      const row = [...el('vars').querySelectorAll('.vn')].map(e => e.dataset.var);
+      log(!row.includes('LIVIDRO'), 'Vicine: niente livelli nella riga', JSON.stringify(row));
+      await pickMode('week');
+    } else log(true, 'Vicine: nessuna stazione con livello e pioggia (prova saltata)', '');
+    {
+      const far = await nearStations(Object.assign({}, P, { _lat:40.0, _lon:19.5 }), 'TEMP');
+      eq('Vicine: lontano da tutte, nessuna', far.length, 0);
+      await open(P, 'TEMP');
+      const lat = P._lat;
+      P._lat = 40.0;
+      await pickMode('near'); await sleep(800);
+      eq('Vicine: senza vicine, la frase', el('status').textContent, 'Nessuna stazione vicina con questa misura.');
+      P._lat = lat;
+    }
+    await pickMode('day3');
+    log(chartMode === 'day3' && !el('cmpBtn').classList.contains('active'), 'Vicine: un periodo ne esce', '');
 
     await pickMode('week');
     showMapView();

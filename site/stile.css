@@ -153,6 +153,10 @@ body.dark .ctip { background:rgba(21,31,45,.95); }
 body.view-compare #cmpBtn, body.view-compare #histbtn { display:none !important; }
 .lg-row { display:flex; align-items:center; gap:6px; font-size:12px; padding:1px 0; }
 .lg-sw { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
+/* Vicine: sotto il nome distanza e quota */
+.lg-row.two { align-items:flex-start; padding:2px 0; }
+.lg-row.two .lg-sw { margin-top:3px; }
+.lg-sub { display:block; color:var(--muted); font-size:11px; }
 /* etichette-valore sui puntini (zoom alto) */
 .vlab { background:rgba(255,255,255,.85); border:none; box-shadow:none; padding:0 3px; font-size:10px;
         font-weight:600; color:#1c2733; border-radius:3px; }
