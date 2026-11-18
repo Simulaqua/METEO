@@ -242,7 +242,7 @@ function addVar(v){
 }
 
 // "Altro": misure secondarie, derivate, indici (e la rosa), in tre gruppi; nel Confronto schede quelle
-// delle schede aperte
+// con dati in almeno due schede
 function altOpen(){
   const m = el('altMenu'), b = el('altBtn');
   if(!b) return;
@@ -423,7 +423,9 @@ function buildCompareRow(){
     if(all.some(v => !isMainVar(v, all))) box.appendChild(altButton());
   });
 }
-// vista della scheda Confronto: variabili = unione delle schede aperte, una curva per stazione
+// una scheda entra nel confronto di v se la sua tabella ha almeno un valore di v
+const tabHas = (t, v) => !!t.props._table && (t.props._table.cols[v] || []).some(x => x != null);
+// vista della scheda Confronto: le variabili con dati in almeno due schede aperte, una curva per stazione
 async function renderCompareView(){
   exitHist();
   exitStack();
@@ -441,16 +443,20 @@ async function renderCompareView(){
   el('windrose').innerHTML = '';
   history.replaceState(null, '', '#confronto');
   await ensureTabTables();
-  const set = new Set();
-  openTabs.forEach(t => (t.props.variables || []).forEach(v => {
-    if(v !== WROSE && v !== WARROW) set.add(v);
-  }));
-  compareVars = [...set].sort(byVarOrder);
-  if(!compareVar || !set.has(compareVar)) compareVar = set.has(currentVar) ? currentVar : compareVars[0];
+  const vars = new Set(openTabs.flatMap(t => t.props.variables || []));
+  compareVars = [...vars].filter(v => openTabs.filter(t => tabHas(t, v)).length >= 2).sort(byVarOrder);
+  if(!compareVars.includes(compareVar))
+    compareVar = compareVars.includes(currentVar) ? currentVar : compareVars[0] || null;
   buildCompareRow();
   if(['compare','compare30','tabs'].indexOf(chartMode) >= 0) chartMode = 'week';
   syncModes();
-  if(compareVar) renderCompareTabs(compareVar); else clearChart();
+  if(compareVar) renderCompareTabs(compareVar);
+  else {
+    clearChart();
+    el('chartlegend').innerHTML = '';
+    const why = openTabs.length < 2 ? 'Servono almeno due schede.' : 'Nessuna variabile in comune.';
+    setStatus(openTabs.length ? why : '');
+  }
 }
 function pickCompareVar(v){
   compareVar = v;

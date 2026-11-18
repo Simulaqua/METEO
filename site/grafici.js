@@ -126,8 +126,7 @@ function renderCompareTabs(label, unit){
     unit = t0 ? (unitsByRegion[t0.props._region] || {})[label] : '';
   }
   clearChart();
-  const tabs = openTabs.filter(t =>
-    t.props._table && (t.props._table.cols[label] || []).some(v => v != null));
+  const tabs = openTabs.filter(t => tabHas(t, label));
   if(tabs.length < 2){
     el('chartlegend').innerHTML = '';
     setStatus('Servono almeno due schede con ' + varLabel(label) + '.');

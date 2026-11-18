@@ -1883,7 +1883,7 @@
         'Confronta: 7 g lo spegne', cb.className + ' ' + cb.textContent);
 
     // Confronto schede: niente Confronta e Storico; CSV delle serie confrontate e PNG
-    await open(V); await open(P);
+    await open(A); await open(V); await open(P);
     await openCmp(); item('tabs').click();
     await until(() => document.body.classList.contains('view-compare') && !!chart, 8000); await sleep(300);
     log(document.body.classList.contains('view-compare') && !vis(cm) && el('stationName').textContent === 'Confronto schede',
@@ -1912,6 +1912,22 @@
       await exportPNG(); await until(() => got, 8000);
       window.deliverPNG = real;
       log(!!got && got.kb > 40 && /^confronto_schede_/.test(got.f), 'Confronto schede: PNG', JSON.stringify(got));
+    }
+    {                                                   // solo le variabili con dati in almeno due schede
+      const has = (t, v) => !!t.props._table && (t.props._table.cols[v] || []).some(x => x != null);
+      const n = v => openTabs.filter(t => has(t, v)).length;
+      const vars = [...new Set(openTabs.flatMap(t => t.props.variables || []))];
+      const offered = [...el('vars').querySelectorAll('.vn')].map(e => e.dataset.var);
+      if(vis(el('altBtn'))){
+        el('altBtn').click(); await sleep(60);
+        offered.push(...[...el('altMenu').querySelectorAll('[data-var]')].map(b => b.dataset.var));
+        altClose(); await sleep(60);
+      }
+      log(openTabs.length >= 3 && vars.some(v => n(v) === 1) && vars.some(v => n(v) === 2),
+          'Confronto schede: tre schede, variabili in una sola e in due',
+          JSON.stringify([openTabs.length, vars.map(v => v + ':' + n(v))]));
+      eq('Confronto schede: chips e "Altro" solo con le variabili di almeno due schede',
+         offered.slice().sort(), vars.filter(v => n(v) >= 2).sort());
     }
     {                                                   // come nella scheda: in vista le principali, il resto in "Altro"
       const all = compareVars.slice(), main = all.filter(v => isMainVar(v, all)), rest = all.filter(v => !isMainVar(v, all));
@@ -2111,7 +2127,11 @@
     }
     await pickMode('week'); await sleep(300);
     pickMode('tabs'); await sleep(800);
-    eq('Confronto schede con una scheda sola: una riga', el('status').textContent, 'Servono almeno due schede con ' + varLabel('TEMP') + '.');
+    eq('Confronto schede senza variabili in comune: una riga', el('status').textContent,
+       'Nessuna variabile in comune.');
+    closeTab(tabKeyOf(L)); await sleep(800);
+    eq('Confronto schede con una scheda sola: una riga', el('status').textContent,
+       'Servono almeno due schede.');
     await open(T);
 
     // Storico: sui grafici niente suggerimenti né chiavi (i nomi sono nel riquadro al passaggio)
