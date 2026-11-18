@@ -2473,6 +2473,11 @@
         const txt = chart._labs ? chart._labs.textContent : '';
         log(/Radar \d+\.?\d* mm/.test(txt), tag + ': al cursore «Radar … mm»', txt);
       }
+      if(mode === 'day3' && R.length){                 // dopo l'ultima lettura: in alto l'ora dell'intervallo
+        chart.setCursor({ left:chart.valToPos(R[R.length - 1][0] + slot / 2, 'x'), top:20 }); await sleep(100);
+        const top = chart._labs && chart._labs.querySelector('.cl-t');
+        log(!!top && /–/.test(top.textContent), tag + ': sopra una barra di solo radar l\'intervallo', top && top.textContent);
+      }
       noOverflow('radar ' + tag);
     }
     // senza file del radar: il grafico di oggi, senza errori
@@ -2632,7 +2637,7 @@
         }
       });
       const fs = freshSnow(ts);
-      eq('Neve fresca: un giorno per giorno civile', fs.x.length, 6);
+      eq('Neve fresca: un giorno per giorno civile', fs.x, [0, 1, 2, 3, 4, 5].map(k => civMidnight(d0 + k)));
       eq('Neve fresca: soglia, mattina mancante, scioglimento', fs.y, [null, 0, 14, null, null, 0]);
     }
     {
@@ -2678,7 +2683,101 @@
         noOverflow('PM10');
         const other = stationVars.find(v => v !== 'PM10' && isMainVar(v, stationVars));
         if(other){ drawVar(other); await sleep(300); log(!vis(box), 'PM10: con un\'altra misura la striscia sparisce', other); }
+        // nella scheda Confronto la striscia non resta sotto il grafico delle schede
+        openCompareTab();
+        await until(() => document.body.classList.contains('view-compare'), 5000); await sleep(400);
+        log(!vis(box), 'PM10: niente striscia nel Confronto schede', '');
+        closeCompare(); await sleep(200);
         window.loadPm10Year = realYear;
+      }
+    }
+
+    // Correzioni della revisione
+    {
+      // due stazioni aperte in fretta: resta l'ultima, con i suoi nomi e il suo link
+      const C = st('VEN', '100'), B = P;
+      if(C){
+        const real = Radar.points;
+        Radar.points = () => new Promise(r => setTimeout(() => r(null), 1000));   // il radar di C tarda
+        C._table = null; C._tableAt = 0; C._radar = undefined;
+        B._tableAt = Date.now(); B._radar = null;
+        const slow = selectStation(C);
+        await sleep(50);
+        await selectStation(B); await slow; await sleep(400);
+        Radar.points = real;
+        log(currentStation === B && el('stationName').title.startsWith(B.scode) && location.hash.includes('/' + B.scode + '/'),
+            'revisione: aprendo due stazioni in fretta resta l\'ultima', JSON.stringify([el('stationName').title, location.hash]));
+      }
+      // Vicine e poi un idrometro: le Vicine non valgono, si torna al periodo
+      await open(P, 'TEMP'); await pickMode('near'); await sleep(600);
+      const Wt = allFeatures.map(f => f.properties).find(p => (p.variables || []).length && p.variables.every(v => WATER_VARS.has(v)));
+      if(Wt){
+        await open(Wt);
+        log(chartMode !== 'near', 'revisione: Vicine e poi un idrometro, si torna al periodo', JSON.stringify([chartMode, currentVar]));
+      } else log(true, 'revisione: nessun idrometro puro (prova saltata)', '');
+      // Vicine, poi Storico: Esporta da' il CSV dello Storico
+      await open(P, 'TEMP'); await pickMode('near'); await sleep(600);
+      await setHistMode(true, 'TEMP', 'giorni'); await until(() => histMode && !!histU, 8000); await sleep(300);
+      {
+        let name = null; const real = window.saveBlob;
+        window.saveBlob = (b, f) => { name = f; };
+        exportData(); await sleep(100);
+        window.saveBlob = real;
+        log(!!name && !/vicine/.test(name), 'revisione: dallo Storico Esporta da\' lo Storico', name);
+      }
+      await setHistMode(false); await pickMode('week');
+      // i 30 giorni restano della stazione che li ha chiesti
+      {
+        const A30 = P, B30 = st('VEN', '79');
+        A30._table30 = null; if(B30) B30._table30 = null;
+        const p30 = ensureTable30();
+        currentStation = B30 || currentStation;
+        await p30;
+        currentStation = A30;
+        log(!!A30._table30 && !(B30 && B30._table30), 'revisione: i 30 giorni restano della stazione giusta', '');
+      }
+      // un messaggio non resta sotto il grafico dopo
+      await open(P, 'TEMP');
+      const lat = P._lat; P._lat = 40.0;
+      await pickMode('near'); await sleep(600);
+      P._lat = lat;
+      await pickMode('week'); await sleep(200);
+      eq('revisione: il messaggio delle Vicine non resta', el('status').textContent, '');
+      // il radar si riprende con la serie; niente radar per chi non ha la pioggia
+      {
+        const real = Radar.points, asked = [];
+        Radar.points = async reg => { asked.push(reg); return fake; };
+        P._radar = { t:[1], v:[0.5] }; P._tableAt = 0;
+        await open(P, 'PREC');
+        log(!!P._radar && P._radar.t.length === fake.t.length, 'revisione: il radar si riprende con la serie', P._radar && P._radar.t.length);
+        const N = allFeatures.map(f => f.properties).find(p => p._region === 'AQ_VEN');
+        asked.length = 0;
+        if(N){ N._tableAt = 0; N._radar = undefined; await open(N); }
+        eq('revisione: niente radar per una stazione senza pioggia', asked, []);
+        Radar.points = real; P._radar = undefined;
+      }
+      // radar di una stazione ferma da giorni: niente barre lontane dai suoi dati
+      {
+        const rs = { x:[T[0] - 3 * DAY_S], y:[0], hourly:true, step:HOUR, align:1 };
+        eq('revisione: stazione ferma, niente radar', radarBars({ t:T, v:T.map(() => 0.1) }, rs, T[0] - 3 * DAY_S + HOUR), null);
+      }
+      // neve fresca: Aggiorna la tiene, nei confronti non c'e'
+      const S = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('LIVNEVE') && p._region === 'VEN');
+      if(S){
+        await open(S); drawVar(SNOWNEW); await sleep(300);
+        await refreshStation(); await sleep(300);
+        eq('revisione: Aggiorna sulla neve fresca resta sulla neve fresca', currentVar, SNOWNEW);
+        await pickMode('compare'); await sleep(300);
+        log(![...el('vars').querySelectorAll('.vn')].some(e => e.dataset.var === SNOWNEW) && !nearOk(SNOWNEW),
+            'revisione: niente neve fresca nei confronti', '');
+        await pickMode('week');
+      }
+      // bilancio: il giorno in corso non conta
+      {
+        const tt = { header:t30.header, x:t30.x.slice(), cols:{ PREC:t30.cols.PREC.slice(), ET0:t30.cols.ET0.slice() } };
+        const D = civMidnight(today);
+        for(let h = 1; h <= 24; h++){ tt.x.push(D + h * HOUR); tt.cols.PREC.push(1); tt.cols.ET0.push(h === 12 ? 2 : null); }
+        eq('revisione: il bilancio non conta il giorno in corso', waterBalance(tt).valid, 28);
       }
     }
 

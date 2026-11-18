@@ -362,9 +362,11 @@ function cursorLabels(u){
   for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
   for(let k = tags.length - 1; k >= 0; k--)          // troppi in fondo: risalgono, dentro il grafico
     tags[k].y = Math.min(tags[k].y, k === tags.length - 1 ? H - 16 : tags[k + 1].y - 16);
-  const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null;
+  // l'ora dell'intervallo della prima serie; dopo l'ultima lettura, quello del radar
+  const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null, jr = m && m.iRadar ? at(m.iRadar) : null;
   const tt = u._top ? u._top(gi) : u._days ? (u.data[0][gi] != null ? hhmm(u.data[0][gi]) : '')
-           : x1 != null ? slotTimeTxt(u, 1, j1) : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
+           : x1 != null ? slotTimeTxt(u, 1, j1) : jr != null ? slotTimeTxt(u, m.iRadar, jr)
+           : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
   const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
   box.innerHTML = `<span class="cl-t" style="left:${tx}px">${tt}</span>` + tags.map(t =>
     `<span class="cl-v${side}" style="left:${left}px;top:${Math.round(t.y)}px">${t.html}</span>`).join('');
@@ -627,7 +629,7 @@ function mkSeries(d, hi){
     const radar = d.kind === 'radar';
     s.kind = 'bars';
     s.radar = radar;
-    s.fill = withAlpha(d.color, radar ? 0.12 : (d.alpha == null ? 0.6 : d.alpha));
+    s.fill = withAlpha(d.color, radar ? 0.22 : (d.alpha == null ? 0.6 : d.alpha));
     if(radar) s.width = hi ? 2 : 1.5;
     s.points = { show:false };
     s.paths = d.half ? halfBars(d.align, d.slot, d.half === 'right') : rainBars(d.align);
@@ -807,10 +809,11 @@ function rainSeries(xs, ys, v, from, to, hourly){
   return { x: X, y: Y, align: -1, slot: step || HOUR, hourly: false, step, gaps };
 }
 // Pioggia del radar negli stessi intervalli delle barre del pluviometro (pts = {t, v}: mm dei 5 minuti che
-// finiscono a t); dopo l'ultima lettura si continua col passo della stazione. Un intervallo vale con tutti i
-// suoi fotogrammi; l'ultimo, come l'ultima barra del pluviometro, anche a meta'.
-const RADAR_STEP = 300;
-function radarBars(pts, rs){
+// finiscono a t); dopo l'ultima lettura (to) si continua col passo della stazione, al massimo per 6 ore: una
+// stazione ferma da giorni non ha il radar in fondo. Un intervallo vale con tutti i suoi fotogrammi;
+// l'ultimo, come l'ultima barra del pluviometro, anche a meta'.
+const RADAR_STEP = 300, RADAR_AHEAD = 6 * HOUR;
+function radarBars(pts, rs, to){
   const T = pts.t, V = pts.v, n = T.length, slot = rs.hourly ? HOUR : rs.step;
   if(!n || !slot || slot % RADAR_STEP) return null;
   const starts = rs.x.filter(x => x != null).map(x => rs.hourly ? x : x - slot);
@@ -819,7 +822,7 @@ function radarBars(pts, rs){
   const X = [], Y = [], need = slot / RADAR_STEP;
   let k = 0;
   for(const a of starts){
-    if(a < T[0] - RADAR_STEP || a >= T[n - 1]) continue;
+    if(a < T[0] - RADAR_STEP || a >= T[n - 1] || a > to + RADAR_AHEAD) continue;
     while(k < n && T[k] <= a) k++;
     let sum = 0, cnt = 0;
     for(let j = k; j < n && T[j] <= a + slot; j++) if(V[j] != null){ sum += V[j]; cnt++; }
@@ -832,8 +835,7 @@ function radarBars(pts, rs){
 }
 // Neve fresca stimata, giorno civile per giorno: la mattina (mediana delle letture fra le 6 e le 10) meno
 // quella del giorno prima. Sotto i 2 cm conta 0 (il sensore oscilla di 1-2 cm), le altezze negative 0;
-// senza una delle due mattine il giorno resta vuoto. -> {x: le 8 del mattino del giorno, fine delle 24 ore
-// in cui e' caduta, y: cm | null}
+// senza una delle due mattine il giorno resta vuoto. -> {x: mezzanotte del giorno, y: cm | null}
 const SNOW_MIN = 2;
 function freshSnow(t){
   const H = t.cols.LIVNEVE || [], morning = new Map();
@@ -852,7 +854,7 @@ function freshSnow(t){
   if(!xs.length) return { x, y };
   for(let d = civDay(xs[0]); d <= civDay(xs[xs.length - 1]); d++){
     const a = morning.get(d), b = morning.get(d - 1), diff = a && b ? median(a) - median(b) : null;
-    x.push(civToUtc(d * DAY_S + 8 * HOUR));
+    x.push(civMidnight(d));
     y.push(diff == null ? null : (diff >= SNOW_MIN ? Math.round(diff * 10) / 10 : 0));
   }
   return { x, y };
@@ -1204,7 +1206,8 @@ const dalTxt = d => {                    // "dal 3 luglio", "dall'8 luglio", "da
 let _pmSeq = 0;
 async function showPm10Year(){
   const box = el('pm10year'), st = currentStation, seq = ++_pmSeq;
-  if(!st || currentVar !== 'PM10' || !st._region.startsWith('AQ_') || isCompareMode() || histMode){
+  if(!st || currentVar !== 'PM10' || !st._region.startsWith('AQ_') || isCompareMode() || histMode
+     || document.body.classList.contains('view-compare')){
     box.hidden = true;
     return;
   }
@@ -1244,6 +1247,7 @@ async function showPm10Year(){
 // scelte; 'compare'/'compare30' -> renderCompare (una variabile)
 function renderChart(label){
   clearChart();
+  setStatus('');                         // il messaggio di una vista (niente vicine...) non resta
   showPm10Year();
   const stk = stacked();
   document.body.classList.toggle('stacked', stk);
@@ -1273,11 +1277,12 @@ function renderChart(label){
 // restano piatte: il bilancio non pende da una parte. null con meno di 20 giorni validi.
 const BIL_HOURS = 20, BIL_DAYS = 20;
 function waterBalance(t){
-  const P = t.cols.PREC || [], E = t.cols.ET0 || [], byDay = new Map();
+  const P = t.cols.PREC || [], E = t.cols.ET0 || [], byDay = new Map(), today = civDay(Date.now() / 1000);
   for(let i = 0; i < t.x.length; i++){
     const x = t.x[i];
     if(x == null) continue;
     const d = civDay(x - 1);
+    if(d >= today) continue;                   // il giorno in corso non e' finito: pioggia ed ET0 a meta'
     let o = byDay.get(d);
     if(!o) byDay.set(d, o = { p:0, hours:new Set(), e:null });
     if(P[i] != null){
@@ -1389,11 +1394,11 @@ function mainModel(st, vars, mode){
   const ss = vars.map(v => {
     const c = src(v), ys = applyOff(t.cols[c] || [], varOffset(c, st), varScale(c, st));
     const s = { v, src: c, unit: varUnit(c, st) };
-    if(c === SNOWNEW){                   // una barra per le 24 ore fino alla mattina del giorno
-      const fs = freshSnow(t), keep = fs.x.map(x => x > from && x - DAY_S < to);
+    if(c === SNOWNEW){                   // una barra sulla sua giornata civile
+      const fs = freshSnow(t), keep = fs.x.map(x => x >= from && x < to);
       const x = fs.x.filter((_, j) => keep[j]), y = fs.y.filter((_, j) => keep[j]);
       return Object.assign(s, { kind:'bars', x, y,
-                                rs:{ x, y, align:-1, slot:DAY_S, hourly:false, step:DAY_S, gaps:[] } });
+                                rs:{ x, y, align:1, slot:DAY_S, hourly:false, step:DAY_S, gaps:[] } });
     }
     if(isRainVar(c)){
       const rs = rainSeries(t.x, ys, c, from, to, !rawMode(mode));
@@ -1407,7 +1412,7 @@ function mainModel(st, vars, mode){
   // in MN la linea del giorno coinciderebbe con la cumulata
   const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
   // il radar nel punto della stazione: nei suoi intervalli la barra del pluviometro passa nella serie a meta'
-  const radar = (s1 && s1.src === 'PREC' && st._radar) ? radarBars(st._radar, s1.rs) : null;
+  const radar = (s1 && s1.src === 'PREC' && st._radar) ? radarBars(st._radar, s1.rs, to) : null;
   const inRadar = new Set(radar ? radar.x : []);
   const tabs = ss.map(s => [s.x, s.y]);
   if(radar) tabs[0] = [s1.x, s1.y.map((y, j) => inRadar.has(s1.x[j]) ? null : y)];
@@ -1432,7 +1437,9 @@ function mainModel(st, vars, mode){
       dirs: X.map(x => at.has(x) ? at.get(x) : null)
     };
   }
-  const win = mode === 'mn' ? [from, to] : (X.length ? [X[0], X[X.length - 1]] : null);
+  // la neve fresca da sola ha solo le mezzanotti: la finestra e' il periodo (oggi fino all'ultima lettura)
+  const win = (mode === 'mn' || s1.src === SNOWNEW) ? [from, to]
+            : (X.length ? [X[0], X[X.length - 1]] : null);
   // l'ultima barra del radar per intero, anche oltre l'ultima lettura della stazione
   if(radar && win)
     win[1] = Math.max(win[1], radar.x[radar.x.length - 1] + (radar.align === 1 ? radar.slot : 0));

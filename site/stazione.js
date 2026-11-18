@@ -63,7 +63,9 @@ async function loadRadarPoints(props, fresh){
 async function selectStation(props){
   snapPause();
   closeSheet();
-  const radarLoad = props._radar === undefined ? loadRadarPoints(props) : null;
+  // serie recente (< 5 min, cambio scheda) riusata; il radar si riprende con la serie, solo con la pioggia
+  const fresh = props._table && props._tableAt && (Date.now() - props._tableAt) < 5*60*1000;
+  const radarLoad = !fresh && (props.variables || []).includes('PREC') ? loadRadarPoints(props) : null;
   const prevSel = selVars();
   chartVar = null;
   el('stationName').title = '';
@@ -83,19 +85,22 @@ async function selectStation(props){
   setStatus('Carico la serie…');
 
   let table;
-  if(props._table && props._tableAt && (Date.now() - props._tableAt) < 5*60*1000){
-    table = props._table;                 // cambio scheda: riusa la serie recente (< 5 min)
-  } else {
+  if(fresh) table = props._table;
+  else {
     let csv;
     try {
       csv = await (await fdata(`${region}/${props.series}`)).text();
-    } catch(e){ setStatus('Serie non disponibile.'); return; }
+    } catch(e){
+      if(currentStation === props) setStatus('Serie non disponibile.');
+      return;
+    }
     table = parseCSV(csv);                // {header:[datetime,VAR,...], cols:{name:[...]}, x:[epoch]}
     props._table = table;
     props._tableAt = Date.now();
   }
   // il radar di solito arriva con la serie; se tarda, il grafico esce subito e si ridisegna dopo
   if(radarLoad) await Promise.race([radarLoad, new Promise(r => setTimeout(r, 1500))]);
+  if(currentStation !== props) return;           // nel frattempo si e' aperta un'altra stazione
 
   setMeta(props.scode, civSec(props.latest_time), table);
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
@@ -136,11 +141,12 @@ async function selectStation(props){
     buildVarRow();
     renderChart(currentVar);
   } else {
-    const main = stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder);
+    // Vicine accese: restano solo se questa stazione ha una misura per cui valgono
+    if(chartMode === 'near' && !stationVars.some(nearOk)) chartMode = 'week';
+    const pool = rowVars(), main = pool.filter(v => isMainVar(v, pool)).sort(byVarOrder);
     // la variabile scelta sulla mappa; se no temperatura, poi pioggia, poi livello; se no la prima
-    const pick = (filterVar && stationVars.includes(filterVar)) ? filterVar
-               : (OPEN_ORDER.find(v => main.includes(v)) || main[0]
-                  || stationVars.slice().sort(byVarOrder)[0]);
+    const pick = (filterVar && pool.includes(filterVar)) ? filterVar
+               : (OPEN_ORDER.find(v => main.includes(v)) || main[0] || pool.slice().sort(byVarOrder)[0]);
     if(pick) drawVar(pick);
     else { currentVar = null; buildVarRow(); clearChart(); }
   }
@@ -206,8 +212,10 @@ function keepFocus(box, build){
 function buildVarRow(){
   keepFocus(el('vars'), fillVarRow);
 }
-// variabili della riga: nelle Vicine solo quelle che valgono
-const rowVars = () => chartMode === 'near' ? stationVars.filter(nearOk) : stationVars;
+// variabili della riga: nelle Vicine solo quelle che valgono; nei confronti niente neve fresca (la calcola la
+// pagina, non c'e' nelle serie)
+const rowVars = () => chartMode === 'near' ? stationVars.filter(nearOk)
+                    : isCompareMode() ? stationVars.filter(v => v !== SNOWNEW) : stationVars;
 function fillVarRow(){
   const box = el('vars'), all = rowVars(), cmp = isCompareMode();
   const sel = cmp ? [currentVar] : selVars();
@@ -300,7 +308,7 @@ function altClose(refocus){
 }
 
 async function ensureTable(p){
-  if(p._table) return;
+  if(p._table && p._tableAt && Date.now() - p._tableAt < 5 * 60 * 1000) return;
   try {
     p._table = parseCSV(await (await fdata(`${p._region}/${p.series}`)).text());
     p._tableAt = Date.now();
@@ -317,7 +325,7 @@ const NEAR_KM = 25, NEAR_N = 3, NEAR_DZ = { TEMP:300, TDEW:300, TAPP:300, PRESS:
 const WATER_VARS = new Set(['LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO',
   'DEFLUSSO', 'VOLINVASO', 'MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA',
   'CONDUCIBILITA']);
-const nearOk = v => !!v && !isView(v) && v !== WARROW && !WATER_VARS.has(v);
+const nearOk = v => !!v && !isView(v) && v !== WARROW && v !== SNOWNEW && !WATER_VARS.has(v);
 function distKm(a, b){
   const r = Math.PI / 180, dLat = (b._lat - a._lat) * r, dLon = (b._lon - a._lon) * r;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a._lat * r) * Math.cos(b._lat * r) * Math.sin(dLon / 2) ** 2;
@@ -360,7 +368,7 @@ async function refreshStation(){
     await loadRadarPoints(currentStation, true);
     if(currentVar === WROSE) updateWindRose();
     else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
-      if(currentVar && (currentVar === WARROW || currentVar === WBIL || t.cols[currentVar]))
+      if(currentVar && ([WARROW, WBIL, SNOWNEW].includes(currentVar) || t.cols[currentVar]))
         renderChart(currentVar);
       else drawVar(t.header[1]);
     }
@@ -490,6 +498,7 @@ async function renderCompareView(){
   altClose();
   document.body.classList.add('view-station', 'view-compare');
   document.body.classList.remove('rose-mode', 'clima-mode');
+  showPm10Year();                                   // la striscia del PM10 e' di una stazione: qui va via
   el('panel').scrollTop = 0;
   el('stationName').textContent = 'Confronto schede';
   el('stationName').title = '';
@@ -540,18 +549,22 @@ function closeTab(key){
   );
 }
 
+// la serie resta della stazione che l'ha chiesta; false anche se nel frattempo se ne e' aperta un'altra
 async function ensureTable30(){
-  if(!currentStation) return false;
-  if(currentStation._table30) return true;
+  const st = currentStation;
+  if(!st) return false;
+  if(st._table30) return true;
   setStatus('Carico gli ultimi 30 giorni…');
   try {
-    const region = currentStation._region;
-    const csv = await (await fdata(`${region}/series30/${currentStation.scode}.csv`,
-                                   {cache:'no-store'})).text();
-    currentStation._table30 = parseCSV(csv);
+    const csv = await (await fdata(`${st._region}/series30/${st.scode}.csv`, {cache:'no-store'})).text();
+    st._table30 = parseCSV(csv);
+    if(currentStation !== st) return false;
     setStatus('');
     return true;
-  } catch(e){ setStatus('Serie a 30 giorni non ancora disponibile.'); return false; }
+  } catch(e){
+    if(currentStation === st) setStatus('Serie a 30 giorni non ancora disponibile.');
+    return false;
+  }
 }
 
 // Periodi (Oggi, 24 h, 3 g, 7 g) e, nel menu "Confronta", Confronto 7 giorni / 30 giorni / schede / Vicine.
@@ -571,6 +584,7 @@ async function pickMode(mode){
     const ok = rowVars();
     currentVar = ok.filter(v => isMainVar(v, ok)).sort(byVarOrder)[0] || ok[0] || currentVar;
   }
+  if(isCompareMode() && currentVar === SNOWNEW) currentVar = 'LIVNEVE';
   syncModes();
   if(document.body.classList.contains('view-compare')){ renderCompareTabs(compareVar); return; }
   buildVarRow();
@@ -668,11 +682,11 @@ function expClose(refocus){
 function exportData(){
   if(document.body.classList.contains('view-compare'))
     exportCompareCSV('confronto_schede_' + compareVar + '.csv');
-  else if(chartMode === 'near' && chart && chart._near)
-    exportCompareCSV(pngBase() + '_vicine_' + currentVar + '.csv');
   else if(histMode) exportHistCSV();
   else if(currentVar === WCLIMA) exportClimaCSV();
   else if(currentVar === WBIL) exportBilancioCSV();
+  else if(chartMode === 'near' && chart && chart._near)
+    exportCompareCSV(pngBase() + '_vicine_' + currentVar + '.csv');
   else if(currentStation){
     const p = currentStation, a = document.createElement('a');
     a.href = `${DATA_BASE}/${p._region}/${p.series}`;
