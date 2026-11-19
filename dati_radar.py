@@ -32,7 +32,8 @@ ORIGIN = 'https://radar.protezionecivile.it'         # la documentazione chiede 
 USER_AGENT = 'meteo.simulaqua.it radar (+https://meteo.simulaqua.it)'
 REMOTE = 'git@github.com:Simulaqua/METEO.git'        # stesso repo e deploy key di publish.sh
 BRANCH = 'radar'
-LICENSE_TXT = ('Fotogrammi derivati da Radar-DPC - Dipartimento della Protezione Civile (prodotto SRI, mm/h),\n'
+LICENSE_TXT = ('Fotogrammi derivati da Radar-DPC - Dipartimento della Protezione Civile '
+               '(prodotto SRI, mm/h),\n'
                'licenza CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/deed.it\n'
                'Elaborazione (riproiezione Web Mercator, classi di colore): meteo.simulaqua.it\n')
 

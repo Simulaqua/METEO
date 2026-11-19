@@ -121,7 +121,8 @@ done
 
 # tiene le ultime KEEP versioni: esce la piu' vecchia (i dati restano nelle successive)
 if [ -f "$STOP" ]; then
-    log "ATTENZIONE: rotazione ferma -- $(tail -1 "$STOP"), nessuna versione vecchia tolta. Se era voluto: rm $STOP"
+    why=$(tail -1 "$STOP")
+    log "ATTENZIONE: rotazione ferma -- $why, nessuna versione vecchia tolta. Se era voluto: rm $STOP"
 elif [ $PARTIAL -eq 1 ]; then
     log "ATTENZIONE: copia parziale -- stanotte nessuna versione vecchia tolta"
 else
@@ -133,6 +134,7 @@ fi
 N=$(ls -1d "$DEST"/20??-??-?? 2>/dev/null | wc -l)
 FREE=$(df -h --output=avail "$MNT" | tail -1 | tr -d ' ')
 USE=$(df --output=pcent "$MNT" | tail -1 | tr -dc '0-9')
-log "fatto in ${SECONDS}s: versione $DAY, $(awk -v b=$NEWB 'BEGIN {printf "%.1f", b / 1048576}') MB nuovi, $NF file, $N versioni, liberi $FREE"
+NEWMB=$(awk -v b=$NEWB 'BEGIN {printf "%.1f", b / 1048576}')
+log "fatto in ${SECONDS}s: versione $DAY, $NEWMB MB nuovi, $NF file, $N versioni, liberi $FREE"
 [ "${USE:-0}" -ge 90 ] && log "ATTENZIONE: chiavetta piena ${USE}% -- liberare spazio o ridurre KEEP"
 exit 0

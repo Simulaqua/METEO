@@ -45,7 +45,8 @@ jobs:
           if os.environ.get('PROVA') == 'true':
               fine(['prova'], '')
           try:
-              url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+              url = ('https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json'
+                     '?cb=%d' % time.time())
               j = json.load(urllib.request.urlopen(url, timeout=30))
           except Exception as e:
               print(e)
@@ -55,7 +56,8 @@ jobs:
           # --- specifico: eta' dell'ultimo giro riuscito dello Storico ---
           h = j.get('history') or {}
           try:
-              giorni = (adesso.date() - datetime.datetime.strptime(h.get('last') or '', '%Y-%m-%dT%H:%M').date()).days
+              ultimo = datetime.datetime.strptime(h.get('last') or '', '%Y-%m-%dT%H:%M')
+              giorni = (adesso.date() - ultimo.date()).days
           except ValueError:
               fine(['nessun giro'], '')
           stato = 'ultimo giro: ' + {0: 'oggi', 1: 'ieri'}.get(giorni, '%d gg fa' % giorni)

@@ -26,7 +26,9 @@ cd "$PI_BASE"
 echo "-- aggiorno SOLO il blocco METEO del crontab (le altre tue righe restano intatte)"
 # rimuove un eventuale vecchio blocco fra i marcatori e riappende quello nuovo; preserva il resto
 # cat -s: le righe vuote non si accumulano a ogni deploy
-( crontab -l 2>/dev/null | sed '/# >>> METEO/,/# <<< METEO/d' | cat -s; echo; cat crontab_regioni.txt ) | crontab -
+( crontab -l 2>/dev/null | sed '/# >>> METEO/,/# <<< METEO/d' | cat -s
+  echo
+  cat crontab_regioni.txt ) | crontab -
 echo "-- verifico python e flock"
 which python3; which flock || echo "ATTENZIONE: flock mancante (installa util-linux)"
 PIEOF

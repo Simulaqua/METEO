@@ -76,7 +76,7 @@ def download():
 
 
 def day_window(date):
-    """Primo e ultimo istante (AAAAMMGGhhmm) del giorno da archiviare: oggi fino ad ora, ieri, o AAAA MM GG."""
+    """Primo e ultimo istante (AAAAMMGGhhmm) del giorno da archiviare: oggi finora, ieri, o AAAA MM GG."""
     # ora locale di proposito, anche se ARPAV dà l'ora solare: con l'ora legale funziona lo stesso
     now = datetime.datetime.now()
     if date[0] in ('today', 'Today', 'TODAY', 't', 'T'):

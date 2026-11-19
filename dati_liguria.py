@@ -3,7 +3,8 @@
 # Endpoint (https://omirl.regione.liguria.it/Omirl/rest/):
 #   stations/<Classe>             ultimo valore di ogni stazione della classe, con coordinate
 #   charts/csv/<Codice>/<Classe>  serie della stazione, CSV 'gg/mm/aaaa hh:mm;valore;...;' (pioggia oraria
-#                                 ~2,5 giorni; vento 10 min ~7 giorni = velocita' + raffica; resto 30 min ~15 giorni)
+#                                 ~2,5 giorni; vento 10 min ~7 giorni = velocita' + raffica;
+#                                 resto 30 min ~15 giorni)
 #   charts/<Codice>/Vento         grafico XML: unica fonte della DIREZIONE del vento (oraria, ~640 KB)
 # Tutti i tempi OMIRL sono UTC: ora solare = UTC + 1 h.
 # Pluvio PREC mm = pioggia dell'ora che FINISCE all'istante. Viene SOLO dalla serie oraria: il 'value'

@@ -16,7 +16,8 @@ OUT="$BASE/history_out"
 nice -n 19 ionice -c3 python3 history.py --out "$OUT" --cache "$BASE/history_cache"
 
 mkdir -p .tracking
-HASH="$(find "$OUT" -type f -name '*.json' -not -name 'index.json' | sort | xargs cat 2>/dev/null | sha1sum | cut -d' ' -f1)"
+HASH="$(find "$OUT" -type f -name '*.json' -not -name 'index.json' | sort |
+        xargs cat 2>/dev/null | sha1sum | cut -d' ' -f1)"
 if [ "$HASH" = "$(cat .tracking/last_history_hash 2>/dev/null || true)" ]; then
   # riuscito anche senza push: status.py legge l'ora di modifica come ultimo giro ('Warning - storico off')
   touch .tracking/last_history_hash

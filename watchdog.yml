@@ -44,7 +44,8 @@ jobs:
           if os.environ.get('PROVA') == 'true':
               fine(['prova'], '')
           try:
-              url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+              url = ('https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json'
+                     '?cb=%d' % time.time())
               j = json.load(urllib.request.urlopen(url, timeout=30))
           except Exception as e:
               print(e)
@@ -53,7 +54,8 @@ jobs:
 
           # --- specifico: eta' dell'ultimo dato ---
           try:
-              ore = (adesso - datetime.datetime.strptime(j.get('latest') or '', '%Y-%m-%dT%H:%M')).total_seconds() / 3600
+              ultimo = datetime.datetime.strptime(j.get('latest') or '', '%Y-%m-%dT%H:%M')
+              ore = (adesso - ultimo).total_seconds() / 3600
           except ValueError:
               fine(['nessun dato'], '')
           if ore < 1:

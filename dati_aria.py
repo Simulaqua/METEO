@@ -47,7 +47,8 @@ BZ_AIRQUALITY = 'https://dati.retecivica.bz.it/services/airquality'
 # per nome (maiuscole, accenti e punteggiatura non contano): le stazioni tengono i codici di prima.
 ER_DATA = ('https://dati.arpae.it/api/explore/v2.1/catalog/datasets/dati_qualita_aria_er_giornaliero/'
            'exports/json')
-ER_STATIONS_CSV = 'https://docs.google.com/spreadsheets/d/1-4wgZ8JeLeg0bODTSFUrshPY-_y9mERUu0FJtSFr78s/export?format=csv'
+ER_STATIONS_CSV = ('https://docs.google.com/spreadsheets/d/1-4wgZ8JeLeg0bODTSFUrshPY-_y9mERUu0FJtSFr78s/'
+                   'export?format=csv')
 
 # TN: il feed non dà le coordinate e le 8 stazioni sono fisse: tabella (geocodifica OSM degli indirizzi
 # ufficiali). Il codice stazione è lo slug del nome.

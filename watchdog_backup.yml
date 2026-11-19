@@ -46,7 +46,8 @@ jobs:
           if os.environ.get('PROVA') == 'true':
               fine(['prova'], '')
           try:
-              url = 'https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json?cb=%d' % time.time()
+              url = ('https://raw.githubusercontent.com/Simulaqua/METEO/data/STATUS/status.json'
+                     '?cb=%d' % time.time())
               j = json.load(urllib.request.urlopen(url, timeout=30))
           except Exception as e:
               print(e)

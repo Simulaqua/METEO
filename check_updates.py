@@ -241,7 +241,8 @@ def main():
     parser = argparse.ArgumentParser(description='Rileva nuove stazioni / nuove variabili non mappate.')
     parser.add_argument('-r', '--region', default='all', help='VEN/BZ/TN/FVG/all')
     parser.add_argument('--sample', type=int, default=0,
-                        help='Campiona N stazioni per lista (0 = tutte, default). Piu\' veloce ma puo\' perdere variabili rare.')
+                        help='Campiona N stazioni per lista (0 = tutte, default). '
+                             'Piu\' veloce ma puo\' perdere variabili rare.')
     args = parser.parse_args()
 
     os.makedirs(TRACK_DIR, exist_ok=True)
@@ -279,7 +280,8 @@ def main():
                 print(f"    + NUOVA STAZIONE {c}  {stations.get(c) or ''}")
         if new_vars:
             for v in new_vars:
-                print(f"    ! VARIABILE NON MAPPATA: '{v}'  (in {live[v]} stazioni) -> aggiungila allo script {region}")
+                print(f"    ! VARIABILE NON MAPPATA: '{v}'  (in {live[v]} stazioni)"
+                      f" -> aggiungila allo script {region}")
         else:
             print("  variabili: tutte mappate")
 

@@ -38,6 +38,8 @@ echo "$(ts) ok: ultimo dato $AGE_MIN min fa (soglia $THRESH_MIN)" >> "$LOG"
 
 if [ "$AGE_MIN" -gt "$THRESH_MIN" ]; then
     H=$(( AGE_MIN / 60 ))
-    /usr/bin/osascript -e "display notification \"Ultimo dato pubblicato ${H} ore fa (${AGE_MIN} min). Controlla Pi / rete / publish.\" with title \"⚠ METEO fermo\" sound name \"Basso\"" 2>/dev/null
+    MSG="Ultimo dato pubblicato ${H} ore fa (${AGE_MIN} min). Controlla Pi / rete / publish."
+    SCRIPT="display notification \"$MSG\" with title \"⚠ METEO fermo\" sound name \"Basso\""
+    /usr/bin/osascript -e "$SCRIPT" 2>/dev/null
 fi
 exit 0

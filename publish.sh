@@ -56,7 +56,8 @@ data_push() {
   dgit add -A || return 1
   tree="$(dgit write-tree)" || return 1
   [ -n "$(dgit ls-tree "$tree")" ] || { echo "ERRORE: nessuna cartella dati in site/"; return 1; }
-  delta="$(dgit ls-files -s -z | python3 "$BASE/delta_names.py" "$DATA_GIT/delta-map" | dgit mktree)" || return 1
+  delta="$(dgit ls-files -s -z | python3 "$BASE/delta_names.py" "$DATA_GIT/delta-map" |
+           dgit mktree)" || return 1
   root="$({ dgit ls-tree "$tree"; printf '040000 tree %s\t.delta\n' "$delta"; } | dgit mktree)" || return 1
   msg="data $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   new="$(dgit commit-tree "$root" -m "$msg")" || return 1
@@ -154,8 +155,9 @@ if [ "$PAGE_HASH" != "$(cat .tracking/last_page_hash 2>/dev/null || true)" ]; th
   # esclusi URL, #, data:, mailto:, javascript: e tel:; ?..., #... e un ./ iniziale si tolgono. Si ferma
   # anche un file scritto in una forma che PAGE_FILES non legge (./x.js, js/x.js, X.js, x.js?v=1).
   # Niente push e niente last_page_hash: si riprova al prossimo giro.
+  REF_RE="(src|href)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]\"'>]+)"
   LOCAL_REFS="$(LC_ALL=C sed 's/<!--[^>]*-->//g' "$TMP/index.html" \
-                | LC_ALL=C grep -aoiE "(src|href)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*'|[^[:space:]\"'>]+)" \
+                | LC_ALL=C grep -aoiE "$REF_RE" \
                 | LC_ALL=C sed -E "s/^[^=]*=[[:space:]]*//; s/^[\"'](.*)[\"']\$/\\1/" \
                 | LC_ALL=C grep -aviE '^(https?:|//|#|data:|mailto:|javascript:|tel:)' || true)"
   while IFS= read -r ref; do

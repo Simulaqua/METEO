@@ -36,8 +36,10 @@ if mountpoint -q /mnt/usb; then
     df -h /mnt/usb | tail -1
     last=$(ls -1d /mnt/usb/backup/20??-??-?? 2>/dev/null | tail -1)
     echo "  versioni: $(ls -1d /mnt/usb/backup/20??-??-?? 2>/dev/null | wc -l), ultima: ${last##*/}"
-    [[ "${last##*/}" < "$(date -d yesterday +%F)" ]] && echo "  ATTENZIONE: nessun backup nuovo da piu' di un giorno"
-    [ -f /mnt/usb/backup/.rotazione-ferma ] && echo "  ATTENZIONE: rotazione ferma -> $(tail -1 /mnt/usb/backup/.rotazione-ferma)"
+    [[ "${last##*/}" < "$(date -d yesterday +%F)" ]] &&
+        echo "  ATTENZIONE: nessun backup nuovo da piu' di un giorno"
+    [ -f /mnt/usb/backup/.rotazione-ferma ] &&
+        echo "  ATTENZIONE: rotazione ferma -> $(tail -1 /mnt/usb/backup/.rotazione-ferma)"
 else
     echo "  NON montata: il backup notturno non gira"
 fi

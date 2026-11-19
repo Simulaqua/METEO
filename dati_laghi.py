@@ -2,7 +2,8 @@
 # dati_laghi.py - livelli dei grandi laghi regolati (LAGHI): Maggiore, Como, Iseo, Idro, Garda, da laghi.net.
 # Ogni giro legge le serie degli ultimi 3 giorni. Prima la home (cookie di sessione), poi
 #   POST /MappaConSegnaposti/BootWidgetData (config=370): i laghi con le loro serie (id_sensore, id_funzione)
-#   POST /GraficoMultiserie/GetSerieData: i punti di una serie, ['AAAA-MM-GG hh:mm' in ora solare, 'valore', ...]
+#   POST /GraficoMultiserie/GetSerieData: i punti di una serie,
+#        ['AAAA-MM-GG hh:mm' in ora solare, 'valore', ...]
 # Uso: python3 dati_laghi.py [--debug]
 import argparse
 import datetime
