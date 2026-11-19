@@ -2823,10 +2823,73 @@
     finish();
   }
 
+  // Mappa: valori confrontabili, ritardi in grigio, etichette. Stazioni finte, cosi' non dipende dai dati del giorno
+  async function suiteValori(){
+    window.__errs = [];
+    const H = 3600e3, NOW = nowRome(), iso = ms => new Date(ms).toISOString().slice(0, 16);
+    const fake = (reg, sc, lat, lon, latest, extra) => ({ type:'Feature', geometry:{ type:'Point', coordinates:[lon, lat] },
+      properties:Object.assign({ scode:sc, name:'Prova ' + sc, variables:Object.keys(latest), latest,
+                                 latest_time:iso(NOW - H), series:'series/' + sc + '.csv', _region:reg, _lat:lat, _lon:lon },
+                               extra || {}) });
+    const UNITS = { VEN:{ VVENTO:'m/s', RADSOL:'W/m²', LIVIDRO:'m', PREC:'mm', TEMP:'°C', UMID:'%', LIVNEVE:'cm' },
+                    FVG:{ VVENTO:'km/h', RADSOL:'KJ/m^2', TEMP:'°C' }, LIG:{ VVENTO:'m/s', RADSOL:'W/m2', TEMP:'°C' },
+                    LOM:{ LIVIDRO:'cm', TEMP:'°C' }, AQ_LOM:{ PM10:'µg/m³', O3:'µg/m³' } };
+    const scene = async (features, v) => {
+      if(snap.on) closeSlider();
+      allFeatures = features;
+      unitsByRegion = UNITS;
+      selectedKey = '';
+      refreshFilters();
+      setMapVar(v);
+      await sleep(150);
+    };
+    const fill = sc => { const r = markerRefs.find(x => x.p.scode === sc); return r ? r.m.options.fillColor : null; };
+
+    // vento: FVG in km/h e VEN in m/s sulla stessa scala, con "Tutte"
+    await scene([fake('FVG', 'F1', 46.0, 13.2, { VVENTO:'36' }), fake('VEN', 'V1', 45.4, 11.9, { VVENTO:'10' }),
+                 fake('LIG', 'L1', 44.4, 8.9, { VVENTO:'2' })], 'VVENTO');
+    log(fill('F1') === fill('V1') && fill('F1') !== fill('L1') && ![DOT_COLOR, NEUTRAL_COLOR].includes(fill('F1')),
+        'vento: 36 km/h e 10 m/s stesso colore, con Tutte', JSON.stringify([fill('F1'), fill('V1'), fill('L1')]));
+    // radiazione: i kJ/m² orari di FVG in W/m², e due grafie dei W/m²
+    const rad = [fake('FVG', 'F2', 46.0, 13.2, { RADSOL:'1800' }), fake('LIG', 'L2', 44.4, 8.9, { RADSOL:'300' }),
+                 fake('VEN', 'V2', 45.4, 11.9, { RADSOL:'300' })];
+    await scene(rad, 'RADSOL');
+    const refR = typeof refUnitFor === 'function' ? refUnitFor('RADSOL', rad) : null;
+    eq('radiazione: unità di riferimento W/m²', refR, 'W/m²');
+    eq('radiazione: 1800 kJ/m² in un\'ora = 500 W/m²',
+       typeof mapValue === 'function' ? mapValue(rad[0].properties, 'RADSOL', refR) : null, 500);
+    log(!!fill('L2') && fill('L2') === fill('V2') && fill('L2') !== DOT_COLOR, 'radiazione: W/m2 e W/m² stesso colore',
+        JSON.stringify([fill('L2'), fill('V2')]));
+    // pioggia di oggi
+    await scene([fake('VEN', 'V3', 45.4, 11.9, { PREC:'0.2' }, { rif:{ PREC:8 } }),
+                 fake('VEN', 'V4', 45.5, 11.8, { PREC:'0' }, { rif:{ PREC:0 } })], 'PREC');
+    eq('pioggia: colore della classe di oggi', fill('V3'), rainColor('PREC24', 8));
+    eq('pioggia: nome nella plancia', el('dkName').textContent, 'Precipitazione · oggi');
+    // aria: classi europee, ai confini
+    await scene([fake('AQ_LOM', 'A1', 45.5, 9.2, { PM10:'38' }, { rif:{ PM10:40 } }),
+                 fake('AQ_LOM', 'A2', 45.6, 9.3, { PM10:'38' }, { rif:{ PM10:41 } })], 'PM10');
+    eq('aria: PM10 40 discreta, 41 moderata', [fill('A1'), fill('A2')], ['#50ccaa', '#f0e641']);
+    eq('aria: nome nella plancia', el('dkName').textContent, 'Polveri PM10 · ieri');
+    await scene([fake('AQ_LOM', 'A3', 45.5, 9.2, { O3:'90' }, { rif:{ O3:131 } })], 'O3');
+    eq('aria: ozono 131 scarsa', fill('A3'), '#ff5050');
+    // livello: variazione in cm, da m (VEN) e da cm (LOM)
+    await scene([fake('VEN', 'V5', 45.4, 11.9, { LIVIDRO:'1.2' }, { rif:{ LIVIDRO:0.12 } }),
+                 fake('LOM', 'M1', 45.5, 9.2, { LIVIDRO:'120' }, { rif:{ LIVIDRO:25 } }),
+                 fake('VEN', 'V6', 45.5, 11.8, { LIVIDRO:'0.8' }, { rif:{ LIVIDRO:-0.03 } })], 'LIVIDRO');
+    eq('livello: +12, +25, −3 cm', [fill('V5'), fill('M1'), fill('V6')], ['#fdae61', '#f46d43', '#ffffbf']);
+    // neve: i negativi del sensore contano zero
+    const snow = fake('VEN', 'V7', 45.4, 11.9, { LIVNEVE:'-13.8' });
+    eq('neve: −13.8 conta 0', typeof mapValue === 'function' ? mapValue(snow.properties, 'LIVNEVE', 'cm') : null, 0);
+
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
             hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
-            pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura, nuove:suiteNuove })[suite]())
+            pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura, nuove:suiteNuove,
+            valori:suiteValori })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();

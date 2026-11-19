@@ -6,6 +6,8 @@
 #   it_live.html    la pagina vera con i dati e il radar veri da GitHub (?suite=radar|layout[&dark=1][&noradar=1])
 #   it_noradar.html la pagina senza radar.js                           (?suite=resilience)
 #   it_prod.html    la pagina vera con radar locale a piu' prodotti   (?suite=prodotti)
+#   it_valori.html  la pagina vera coi dati di site/_valori/, l'export di prova sull'archivio copiato dal Pi
+#                   (python3 export_web.py -r all --site-dir site/_valori)          (?suite=valori)
 #   w.html          contenitore largo come un telefono (?w=375&h=812&src=<pagina codificata>)
 # Uso: python3 tests/web/setup.py; servire site/ sulla 8772 (launch.json "site"); tests/web/run.sh <pagina>;
 #      alla fine python3 tests/web/setup.py --clean
@@ -44,7 +46,7 @@ src = open(os.path.join(ROOT, 'site', 'index.html'), encoding='utf-8').read()
 head = ('<head>\n<base href="../">\n<script>window.__errs=[];addEventListener("error",e=>__errs.push(String(e.message)));'
         'addEventListener("unhandledrejection",e=>__errs.push("promise: "+String(e.reason)));</script>')
 for name, base in (('it_local', None), ('it_live', 'https://raw.githubusercontent.com/Simulaqua/METEO/data'),
-                   ('it_noradar', None), ('it_prod', None)):
+                   ('it_noradar', None), ('it_prod', None), ('it_valori', './_valori')):
     s = src.replace('<head>', head, 1)
     if base:
         s, n = re.subn(r"const DATA_BASE = .*?;", "const DATA_BASE = '%s';" % base, s, count=1)

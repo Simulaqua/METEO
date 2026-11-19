@@ -4,16 +4,22 @@
 const DOT_COLOR   = '#6795A1', DOT_LINE = '#264E5D';      // senza variabile: secondario, bordo principale
 const NEUTRAL_COLOR = '#9aa5b1';               // valore non disponibile (il puntino resta cliccabile)
 
-// Niente colormap per i LIVELLI (ogni stazione ha il proprio zero: i valori non sono confrontabili) e per
-// direzioni e categorie. Con queste si filtra la stazione ma i puntini restano uniformi.
+// Niente colormap per lago, falda e marea (ogni stazione ha il proprio zero: i valori non sono confrontabili)
+// e per direzioni e categorie: si filtra la stazione ma i puntini restano uniformi. Il livello idrometrico si
+// colora con la variazione (MAP_REF).
 const NO_COLORMAP = new Set([
-  'LIVIDRO','LIVLAGO','FREATICA','MAREA',
+  'LIVLAGO','FREATICA','MAREA',
   'DVENTO','DVENTOMAX','PREC_TYPE'
 ]);
 const canColormap = v => !!v && !NO_COLORMAP.has(v);
 
-// Stessa unita' in tutte le regioni: si colorano anche con "Tutte" (vento: km/h o m/s, solo con una regione)
-const UNIT_SAFE = new Set(['TEMP','UMID','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48']);
+// Confrontabili in tutte le regioni (stessa unita' o convertita da unitFactor): si colorano anche con "Tutte"
+const UNIT_SAFE = new Set(['TEMP','UMID','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48','PREC','VVENTO',
+                           'VVENTOMAX','LIVNEVE','RADSOL','PM10','PM25','O3','NO2','LIVIDRO']);
+// Riferimento del valore sulla mappa quando non e' l'ultimo letto (l'export lo scrive in rif): pioggia e
+// raffica da mezzanotte, l'aria sul giorno che tutte le fonti hanno pubblicato, il livello come variazione
+const MAP_REF = { PREC:'oggi', VVENTOMAX:'max oggi', PM10:'ieri', PM25:'ieri', O3:'max ieri', NO2:'max ieri',
+                  LIVIDRO:'in 3 ore' };
 
 const CMAP = [[48,18,59],[70,107,227],[40,170,225],[26,228,182],[95,251,113],
               [192,229,57],[250,175,42],[245,92,24],[122,4,3]];
@@ -30,6 +36,12 @@ const EAQI_BANDS = [
 ];
 function eaqiColor(v){ return EAQI_BANDS[Math.max(1, Math.min(6, Math.round(v))) - 1].c; }
 const isEaqi = v => v === 'EAQI';
+// Classi europee della qualita' dell'aria per sostanza (limiti superiori, colori di EAQI_BANDS)
+const AQ_STEPS = { PM10:[20,40,50,100,150], PM25:[10,20,25,50,75], O3:[50,100,130,240,380],
+                   NO2:[40,90,120,230,340] };
+// Livello: cm in 3 ore; cala in blu, sale in rosso. Il giallino "stabile" non e' il grigio dei ritardi
+const LEVEL_STEPS = [-20, -5, 5, 20, 50, 100];
+const LEVEL_COLORS = ['#2c7bb6','#abd9e9','#ffffbf','#fdae61','#f46d43','#d73027','#a50026'];
 // Pioggia: classi a soglie fisse (mm) per finestra di accumulo; i colori non dipendono dai dati,
 // cosi' due momenti (o i fotogrammi del Cursore) si leggono allo stesso modo
 const RAIN_COLORS = ['#e3e9f0','#a9d6f2','#6db3e6','#3a8fd9','#2a62c4',
@@ -39,6 +51,9 @@ const RAIN_STEPS = {
   PREC6:[0.2,1,3,6,12,25,50,75,100],        PREC12:[0.2,2,5,10,20,40,70,100,150],
   PREC24:[0.2,2,5,10,25,50,100,150,200],    PREC48:[0.2,5,10,25,50,100,150,200,300]
 };
+RAIN_STEPS.PREC = RAIN_STEPS.PREC24;                  // "Precipitazione": la pioggia di oggi
+// Sulla mappa anche "Precipitazione" e' pioggia caduta
+const isMapRain = v => isRain(v) || v === 'PREC';
 const rainClass = (v, x) => {
   const st = RAIN_STEPS[v];
   let c = 0;
@@ -46,6 +61,13 @@ const rainClass = (v, x) => {
   return c;
 };
 const rainColor = (v, x) => RAIN_COLORS[rainClass(v, x)];
+// Colore delle variabili a classi fisse (pioggia, aria, livello); null per quelle a scala min-max
+function classColor(v, x){
+  if(isMapRain(v)) return rainColor(v, x);
+  if(AQ_STEPS[v]) return EAQI_BANDS[AQ_STEPS[v].filter(s => x > s).length].c;
+  if(v === 'LIVIDRO') return LEVEL_COLORS[LEVEL_STEPS.filter(s => x >= s).length];
+  return null;
+}
 // Variabili con fotogrammi orari (l'export li scrive in <REGIONE>/snap/<VAR>.json)
 const SNAP_VARS = new Set(['TEMP','UMID','PRESS','VVENTO','VVENTOMAX','PREC1','PREC3','PREC6','PREC12',
                            'PREC24','PREC48']);
@@ -58,18 +80,31 @@ function unitForVar(v){
   return '';
 }
 // Stessa grandezza con unita' diverse fra fonti (vento FVG in km/h, il resto in m/s): sulla mappa tutto
-// all'unita' piu' diffusa fra le stazioni mostrate, cosi' la scala dei colori e' coerente
-const UNIT_CONV = { 'km/h>m/s': 1/3.6, 'm/s>km/h': 3.6 };
+// all'unita' piu' diffusa fra le stazioni mostrate, cosi' la scala dei colori e' coerente. La radiazione di
+// FVG e' l'energia dell'ora in kJ/m²; il livello va in cm.
+const UNIT_CONV = { 'km/h>m/s': 1/3.6, 'm/s>km/h': 3.6, 'KJ/m^2>W/m²': 1/3.6, 'm>cm': 100 };
 const unitFactor = (from, to) => (!from || !to || from === to) ? 1 : (UNIT_CONV[from + '>' + to] || 1);
+const UNIT_SAME = { 'W/m2':'W/m²', 'W/mq':'W/m²' };
+const unitOf = (region, v) => { const u = (unitsByRegion[region] || {})[v] || ''; return UNIT_SAME[u] || u; };
 function refUnitFor(v, list){
+  if(v === 'LIVIDRO') return 'cm';
   const cnt = {};
   list.forEach(f => {
-    const u = (unitsByRegion[f.properties._region] || {})[v];
+    const u = unitOf(f.properties._region, v);
     if(u) cnt[u] = (cnt[u] || 0) + 1;
   });
   let best = '', n = 0;
   for(const u in cnt) if(cnt[u] > n){ n = cnt[u]; best = u; }
   return best;
+}
+// Il valore che colora la stazione: il riferimento della variabile (rif) o l'ultimo letto, nell'unita' refU
+function mapValue(p, v, refU){
+  const src = MAP_REF[v] ? (p.rif || {})[v] : (p.latest || {})[v];
+  const x = src == null ? NaN : parseFloat(src);
+  if(isNaN(x)) return null;
+  if(v === 'RADSOL' && x * unitFactor(unitOf(p._region, v), 'W/m²') > 1400) return null;    // guasto
+  const fct = unitFactor(unitOf(p._region, v), refU), nv = fct === 1 ? x : Math.round(x * fct * 10) / 10;
+  return v === 'LIVNEVE' && nv < 0 ? 0 : nv;                       // neve: rumore del sensore attorno a zero
 }
 
 const svgIcon = d => '<svg viewBox="0 0 24 24">' + d + '</svg>';
@@ -228,16 +263,8 @@ function renderMarkers(){
   const slide = !!(snap.on && cmVar && snap.var === cmVar);
   let vmin = null, vmax = null;
   const refU = cmVar ? refUnitFor(cmVar, list) : '';
-  const valFor = p => {
-    if(!cmVar) return null;
-    if(slide) return snapVal(p);
-    if(!p.latest || p.latest[cmVar] == null) return null;
-    const nv = parseFloat(p.latest[cmVar]);
-    if(isNaN(nv)) return null;
-    const fct = unitFactor((unitsByRegion[p._region] || {})[cmVar], refU);
-    return fct === 1 ? nv : Math.round(nv * fct * 10) / 10;
-  };
-  if(cmVar && isRain(cmVar)){ vmin = 0; vmax = 0; }              // pioggia: soglie fisse, niente min-max
+  const valFor = p => !cmVar ? null : slide ? snapVal(p) : mapValue(p, cmVar, refU);
+  if(cmVar && classColor(cmVar, 0)){ vmin = 0; vmax = 0; }       // classi fisse, niente min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }
   else if(cmVar){
     list.forEach(f => {
@@ -257,7 +284,7 @@ function renderMarkers(){
       if(nv == null) fill = NEUTRAL_COLOR;
       else if(radarDotColor(cmVar, nv)) fill = radarDotColor(cmVar, nv);    // stessa palette del radar
       else if(isEaqi(cmVar)) fill = eaqiColor(nv);
-      else if(isRain(cmVar)) fill = rainColor(cmVar, nv);
+      else if(classColor(cmVar, nv)) fill = classColor(cmVar, nv);
       else fill = (vmin != null) ? colormap(vmax > vmin ? (nv - vmin) / (vmax - vmin) : 0.5) : NEUTRAL_COLOR;
       stroke = '#33475a';
     }
@@ -301,8 +328,8 @@ function repaintSnap(){
   markerRefs.forEach(r => {
     const nv = snapVal(r.p);
     let fill = NEUTRAL_COLOR;
-    if(nv != null) fill = radarDotColor(v, nv) || (isRain(v) ? rainColor(v, nv)
-                        : colormap(snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5));
+    if(nv != null) fill = radarDotColor(v, nv) || classColor(v, nv) ||
+                          colormap(snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5);
     r.m.setStyle({ fillColor: fill });
   });
 }
@@ -350,11 +377,19 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
     scale = scaleSteps(lg.colors.map(c => c || RAIN_COLORS[0]), lg.steps);
     nd = !!(radarUi.stations && radarDotsVar());
   } else if(varName && vmin != null){
-    name = varLabel(varName);
-    if(isRain(varName)){
+    name = varLabel(varName) + (MAP_REF[varName] ? ' · ' + MAP_REF[varName] : '');
+    if(isMapRain(varName)){
       unit = 'mm';
       menu = true;
       scale = scaleSteps(RAIN_COLORS, RAIN_STEPS[varName]);
+    }
+    else if(AQ_STEPS[varName]){
+      unit = unitOverride || unitForVar(varName);
+      scale = scaleSteps(EAQI_BANDS.map(b => b.c), AQ_STEPS[varName]);
+    }
+    else if(varName === 'LIVIDRO'){
+      unit = 'cm';
+      scale = scaleSteps(LEVEL_COLORS, LEVEL_STEPS.map(x => x > 0 ? '+' + x : String(x).replace('-', '−')));
     }
     else if(isEaqi(varName)){
       name = 'Qualità aria (EAQI)';
