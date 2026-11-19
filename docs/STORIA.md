@@ -118,3 +118,15 @@ altre e passa da sola.
   la media del giorno piu' volte (vale l'ultima), Trentino e Alto Adige danno le orarie (media con almeno 18).
 - **Normale del periodo rimandata** (18 novembre 2026). Lo Storico e' troppo corto per una normale; E-OBS ha una
   licenza solo per ricerca e didattica non commerciali, ERA5-Land vuole un account Copernicus.
+- **Colori della mappa confrontabili.** Ogni variabile si colora col suo riferimento, anche con "Tutte le regioni":
+  ultimo valore per temperatura, umidita', vento, neve e radiazione (unita' uniformate: vento FVG da km/h,
+  radiazione FVG da kJ/m² orari); pioggia e raffica massima da mezzanotte civile; polveri, ozono e NO2 di ieri
+  (il giorno che hanno pubblicato tutte le fonti), con le classi europee; il livello idrometrico come variazione in
+  3 ore, perche' ogni asta ha il suo zero. L'export li scrive in `rif` di `stations.geojson`, con `lag`: i minuti
+  di ritardo di ogni variabile sull'ultima misura della stazione.
+- **In grigio oltre 3 ore.** Una stazione con l'ultima lettura della variabile piu' vecchia di 3 ore e' grigia e
+  resta fuori dalla scala. Lombardia e Piemonte pubblicano con 4-8 ore di ritardo e sono spesso grigie: scelta
+  dell'utente, perche' il confronto sia onesto.
+- **Etichette coi valori.** L'interruttore "Valori" nella plancia mette il numero sul colore al posto del puntino,
+  solo dove le etichette non si toccano (prima le aggiornate, poi i valori piu' significativi); zoomando aumentano.
+  Nel Cursore la raffica di ogni ora e' la massima dell'ora, cosi' la massima di oggi torna con la mappa.
