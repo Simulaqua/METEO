@@ -310,7 +310,8 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
 .sc-mc i { display:flex; flex:1 1 auto; height:10px; border-radius:2px; overflow:hidden; }
 .sc-mc i span { flex:1 1 0; }
 .dk-nd { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); white-space:nowrap; }
-.dk-nd::before { content:""; width:9px; height:9px; border-radius:50%; background:#9aa5b1; }
+.dk-nd::before { content:""; width:9px; height:9px; border-radius:50%; background:#cfd6dd;
+                 border:1px solid #33475a; box-sizing:border-box; }
 .dk-sta { display:inline-flex; align-items:center; gap:8px; margin-left:auto; white-space:nowrap; }
 .dk-sub { color:var(--muted); }
 .dk-switch { position:relative; flex:none; width:30px; height:18px; padding:0; border:none; border-radius:9px; background:var(--trk); cursor:pointer; }

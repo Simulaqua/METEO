@@ -2,7 +2,7 @@
 // Gli ascoltatori sono in initMap() e buildMapControls(), chiamate all'avvio (comune.js).
 
 const DOT_COLOR   = '#6795A1', DOT_LINE = '#264E5D';      // senza variabile: secondario, bordo principale
-const NEUTRAL_COLOR = '#9aa5b1';               // valore non disponibile (il puntino resta cliccabile)
+const NEUTRAL_COLOR = '#cfd6dd';               // valore mancante o in ritardo (il puntino resta cliccabile)
 
 // Niente colormap per lago, falda e marea (ogni stazione ha il proprio zero: i valori non sono confrontabili)
 // e per direzioni e categorie: si filtra la stazione ma i puntini restano uniformi. Il livello idrometrico si
@@ -20,6 +20,14 @@ const UNIT_SAFE = new Set(['TEMP','UMID','PREC1','PREC3','PREC6','PREC12','PREC2
 // raffica da mezzanotte, l'aria sul giorno che tutte le fonti hanno pubblicato, il livello come variazione
 const MAP_REF = { PREC:'oggi', VVENTOMAX:'max oggi', PM10:'ieri', PM25:'ieri', O3:'max ieri', NO2:'max ieri',
                   LIVIDRO:'in 3 ore' };
+// Una stazione la cui ultima lettura della variabile ha piu' di LATE_H ore e' grigia e non entra nella
+// scala (lo stesso numero sta in export_web.py). I valori di ieri e le derivate giornaliere non sono mai in
+// ritardo.
+const LATE_H = 3;
+const MAP_DAILY = new Set(['PM10','PM25','O3','NO2','GDD','HDD','CDD','ET0']);
+// Ora dell'ultima lettura di v (ms, ora civile letta come UTC); lag = minuti di ritardo sull'ultima misura
+const varTime = (p, v) => isoCivil(p.latest_time) - 60000 * ((p.lag || {})[v] || 0);
+const isLate = (p, v) => !MAP_DAILY.has(v) && nowRome() - varTime(p, v) > LATE_H * 3600000;
 
 const CMAP = [[48,18,59],[70,107,227],[40,170,225],[26,228,182],[95,251,113],
               [192,229,57],[250,175,42],[245,92,24],[122,4,3]];
@@ -264,12 +272,13 @@ function renderMarkers(){
   let vmin = null, vmax = null;
   const refU = cmVar ? refUnitFor(cmVar, list) : '';
   const valFor = p => !cmVar ? null : slide ? snapVal(p) : mapValue(p, cmVar, refU);
+  const late = p => !!cmVar && !slide && isLate(p, cmVar);          // col Cursore valgono i fotogrammi
   if(cmVar && classColor(cmVar, 0)){ vmin = 0; vmax = 0; }       // classi fisse, niente min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }
   else if(cmVar){
     list.forEach(f => {
       const nv = valFor(f.properties);
-      if(nv != null){
+      if(nv != null && !late(f.properties)){
         vmin = (vmin==null)?nv:Math.min(vmin,nv);
         vmax = (vmax==null)?nv:Math.max(vmax,nv);
       }
@@ -281,7 +290,7 @@ function renderMarkers(){
     let fill = DOT_COLOR, stroke = DOT_LINE;
     if(cmVar){
       const nv = valFor(p);
-      if(nv == null) fill = NEUTRAL_COLOR;
+      if(nv == null || late(p)) fill = NEUTRAL_COLOR;
       else if(radarDotColor(cmVar, nv)) fill = radarDotColor(cmVar, nv);    // stessa palette del radar
       else if(isEaqi(cmVar)) fill = eaqiColor(nv);
       else if(classColor(cmVar, nv)) fill = classColor(cmVar, nv);

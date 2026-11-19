@@ -2881,6 +2881,24 @@
     const snow = fake('VEN', 'V7', 45.4, 11.9, { LIVNEVE:'-13.8' });
     eq('neve: −13.8 conta 0', typeof mapValue === 'function' ? mapValue(snow.properties, 'LIVNEVE', 'cm') : null, 0);
 
+    // ritardi: oltre 3 ore dall'ultima lettura della variabile, grigio chiaro e fuori dalla scala
+    await scene([fake('VEN', 'T1', 45.4, 11.9, { TEMP:'40' }, { latest_time:iso(NOW - 4 * H) }),
+                 fake('VEN', 'T2', 45.5, 11.8, { TEMP:'12' }, { lag:{ TEMP:150 } }),
+                 fake('VEN', 'T3', 45.6, 11.7, { TEMP:'10' }), fake('VEN', 'T4', 45.7, 11.6, { TEMP:'5' })], 'TEMP');
+    eq('ritardo: grigio chiaro', NEUTRAL_COLOR, '#cfd6dd');
+    eq('ritardo: 4 h fa, e 1 h fa con la temperatura indietro di 150 min, grigie', [fill('T1'), fill('T2')],
+       [NEUTRAL_COLOR, NEUTRAL_COLOR]);
+    log(![NEUTRAL_COLOR, DOT_COLOR].includes(fill('T3')), 'ritardo: 1 h fa colorata', fill('T3'));
+    eq('ritardo: la scala va da 5 a 10, senza le grigie', [...el('dkScale').querySelectorAll('.sc-ends span')]
+       .map(e => e.textContent), ['5.0', '10.0']);
+    await scene([fake('AQ_LOM', 'P1', 45.5, 9.2, { PM10:'30' }, { rif:{ PM10:30 }, latest_time:iso(NOW - 30 * H) })],
+                'PM10');
+    eq('ritardo: il PM10 di ieri non e\' mai in ritardo', fill('P1'), '#50ccaa');
+    // dati vecchi, senza rif ne' lag (riserva di jsDelivr): grigio per le variabili col riferimento, nessun errore
+    await scene([fake('VEN', 'O1', 45.4, 11.9, { PREC:'0.4' }), fake('VEN', 'O2', 45.5, 11.8, { PREC:'0' })], 'PREC');
+    eq('dati vecchi: pioggia senza rif in grigio', [fill('O1'), fill('O2')], [NEUTRAL_COLOR, NEUTRAL_COLOR]);
+    eq('legenda: in ritardo', el('dkNd').textContent, 'in ritardo');
+
     eq('errori JS', window.__errs, []);
     finish();
   }
