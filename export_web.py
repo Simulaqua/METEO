@@ -2,7 +2,8 @@
 # export_web.py - i file del sito dall'archivio. Di ogni regione legge gli ultimi N giorni (7 di solito)
 # di <REGIONE>/data-parsed/<VAR>/<VAR>-AAAAMMGG.json[.gz] e scrive in <site-dir>/<REGIONE>/:
 #   series/<SCODE>.csv     la serie di ogni stazione, una colonna per variabile (con le derivate)
-#   stations.geojson       le stazioni della mappa, con l'ultimo valore di ogni variabile
+#   stations.geojson       le stazioni della mappa, con l'ultimo valore di ogni variabile, il ritardo di
+#                          ognuna e i valori di riferimento dei colori (pioggia di oggi...)
 #   units.json             l'unità di ogni variabile
 #   snap/<VAR>.json        i fotogrammi orari del cursore del tempo
 # Con --series-only (l'export a 30 giorni, in series30/) scrive solo le serie, senza derivate.
@@ -46,6 +47,14 @@ SNAP_FRAMES = 168
 SNAP_TOL_MIN = {'PREC1': 30, 'PREC3': 45, 'VVENTO': 60, 'VVENTOMAX': 60}
 SNAP_TOL_DEF = 90
 SNAP_DEC = {'UMID': 0}
+
+# Mappa: una stazione con l'ultima lettura di una variabile piu' vecchia di cosi' e' grigia (lo stesso
+# numero sta in site/mappa.js). Le derivate giornaliere, segnate alle 12:00, non sono mai in ritardo.
+LATE_HOURS = 3
+DAILY_DERIVED = {'GDD', 'HDD', 'CDD', 'ET0'}
+# Livello idrometrico: la mappa ne colora la variazione, perche' ogni asta ha il suo zero
+LEVEL_HOURS = 3
+LEVEL_TOLERANCE = datetime.timedelta(minutes=30)
 
 
 def main():
@@ -299,6 +308,7 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
     """stations.geojson con le stazioni che hanno coordinate (da stazioni.json, altrimenti da coords);
     le altre sono solo nel log. Ritorna i codici delle stazioni in mappa."""
     name_field, lat_field, lon_field = STATION_FIELDS.get(region, ('NOME', 'LAT', 'LON'))
+    now = comune.now_solar()
     features = []
     no_coord = []
     for scode, per_var in data.items():
@@ -313,7 +323,7 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
         if lat is None or lon is None:
             no_coord.append([scode, name])
         else:
-            properties = station_properties(scode, name, per_var, zeros.get(scode))
+            properties = station_properties(scode, name, per_var, zeros.get(scode), region, now)
             properties.update(station_place(region, meta))
             features.append({'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
                              'properties': properties})
@@ -341,8 +351,9 @@ def station_place(region, meta):
     return place
 
 
-def station_properties(scode, name, per_var, zero):
-    """Le proprietà di una stazione in mappa: l'ultimo valore di ogni variabile e l'ora dell'ultima misura."""
+def station_properties(scode, name, per_var, zero, region, now):
+    """Le proprietà di una stazione in mappa: l'ultimo valore di ogni variabile, l'ora dell'ultima misura, i
+    minuti di ritardo delle variabili rimaste indietro (lag) e i valori di riferimento dei colori (rif)."""
     latest = {}
     latest_moment = None
     for var in sorted(per_var):
@@ -356,12 +367,106 @@ def station_properties(scode, name, per_var, zero):
         latest_moment = max(max(series) for series in per_var.values())
     properties = {'scode': scode, 'name': name, 'variables': sorted(per_var), 'latest': latest,
                   'latest_time': iso_datetime(latest_moment), 'series': 'series/' + scode + '.csv'}
+    lags = var_lags(per_var, latest_moment)
+    if lags:
+        properties['lag'] = lags
+    refs = map_refs(region, per_var, now)
+    if refs:
+        properties['rif'] = refs
     # quota dello zero idrometrico: il sito mostra il livello anche in quota assoluta
     if isinstance(zero, dict):
         zero = zero.get('zero')
     if zero is not None:
         properties['zero_idro'] = zero
     return properties
+
+
+def moment_of(instant):
+    return datetime.datetime.strptime(instant[:12], '%Y%m%d%H%M')
+
+
+def readings_of(series):
+    """[(momento, valore)] in ordine di tempo, senza valori vuoti e istanti illeggibili."""
+    points = []
+    for instant, value in (series or {}).items():
+        number = comune.to_float(value)
+        try:
+            if number is not None:
+                points.append((moment_of(instant), number))
+        except ValueError:
+            continue
+    return sorted(points)
+
+
+def var_lags(per_var, latest_moment):
+    """{variabile: minuti fra la sua ultima lettura e latest_moment}, solo per quelle rimaste indietro."""
+    end = moment_of(latest_moment)
+    lags = {}
+    for var, series in per_var.items():
+        points = readings_of(series) if var not in DAILY_DERIVED else []
+        if points:
+            minutes = int((end - points[-1][0]).total_seconds() // 60)
+            if minutes > 0:
+                lags[var] = minutes
+    return lags
+
+
+def civil_midnight(now):
+    """L'istante solare dell'ultima mezzanotte civile non dopo now (ora solare): d'estate le 23:00 solari del
+    giorno prima."""
+    midnight = civil_time(now).replace(hour=0, minute=0, second=0, microsecond=0)
+    if comune.is_dst_civil(midnight):
+        midnight -= datetime.timedelta(hours=1)
+    return midnight.strftime('%Y%m%d%H%M')
+
+
+def since_midnight(points, midnight):
+    """I valori letti dopo midnight (la lettura delle 00:00 chiude il giorno prima); None se sono meno di
+    quelli attesi dalla cadenza della stazione nel tempo trascorso (la regola delle somme di derive.py)."""
+    start = moment_of(midnight)
+    today = [value for moment, value in points if moment > start]
+    if not today:
+        return []
+    steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(points, points[1:]))
+    step = steps[len(steps) // 2] if steps else 0
+    elapsed = (points[-1][0] - start).total_seconds()
+    need = math.ceil(derive.ACC_MIN_COVER * elapsed / step - 1e-9) if step else 1
+    return today if len(today) >= need else None
+
+
+def level_change(points):
+    """Ultima lettura meno quella di LEVEL_HOURS prima (la più recente fatta allora o prima, non più vecchia
+    di LEVEL_TOLERANCE), nell'unità della fonte; None se manca."""
+    if not points:
+        return None
+    last, value = points[-1]
+    target = last - datetime.timedelta(hours=LEVEL_HOURS)
+    before = [point for point in points if point[0] <= target]
+    if not before or before[-1][0] < target - LEVEL_TOLERANCE:
+        return None
+    return round(value - before[-1][1], 3) + 0.0                       # niente "-0.0"
+
+
+def map_refs(region, per_var, now):
+    """I valori che colorano la mappa quando non sono l'ultimo letto: pioggia e raffica massima di oggi,
+    variazione del livello."""
+    refs = {}
+    midnight = civil_midnight(now)
+    rain = readings_of(per_var.get('PREC'))
+    if rain:
+        values = since_midnight(rain, midnight)
+        if values:
+            refs['PREC'] = max(0.0, round(sum(values), 1))
+        # nessuna lettura dopo mezzanotte: zero se il pluviometro trasmette (stazione oraria alle 00:30)
+        elif values == [] and now - rain[-1][0] <= datetime.timedelta(hours=LATE_HOURS):
+            refs['PREC'] = 0.0
+    values = since_midnight(readings_of(per_var.get('VVENTOMAX')), midnight)
+    if values:
+        refs['VVENTOMAX'] = round(max(values), 1)
+    change = level_change(readings_of(per_var.get('LIVIDRO')))
+    if change is not None:
+        refs['LIVIDRO'] = change
+    return refs
 
 
 def write_snapshots(data, scodes, units, out_dir):

@@ -232,5 +232,92 @@ class TestMappa(unittest.TestCase):
         self.assertNotIn('Stazioni senza coordinate', clean.stdout)
 
 
+MORNING = 1795071600            # 2026-11-19 07:00 UTC = 08:00 solari
+NIGHT = 1795044600              # 2026-11-18 23:30 UTC = 19/11 00:30 solari
+SUMMER = 1783666800             # 2026-07-10 07:00 UTC = 08:00 solari = 09:00 civili
+
+
+def every(start, end, minutes, value=1.0):
+    """[(istante, valore)] da start a end compresi, ogni minutes minuti; value e' un numero o una funzione
+    dell'indice della lettura."""
+    moment = datetime.datetime.strptime(start, '%Y%m%d%H%M')
+    stop = datetime.datetime.strptime(end, '%Y%m%d%H%M')
+    points = []
+    while moment <= stop:
+        points.append((moment.strftime('%Y%m%d%H%M'), value(len(points)) if callable(value) else value))
+        moment += datetime.timedelta(minutes=minutes)
+    return points
+
+
+def map_properties(archive, epoch, region='LIG'):
+    """Le proprietà in mappa delle stazioni di region dopo l'export di archive con l'orologio a epoch."""
+    with tempfile.TemporaryDirectory() as folder:
+        rete.check(export(folder, archive, epoch=epoch))
+        return stations_on_map(folder, region)
+
+
+class TestRiferimenti(unittest.TestCase):
+    """I valori che colorano la mappa quando non sono l'ultimo letto (rif) e il ritardo di ogni variabile
+    (lag)."""
+
+    def test_pioggia_da_mezzanotte(self):
+        # la lettura delle 00:00 chiude il giorno prima
+        rain = [(m, 5.0 if m == '202611190000' else 1.0)
+                for m, _ in every('202611182200', '202611190800', 60)]
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': rain})}}, MORNING)
+        self.assertEqual(props['A']['rif']['PREC'], 8.0)
+
+    def test_pioggia_mezzanotte_d_estate(self):
+        # mezzanotte civile = 23:00 solari del giorno prima: contano le letture dalle 00:00 alle 08:00 solari
+        rain = every('202607092000', '202607100800', 60)
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': rain})}}, SUMMER)
+        self.assertEqual(props['A']['rif']['PREC'], 9.0)
+
+    def test_pioggia_senza_letture_oggi(self):
+        # alle 00:30 la stazione oraria non ha letture di oggi ma e' viva; quella ferma da due giorni no
+        archive = {'LIG': {
+            'A': (station(44.4, 8.9), {'PREC': every('202611180000', '202611182300', 60, 0.2)}),
+            'B': (station(44.5, 9.0), {'PREC': every('202611170000', '202611171200', 60, 0.2),
+                                       'TEMP': every('202611180000', '202611190000', 60, 10.0)})}}
+        props = map_properties(archive, NIGHT)
+        self.assertEqual(props['A']['rif']['PREC'], 0.0)
+        self.assertNotIn('PREC', props['B'].get('rif', {}))
+
+    def test_pioggia_con_buchi(self):
+        # cadenza di 10 minuti, ma da mezzanotte alle 08:00 A ha solo 13 letture: troppo poche per una somma
+        night = every('202611181200', '202611190100', 10, 0.1)
+        holed = night + every('202611190700', '202611190800', 10, 0.1)
+        full = every('202611181200', '202611190800', 10, 0.1)
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': holed}),
+                                        'B': (station(44.5, 9.0), {'PREC': full})}}, MORNING)
+        self.assertNotIn('PREC', props['A'].get('rif', {}))
+        self.assertEqual(props['B']['rif']['PREC'], 4.8)
+
+    def test_raffica_massima_di_oggi(self):
+        gusts = [(m, 30.0 if m == '202611182350' else 12.5 if m == '202611190300' else 5.0)
+                 for m, _ in every('202611182350', '202611190800', 10)]
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'VVENTOMAX': gusts})}}, MORNING)
+        self.assertEqual(props['A']['rif']['VVENTOMAX'], 12.5)
+
+    def test_livello_in_tre_ore(self):
+        level = every('202611190400', '202611190800', 15, lambda i: round(1.0 + 0.01 * i, 2))
+        holed = [(m, v) for m, v in level if not '202611190415' < m < '202611190545']
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'LIVIDRO': level}),
+                                        'B': (station(44.5, 9.0), {'LIVIDRO': holed})}}, MORNING)
+        self.assertEqual(props['A']['rif']['LIVIDRO'], 0.12)
+        self.assertNotIn('LIVIDRO', props['B'].get('rif', {}))
+
+    def test_ritardo_di_ogni_variabile(self):
+        readings = {'TEMP': every('202611180000', '202611190800', 60, 10.0),
+                    'UMID': every('202611180000', '202611190500', 60, 80.0),
+                    'PREC': every('202611180000', '202611190700', 60, 0.0)}
+        lag = map_properties({'LIG': {'A': (station(44.4, 8.9), readings)}}, MORNING)['A']['lag']
+        self.assertEqual(lag['UMID'], 180)
+        self.assertEqual(lag['PREC'], 60)
+        self.assertEqual(lag['PREC1'], 60)
+        self.assertNotIn('TEMP', lag)
+        self.assertNotIn('HDD', lag)                   # giornaliera, segnata alle 12:00: mai in ritardo
+
+
 if __name__ == '__main__':
     unittest.main()
