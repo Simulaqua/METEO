@@ -131,3 +131,9 @@ altre e passa da sola.
 - **Etichette coi valori.** L'interruttore "Valori" nella plancia mette il numero sul colore al posto del puntino,
   solo dove le etichette non si toccano (prima le aggiornate, poi i valori piu' significativi); zoomando aumentano.
   Nel Cursore la raffica di ogni ora e' la massima dell'ora, cosi' la massima di oggi torna con la mappa.
+- **Pressione gia' ridotta.** Veneto, Alto Adige, Liguria e le boe danno la pressione al livello del mare: la
+  "pressione al livello mare" e' la stessa, e l'ET0 usa la pressione della quota. Fino al 19 novembre 2026 si
+  riduceva una seconda volta (1196 hPa a 1470 m).
+- **Cadenza giorno per giorno.** Le piogge 1-48 h e la pioggia di oggi contano le letture con la cadenza di ogni
+  giorno: l'Alto Adige riscrive di notte i giorni passati a 5 minuti, mentre il dato in diretta arriva ogni 10, e
+  prima le finestre brevi restavano vuote tutto il giorno.
