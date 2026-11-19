@@ -157,6 +157,10 @@ function saveBlob(blob, fname){
 }
 // Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
 const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
+// Una grafia per unita': le fonti scrivono la stessa in modi diversi
+const UNIT_NAMES = { 'mc/s':'m³/s', 'm3/s':'m³/s', 'm^3/s':'m³/s', 'mc':'m³', 'W/m2':'W/m²', 'W/mq':'W/m²',
+                     'KJ/m^2':'kJ/m²', 'gradi':'°', '°N':'°', 'gN':'°' };
+const normUnit = u => { const s = String(u == null ? '' : u).trim(); return UNIT_NAMES[s] || s; };
 function fmtNum(v, vr){
   const a = Math.abs(v);
   const d = CM_VARS.has(vr) ? 2 : (a >= 100 ? 0 : (a >= 1 ? 1 : 2));

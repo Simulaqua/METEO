@@ -311,6 +311,19 @@ class TestRiferimenti(unittest.TestCase):
         self.assertEqual(props['A']['rif']['LIVIDRO'], 0.12)
         self.assertNotIn('LIVIDRO', props['B'].get('rif', {}))
 
+    def test_lago_e_falda_in_un_giorno(self):
+        # si muovono piano: variazione su 24 ore; senza la lettura di allora vale una dell'ora prima
+        lake = every('202611180700', '202611190800', 30, lambda i: round(0.5 + 0.001 * i, 3))
+        well = [(m, v) for m, v in every('202611180600', '202611190800', 60,
+                                         lambda i: round(7.0 - 0.01 * i, 2))
+                if m != '202611180800']
+        holed = [(m, v) for m, v in well if m != '202611180700']
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'LIVLAGO': lake, 'FREATICA': well}),
+                                        'B': (station(44.5, 9.0), {'FREATICA': holed})}}, MORNING)
+        self.assertEqual(props['A']['rif']['LIVLAGO'], 0.048)
+        self.assertEqual(props['A']['rif']['FREATICA'], -0.25)
+        self.assertNotIn('FREATICA', props['B'].get('rif', {}))
+
     def test_ritardo_di_ogni_variabile(self):
         readings = {'TEMP': every('202611180000', '202611190800', 60, 10.0),
                     'UMID': every('202611180000', '202611190500', 60, 80.0),

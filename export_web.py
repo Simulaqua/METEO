@@ -55,9 +55,11 @@ SNAP_MAX = {'VVENTOMAX'}
 # numero sta in site/mappa.js). Le derivate giornaliere, segnate alle 12:00, non sono mai in ritardo.
 LATE_HOURS = 3
 DAILY_DERIVED = {'GDD', 'HDD', 'CDD', 'ET0'}
-# Livello idrometrico: la mappa ne colora la variazione, perche' ogni asta ha il suo zero
-LEVEL_HOURS = 3
-LEVEL_TOLERANCE = datetime.timedelta(minutes=30)
+# Livelli di fiumi, laghi e falda: la mappa ne colora la variazione, perche' ogni stazione ha il suo zero.
+# Ore della variazione e tolleranza sulla lettura di allora; laghi e falda si muovono piano.
+LEVEL_WINDOWS = {'LIVIDRO': (3, datetime.timedelta(minutes=30)),
+                 'LIVLAGO': (24, datetime.timedelta(hours=1)),
+                 'FREATICA': (24, datetime.timedelta(hours=1))}
 # Qualita' dell'aria sulla mappa: i valori di ieri, il giorno che hanno pubblicato tutte le fonti (ARPAE e
 # APPA Trento solo il mattino dopo). Media per le polveri, massimo orario per ozono e NO2.
 AQ_DAILY_MEAN = ('PM10', 'PM25')
@@ -488,14 +490,14 @@ def since_midnight(series, midnight, region=''):
     return [value for _, value in today] if len(today) >= need else None
 
 
-def level_change(series):
-    """Ultima lettura meno quella di LEVEL_HOURS prima (la più recente fatta allora o prima, non più vecchia
-    di LEVEL_TOLERANCE), nell'unità della fonte; None se manca."""
+def level_change(series, hours, tolerance):
+    """Ultima lettura meno quella di hours ore prima (la più recente fatta allora o prima, non più vecchia
+    di tolerance), nell'unità della fonte; None se manca."""
     last = last_moment(series)
     if last is None:
         return None
-    target = last - datetime.timedelta(hours=LEVEL_HOURS)
-    points = readings_of(series, (target - LEVEL_TOLERANCE).strftime('%Y%m%d%H%M'))
+    target = last - datetime.timedelta(hours=hours)
+    points = readings_of(series, (target - tolerance).strftime('%Y%m%d%H%M'))
     before = [point for point in points if point[0] <= target]
     if not before or points[-1][0] != last:
         return None
@@ -543,9 +545,10 @@ def map_refs(region, per_var, now):
     values = since_midnight(per_var.get('VVENTOMAX'), midnight, region)
     if values:
         refs['VVENTOMAX'] = round(max(values), 1)
-    change = level_change(per_var.get('LIVIDRO'))
-    if change is not None:
-        refs['LIVIDRO'] = change
+    for var, (hours, tolerance) in LEVEL_WINDOWS.items():
+        change = level_change(per_var.get(var), hours, tolerance)
+        if change is not None:
+            refs[var] = change
     for var in AQ_DAILY_MEAN + AQ_DAILY_MAX:
         value = aq_yesterday(region, var, per_var.get(var) or {}, now.date())
         if value is not None:

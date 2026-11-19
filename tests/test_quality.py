@@ -31,6 +31,12 @@ class TestPlausibilita(unittest.TestCase):
     def test_valid_rifiuta_il_vuoto(self):
         self.assertFalse(quality.valid('TEMP', None))
 
+    def test_marea_fuori_dal_mare(self):
+        # la foce del Tagliamento salta fra -2.8 e +11.7 m in dieci minuti; l'acqua alta del 1966 fu 1.94 m
+        ok = quality.checker('MAREA')
+        self.assertEqual([ok(v) for v in (-2.46, 11.74, 2.76, 0.84, 1.94, -1.2)],
+                         [False, False, False, True, True, True])
+
 
 if __name__ == '__main__':
     unittest.main()

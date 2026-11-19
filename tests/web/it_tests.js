@@ -2881,7 +2881,14 @@
     const UNITS = { VEN:{ VVENTO:'m/s', RADSOL:'W/m²', LIVIDRO:'m', PREC:'mm', TEMP:'°C', UMID:'%', LIVNEVE:'cm' },
                     FVG:{ VVENTO:'km/h', RADSOL:'KJ/m^2', TEMP:'°C' }, LIG:{ VVENTO:'m/s', RADSOL:'W/m2', TEMP:'°C' },
                     PC_FVG:{ RADSOL:'W/m²' },
-                    LOM:{ LIVIDRO:'cm', TEMP:'°C' }, AQ_LOM:{ PM10:'µg/m³', O3:'µg/m³' } };
+                    LOM:{ LIVIDRO:'cm', TEMP:'°C' }, AQ_LOM:{ PM10:'µg/m³', O3:'µg/m³', EAQI:'' },
+                    PC_TN:{ PORTATA:'m3/s' }, MAR_VEN:{ MAREA:'m' }, MAR_ER:{ MAREA:'m', TEMPACQUA:'°C' },
+                    LAGHI:{ LIVLAGO:'m' }, AQ_ER:{ EAQI:'' } };
+    Object.assign(UNITS.VEN, { PORTATA:'mc/s', PRESS:'hPa', DVENTO:'gradi' });
+    UNITS.BZ = { PORTATA:'m³/s', FREATICA:'m', TEMPACQUA:'°C', SOLEGG:'s', PRESS:'hPa' };
+    UNITS.LIG.SOLEGG = 'min';
+    UNITS.PC_FVG.LIVLAGO = 'm';
+    const loadedUnits = JSON.stringify(unitsByRegion);                  // quelle vere, lette dalla pagina
     const scene = async (features, v) => {
       if(snap.on) closeSlider();
       allFeatures = features;
@@ -2999,6 +3006,64 @@
     // neve: i negativi del sensore contano zero
     const snow = fake('VEN', 'V7', 45.4, 11.9, { LIVNEVE:'-13.8' });
     eq('neve: −13.8 conta 0', typeof mapValue === 'function' ? mapValue(snow.properties, 'LIVNEVE', 'cm') : null, 0);
+
+    // unita': una grafia sola in tutta la pagina
+    const nu = typeof normUnit === 'function' ? normUnit : null;
+    eq('unità: m³/s, W/m², kJ/m² e gradi in una grafia',
+       nu && ['mc/s', 'm3/s', 'm^3/s', 'W/mq', 'KJ/m^2', 'gradi', '°N', 'gN'].map(nu),
+       ['m³/s', 'm³/s', 'm³/s', 'W/m²', 'kJ/m²', '°', '°', '°']);
+    log(!/mc\/s|m3\/s|\^/.test(loadedUnits) && /m³\/s/.test(loadedUnits),
+        'unità: quelle lette dalla pagina già pulite', loadedUnits.slice(0, 200));
+    // nessuna variabile nascosta con "Tutte": portata in classi fisse, comunque la scriva la fonte
+    await scene([fake('VEN', 'Q1', 45.4, 11.9, { PORTATA:'3.2' }),
+                 fake('PC_TN', 'Q2', 46.1, 11.1, { PORTATA:'150' }),
+                 fake('BZ', 'Q3', 46.5, 11.3, { PORTATA:'1200' })], 'PORTATA');
+    const FC = typeof FLOW_COLORS !== 'undefined' ? FLOW_COLORS : [];
+    eq('portata: 3.2, 150, 1200 m³/s nelle loro classi, con Tutte', [fill('Q1'), fill('Q2'), fill('Q3')],
+       [FC[1], FC[5], FC[7]]);
+    eq('portata: unità nella plancia', el('dkUnit').textContent, 'm³/s');
+    // marea: in cm, con le soglie di Venezia
+    await scene([fake('MAR_VEN', 'T1', 45.4, 12.3, { MAREA:'0.77' }),
+                 fake('MAR_VEN', 'T2', 45.3, 12.3, { MAREA:'1.15' }),
+                 fake('MAR_ER', 'T3', 44.7, 12.2, { MAREA:'0.41' })], 'MAREA');
+    eq('marea: 77, 115, 41 cm', [fill('T1'), fill('T2'), fill('T3')],
+       typeof TIDE_COLORS !== 'undefined' ? [TIDE_COLORS[2], TIDE_COLORS[4], TIDE_COLORS[1]] : null);
+    eq('marea: scritta in cm', [labelText('MAREA', 77), el('dkUnit').textContent], ['77', 'cm']);
+    // laghi e falda: variazione in 24 ore, in ritardo solo dopo un giorno
+    await scene([fake('LAGHI', 'G1', 45.9, 8.6, { LIVLAGO:'0.087' }, { rif:{ LIVLAGO:0.048 } }),
+                 fake('PC_FVG', 'G2', 46.2, 12.6, { LIVLAGO:'307.31' }, { rif:{ LIVLAGO:-0.03 } })],
+                'LIVLAGO');
+    eq('lago: +5 e −3 cm in 24 ore', [fill('G1'), fill('G2')], [LEVEL_COLORS[3], LEVEL_COLORS[1]]);
+    eq('lago: nome, scritta col segno e scheda',
+       [el('dkName').textContent, labelText('LIVLAGO', 4.8),
+        (cardModel(allFeatures[0].properties).delta || {}).text],
+       ['Livello lago · in 24 ore', '+5', '↑ 5 cm in 24 ore']);
+    const well = (sc, lat, x, d, lag) => fake('BZ', sc, lat, 11.3, { FREATICA:x },
+                                              { rif:{ FREATICA:d }, lag:{ FREATICA:lag } });
+    await scene([well('W1', 46.5, '7.76', -0.25, 900), well('W2', 46.6, '5.1', 0.01, 1800)], 'FREATICA');
+    eq('falda: indietro di 15 ore colorata, di 30 in ritardo', [fill('W1'), fill('W2')],
+       [LEVEL_COLORS[0], NEUTRAL_COLOR]);
+    // colore e scritta dallo stesso numero: +1.6 cm si scrive +2 e ha il colore di +2 (anche il fiume, a +5)
+    await scene([fake('LAGHI', 'G3', 45.9, 8.6, { LIVLAGO:'0.1' }, { rif:{ LIVLAGO:0.016 } })], 'LIVLAGO');
+    eq('lago: +1.6 cm come +2', [labelText('LIVLAGO', 1.6), fill('G3')], ['+2', LEVEL_COLORS[3]]);
+    await scene([fake('VEN', 'G4', 45.4, 11.9, { LIVIDRO:'1' }, { rif:{ LIVIDRO:0.046 } })], 'LIVIDRO');
+    eq('livello: +4.6 cm come +5', [labelText('LIVIDRO', 4.6), fill('G4')], ['+5', LEVEL_COLORS[3]]);
+    // le altre misure confrontabili si colorano anche con Tutte
+    await scene([fake('BZ', 'E1', 46.5, 11.3, { TEMPACQUA:'6' }),
+                 fake('MAR_ER', 'E2', 44.7, 12.2, { TEMPACQUA:'15' })], 'TEMPACQUA');
+    log(![DOT_COLOR, NEUTRAL_COLOR].includes(fill('E1')) && fill('E1') !== fill('E2'),
+        'acqua: temperatura con Tutte', JSON.stringify([fill('E1'), fill('E2')]));
+    await scene([fake('AQ_LOM', 'E3', 45.5, 9.2, { EAQI:'2' }),
+                 fake('AQ_ER', 'E4', 44.5, 11.3, { EAQI:'4' })], 'EAQI');
+    eq('aria: indice europeo con Tutte', [fill('E3'), fill('E4')], [eaqiColor(2), eaqiColor(4)]);
+    // non si colorano: la pressione della stazione (dipende dalla quota), misure su intervalli diversi
+    await scene([fake('VEN', 'N1', 45.4, 11.9, { PRESS:'1010' }),
+                 fake('BZ', 'N2', 46.5, 11.3, { PRESS:'950' })], 'PRESS');
+    eq('pressione: con Tutte non si colora', [fill('N1'), fill('N2')], [DOT_COLOR, DOT_COLOR]);
+    await scene([fake('BZ', 'N3', 46.5, 11.3, { SOLEGG:'600' }),
+                 fake('LIG', 'N4', 44.4, 8.9, { SOLEGG:'10' })], 'SOLEGG');
+    eq('soleggiamento: intervalli diversi non si confrontano', [fill('N3'), fill('N4')],
+       [DOT_COLOR, DOT_COLOR]);
 
     // ritardi: oltre 3 ore dall'ultima lettura della variabile, grigio chiaro e fuori dalla scala
     await scene([fake('VEN', 'T1', 45.4, 11.9, { TEMP:'40' }, { latest_time:iso(NOW - 4 * H) }),

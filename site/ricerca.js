@@ -244,8 +244,8 @@ const MAIN_VARS = ['TEMP', 'LIVIDRO', 'PREC24', 'EAQI'];
 const hasVal = (lt, v) => lt[v] != null && lt[v] !== '';
 function stationMainValue(p){
   const lt = p.latest || {}, v = filterVar;
-  // il valore della mappa, col suo riferimento (pioggia di oggi...); il livello resta in quota
-  if(v && MAP_REF[v] && v !== 'LIVIDRO' && (p.variables || []).includes(v)){
+  // il valore della mappa, col suo riferimento (pioggia di oggi...); i livelli restano in quota
+  if(v && MAP_REF[v] && !LEVEL_HOURS[v] && (p.variables || []).includes(v)){
     const u = unitOf(p._region, v), x = mapValue(p, v, u);
     const text = x == null ? 'n.d.' : labelText(v, x) + (u ? ' ' + u : '') + ' ' + MAP_REF[v];
     return { v, label: varLabel(v), text };

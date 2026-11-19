@@ -19,6 +19,7 @@ LIMITS = {
     'DVENTO': (0.0, 360.0),  'DVENTOMAX': (0.0, 360.0),
     'PREC': (0.0, 1000.0),
     'RADSOL': (-50.0, 10000.0),
+    'MAREA': (-1.5, 2.5),                                   # m; l'acqua alta record a Venezia e' 1.94
 }
 
 def _limits(var):

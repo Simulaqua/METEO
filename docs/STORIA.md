@@ -126,6 +126,15 @@ altre e passa da sola.
   (il giorno che hanno pubblicato tutte le fonti), con le classi europee; il livello idrometrico come variazione in
   3 ore, perche' ogni asta ha il suo zero. L'export li scrive in `rif` di `stations.geojson`, con `lag`: i minuti
   di ritardo di ogni variabile sull'ultima misura della stazione.
+- **Nessuna misura nascosta in mappa.** Con "Tutte le regioni" si colora ogni variabile le cui stazioni hanno la
+  stessa unita' (o una che si converte), non un elenco fisso: portata, temperatura dell'acqua, indice dell'aria e
+  le altre prima restavano grigie. Portata, afflusso e deflusso in classi da 1 a 1000 m³/s; marea in cm con le
+  soglie di Venezia (80, 110, 140); laghi e falda, che hanno uno zero per stazione, come variazione in 24 ore e in
+  ritardo solo dopo un giorno. Restano senza colore direzioni e tipo di precipitazione, la pressione della stazione
+  con tutte le regioni (dipende dalla quota) e le misure su intervalli diversi (soleggiamento: secondi in 10
+  minuti in Alto Adige, minuti in mezz'ora in Liguria). Le unita' hanno una grafia sola in tutta la pagina: m³/s, non mc/s o m3/s. La marea fuori da
+  -1.5…2.5 m si scarta: la foce del Tagliamento dava valori fino a 11 m in dieci minuti. La marea dell'Emilia-Romagna
+  e' sullo zero nazionale, circa 24 cm sopra quello di Venezia: a parita' di mare puo' stare una classe sotto.
 - **Vuote oltre 3 ore.** Una stazione con l'ultima lettura della variabile piu' vecchia di 3 ore diventa un cerchio
   vuoto col bordo grigio (il grigio pieno si confondeva con la pioggia "0 mm") e resta fuori dalla scala. Lombardia e
   Piemonte pubblicano con 4-8 ore di ritardo e sono spesso vuote: scelta dell'utente, perche' il confronto sia
