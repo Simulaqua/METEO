@@ -140,3 +140,9 @@ altre e passa da sola.
   giorno: l'Alto Adige riscrive di notte i giorni passati a 5 minuti, mentre il dato in diretta arriva ogni 10, e
   prima le finestre brevi restavano vuote tutto il giorno. La cadenza di un giorno pero' non supera quella abituale
   della stazione (o i 10 minuti dell'Alto Adige): un giorno con letture perse resta vuoto, non sembra asciutto.
+- **Pioggia della Liguria.** La serie oraria di OMIRL ha anche l'ora in corso, segnata con la sua fine e ancora
+  parziale, e OMIRL completa le ore in ritardo; l'archivio teneva il primo valore visto. Dal 2 al 19 novembre
+  2026 la Liguria ha avuto circa un terzo della pioggia vera (il 17/11 1207 mm sommati sulle stazioni contro
+  3559). Ora l'ora in corso si salta e il valore della serie sostituisce quello salvato, solo per questa pioggia:
+  le altre fonti tengono il primo. La serie copre due giorni e mezzo: dal 17 novembre l'archivio e' rifatto, i
+  giorni prima restano bassi.
