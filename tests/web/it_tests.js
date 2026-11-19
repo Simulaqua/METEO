@@ -150,7 +150,11 @@
     map.closePopup();
     // tocco su un puntino: si apre una stazione, NON il popup del radar
     const before = selectedKey;
-    const ref = markerRefs.find(r => map.getBounds().contains(r.m.getLatLng()));
+    const ref = markerRefs.find(r => {                    // un puntino che si vede: non sotto la plancia o la barra
+      if(!map.getBounds().contains(r.m.getLatLng())) return false;
+      const p = map.latLngToContainerPoint(r.m.getLatLng()), t = document.elementFromPoint(rect.left + p.x, rect.top + p.y);
+      return !!t && t.tagName === 'CANVAS';
+    });
     clickAt(ref.m.getLatLng()); await sleep(400);
     log(!document.querySelector('.leaflet-popup') && selectedKey && selectedKey !== before && Radar.on, 'tocco su puntino = stazione',
         'popup ' + !!document.querySelector('.leaflet-popup') + ', stazione ' + selectedKey + ', radar ' + Radar.on);
