@@ -2458,6 +2458,11 @@
       await loadRadarPoints(P); await sleep(400);
       const m = chart._m, R = radarVals(), slot = m.radar ? m.radar.slot : 0;
       log(!!m.iRadar && chart.series[m.iRadar].label === 'Radar', tag + ': c\'è la serie del radar', '');
+      if(m.iRadar){                                    // un altro colore, se no sembra la continuazione del pluviometro
+        const sr = chart.series[m.iRadar], stroke = typeof sr.stroke === 'function' ? sr.stroke(chart, m.iRadar) : sr.stroke;
+        log(stroke === varColor('RADAR') && varColor('RADAR') !== varColor('PREC'), tag + ': il radar in arancio, non nel blu della pioggia',
+            JSON.stringify([stroke, varColor('PREC')]));
+      }
       const per = Math.round(10 * slot / 300) / 100;               // 0.1 mm per fotogramma dell'intervallo
       log(R.length > 2 && R.slice(0, -1).every(([, v]) => Math.abs(v - per) < 1e-9),
           tag + ': intervalli completi = somma dei 5 minuti', JSON.stringify([per, R.slice(0, 3)]));

@@ -123,7 +123,9 @@ const VAR_COLORS = {
   PM10:'#8a5a2b', PM25:'#e8590c', NO2:'#5f3dc4', O3:'#2bb39a', O3_8H:'#2bb39a', SO2:'#c2255c', CO:INK,
   C6H6:'#2b8a3e', EAQI:INK, GAMMA:'#868e96',
   SALINITA:'#0b7285', OSSIGENO:'#1f6fd1', OSSIGENO_SAT:'#74c0fc', PH:'#5f3dc4', CLOROFILLA:'#2b8a3e',
-  CONDUCIBILITA:'#e8590c', GDD:'#e8590c', HDD:'#1f6fd1', CDD:'#e34948', ET0:'#2bb39a'
+  CONDUCIBILITA:'#e8590c', GDD:'#e8590c', HDD:'#1f6fd1', CDD:'#e34948', ET0:'#2bb39a',
+  // le barre del radar accanto al pluviometro: un colore diverso, se no sembrano la sua continuazione
+  RADAR:'#e8590c'
 };
 // testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
 const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',

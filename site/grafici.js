@@ -1517,10 +1517,11 @@ function mainOpts(m, o){
   }
   if(m.radar){
     // la meta' del pluviometro senza nome (nel PNG non si ripete nella legenda)
-    const r = m.radar, d = { color:col(m.s1.v), scale:m.s1.scale, align:r.align, slot:r.slot,
-                             slotTxt:m.s1.rs.hourly ? 'range' : '' };
-    series.push(mkSeries(Object.assign({ label:'', kind:'bars', half:'left' }, d), hi),
-                mkSeries(Object.assign({ label:'Radar', kind:'radar', half:'right' }, d), hi));
+    const r = m.radar, slotTxt = m.s1.rs.hourly ? 'range' : '';
+    const d = { scale:m.s1.scale, align:r.align, slot:r.slot, slotTxt };
+    series.push(mkSeries(Object.assign({ label:'', kind:'bars', half:'left', color:col(m.s1.v) }, d), hi),
+                mkSeries(Object.assign({ label:'Radar', kind:'radar', half:'right', color:col('RADAR') }, d),
+                         hi));
   }
   // Un intervallo dentro la finestra e piu' stretto e' uno zoom e va accettato; il resto (anche dati che
   // sporgono, come l'inizio della cumulata prima di mezzanotte) torna alla finestra intera. La prima
@@ -1541,7 +1542,7 @@ function mainOpts(m, o){
   hooks.draw = (hooks.draw || []).concat(drawUnits);
   if(m.events && m.events.length) hooks.draw.push(drawEvents(m.events, col(m.s1.v), hi));
   const ends = (m.ss.length > 1 ? m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) })) : [])
-    .concat(m.radar ? [{ i:m.iRadar, name:'Radar', color:col(m.s1.v) }] : []);
+    .concat(m.radar ? [{ i:m.iRadar, name:'Radar', color:col('RADAR') }] : []);
   if(!hi && ends.length) hooks.draw.push(u => endLabels(u, ends));
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
