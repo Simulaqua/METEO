@@ -193,7 +193,9 @@ function initMap(){
     dockLayout();
   });
   markersLayer = L.layerGroup().addTo(map);
+  labelsLayer = L.layerGroup().addTo(map);
   map.on('zoomend', () => { if(allFeatures.length) renderMarkers(); });
+  map.on('moveend', renderLabels);
   // I crediti (obbligatori per licenza) stanno nella plancia, senza il prefisso "Leaflet"
   map.attributionControl.setPrefix(false);
   el('dkCredits').appendChild(map.attributionControl.getContainer());
@@ -283,7 +285,7 @@ function renderMarkers(){
   const all = stationsForList();
   const list = (Radar.on && !radarUi.stations) ? [] : all;                    // radar: "Stazioni" spento
   // Colormap con UNA regione (unita' coerente) oppure con una variabile a unita' unica (UNIT_SAFE) e
-  // confrontabile nello spazio (cmVar). Colora con l'ULTIMO valore disponibile, qualunque sia il ritardo.
+  // confrontabile nello spazio (cmVar). Colora col valore di riferimento (mapValue); in ritardo = grigio.
   const singleRegion = el('region').value !== 'ALL';
   const cmVar = ((singleRegion || UNIT_SAFE.has(filterVar)) && canColormap(filterVar)) ? filterVar : null;
   const slide = !!(snap.on && cmVar && snap.var === cmVar);
@@ -306,9 +308,9 @@ function renderMarkers(){
     const p = f.properties;
     const isSel = featKey(f) === selectedKey;
     let fill = DOT_COLOR, stroke = DOT_LINE;
+    const nv = valFor(p), stale = cmVar && nv != null && late(p);
     if(cmVar){
-      const nv = valFor(p);
-      if(nv == null || late(p)) fill = NEUTRAL_COLOR;
+      if(nv == null || stale) fill = NEUTRAL_COLOR;
       else if(radarDotColor(cmVar, nv)) fill = radarDotColor(cmVar, nv);    // stessa palette del radar
       else if(isEaqi(cmVar)) fill = eaqiColor(nv);
       else if(classColor(cmVar, nv)) fill = classColor(cmVar, nv);
@@ -322,18 +324,19 @@ function renderMarkers(){
       weight: isSel ? 2 : 1, fillColor: fill, fillOpacity: cmVar ? 0.9 : 0.75,
       bubblingMouseEvents: false              // il tocco apre la stazione, non il popup del radar
     });
-    const nvLab = valFor(p);
-    if(!slide && cmVar && nvLab != null && map.getZoom() >= 11)
-      m.bindTooltip(String(nvLab), { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
+    if(!slide && cmVar && nv != null && map.getZoom() >= 11 && !showValues)
+      m.bindTooltip(String(nv), { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
     m.on('mouseover', () => cardHover(p, m));
     m.on('mouseout', cardLeave);
     m.on('click', () => {
       if(lastPointer === 'mouse'){ hideCard(); selectStation(p); } else openSheet(p, m);
     });
     m.addTo(markersLayer);
-    markerRefs.push({ m, p });
+    markerRefs.push({ m, p, nv: cmVar ? nv : null, fill, late: !!stale });
     bounds.push([p._lat, p._lon]);
   });
+  labelsVar = cmVar || '';
+  renderLabels();
   if(bounds.length && _needFit && !selectedKey){
     _needFit = false;
     map.invalidateSize();
@@ -358,7 +361,76 @@ function repaintSnap(){
     if(nv != null) fill = radarDotColor(v, nv) || classColor(v, nv) ||
                           colormap(snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5);
     r.m.setStyle({ fillColor: fill });
+    Object.assign(r, { nv, fill, late: false });
   });
+  renderLabels();
+}
+
+// ---- ETICHETTE (interruttore "Valori" nella plancia): il numero sul colore del valore al posto del puntino,
+// solo dove non si toccano; le altre stazioni restano puntini e zoomando le etichette aumentano
+let showValues = false, labelsLayer = null, labelsVar = '';
+try { showValues = localStorage.getItem('mapValues') === '1'; } catch(e){}
+const LABEL_H = 16, LABEL_GAP = 2, LABEL_PAD = 9;
+const LABEL_DEC = { TEMP:1, PREC:1, VVENTO:1, VVENTOMAX:1, UMID:0, LIVNEVE:0, RADSOL:0, PM10:0, PM25:0, O3:0,
+                    NO2:0 };
+// Dove le etichette non stanno tutte vincono le stazioni aggiornate, poi i valori alti (piu' pioggia, piu'
+// vento: piu' conta), la variazione forte del livello o, per le altre, i valori lontani dalla mediana
+const LABEL_HIGH = new Set(['PREC','VVENTO','VVENTOMAX','LIVNEVE','RADSOL','PM10','PM25','O3','NO2','EAQI']);
+const _labelCtx = document.createElement('canvas').getContext('2d');
+function labelText(v, x){
+  if(v === 'LIVIDRO'){
+    const n = Math.round(x);
+    return n > 0 ? '+' + n : n < 0 ? '−' + -n : '0';
+  }
+  const d = isRain(v) ? 1 : LABEL_DEC[v];
+  return d == null ? fmtNum(x, v) : x.toFixed(d);
+}
+function renderLabels(){
+  if(!labelsLayer) return;
+  labelsLayer.clearLayers();
+  markerRefs.forEach(r => {
+    if(r.under){ r.m.setStyle({ opacity:1, fillOpacity:r.fo }); r.under = false; }
+  });
+  const v = labelsVar;
+  if(!showValues || !v) return;
+  const fresh = markerRefs.filter(r => r.nv != null && !r.late).map(r => r.nv).sort((a, b) => a - b);
+  const med = fresh.length ? fresh[fresh.length >> 1] : 0;
+  const weight = r => v === 'LIVIDRO' ? Math.abs(r.nv)
+                    : LABEL_HIGH.has(v) || isRain(v) ? r.nv : Math.abs(r.nv - med);
+  const order = markerRefs.filter(r => r.nv != null)
+                          .sort((a, b) => (a.late - b.late) || (weight(b) - weight(a)));
+  const size = map.getSize(), boxes = [];
+  _labelCtx.font = cssFont(11, 600);
+  order.forEach(r => {
+    const pt = map.latLngToContainerPoint(r.m.getLatLng());
+    if(pt.x < -40 || pt.y < -40 || pt.x > size.x + 40 || pt.y > size.y + 40) return;
+    const txt = labelText(v, r.nv), w = Math.ceil(_labelCtx.measureText(txt).width) + LABEL_PAD;
+    const b = { x0:pt.x - w / 2, x1:pt.x + w / 2, y0:pt.y - LABEL_H / 2, y1:pt.y + LABEL_H / 2 };
+    if(boxes.some(o => b.x0 < o.x1 + LABEL_GAP && o.x0 < b.x1 + LABEL_GAP &&
+                       b.y0 < o.y1 + LABEL_GAP && o.y0 < b.y1 + LABEL_GAP)) return;
+    boxes.push(b);
+    const key = r.p._region + '|' + r.p.scode;
+    const cls = 'vl' + (r.late ? ' late' : '') + (key === selectedKey ? ' sel' : '');
+    const paint = r.late ? '' : 'background:' + r.fill + ';color:' + inkOn(r.fill) + ';';
+    const lm = L.marker(r.m.getLatLng(), { keyboard:false, icon:L.divIcon({
+      className:'', iconSize:[w, LABEL_H], iconAnchor:[w / 2, LABEL_H / 2],
+      html:'<div class="' + cls + '" data-k="' + escHtml(key) + '" style="' + paint + 'width:' + w + 'px">' +
+           txt + '</div>' }) });
+    lm.on('mouseover', () => cardHover(r.p, r.m));
+    lm.on('mouseout', cardLeave);
+    lm.on('click', () => {
+      if(lastPointer === 'mouse'){ hideCard(); selectStation(r.p); } else openSheet(r.p, r.m);
+    });
+    lm.addTo(labelsLayer);
+    r.fo = r.m.options.fillOpacity;
+    r.m.setStyle({ opacity:0, fillOpacity:0 });
+    r.under = true;
+  });
+}
+function syncValuesSwitch(){
+  const b = el('mcValues');
+  b.classList.toggle('on', showValues);
+  b.setAttribute('aria-checked', String(showValues));
 }
 
 // LEGENDA nella plancia: nome del prodotto o della variabile (col radar e con la pioggia apre il menu), scala
@@ -366,8 +438,9 @@ function repaintSnap(){
 // telefono), puntino grigio = dato non disponibile, interruttore Stazioni (solo col radar).
 // Punto decimale, come nei grafici.
 const inkOn = c => {
-  const n = parseInt(c.slice(1), 16);
-  return 0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255) > 160 ? '#0c3557' : '#fff';
+  const m = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(c), n = m ? 0 : parseInt(c.slice(1), 16);
+  const [r, g, b] = m ? [+m[1], +m[2], +m[3]] : [n >> 16, n >> 8 & 255, n & 255];
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#0c3557' : '#fff';
 };
 // Classi a soglie: colors[i] sta fra steps[i-1] e steps[i] (la prima e' "meno della prima soglia"). Con tante
 // classi (temperatura del radar) la scala piena mostra una soglia ogni k e la compatta solo gli estremi
@@ -439,6 +512,7 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
   el('dkScale').innerHTML = scale;
   el('dkNd').style.display = nd ? '' : 'none';
   el('dkSta').style.display = Radar.on ? '' : 'none';
+  el('dkVal').style.display = (Radar.on ? radarUi.stations && radarDotsVar() : varName) ? '' : 'none';
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -828,6 +902,13 @@ function buildMapControls(){
     else setMapVar(isMapRain(filterVar) ? '' : lastRainVar());
   });
   el('mcSnap').addEventListener('click', openSlider);
+  el('mcValues').addEventListener('click', () => {
+    showValues = !showValues;
+    try { localStorage.setItem('mapValues', showValues ? '1' : '0'); } catch(e){}
+    syncValuesSwitch();
+    renderMarkers();
+  });
+  syncValuesSwitch();
   el('mcRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
   el('mcStations').addEventListener('click', () => {
     radarUi.stations = !radarUi.stations;

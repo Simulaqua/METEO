@@ -314,6 +314,13 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
                  border:1px solid #33475a; box-sizing:border-box; }
 .dk-sta { display:inline-flex; align-items:center; gap:8px; margin-left:auto; white-space:nowrap; }
 .dk-sub { color:var(--muted); }
+.dk-val { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+/* Etichette coi valori sulla mappa: il numero sul colore del valore, al posto del puntino */
+.vl { box-sizing:border-box; height:16px; padding:0 4px; border:1px solid rgba(12,30,45,.35);
+      border-radius:4px; font:600 11px/14px "IBM Plex Sans", system-ui, sans-serif; text-align:center;
+      white-space:nowrap; cursor:pointer; }
+.vl.late { background:#eef1f4; border-color:#cfd6dd; color:#8a96a3; }
+.vl.sel { border:2px solid #c05621; line-height:12px; }
 .dk-switch { position:relative; flex:none; width:30px; height:18px; padding:0; border:none; border-radius:9px; background:var(--trk); cursor:pointer; }
 .dk-switch::after { content:""; position:absolute; left:2px; top:2px; width:14px; height:14px; border-radius:50%; background:#fff;
       box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s; }
@@ -342,7 +349,8 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
                                           color:var(--on-accent); }
 /* plancia chiusa (solo telefono): play, ora, cursore, nome e scala compatta, crediti */
 .dock.min #tsPrev, .dock.min #tsNext, .dock.min #tsSpeed, .dock.min #tsClose, .dock.min .dk-ticks, .dock.min #tsLab small,
-.dock.min .sc-full, .dock.min .dk-nd, .dock.min .dk-sta, .dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg { display:none; }
+.dock.min .sc-full, .dock.min .dk-nd, .dock.min .dk-sta, .dock.min .dk-val, .dock.min .dk-prod .dk-unit,
+.dock.min .dk-prod svg { display:none; }
 .dock.min .sc-mini { display:flex; }
 .dock.min .dk-prod { height:auto; padding:0; border:none; font-size:11px; }
 .dock.min .dk-track { order:0; flex:1 1 auto; height:34px; margin:0 4px; }

@@ -2866,7 +2866,35 @@
       log(snap.var === v && n > 0 && !bad.length, 'Cursore: ' + v + ' da mezzanotte, dai fotogrammi di ' + src + ' (' + r0 + ')',
           JSON.stringify([snap.var, n, bad.slice(0, 3)]));
     }
+    // etichette col Cursore: a ogni fotogramma numeri nuovi, nessuna etichetta vecchia
+    const labs = () => [...document.querySelectorAll('.vl')];
+    const texts = () => labs().map(e => e.dataset.k + '=' + e.textContent).sort().join(' ');
+    const sw = el('mcValues'), shown = id => !!el(id) && getComputedStyle(el(id)).display !== 'none';
+    if(PHONE.matches){ dockMin(false); await sleep(300); }               // sul telefono la plancia parte chiusa
+    log(!!sw && shown('dkVal'), 'interruttore Valori nella plancia', '');
+    const valuesOn = () => typeof showValues !== 'undefined' && showValues;
+    if(sw && !valuesOn()) sw.click();
+    await sleep(300);
+    if(snap.on){
+      setFrame(snap.kmax); await sleep(200);
+      const a1 = texts(), n1 = labs().length;
+      setFrame(snap.kmax - 8); await sleep(200);
+      log(n1 > 0 && texts() !== a1, 'Cursore con le etichette: cambiano col fotogramma', JSON.stringify([n1, labs().length]));
+    }
     closeSlider();
+    // radar: "Stazioni" spento non lascia etichette; un prodotto senza puntini nasconde l'interruttore
+    await radarOn();
+    await until(() => Radar.on, 15000);
+    log(Radar.on, 'radar acceso', Radar.state);
+    if(Radar.on){
+      const nOn = labs().length;
+      radarUi.stations = false; renderMarkers(); await sleep(200);
+      log(nOn > 0 && labs().length === 0, 'radar: Stazioni spento, nessuna etichetta', JSON.stringify([nOn, labs().length]));
+      radarUi.stations = true;
+      radarSetProduct('VMI'); await sleep(300);
+      log(!!el('dkVal') && !shown('dkVal'), 'radar: prodotto senza puntini, niente interruttore', '');
+      radarOff(true); await sleep(300);
+    }
 
     // vento: FVG in km/h e VEN in m/s sulla stessa scala, con "Tutte"
     await scene([fake('FVG', 'F1', 46.0, 13.2, { VVENTO:'36' }), fake('VEN', 'V1', 45.4, 11.9, { VVENTO:'10' }),
@@ -2936,6 +2964,58 @@
     if(first){ first.click(); await sleep(200); }
     eq('menu della pioggia: oggi = Precipitazione delle misure dirette',
        [filterVar, currentPage, el('mcRain').classList.contains('on')], ['PREC', 'dirette', true]);
+
+    // etichette: 60 stazioni fitte, una ogni nove in ritardo
+    const many = [];
+    for(let i = 0; i < 60; i++) many.push(fake('VEN', 'E' + i, 45.2 + (i % 10) * 0.05, 11.5 + Math.floor(i / 10) * 0.08,
+                                               { TEMP:String(5 + i / 7) }, i % 9 ? {} : { latest_time:iso(NOW - 5 * H) }));
+    await scene(many, 'TEMP');
+    if(!valuesOn() && el('mcValues')) el('mcValues').click();
+    let ls = null;
+    try { ls = localStorage.getItem('mapValues'); } catch(e){}
+    map.setView([45.45, 11.7], 9); await sleep(400);
+    log(labs().length > 0 && ls === '1', 'Valori: etichette accese e ricordate', JSON.stringify([labs().length, ls]));
+    const pairs = () => {
+      const R = labs().map(e => e.getBoundingClientRect());
+      let n = 0;
+      for(let i = 0; i < R.length; i++) for(let j = i + 1; j < R.length; j++)
+        if(R[i].left < R[j].right && R[j].left < R[i].right && R[i].top < R[j].bottom && R[j].top < R[i].bottom) n++;
+      return n;
+    };
+    for(const z of [7, 9, 11]){
+      map.setView([45.45, 11.7], z); await sleep(400);
+      log(labs().length > 0 && pairs() === 0, 'etichette: nessuna sovrapposta a zoom ' + z, JSON.stringify([labs().length, pairs()]));
+    }
+    map.setView([45.45, 11.7], 11); await sleep(400);
+    const under = markerRefs.filter(r => r.under);
+    log(under.length > 0 && under.length === labs().length && under.every(r => r.m.options.opacity === 0),
+        'etichette: il puntino sotto si nasconde', JSON.stringify([under.length, labs().length]));
+    log(labs().some(e => e.classList.contains('late')), 'etichette: in ritardo grigie', '');
+    eq('etichette: testi', typeof labelText === 'function'
+       ? [labelText('TEMP', 8.84), labelText('UMID', 93.4), labelText('LIVIDRO', 12.4), labelText('LIVIDRO', -5)] : null,
+       ['8.8', '93', '+12', '−5']);
+    // clic su un'etichetta: apre la stazione, come il puntino; al ritorno la sua etichetta e' selezionata
+    const lab0 = labs().find(e => !e.classList.contains('late'));
+    if(lab0){
+      lastPointer = 'mouse';
+      const rr = lab0.getBoundingClientRect(), k0 = lab0.dataset.k;
+      lab0.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true, clientX:rr.left + 4, clientY:rr.top + 4 }));
+      await until(() => currentStation && currentStation._region + '|' + currentStation.scode === k0, 5000);
+      eq('etichette: il clic apre la stazione', currentStation && currentStation._region + '|' + currentStation.scode, k0);
+      showMapView(); renderMarkers(); await sleep(400);
+      const sel = document.querySelector('.vl.sel');
+      eq('etichette: la stazione selezionata ha il bordo', sel && sel.dataset.k, k0);
+      selectedKey = ''; renderMarkers(); await sleep(200);
+      eq('etichette: deselezionata, nessun bordo', document.querySelectorAll('.vl.sel').length, 0);
+    }
+    else log(false, 'etichette: una non in ritardo', '');
+    // telefono: l'interruttore si vede con la plancia aperta e niente esce dallo schermo
+    if(PHONE.matches){
+      dockMin(false); await sleep(300);
+      const r = el('dkVal') ? el('dkVal').getBoundingClientRect() : { width:0 };
+      log(r.width > 0 && r.right <= innerWidth + 0.5 && document.documentElement.scrollWidth <= innerWidth,
+          'telefono: interruttore nello schermo a ' + innerWidth + ' px', JSON.stringify([r.left, r.right, innerWidth]));
+    }
 
     eq('errori JS', window.__errs, []);
     finish();
