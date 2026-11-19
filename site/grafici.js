@@ -1422,7 +1422,7 @@ function mainModel(st, vars, mode){
   // in MN la linea del giorno coinciderebbe con la cumulata
   const daily = (cum && mode !== 'mn') ? rainDaily(t.x, s1.ys, s1.rs, to) : null;
   // il radar nel punto della stazione: nei suoi intervalli la barra del pluviometro passa nella serie a meta'
-  const radar = (s1 && s1.src === 'PREC' && st._radar) ? radarBars(st._radar, s1.rs, to) : null;
+  const radar = (showRadar && s1 && s1.src === 'PREC' && st._radar) ? radarBars(st._radar, s1.rs, to) : null;
   const inRadar = new Set(radar ? radar.x : []);
   const tabs = ss.map(s => [s.x, s.y]);
   if(radar) tabs[0] = [s1.x, s1.y.map((y, j) => inRadar.has(s1.x[j]) ? null : y)];

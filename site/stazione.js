@@ -59,15 +59,28 @@ async function loadRadarPoints(props, fresh){
   const v = all && all.s && all.s[props.scode];
   props._radar = v && v.some(x => x != null) ? { t:all.t, v } : null;
   const m = chart && chart._m;
-  if(currentStation === props && m && m.st === props && m.s1 && m.s1.src === 'PREC'
+  if(showRadar && currentStation === props && m && m.st === props && m.s1 && m.s1.src === 'PREC'
      && m.radarSrc !== props._radar && !isCompareMode() && !histMode) renderChart(currentVar);
+}
+// Le barre del radar distraggono: spente all'inizio, si accendono da "Altro" e la scelta resta.
+let showRadar = false;
+try { showRadar = localStorage.getItem('stRadar') === '1'; } catch(e){}
+const hasRain = p => !!p && (p.variables || []).includes('PREC');
+const radarFits = () => currentVar === 'PREC' && !isCompareMode() && !histMode && !stacked()
+  && typeof Radar !== 'undefined' && !!Radar.points;
+function setRadar(on){
+  showRadar = on;
+  try { localStorage.setItem('stRadar', on ? '1' : '0'); } catch(e){}
+  if(on && hasRain(currentStation) && currentStation._radar === undefined) loadRadarPoints(currentStation);
+  if(currentStation && currentVar === 'PREC' && !isCompareMode() && !histMode) renderChart(currentVar);
 }
 async function selectStation(props){
   snapPause();
   closeSheet();
   // serie recente (< 5 min, cambio scheda) riusata; il radar si riprende con la serie, solo con la pioggia
   const fresh = props._table && props._tableAt && (Date.now() - props._tableAt) < 5*60*1000;
-  const radarLoad = !fresh && (props.variables || []).includes('PREC') ? loadRadarPoints(props) : null;
+  const radarLoad = showRadar && hasRain(props) && (!fresh || props._radar === undefined)
+    ? loadRadarPoints(props) : null;
   const prevSel = selVars();
   chartVar = null;
   el('stationName').title = '';
@@ -226,7 +239,7 @@ function fillVarRow(){
   const plus = !cmp && !histMode && !isView(currentVar);
   box.innerHTML = '';
   shown.forEach(v => box.appendChild(varItem(v, sel.includes(v), plus && v !== currentVar && !isView(v))));
-  if(all.some(v => !isMainVar(v, all))) box.appendChild(altButton());
+  if(all.some(v => !isMainVar(v, all)) || radarFits()) box.appendChild(altButton());
   if(sel.length >= 2 && !cmp)
     box.appendChild(rowButton('stackbtn', 'Impilate', {
       'aria-pressed': String(stackMode), title: 'Una fascia per variabile, con cursore e zoom insieme'
@@ -280,9 +293,19 @@ function altOpen(){
   const all = cmp ? compareVars : rowVars(), sel = cmp ? [compareVar] : selVars();
   const rest = all.filter(v => !isMainVar(v, all)).sort(byVarOrder);
   m.innerHTML = '';
+  if(!cmp && radarFits()){
+    const it = document.createElement('button');
+    it.dataset.opt = 'radar';
+    it.setAttribute('role', 'menuitemcheckbox');
+    it.setAttribute('aria-checked', String(showRadar));
+    it.tabIndex = -1;
+    it.textContent = 'Radar';
+    it.classList.toggle('on', showRadar);
+    m.appendChild(it);
+  }
   ['dirette', 'derivate', 'indici'].map(c => rest.filter(v => varCat(v) === c)).filter(g => g.length)
-    .forEach((g, k) => {
-      if(k) m.appendChild(document.createElement('hr'));
+    .forEach(g => {
+      if(m.childElementCount) m.appendChild(document.createElement('hr'));
       g.forEach(v => {
         const it = document.createElement('button');
         it.dataset.var = v;
@@ -367,7 +390,8 @@ async function refreshStation(){
     currentStation._table = t;
     currentStation._table30 = null;                // il bilancio e i 30 giorni si riprendono freschi
     if(chartMode === 'compare30') await ensureTable30();
-    await loadRadarPoints(currentStation, true);
+    if(showRadar) await loadRadarPoints(currentStation, true);
+    else currentStation._radar = undefined;        // spento: quando si riaccende si riprende fresco
     if(currentVar === WROSE) updateWindRose();
     else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
       if(currentVar && ([WARROW, WBIL, SNOWNEW].includes(currentVar) || t.cols[currentVar]))
@@ -799,6 +823,7 @@ function buildStationControls(){
     else drawVar(v);
   });
   el('altMenu').addEventListener('click', e => {
+    if(e.target.closest('[data-opt="radar"]')){ altClose(true); setRadar(!showRadar); return; }
     const b = e.target.closest('[data-var]');
     if(!b) return;
     altClose();

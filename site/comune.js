@@ -72,8 +72,6 @@ const natCode = (a, b) => {                                     // codici: ordin
   return x < y ? -1 : (x > y ? 1 : 0);
 };
 const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
-const natVars = (a, b) => ((a === WROSE) - (b === WROSE)) || ((a === WARROW) - (b === WARROW))
-  || natCode(a, b);   // la rosa in coda
 
 // Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
 // le misure secondarie, le derivate e gli indici stanno sotto "Altro".

@@ -113,6 +113,8 @@ altre e passa da sola.
 - **Il radar nella scheda.** I fotogrammi pubblicati hanno solo le classi di colore; i valori veri li legge
   `dati_radar.py` nel punto di ogni stazione con la pioggia, prima della classificazione (`punti/<REG>.json`, mm in
   ogni 5 minuti delle ultime 6 ore). La pagina li somma negli stessi intervalli delle barre del pluviometro.
+  Le barre partono spente perche' distraevano: si accendono da "Altro" (voce "Radar") e la scelta resta sul
+  dispositivo; spente, la pagina non scarica nemmeno i punti.
 - **PM10, giorni oltre il limite.** Si contano dal nostro archivio (da luglio 2026) con la regola di ogni fonte:
   l'Emilia-Romagna segna alle 00:00 la media del giorno prima, la Lombardia quella del giorno, il Veneto aggiorna
   la media del giorno piu' volte (vale l'ultima), Trentino e Alto Adige danno le orarie (media con almeno 18).

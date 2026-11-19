@@ -2444,14 +2444,41 @@
     };
     const realPoints = Radar.points;
     window.__errs = [];
+    const radarItem = async () => {
+      if(el('altMenu').hidden) el('altBtn').click();
+      await sleep(100);
+      return el('altMenu').querySelector('[data-opt="radar"]');
+    };
 
-    // radar: 0.1 mm ogni 5 minuti dalle 6 ore prima dell'ultima lettura a 2 ore dopo (stazione in ritardo)
+    // radar: spento all'inizio, senza nemmeno chiederlo; si accende da «Altro» e resta acceso
+    const asked = [];
+    Radar.points = async reg => { asked.push(reg); return null; };
+    P._radar = undefined; P._tableAt = 0;
     await open(P, 'PREC');
+    eq('radar: spento all\'inizio, niente richiesta', asked, []);
+    log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'),
+        'radar: spento all\'inizio, niente barre', '');
+    let item = await radarItem();
+    log(!!item && item.getAttribute('aria-checked') === 'false' && item.textContent.trim() === 'Radar',
+        'radar: voce «Radar» in «Altro», spenta', item ? item.outerHTML : '');
+    altClose();
     const ys = P._table.cols.PREC, last = P._table.x.filter((x, i) => x != null && ys[i] != null).pop();
+    // 0.1 mm ogni 5 minuti dalle 6 ore prima dell'ultima lettura a 2 ore dopo (stazione in ritardo)
     const T = [];
     for(let x = Math.floor(last / 300) * 300 - 6 * HOUR + 300; x <= last + 2 * HOUR; x += 300) T.push(x);
     const fake = { t:T, s:{ [P.scode]:T.map(() => 0.1) } };
     Radar.points = async reg => reg === P._region ? fake : null;
+    P._radar = undefined;
+    (await radarItem()).click();
+    await until(() => chart && chart._m && chart._m.iRadar, 3000);
+    let stored = null;
+    try { stored = localStorage.getItem('stRadar'); } catch(e){}
+    log(showRadar && !!chart._m.iRadar && stored === '1',
+        'radar: acceso da «Altro», barre e scelta ricordata', JSON.stringify([showRadar, stored]));
+    item = await radarItem();
+    log(!!item && item.getAttribute('aria-checked') === 'true' && item.classList.contains('on'),
+        'radar: voce segnata quando è acceso', item ? item.outerHTML : '');
+    altClose();
     const radarVals = () => {
       const iR = chart && chart._m && chart._m.iRadar;
       return iR ? chart.data[iR].map((v, j) => v == null ? null : [chart.data[0][j], v]).filter(Boolean) : [];
@@ -2492,14 +2519,26 @@
       }
       noOverflow('radar ' + tag);
     }
+    // spento da «Altro»: via le barre, la scelta resta
+    (await radarItem()).click(); await sleep(300);
+    try { stored = localStorage.getItem('stRadar'); } catch(e){}
+    log(!showRadar && !chart._m.iRadar && !(chart._ends || []).includes('Radar') && stored === '0',
+        'radar: spento da «Altro», niente barre', JSON.stringify([showRadar, stored]));
     // senza file del radar: il grafico di oggi, senza errori
+    setRadar(true);
     Radar.points = async () => null;
     P._radar = undefined;
     await loadRadarPoints(P);
     renderChart('PREC'); await sleep(300);
     log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'), 'senza radar: niente serie né chiave', '');
+    setRadar(false);
     Radar.points = realPoints;
     P._radar = undefined;
+    // la voce c'è solo con la pioggia
+    await open(P, 'TEMP');
+    item = await radarItem();
+    log(!item, 'radar: niente voce fuori dalla pioggia', item ? item.outerHTML : '');
+    altClose();
 
     // Vicine: voce in Confronta; la stazione e fino a 3 vicine entro 25 km, dalla più vicina
     await open(P, 'TEMP');
@@ -2710,6 +2749,7 @@
       const C = st('VEN', '100'), B = P;
       if(C){
         const real = Radar.points;
+        setRadar(true);
         Radar.points = () => new Promise(r => setTimeout(() => r(null), 1000));   // il radar di C tarda
         C._table = null; C._tableAt = 0; C._radar = undefined;
         B._tableAt = Date.now(); B._radar = null;
@@ -2717,6 +2757,7 @@
         await sleep(50);
         await selectStation(B); await slow; await sleep(400);
         Radar.points = real;
+        setRadar(false);
         log(currentStation === B && el('stationName').title.startsWith(B.scode) && location.hash.includes('/' + B.scode + '/'),
             'revisione: aprendo due stazioni in fretta resta l\'ultima', JSON.stringify([el('stationName').title, location.hash]));
       }
@@ -2758,6 +2799,7 @@
       // il radar si riprende con la serie; niente radar per chi non ha la pioggia
       {
         const real = Radar.points, asked = [];
+        setRadar(true);
         Radar.points = async reg => { asked.push(reg); return fake; };
         P._radar = { t:[1], v:[0.5] }; P._tableAt = 0;
         await open(P, 'PREC');
@@ -2767,6 +2809,7 @@
         if(N){ N._tableAt = 0; N._radar = undefined; await open(N); }
         eq('revisione: niente radar per una stazione senza pioggia', asked, []);
         Radar.points = real; P._radar = undefined;
+        setRadar(false);
       }
       // radar di una stazione ferma da giorni: niente barre lontane dai suoi dati
       {
