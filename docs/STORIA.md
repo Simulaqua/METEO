@@ -136,4 +136,5 @@ altre e passa da sola.
   riduceva una seconda volta (1196 hPa a 1470 m).
 - **Cadenza giorno per giorno.** Le piogge 1-48 h e la pioggia di oggi contano le letture con la cadenza di ogni
   giorno: l'Alto Adige riscrive di notte i giorni passati a 5 minuti, mentre il dato in diretta arriva ogni 10, e
-  prima le finestre brevi restavano vuote tutto il giorno.
+  prima le finestre brevi restavano vuote tutto il giorno. La cadenza di un giorno pero' non supera quella abituale
+  della stazione (o i 10 minuti dell'Alto Adige): un giorno con letture perse resta vuoto, non sembra asciutto.
