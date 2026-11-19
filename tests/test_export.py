@@ -5,11 +5,12 @@
 #   25/10 alle 01:00 UTC = 02:00 solari: le 03:00 CEST tornano 02:00 CET (l'ora 02:00-03:00 si ripete)
 # Le altre prove lanciano l'export vero (export) su un archivio scritto apposta, con l'orologio fermo di tests/rete.py.
 #   /usr/bin/python3 -m unittest tests.test_export -v
-import calendar, datetime, gzip, json, os, sys, tempfile, unittest
+import calendar, datetime, gzip, json, math, os, sys, tempfile, unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import comune
+import derive
 import export_web as ew
 from tests import rete
 
@@ -351,6 +352,13 @@ class TestRiferimenti(unittest.TestCase):
         self.assertEqual(props['A']['rif']['O3'], 88)
         self.assertNotIn('O3', props['B'].get('rif', {}))
 
+    def test_ozono_conta_le_ore_non_le_letture(self):
+        # ARPAV segna ogni valore orario quattro volte (:10 :40 :55 :59): 5 ore sono 20 letture, non un giorno
+        o3 = [('20261118' + h + m, 60.0)
+              for h in ('10', '11', '12', '13', '14') for m in ('10', '40', '55', '59')]
+        props = map_properties({'AQ_VEN': {'A': (station(45.4, 11.9), {'O3': o3})}}, MORNING, 'AQ_VEN')
+        self.assertNotIn('O3', props['A'].get('rif', {}))
+
     def test_pm25_come_pm10(self):
         props = map_properties({'AQ_LOM': {'A': (station(45.5, 9.2), {'PM25': [('202611180000', 37.0)]})}},
                                MORNING, 'AQ_LOM')
@@ -397,6 +405,62 @@ class TestRiferimenti(unittest.TestCase):
                 frames = json.load(fp)
         seven = calendar.timegm((2026, 11, 19, 7, 0, 0))
         self.assertEqual(frames['s']['A'][frames['t'].index(seven)], 14.0)
+
+
+class TestDerivate(unittest.TestCase):
+    """Le derivate di derive.py che dipendono dalla fonte: pressione gia' ridotta, radiazione in kJ/m²,
+    cadenza."""
+
+    @staticmethod
+    def day(values, start='202611180000'):
+        """Letture orarie dei valori dati, da start."""
+        first = datetime.datetime.strptime(start, '%Y%m%d%H%M')
+        return {(first + datetime.timedelta(hours=h)).strftime('%Y%m%d%H%M'): x for h, x in enumerate(values)}
+
+    def test_pressione_gia_al_livello_mare(self):
+        # Veneto e Alto Adige danno la pressione gia' ridotta: ridurla ancora dava 1196 hPa a 1470 m
+        per_var = {'PRESS': {'202611190800': '1000.0'}, 'TEMP': {'202611190800': '2.0'}}
+        sea = derive.derive_station(per_var, {'ALT': 1470}, 'BZ', {})
+        station = derive.derive_station(per_var, {'ALT': 1470}, 'TN', {})
+        self.assertEqual(sea['PSLM'], {'202611190800': 1000.0})
+        self.assertGreater(station['PSLM']['202611190800'], 1150)       # alla stazione: si riduce
+
+    def test_et0_radiazione_in_kj_all_ora(self):
+        # OSMER (FVG) da' l'energia dell'ora in kJ/m²: la stessa radiazione in W/m² deve dare la stessa ET0
+        hours = 24
+        temp = [8 + 6 * math.sin(math.pi * h / hours) for h in range(hours)]
+        sun = [max(0.0, 400 * math.sin(math.pi * (h - 6) / 12)) for h in range(hours)]          # W/m²
+        base = {'TEMP': self.day(temp), 'UMID': self.day([70.0] * hours), 'VVENTO': self.day([2.0] * hours)}
+        watt = dict(base, RADSOL=self.day(sun))
+        kilo = dict(base, RADSOL=self.day([x * 3.6 for x in sun]))
+        meta = {'LAT': 46.0, 'QUOTA': 100}
+        et_w = derive.daily_et0(watt, meta, 'PC_FVG', {'RADSOL': 'W/m²'})['ET0']['202611181200']
+        et_k = derive.daily_et0(kilo, meta, 'FVG', {'RADSOL': 'KJ/m^2'})['ET0']['202611181200']
+        self.assertAlmostEqual(et_k, et_w, places=2)
+
+    def test_et0_pressione_gia_al_livello_mare(self):
+        # a 1470 m la pressione alla stazione e' ~850 hPa: quella ridotta (1000) non va nella costante
+        # psicrometrica
+        hours = 24
+        base = {'TEMP': self.day([2 + 4 * math.sin(math.pi * h / hours) for h in range(hours)]),
+                'UMID': self.day([60.0] * hours), 'VVENTO': self.day([3.0] * hours),
+                'RADSOL': self.day([max(0.0, 300 * math.sin(math.pi * (h - 6) / 12)) for h in range(hours)])}
+        meta = {'LAT': 46.6, 'ALT': 1470}
+        with_press = derive.daily_et0(dict(base, PRESS=self.day([1000.0] * hours)), meta, 'BZ', {})
+        without = derive.daily_et0(base, meta, 'BZ', {})
+        self.assertEqual(with_press['ET0'], without['ET0'])
+
+    def test_piogge_brevi_con_cadenza_cambiata(self):
+        # giorni passati riscritti a 5 minuti, oggi in diretta ogni 10 (Alto Adige): ci sono le finestre
+        past = every('202611120000', '202611182355', 5, 0.0)
+        today = every('202611190010', '202611190800', 10, 0.1)
+        out = derive.derive_station({'PREC': dict(past + today)}, {}, 'BZ', {})
+        for name in ('PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24'):
+            self.assertIn('202611190800', out.get(name, {}), name)
+        # al contrario: orarie nei giorni passati, ogni 10 minuti oggi: la 24 h di oggi c'e' ancora
+        hourly = every('202611120000', '202611182300', 60, 0.0)
+        out = derive.derive_station({'PREC': dict(hourly + today)}, {}, 'VEN', {})
+        self.assertIn('202611190800', out.get('PREC24', {}))
 
 
 if __name__ == '__main__':

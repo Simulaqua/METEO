@@ -36,6 +36,9 @@ def _first_number(meta, keys):
     return None
 
 ALT_KEYS = ('QUOTA', 'ALT', 'quota', 'quote', 'ALTITUDE', 'altitudine')
+# Fonti che danno la pressione gia' ridotta al livello del mare (a 1470 m l'Alto Adige segna ~1000 hPa): non
+# si riduce di nuovo, e nell'ET0 si usa la pressione della quota
+SEA_LEVEL_PRESS = {'VEN', 'BZ', 'LIG', 'MAR_VEN', 'MAR_ER', 'MAR_FVG'}
 LAT_KEYS = ('LAT', 'Y', 'lat', 'latitude', 'Latitude')
 
 def put(out, name, ist, val):
@@ -43,7 +46,7 @@ def put(out, name, ist, val):
         out.setdefault(name, {})[ist] = val
 
 # --- Grandezze derivate istantanee: per istante, dove esistono gli input concomitanti
-def _derive_instant(per_var, meta):
+def _derive_instant(per_var, meta, region):
     out = {}
     T  = per_var.get('TEMP', {}); RH = per_var.get('UMID', {})
     WS = per_var.get('VVENTO', {}); WD = per_var.get('DVENTO', {}); P = per_var.get('PRESS', {})
@@ -75,6 +78,9 @@ def _derive_instant(per_var, meta):
         for ist in P:
             p = to_float(P[ist]); t = to_float(T.get(ist))
             if p is None:
+                continue
+            if region in SEA_LEVEL_PRESS:
+                put(out, 'PSLM', ist, round(p, 1))
                 continue
             tk = (t if t is not None else 15.0) + 273.15
             p0 = p * math.pow(1 - 0.0065 * alt / (tk + 0.0065 * alt), -5.257)
@@ -178,7 +184,7 @@ def _daily_agg(per_var, varname):
             a[2] += fv; a[3] += 1
     return agg
 
-def _derive_accumulations(per_var, meta):
+def _derive_accumulations(per_var, meta, region, units):
     out = {}
 
     # PREC1..48: pioggia cumulata mobile (PREC = mm dell'intervallo che TERMINA all'istante).
@@ -188,19 +194,28 @@ def _derive_accumulations(per_var, meta):
                    if to_float(v) is not None)           # ordine cronologico
     if items:
         ep = [(datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, v) for ist, v in items]
-        # Cadenza della stazione = mediana dei passi. Una finestra vale solo se e' quasi piena
-        # (ACC_MIN_COVER) e piu' lunga della cadenza: dopo un buco restano vuote, non sottostimano.
+        # Cadenza della stazione = mediana dei passi, giorno per giorno: un archivio riscritto di notte a un
+        # passo diverso (l'Alto Adige a 5 minuti, contro i 10 del dato in diretta) non deve svuotare le
+        # finestre di oggi. Una finestra usa la cadenza piu' lenta fra il suo primo e il suo ultimo giorno, e
+        # vale solo se e' quasi piena (ACC_MIN_COVER) e piu' lunga della cadenza: dopo un buco resta vuota.
         steps = sorted((ep[i + 1][0] - ep[i][0]).total_seconds() for i in range(len(ep) - 1))
         step = steps[len(steps) // 2] if steps else 0
+        by_day = {}
+        for a, b in zip(ep, ep[1:]):
+            if a[1][:8] == b[1][:8]:
+                by_day.setdefault(b[1][:8], []).append((b[0] - a[0]).total_seconds())
+        day_step = {d: sorted(s)[len(s) // 2] for d, s in by_day.items() if len(s) >= 2}
+        cadence = [day_step.get(e[1][:8], step) for e in ep]
         for win_h, name in ACC_WINDOWS:
             if step and win_h * 3600 < step:
                 continue
-            need = max(1, int(math.ceil(ACC_MIN_COVER * win_h * 3600 / step - 1e-9))) if step else 1
             left = 0; run = 0.0                                   # somma scorrevole O(n)
             for right in range(len(ep)):
                 run += ep[right][2]
                 while (ep[right][0] - ep[left][0]).total_seconds() >= win_h * 3600:
                     run -= ep[left][2]; left += 1
+                slow = max(cadence[left], cadence[right])
+                need = max(1, int(math.ceil(ACC_MIN_COVER * win_h * 3600 / slow - 1e-9))) if slow else 1
                 if right - left + 1 < need:
                     continue
                 v = round(run, 1)
@@ -213,17 +228,18 @@ def _derive_accumulations(per_var, meta):
         put(out, 'GDD', stamp, round(max(0.0, (tmax + tmin) / 2 - 10.0), 1))
         put(out, 'HDD', stamp, round(max(0.0, 18.0 - tmean), 1))
         put(out, 'CDD', stamp, round(max(0.0, tmean - 21.0), 1))
-    out.update(daily_et0(per_var, meta))
+    out.update(daily_et0(per_var, meta, region, units))
     return out
 
 def _daily_temp(per_var):
     ''' (giorno, [min, max, somma, n]) della temperatura, solo i giorni con almeno 6 letture. '''
     return [(day, a) for day, a in _daily_agg(per_var, 'TEMP').items() if a[3] >= 6]
 
-def daily_et0(per_var, meta):
+def daily_et0(per_var, meta, region='', units=None):
     ''' {'ET0': {giorno + '1200': mm}}: Penman-Monteith dove ci sono tutti gli input (T, umidita',
         radiazione, vento), altrimenti Hargreaves (sola temperatura). Anche da sola, per la serie a 30
-        giorni che non ha le altre derivate. '''
+        giorni che non ha le altre derivate. units = unita' della regione: la radiazione di OSMER (FVG) e'
+        l'energia dell'ora in kJ/m², non W/m². '''
     out = {}
     lat, z = _first_number(meta, LAT_KEYS), _first_number(meta, ALT_KEYS)
     if lat is None:
@@ -231,17 +247,18 @@ def daily_et0(per_var, meta):
     RHd = _daily_agg(per_var, 'UMID')
     RAd = _daily_agg(per_var, 'RADSOL')
     Wd = _daily_agg(per_var, 'VVENTO')
-    Pd = _daily_agg(per_var, 'PRESS')
+    Pd = _daily_agg(per_var, 'PRESS') if region not in SEA_LEVEL_PRESS else {}
+    to_mj = 0.024 if (units or {}).get('RADSOL') == 'KJ/m^2' else 0.0864     # media dell'ora -> MJ/m2/giorno
     for day, a in _daily_temp(per_var):
         tmin, tmax, tmean = a[0], a[1], a[2] / a[3]
         doy = datetime.datetime.strptime(day, '%Y%m%d').timetuple().tm_yday
         rh_a, ra_a, w_a = RHd.get(day), RAd.get(day), Wd.get(day)
         et0 = None
         if rh_a and ra_a and w_a and rh_a[3] >= 6 and ra_a[3] >= 6 and w_a[3] >= 6:
-            # Penman-Monteith: radiazione W/m2 media -> MJ/m2/giorno (x0.0864); vento 10 m -> 2 m (x0.748)
+            # Penman-Monteith: radiazione media -> MJ/m2/giorno; vento 10 m -> 2 m (x0.748)
             zz = z if z is not None else 0.0
             rh = rh_a[2] / rh_a[3]
-            rs_mj = (ra_a[2] / ra_a[3]) * 0.0864
+            rs_mj = (ra_a[2] / ra_a[3]) * to_mj
             u2 = (w_a[2] / w_a[3]) * 0.748
             p_a = Pd.get(day)
             p_kpa = (p_a[2] / p_a[3]) / 10.0 if p_a else 101.3 * ((293 - 0.0065 * zz) / 293) ** 5.26
@@ -253,11 +270,12 @@ def daily_et0(per_var, meta):
     return out
 
 # --- API pubblica
-def derive_station(per_var, meta):
+def derive_station(per_var, meta, region='', units=None):
     ''' Ritorna {sigla_derivata: {istante: valore}} da unire a per_var. Calcola solo dove esistono
-        gli input; non tocca l'archivio. '''
+        gli input; non tocca l'archivio. region e units (le unita' della regione) servono dove le fonti
+        misurano in modo diverso (pressione gia' ridotta, radiazione in kJ/m²). '''
     out = {}
-    out.update(_derive_instant(per_var, meta or {}))
+    out.update(_derive_instant(per_var, meta or {}, region))
     out.update(_derive_airquality(per_var))
-    out.update(_derive_accumulations(per_var, meta or {}))
+    out.update(_derive_accumulations(per_var, meta or {}, region, units))
     return out

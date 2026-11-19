@@ -119,10 +119,10 @@ def export_region(region, parse_dir, out_dir, days, coords, series_subdir, serie
                 del data[scode]
 
     if not series_only:
-        add_derived(data, units, station_meta)
+        add_derived(data, units, station_meta, region)
         drop_extra_prec(data, cutoff)
     else:
-        add_et0(data, station_meta)
+        add_et0(data, station_meta, region, units)
 
     series_dir = os.path.join(out_dir, series_subdir)
     os.makedirs(series_dir, exist_ok=True)
@@ -256,21 +256,22 @@ def read_file(path, var, value_key, var_cutoff, plausible, data, units, station_
             station_meta[scode] = record.get('STAZIONE', {})
 
 
-def add_et0(data, station_meta):
+def add_et0(data, station_meta, region, units):
     """Nella serie a 30 giorni delle derivate entra solo l'ET0: il bilancio idrico della scheda."""
     try:
         for scode, per_var in data.items():
-            per_var.update(derive.daily_et0(per_var, station_meta.get(scode, {})))
+            per_var.update(derive.daily_et0(per_var, station_meta.get(scode, {}), region, units))
     except Exception as e:
         print('WARN: ET0 non calcolata (' + str(e) + ')', file=sys.stderr)
 
 
-def add_derived(data, units, station_meta):
+def add_derived(data, units, station_meta, region):
     """Le derivate di derive.py, calcolate dalle letture della finestra e mai archiviate: entrano in data
     come variabili, quindi nelle serie, in mappa e nel cursore."""
     try:
         for scode, per_var in data.items():
-            for name, series in derive.derive_station(per_var, station_meta.get(scode, {})).items():
+            for name, series in derive.derive_station(per_var, station_meta.get(scode, {}), region,
+                                                      units).items():
                 if series:
                     per_var[name] = series
                     units[name] = derive.DERIVED_UM.get(name, '')
@@ -479,21 +480,22 @@ def aq_yesterday(region, var, readings, today):
     """Il valore di ieri (today - 1, giorno solare come nella striscia del PM10), intero: per le polveri la
     media con le regole di pm10_year, per ozono e NO2 il massimo orario; None se il giorno non è completo."""
     day = today - datetime.timedelta(days=1)
-    values = []
+    values, hours = [], set()
     for instant in sorted(readings):
         number = comune.to_float(readings[instant])
         try:
             if number is not None and pm10_day(region, instant) == day:
                 values.append(number)
+                hours.add(instant[:10])                 # ARPAV segna lo stesso valore orario piu' volte
         except ValueError:
             continue
     value = None
     if var in AQ_DAILY_MAX:
-        if len(values) >= PM10_MIN_HOURS:
+        if len(hours) >= PM10_MIN_HOURS:
             value = max(values)
     elif values and region in PM10_LAST:
         value = values[-1]
-    elif values and (region in PM10_DAILY or len(values) >= PM10_MIN_HOURS):
+    elif values and (region in PM10_DAILY or len(hours) >= PM10_MIN_HOURS):
         value = sum(values) / len(values)
     return None if value is None else int(math.floor(value + 0.5))
 
