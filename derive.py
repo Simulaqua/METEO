@@ -39,6 +39,33 @@ ALT_KEYS = ('QUOTA', 'ALT', 'quota', 'quote', 'ALTITUDE', 'altitudine')
 # Fonti che danno la pressione gia' ridotta al livello del mare (a 1470 m l'Alto Adige segna ~1000 hPa): non
 # si riduce di nuovo, e nell'ET0 si usa la pressione della quota
 SEA_LEVEL_PRESS = {'VEN', 'BZ', 'LIG', 'MAR_VEN', 'MAR_ER', 'MAR_FVG'}
+# L'Alto Adige riscrive di notte i giorni passati a 5 minuti, mentre il dato in diretta arriva ogni 10
+# (CADENCE di recover.py): le letture di oggi si contano col passo in diretta
+LIVE_STEP = {'BZ': 600}
+
+
+def step_cap(region, usual):
+    ''' Il passo piu' lungo con cui contare le letture: quello abituale della stazione, o quello in diretta
+        della rete se piu' lungo. Un giorno con letture perse ha i passi piu' lunghi e abbasserebbe le
+        letture richieste: una somma a meta' sembrerebbe valida. '''
+    return max(usual, LIVE_STEP.get(region, 0))
+
+
+def _parsed(series):
+    ''' [(momento, istante, valore)] in ordine, senza istanti illeggibili (che fermerebbero la stazione). '''
+    out = []
+    for ist, v in series.items():
+        try:
+            out.append((datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, to_float(v)))
+        except (TypeError, ValueError):
+            continue
+    return sorted(out)
+
+
+def _station_pressure(p0, t, alt):
+    ''' Dalla pressione al livello del mare a quella della quota (l'inversa della riduzione di PSLM). '''
+    tk = (t if t is not None else 15.0) + 273.15
+    return p0 * math.pow(1 - 0.0065 * alt / (tk + 0.0065 * alt), 5.257)
 LAT_KEYS = ('LAT', 'Y', 'lat', 'latitude', 'Latitude')
 
 def put(out, name, ist, val):
@@ -67,8 +94,10 @@ def _derive_instant(per_var, meta, region):
         if ws is not None:
             e = (rh / 100.0) * 6.105 * math.exp(17.27 * t / (237.7 + t))   # hPa
             put(out, 'TAPP', ist, round(t + 0.33 * e - 0.70 * ws - 4.00, 1))
-        # umidita' specifica: T + RH + P
+        # umidita' specifica: T + RH + P (della quota: quella gia' ridotta darebbe valori bassi in montagna)
         p = to_float(P.get(ist))
+        if p is not None and region in SEA_LEVEL_PRESS and alt is not None:
+            p = _station_pressure(p, t, alt)
         if p is not None:
             e_hpa = (rh / 100.0) * 6.112 * math.exp(17.62 * t / (243.12 + t))
             put(out, 'QSPEC', ist, round(622.0 * e_hpa / (p - 0.378 * e_hpa), 2))
@@ -130,8 +159,7 @@ def _derive_airquality(per_var):
     # O3: media mobile 8 ore
     o3 = per_var.get('O3', {})
     if o3:
-        keys = sorted(o3.keys())
-        ep = [(datetime.datetime.strptime(k, '%Y%m%d%H%M'), to_float(o3[k]), k) for k in keys]
+        ep = [(t, v, k) for t, k, v in _parsed(o3)]
         for i in range(len(ep)):
             t_i = ep[i][0]; window = [v for (t, v, k) in ep
                                       if v is not None and 0 <= (t_i - t).total_seconds() <= 8*3600]
@@ -189,34 +217,38 @@ def _derive_accumulations(per_var, meta, region, units):
 
     # PREC1..48: pioggia cumulata mobile (PREC = mm dell'intervallo che TERMINA all'istante).
     # Finestra (t-W, t]: la lettura esattamente a t-W non conta.
-    PR = per_var.get('PREC', {})
-    items = sorted((ist, to_float(v)) for ist, v in PR.items()
-                   if to_float(v) is not None)           # ordine cronologico
-    if items:
-        ep = [(datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, v) for ist, v in items]
-        # Cadenza della stazione = mediana dei passi, giorno per giorno: un archivio riscritto di notte a un
-        # passo diverso (l'Alto Adige a 5 minuti, contro i 10 del dato in diretta) non deve svuotare le
-        # finestre di oggi. Una finestra usa la cadenza piu' lenta fra il suo primo e il suo ultimo giorno, e
-        # vale solo se e' quasi piena (ACC_MIN_COVER) e piu' lunga della cadenza: dopo un buco resta vuota.
+    ep = [e for e in _parsed(per_var.get('PREC', {})) if e[2] is not None]          # ordine cronologico
+    if ep:
+        # Cadenza = mediana dei passi, giorno per giorno: un archivio riscritto di notte a un passo diverso
+        # (l'Alto Adige a 5 minuti, contro i 10 in diretta) non deve svuotare le finestre di oggi. Il passo di
+        # un giorno non supera step_cap: le letture perse lo allungherebbero. Una finestra usa la cadenza piu'
+        # lenta fra il suo primo e il suo ultimo giorno, e vale solo se e' quasi piena (ACC_MIN_COVER) e piu'
+        # lunga della cadenza: dopo un buco resta vuota, non sottostima.
         steps = sorted((ep[i + 1][0] - ep[i][0]).total_seconds() for i in range(len(ep) - 1))
         step = steps[len(steps) // 2] if steps else 0
+        cap = step_cap(region, step)
         by_day = {}
         for a, b in zip(ep, ep[1:]):
             if a[1][:8] == b[1][:8]:
                 by_day.setdefault(b[1][:8], []).append((b[0] - a[0]).total_seconds())
-        day_step = {d: sorted(s)[len(s) // 2] for d, s in by_day.items() if len(s) >= 2}
+        day_step = {d: min(sorted(s)[len(s) // 2], cap) for d, s in by_day.items() if len(s) >= 2}
         cadence = [day_step.get(e[1][:8], step) for e in ep]
         for win_h, name in ACC_WINDOWS:
-            if step and win_h * 3600 < step:
+            win = win_h * 3600
+            if step and win < step:
                 continue
+            needs = {}
             left = 0; run = 0.0                                   # somma scorrevole O(n)
             for right in range(len(ep)):
                 run += ep[right][2]
-                while (ep[right][0] - ep[left][0]).total_seconds() >= win_h * 3600:
+                while (ep[right][0] - ep[left][0]).total_seconds() >= win:
                     run -= ep[left][2]; left += 1
                 slow = max(cadence[left], cadence[right])
-                need = max(1, int(math.ceil(ACC_MIN_COVER * win_h * 3600 / slow - 1e-9))) if slow else 1
-                if right - left + 1 < need:
+                if slow and win < slow:
+                    continue
+                if slow not in needs:
+                    needs[slow] = max(1, int(math.ceil(ACC_MIN_COVER * win / slow - 1e-9))) if slow else 1
+                if right - left + 1 < needs[slow]:
                     continue
                 v = round(run, 1)
                 put(out, name, ep[right][1], v if v > 0 else 0.0)      # niente "-0.0" (residui ~1e-16)

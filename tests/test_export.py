@@ -237,6 +237,8 @@ class TestMappa(unittest.TestCase):
 MORNING = 1795071600            # 2026-11-19 07:00 UTC = 08:00 solari
 NIGHT = 1795044600              # 2026-11-18 23:30 UTC = 19/11 00:30 solari
 SUMMER = 1783666800             # 2026-07-10 07:00 UTC = 08:00 solari = 09:00 civili
+NIGHT_20 = 1795044000           # 2026-11-18 23:20 UTC = 19/11 00:20 solari
+BZ_PROVA = {'NAME_I': 'Prova', 'LAT': 46.5, 'LONG': 11.3}       # stazioni.json dell'Alto Adige
 
 
 def every(start, end, minutes, value=1.0):
@@ -365,11 +367,36 @@ class TestRiferimenti(unittest.TestCase):
         self.assertEqual(props['A']['rif']['PM25'], 37)
 
     def test_pioggia_di_oggi_con_cadenza_cambiata(self):
-        # i giorni passati riscritti di notte a 5 minuti, oggi il dato in diretta ogni 10 (Alto Adige): la
-        # copertura si misura sulla cadenza di oggi
+        # l'Alto Adige riscrive di notte i giorni passati a 5 minuti, il dato in diretta arriva ogni 10: la
+        # copertura si misura col passo in diretta
         rain = every('202611120000', '202611182355', 5, 0.0) + every('202611190010', '202611190800', 10, 0.1)
-        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': rain})}}, MORNING)
+        props = map_properties({'BZ': {'A': (BZ_PROVA, {'PREC': rain})}},
+                               MORNING, 'BZ')
         self.assertEqual(props['A']['rif']['PREC'], 4.8)
+
+    def test_pioggia_di_oggi_con_letture_perse(self):
+        # pluviometro a 30 minuti che oggi ha perso una lettura su due: la somma sarebbe a meta', niente
+        rain = (every('202611170000', '202611182330', 30, 0.2) +
+                every('202611190100', '202611190800', 60, 0.2))
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': rain})}}, MORNING)
+        self.assertNotIn('PREC', props['A'].get('rif', {}))
+
+    def test_pioggia_di_oggi_dopo_un_giorno_di_letture_perse(self):
+        # 15 minuti di solito, ieri solo 3 letture (passo "18 ore") e oggi 2: il passo abituale viene dai
+        # giorni prima, non da ieri, e due letture in 7 ore non bastano
+        rain = (every('202611150000', '202611172345', 15, 0.0) +
+                [('202611180200', 0.5), ('202611180300', 0.5), ('202611182100', 0.5),
+                 ('202611190600', 0.0), ('202611190700', 0.0)])
+        props = map_properties({'PC_FVG': {'A': (station(46.0, 13.2), {'PREC': rain})}}, MORNING, 'PC_FVG')
+        self.assertNotIn('PREC', props['A'].get('rif', {}))
+
+    def test_pioggia_di_oggi_alto_adige_a_mezzanotte_e_venti(self):
+        # due letture di oggi: si conta col passo in diretta (10 minuti), non con i 5 dei giorni riscritti
+        rain = (every('202611120000', '202611182355', 5, 0.0) +
+                every('202611190010', '202611190020', 10, 0.1))
+        props = map_properties({'BZ': {'A': (BZ_PROVA, {'PREC': rain})}},
+                               NIGHT_20, 'BZ')
+        self.assertEqual(props['A']['rif']['PREC'], 0.2)
 
     def test_letture_senza_rileggere_la_finestra(self):
         # sette giorni ogni 10 minuti: per ritardi e riferimenti non si legge ogni istante (l'export a ogni
@@ -385,6 +412,11 @@ class TestRiferimenti(unittest.TestCase):
         self.assertLessEqual(lags, 4)
         self.assertLessEqual(parsed.call_count - lags, 48 + 15 + 5)     # oggi e le ultime 3 h e mezza
 
+    def test_ultima_lettura_vuota(self):
+        # una lettura vuota in coda non fa sembrare aggiornata la variabile
+        per_var = {'TEMP': {'202611190800': 8.0, '202611190900': ''}, 'UMID': {'202611190900': 80.0}}
+        self.assertEqual(ew.var_lags(per_var, '202611190900'), {'TEMP': 60})
+
     def test_istanti_illeggibili(self):
         # un istante storto non deve fermare l'export di tutte le regioni
         per_var = {'TEMP': {'202611190800': 8.0, 'ERRORE000000': 9.0},
@@ -393,14 +425,15 @@ class TestRiferimenti(unittest.TestCase):
         self.assertEqual(ew.var_lags(per_var, '202611190800'), {'PREC': 60})
         self.assertEqual(ew.map_refs('LIG', per_var, datetime.datetime(2026, 11, 19, 8, 0)), {'PREC': 0.2})
 
-    def test_ora_dell_export_nella_mappa(self):
-        # la pagina riconosce una copia vecchia (riserva di jsDelivr): "ieri" di un altro giorno non vale
+    def test_giorno_di_ieri_nella_mappa(self):
+        # la pagina riconosce i valori "di ieri" di un altro giorno (copia vecchia, o l'ora fra mezzanotte e
+        # l'una d'estate, quando il giorno solare e' ancora quello prima)
         with tempfile.TemporaryDirectory() as folder:
             rete.check(export(folder, {'LIG': {'A': (station(44.4, 8.9), {'TEMP': [('202611190700', 8.0)]})}},
                               epoch=MORNING))
             with open(os.path.join(folder, 'site', 'LIG', 'stations.geojson'), encoding='utf-8') as fp:
                 geo = json.load(fp)
-        self.assertEqual(geo['creato'], '2026-11-19T08:00')
+        self.assertEqual(geo['ieri'], '2026-11-18')
 
     def test_raffica_massima_dell_ora(self):
         # il fotogramma del Cursore e' la massima dell'ora, non l'ultima lettura: le reti a 10 minuti prese
@@ -458,6 +491,34 @@ class TestDerivate(unittest.TestCase):
         with_press = derive.daily_et0(dict(base, PRESS=self.day([1000.0] * hours)), meta, 'BZ', {})
         without = derive.daily_et0(base, meta, 'BZ', {})
         self.assertEqual(with_press['ET0'], without['ET0'])
+
+    def test_piogge_con_un_giorno_di_letture_perse(self):
+        # stazione a 15 minuti che il 18/11 ha solo 3 letture (02:00, 03:00, 21:00): la mediana del giorno
+        # (18 ore) non deve abbassare le letture richieste, la 12 h delle 21:00 non c'e'
+        lost = [('202611180200', 0.5), ('202611180300', 0.5), ('202611182100', 0.5)]
+        rain = every('202611120000', '202611172345', 15, 0.1) + lost
+        out = derive.derive_station({'PREC': dict(rain)}, {}, 'PC_FVG', {})
+        self.assertNotIn('202611182100', out.get('PREC12', {}))
+        self.assertNotIn('202611182100', out.get('PREC1', {}))
+        self.assertIn('202611172345', out.get('PREC12', {}))               # i giorni pieni restano
+
+    def test_umidita_specifica_con_la_pressione_della_quota(self):
+        # a 1470 m la pressione ridotta (1000 hPa) darebbe un'umidita' specifica ~15% troppo bassa
+        t = '202611190800'
+        per_var = {'TEMP': {t: '2.0'}, 'UMID': {t: '80'}, 'PRESS': {t: '1000'}}
+        sea = derive.derive_station(per_var, {'ALT': 1470}, 'BZ', {})['QSPEC'][t]
+        p_station = 1000 * (1 - 0.0065 * 1470 / (275.15 + 0.0065 * 1470)) ** 5.257        # ~836 hPa
+        at_station = dict(per_var, PRESS={t: str(round(p_station, 1))})
+        station = derive.derive_station(at_station, {'ALT': 1470}, 'TN', {})['QSPEC'][t]
+        self.assertAlmostEqual(sea, station, delta=0.01)
+
+    def test_istante_storto_non_ferma_le_derivate(self):
+        # un istante illeggibile nella pioggia toglieva le derivate alle stazioni della regione dopo quella
+        good = dict(every('202611181200', '202611190800', 10, 0.1))
+        data = {'A': {'PREC': dict(good, ERRORE000000=0.1)}, 'B': {'PREC': dict(good)}}
+        ew.add_derived(data, {}, {}, 'LIG')
+        self.assertIn('PREC1', data['B'])
+        self.assertIn('PREC1', data['A'])
 
     def test_piogge_brevi_con_cadenza_cambiata(self):
         # giorni passati riscritti a 5 minuti, oggi in diretta ogni 10 (Alto Adige): ci sono le finestre

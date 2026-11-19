@@ -27,14 +27,14 @@ const LATE_H = 3;
 const MAP_DAILY = new Set(['PM10','PM25','O3','NO2','GDD','HDD','CDD','ET0']);
 // Ora dell'ultima lettura di v (ms, ora civile letta come UTC); lag = minuti di ritardo sull'ultima misura
 const varTime = (p, v) => isoCivil(p.latest_time) - 60000 * ((p.lag || {})[v] || 0);
-// Ora civile dell'export di ogni regione: i valori "di ieri" di una copia di un altro giorno (la riserva di
-// jsDelivr puo' avere ~12 ore) non sono piu' di ieri
-const exportedAt = {};
+// Il giorno dei valori "di ieri" di ogni regione, come lo scrive l'export: quelli di un altro giorno (una
+// copia vecchia della riserva di jsDelivr, o l'ora fra mezzanotte e l'una d'estate) non sono di ieri
+const aqDay = {};
 function isLate(p, v, now){
   const t = now || nowRome();
   if(MAP_REF[v] && MAP_DAILY.has(v)){
-    const made = exportedAt[p._region];
-    return !!made && made.slice(0, 10) !== new Date(t).toISOString().slice(0, 10);
+    const day = aqDay[p._region];
+    return !!day && isFinite(t) && day !== new Date(t - 86400000).toISOString().slice(0, 10);
   }
   return !MAP_DAILY.has(v) && t - varTime(p, v) > LATE_H * 3600000;
 }
@@ -276,7 +276,7 @@ async function loadRegions(regions){
     let geo;
     try { geo = await (await fdata(`${region}/stations.geojson`)).json(); }
     catch(e){ return; }
-    exportedAt[region] = geo.creato || '';
+    aqDay[region] = geo.ieri || '';
     (geo.features || []).forEach(f => {
       f.properties._region = region;
       f.properties._lon = f.geometry.coordinates[0];
@@ -345,7 +345,7 @@ function renderMarkers(){
       bubblingMouseEvents: false              // il tocco apre la stazione, non il popup del radar
     }, look));
     if(!slide && cmVar && nv != null && map.getZoom() >= 11 && !showValues)
-      m.bindTooltip(labelText(cmVar, nv),
+      m.bindTooltip(cmVar === 'LIVIDRO' ? labelText(cmVar, nv) : String(nv),         // il livello col segno
                     { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
     m.on('mouseover', () => cardHover(p, m));
     m.on('mouseout', cardLeave);

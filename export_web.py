@@ -258,25 +258,26 @@ def read_file(path, var, value_key, var_cutoff, plausible, data, units, station_
 
 def add_et0(data, station_meta, region, units):
     """Nella serie a 30 giorni delle derivate entra solo l'ET0: il bilancio idrico della scheda."""
-    try:
-        for scode, per_var in data.items():
+    for scode, per_var in data.items():
+        try:
             per_var.update(derive.daily_et0(per_var, station_meta.get(scode, {}), region, units))
-    except Exception as e:
-        print('WARN: ET0 non calcolata (' + str(e) + ')', file=sys.stderr)
+        except Exception as e:
+            print('WARN: ET0 non calcolata per ' + scode + ' (' + str(e) + ')', file=sys.stderr)
 
 
 def add_derived(data, units, station_meta, region):
     """Le derivate di derive.py, calcolate dalle letture della finestra e mai archiviate: entrano in data
     come variabili, quindi nelle serie, in mappa e nel cursore."""
-    try:
-        for scode, per_var in data.items():
-            for name, series in derive.derive_station(per_var, station_meta.get(scode, {}), region,
-                                                      units).items():
-                if series:
-                    per_var[name] = series
-                    units[name] = derive.DERIVED_UM.get(name, '')
-    except Exception as e:
-        print('WARN: derivate non calcolate (' + str(e) + ')', file=sys.stderr)
+    for scode, per_var in data.items():
+        try:
+            derived = derive.derive_station(per_var, station_meta.get(scode, {}), region, units)
+        except Exception as e:
+            print('WARN: derivate non calcolate per ' + scode + ' (' + str(e) + ')', file=sys.stderr)
+            continue
+        for name, series in derived.items():
+            if series:
+                per_var[name] = series
+                units[name] = derive.DERIVED_UM.get(name, '')
 
 
 def drop_extra_prec(data, cutoff):
@@ -335,9 +336,10 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
             properties.update(station_place(region, meta))
             features.append({'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
                              'properties': properties})
-    # creato: l'ora civile dell'export, perche' la pagina riconosca una copia vecchia (i valori "di ieri")
+    # ieri: il giorno dei valori di ieri dell'aria, perche' la pagina riconosca quelli di un altro giorno (una
+    # copia vecchia, o l'ora fra mezzanotte e l'una d'estate, quando il giorno solare e' ancora quello prima)
     comune.save_json({'type': 'FeatureCollection', 'name': region,
-                      'creato': iso_datetime(now.strftime('%Y%m%d%H%M')), 'features': features},
+                      'ieri': (now.date() - datetime.timedelta(days=1)).isoformat(), 'features': features},
                      os.path.join(out_dir, 'stations.geojson'))
     print('Stations on map (with lat/lon): ' + str(len(features)))
     if no_coord:
@@ -421,8 +423,13 @@ def readings_of(series, since=''):
 
 
 def last_moment(series):
+    """Il momento dell'ultima lettura con un valore (una lettura vuota in coda non conta)."""
     instants = readable(series or {})
-    return moment_or_none(max(instants)) if instants else None
+    last = max(instants) if instants else None
+    if last and comune.to_float(series[last]) is None:
+        filled = [instant for instant in instants if comune.to_float(series[instant]) is not None]
+        last = max(filled) if filled else None
+    return moment_or_none(last) if last else None
 
 
 def var_lags(per_var, latest_moment):
@@ -446,19 +453,36 @@ def civil_midnight(now):
     return midnight.strftime('%Y%m%d%H%M')
 
 
-def since_midnight(series, midnight):
+def steps_before(series, midnight, days=3):
+    """I passi in secondi fra le letture dei giorni prima di midnight, dai soli caratteri: strptime su ogni
+    istante costa troppo a ogni pubblicazione. Su tre giorni la mediana non la sposta un giorno con letture
+    perse."""
+    start = (moment_of(midnight) - datetime.timedelta(days=days)).strftime('%Y%m%d%H%M')
+    instants = [instant for instant in readable(series) if start < instant[:12] <= midnight]
+    first = datetime.datetime.strptime(start[:8], '%Y%m%d')
+    offset = {}
+    for day in {instant[:8] for instant in instants}:
+        offset[day] = (datetime.datetime.strptime(day, '%Y%m%d') - first).days
+    minutes = sorted(1440 * offset[instant[:8]] + 60 * int(instant[8:10]) + int(instant[10:12])
+                     for instant in instants)
+    return [60 * (b - a) for a, b in zip(minutes, minutes[1:])]
+
+
+def since_midnight(series, midnight, region=''):
     """I valori letti dopo midnight (la lettura delle 00:00 chiude il giorno prima); None se sono meno di
-    quelli attesi nel tempo trascorso (la regola delle somme di derive.py). La cadenza e' quella di oggi: i
-    giorni passati possono essere stati riscritti a un passo diverso (in Alto Adige 5 minuti invece di 10)."""
+    quelli attesi nel tempo trascorso (la regola delle somme di derive.py). Il passo e' quello di oggi, ma non
+    piu' lungo di quello abituale (i giorni prima, o il passo in diretta: derive.step_cap), cosi' le letture
+    perse oggi non abbassano le letture richieste."""
     today = readings_of({instant: value for instant, value in (series or {}).items()
                          if instant[:12] > midnight})
     if not today:
         return []
-    steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(today, today[1:]))
-    if len(steps) < 2:
-        whole = readings_of(series)
-        steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(whole, whole[1:]))
-    step = steps[len(steps) // 2] if steps else 0
+    median = lambda s: sorted(s)[len(s) // 2] if s else 0
+    now_steps = [(b[0] - a[0]).total_seconds() for a, b in zip(today, today[1:])]
+    before = steps_before(series, midnight)
+    usual = median(before) if len(before) >= 2 else median(now_steps)
+    cap = derive.step_cap(region, usual)
+    step = min(median(now_steps), cap) if len(now_steps) >= 2 else cap
     elapsed = (today[-1][0] - moment_of(midnight)).total_seconds()
     need = math.ceil(derive.ACC_MIN_COVER * elapsed / step - 1e-9) if step else 1
     return [value for _, value in today] if len(today) >= need else None
@@ -508,7 +532,7 @@ def map_refs(region, per_var, now):
     refs = {}
     midnight = civil_midnight(now)
     rain = per_var.get('PREC')
-    values = since_midnight(rain, midnight)
+    values = since_midnight(rain, midnight, region)
     if values:
         refs['PREC'] = max(0.0, round(sum(values), 1))
     # nessuna lettura dopo mezzanotte: zero se il pluviometro trasmette (stazione oraria alle 00:30)
@@ -516,7 +540,7 @@ def map_refs(region, per_var, now):
         last = last_moment(rain)
         if last and now - last <= datetime.timedelta(hours=LATE_HOURS):
             refs['PREC'] = 0.0
-    values = since_midnight(per_var.get('VVENTOMAX'), midnight)
+    values = since_midnight(per_var.get('VVENTOMAX'), midnight, region)
     if values:
         refs['VVENTOMAX'] = round(max(values), 1)
     change = level_change(per_var.get('LIVIDRO'))

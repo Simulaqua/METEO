@@ -2948,6 +2948,11 @@
     map.setView([45.45, 11.85], 11); await sleep(300);
     const vt = [...document.querySelectorAll('.leaflet-tooltip.vlab')].map(e => e.textContent);
     log(vt.includes('+12') && vt.includes('−3'), 'livello: scritte da zoom 11 col segno', JSON.stringify(vt));
+    // le altre variabili tengono le scritte di prima (la pressione col suo decimale)
+    await scene([fake('VEN', 'Q1', 45.4, 11.9, { TEMP:'12' }), fake('VEN', 'Q2', 45.5, 11.8, { TEMP:'7.5' })], 'TEMP');
+    map.setView([45.45, 11.85], 11); await sleep(300);
+    eq('puntini: scritte da zoom 11 come prima', [...document.querySelectorAll('.leaflet-tooltip.vlab')]
+       .map(e => e.textContent).sort(), ['12', '7.5']);
     // neve: i negativi del sensore contano zero
     const snow = fake('VEN', 'V7', 45.4, 11.9, { LIVNEVE:'-13.8' });
     eq('neve: −13.8 conta 0', typeof mapValue === 'function' ? mapValue(snow.properties, 'LIVNEVE', 'cm') : null, 0);
@@ -2967,12 +2972,12 @@
     await scene([fake('AQ_LOM', 'P1', 45.5, 9.2, { PM10:'30' }, { rif:{ PM10:30 }, latest_time:iso(NOW - 30 * H) })],
                 'PM10');
     eq('ritardo: il PM10 di ieri non e\' mai in ritardo', fill('P1'), '#50ccaa');
-    if(typeof exportedAt !== 'undefined'){                // una copia di un altro giorno (riserva di jsDelivr)
-      exportedAt.AQ_LOM = iso(NOW - 24 * H); renderMarkers();
-      eq('ieri: da una copia di ieri non vale piu\'', fill('P1'), NEUTRAL_COLOR);
-      exportedAt.AQ_LOM = iso(NOW); renderMarkers();
-      eq('ieri: dalla copia di oggi vale', fill('P1'), '#50ccaa');
-    } else log(false, 'ieri: ora dell\'export per regione', '');
+    if(typeof aqDay !== 'undefined'){       // il giorno dei valori di ieri scritto dall'export, per regione
+      aqDay.AQ_LOM = iso(NOW - 48 * H).slice(0, 10); renderMarkers();
+      eq('ieri: valori dell\'altro ieri (copia vecchia) non valgono', fill('P1'), NEUTRAL_COLOR);
+      aqDay.AQ_LOM = iso(NOW - 24 * H).slice(0, 10); renderMarkers();
+      eq('ieri: valori di ieri valgono', fill('P1'), '#50ccaa');
+    } else log(false, 'ieri: giorno di riferimento per regione', '');
     // tutte in ritardo (la Lombardia da sola, la mattina): la plancia resta, con il nome, «in ritardo» e Valori
     await scene([fake('LOM', 'Z1', 45.5, 9.2, { TEMP:'7' }, { latest_time:iso(NOW - 8 * H) }),
                  fake('LOM', 'Z2', 45.6, 9.3, { TEMP:'6' }, { latest_time:iso(NOW - 8 * H) })], 'TEMP');
