@@ -1,7 +1,7 @@
 # Test di dati_radar.py (radar SRI della Protezione Civile -> fotogrammi PNG per la mappa).
 # Solo libreria standard + numpy/Pillow: gira sul Mac e sul Pi (Python 3.7, numpy 1.16, Pillow 5.4).
 #   python3 -m unittest tests.test_dati_radar -v
-import contextlib, glob, io, json, os, re, shutil, subprocess, sys, tempfile, unittest, urllib.error
+import contextlib, glob, io, json, os, shutil, subprocess, sys, tempfile, unittest, urllib.error
 from unittest import mock
 
 import numpy as np

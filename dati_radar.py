@@ -12,7 +12,7 @@
 # k 1, WGS84), origine (-600000, 650000); -9999 = fuori copertura (senza tag NoData).
 # Uso:  python3 dati_radar.py [--out radar_out] [--no-push] [--remote URL]
 
-import argparse, glob, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, glob, hashlib, io, json, math, os, re, shutil, subprocess, sys, time
 
 import numpy as np
 import requests
