@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Simulaqua Meteo</title>
 <link rel="icon" href="favicon.ico?v=2">
-<meta name="description" content="Stazioni idro-meteo del Nord Italia in tempo reale: temperature, piogge, livelli idrometrici, laghi e invasi, qualità dell'aria. Dati delle agenzie regionali, aggiornati ogni 10 minuti.">
+<meta name="description"
+      content="Stazioni idro-meteo del Nord Italia in tempo reale: temperature, piogge, livelli idrometrici,
+      laghi e invasi, qualità dell'aria. Dati delle agenzie regionali, aggiornati ogni 10 minuti.">
 
 <!-- Leaflet (mappa) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -24,7 +26,8 @@
 <div id="app">
   <div id="stalebanner"></div>
   <div id="layout">
-  <!-- comandi di prima, nascosti: fonte unica dello stato (le pillole della barra in alto li leggono e li azionano) -->
+  <!-- comandi di prima, nascosti: fonte unica dello stato
+       (le pillole della barra in alto li leggono e li azionano) -->
   <div id="legacyCtl" hidden>
       <div id="pages">
         <button class="pg active" data-page="dirette">Misure dirette</button>
@@ -61,19 +64,30 @@
     <!-- barra in alto sulla mappa: ricerca e pillole (i menu si aprono sotto le pillole) -->
     <div id="topbar">
       <div class="tb-q">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
-        <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search" placeholder="Cerca una stazione…"
-               aria-label="Cerca una stazione" role="combobox" aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
+        <svg viewBox="0 0 24 24"
+             aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5 -3.5"/></svg>
+        <input id="stationQ" type="text" autocomplete="off" spellcheck="false" enterkeyhint="search"
+               placeholder="Cerca una stazione…" aria-label="Cerca una stazione" role="combobox"
+               aria-expanded="false" aria-controls="searchList" aria-autocomplete="list">
         <kbd>/</kbd>
       </div>
       <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
       <div id="pillRow">
-        <button id="pgPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Misure dirette</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
-        <button id="regPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le regioni</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
-        <button id="varPill" class="pill" aria-haspopup="menu" aria-expanded="false"><span>Tutte le variabili</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
-        <button id="srcinfo" class="pill" title="Stato delle fonti dati"><span id="srcdot"></span>Fonti</button>
-        <button id="noteBtn" class="pill" aria-label="Note" title="Note" aria-expanded="false" aria-controls="notepanel">i</button>
-        <button id="moreBtn" class="pill" aria-haspopup="menu" aria-expanded="false" aria-label="Altro" title="Altro">⋯</button>
+        <button id="pgPill" class="pill" aria-haspopup="menu"
+                aria-expanded="false"><span>Misure dirette</span><svg
+                viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="regPill" class="pill" aria-haspopup="menu"
+                aria-expanded="false"><span>Tutte le regioni</span><svg
+                viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="varPill" class="pill" aria-haspopup="menu"
+                aria-expanded="false"><span>Tutte le variabili</span><svg
+                viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="srcinfo" class="pill"
+                title="Stato delle fonti dati"><span id="srcdot"></span>Fonti</button>
+        <button id="noteBtn" class="pill" aria-label="Note" title="Note" aria-expanded="false"
+                aria-controls="notepanel">i</button>
+        <button id="moreBtn" class="pill" aria-haspopup="menu" aria-expanded="false" aria-label="Altro"
+                title="Altro">⋯</button>
       </div>
       <div id="moreMenu" class="tb-menu" role="menu" hidden>
         <button id="themeBtn" role="menuitem" tabindex="-1">Tema scuro</button>
@@ -85,45 +99,62 @@
         <h4>Note</h4>
         <dl>
           <dt>Progetto</dt><dd>Sito amatoriale, senza fini di lucro.</dd>
-          <dt>Dati</dt><dd>Degli enti elencati in Fonti, ripresi così come li pubblicano le loro API aperte, senza
-            validazione: possono avere errori, ritardi o lacune. Fanno fede solo i canali ufficiali.</dd>
+          <dt>Dati</dt><dd>Degli enti elencati in Fonti, ripresi così come li pubblicano le loro API aperte,
+            senza validazione: possono avere errori, ritardi o lacune. Fanno fede solo i canali
+            ufficiali.</dd>
           <dt>Elaborazioni</dt><dd>Grandezze derivate, indici e climatologia sono calcoli di questo sito, non
             ufficiali.</dd>
-          <dt>Allerte</dt><dd>Non usare per allerte o sicurezza: per le allerte valgono la Protezione Civile e i
-            bollettini ufficiali.</dd>
+          <dt>Allerte</dt><dd>Non usare per allerte o sicurezza: per le allerte valgono la Protezione Civile
+            e i bollettini ufficiali.</dd>
         </dl>
       </div>
     </div>
     <!-- scheda al passaggio del mouse su un puntino (una sola, riposizionata) -->
     <div id="hoverCard" role="tooltip" hidden></div>
-    <!-- foglio basso al tocco su un puntino: la stessa scheda e "Apri la scheda"; trascinato in giu' si chiude -->
+    <!-- foglio basso al tocco su un puntino: la stessa scheda e "Apri la scheda";
+         trascinato in giu' si chiude -->
     <div id="sheet" role="dialog" aria-label="Stazione" hidden>
       <div class="sh-grab" aria-hidden="true"></div>
-      <button id="sheetClose" class="sh-x" aria-label="Chiudi"><svg viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
+      <button id="sheetClose" class="sh-x" aria-label="Chiudi"><svg
+              viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
       <div class="sh-body"></div>
       <button id="sheetOpen" class="sh-open">Apri la scheda</button>
       <div class="sh-cred"></div>
     </div>
-    <!-- plancia in basso: tempo (Cursore), legenda (prodotto, scala, Stazioni) e crediti; sul telefono si chiude -->
+    <!-- plancia in basso: tempo (Cursore), legenda (prodotto, scala, Stazioni) e crediti;
+         sul telefono si chiude -->
     <div id="dock" class="dock no-time only-credits">
       <div class="dk-grab" aria-hidden="true"></div>
-      <button id="dkToggle" class="dk-toggle" aria-label="Chiudi la plancia" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+      <button id="dkToggle" class="dk-toggle" aria-label="Chiudi la plancia" aria-expanded="true"><svg
+              viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
       <div id="tsbar" class="dk-time" role="group" aria-label="Cursore del tempo" style="display:none">
-        <button id="tsPlay" aria-label="Riproduci"><svg viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></button>
-        <button id="tsPrev" aria-label="Indietro"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6l6 6"/></svg></button>
-        <button id="tsNext" aria-label="Avanti"><svg viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6"/></svg></button>
+        <button id="tsPlay" aria-label="Riproduci"><svg
+                viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></button>
+        <button id="tsPrev" aria-label="Indietro"><svg
+                viewBox="0 0 24 24"><path d="M15 6l-6 6l6 6"/></svg></button>
+        <button id="tsNext" aria-label="Avanti"><svg
+                viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6"/></svg></button>
         <span id="tsLab"></span>
-        <div class="dk-track"><input id="tsRange" type="range" min="0" max="167" step="1" value="167" aria-label="Istante"><div id="tsTicks" class="dk-ticks"></div></div>
+        <div class="dk-track"><input id="tsRange" type="range" min="0" max="167" step="1" value="167"
+               aria-label="Istante"><div id="tsTicks" class="dk-ticks"></div></div>
         <button id="tsSpeed" aria-label="Velocità" title="Velocità">1×</button>
-        <button id="tsClose" aria-label="Chiudi il cursore"><svg viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
+        <button id="tsClose" aria-label="Chiudi il cursore"><svg
+                viewBox="0 0 24 24"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
       </div>
       <div class="dk-info">
         <div id="colorbar" class="dk-legend" style="display:none">
-          <button id="dkProd" class="dk-prod no-menu" aria-haspopup="menu" aria-expanded="false"><span id="dkName"></span><span id="dkUnit" class="dk-unit"></span><svg viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
-          <span id="dkVal" class="dk-val"><button id="mcValues" class="dk-switch" role="switch" aria-checked="false" aria-label="Valori" title="Valori al posto dei puntini"></button>Valori</span>
+          <button id="dkProd" class="dk-prod no-menu" aria-haspopup="menu" aria-expanded="false"><span
+                  id="dkName"></span><span id="dkUnit" class="dk-unit"></span><svg
+                  viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+          <span id="dkVal" class="dk-val"><button id="mcValues" class="dk-switch" role="switch"
+                  aria-checked="false" aria-label="Valori"
+                  title="Valori al posto dei puntini"></button>Valori</span>
           <div id="dkScale" class="dk-scale"></div>
           <span id="dkNd" class="dk-nd" title="Dato di oltre 3 ore fa o mancante">in ritardo</span>
-          <span id="dkSta" class="dk-sta"><button id="mcStations" class="dk-switch on" role="switch" aria-checked="true" aria-label="Stazioni" title="Mostra o nascondi i puntini delle stazioni"></button>Stazioni<span id="mcStaTime" class="dk-sub"></span></span>
+          <span id="dkSta" class="dk-sta"><button id="mcStations" class="dk-switch on" role="switch"
+                  aria-checked="true" aria-label="Stazioni"
+                  title="Mostra o nascondi i puntini delle stazioni"></button>Stazioni<span
+                  id="mcStaTime" class="dk-sub"></span></span>
         </div>
         <div id="dkCredits" class="dk-credits"></div>
       </div>
@@ -133,22 +164,32 @@
       <!-- riga 1: nome e azioni; riga 2: le variabili (nello Storico la sua barra) e, a destra, periodi,
            Storico e Confronta -->
       <div id="phead">
-        <div id="ptitle"><span id="stationName">Seleziona una stazione</span><button id="stInfo" class="ib" type="button"
-             aria-label="La stazione" title="La stazione" aria-expanded="false" aria-controls="stCard" hidden>i</button><span
-             id="stationMeta"></span><div id="stCard" role="dialog" aria-label="La stazione" hidden></div></div>
+        <div id="ptitle"><span id="stationName">Seleziona una stazione</span><button id="stInfo" class="ib"
+             type="button" aria-label="La stazione" title="La stazione" aria-expanded="false"
+             aria-controls="stCard" hidden>i</button><span id="stationMeta"></span><div id="stCard"
+             role="dialog" aria-label="La stazione" hidden></div></div>
         <div id="pact" hidden>
-          <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
-          <button id="expBtn" class="act" aria-haspopup="menu" aria-expanded="false" aria-controls="expMenu" title="Esporta"><svg
-                  viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5 -5l5 5l5 -5"/><path d="M5 20h14"/></svg><span
-                  class="lbl">Esporta</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
+          <button id="refresh" class="act" aria-label="Aggiorna" title="Ricarica i dati"><svg
+                  viewBox="0 0 24 24" aria-hidden="true"><path
+                  d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path
+                  d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></button>
+          <button id="expBtn" class="act" aria-haspopup="menu" aria-expanded="false" aria-controls="expMenu"
+                  title="Esporta"><svg viewBox="0 0 24 24" aria-hidden="true"><path
+                  d="M12 4v11m-5 -5l5 5l5 -5"/><path d="M5 20h14"/></svg><span class="lbl">Esporta</span><svg
+                  class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
         </div>
       </div>
       <div id="pbar" hidden>
         <div id="vars"></div>
         <div class="hv-bar">
-          <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button data-v="TEMP">Temperatura</button></div>
-          <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button data-w="tabella">Tabella</button></div>
-          <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button data-r="90">90 g</button><button data-r="365">1 anno</button><button data-r="0">Tutto</button></div>
+          <div class="hv-seg" id="hvVar"><button data-v="PREC">Pioggia</button><button
+                  data-v="TEMP">Temperatura</button></div>
+          <div class="hv-seg" id="hvView"><button data-w="giorni">Giorni</button><button
+                  data-w="mesi">Mesi</button><button data-w="anni">Anni</button><button
+                  data-w="tabella">Tabella</button></div>
+          <div class="hv-seg" id="hvRange"><button data-r="30">30 g</button><button
+                  data-r="90">90 g</button><button data-r="365">1 anno</button><button
+                  data-r="0">Tutto</button></div>
         </div>
         <div id="ptools" hidden>
           <div id="modes" role="group" aria-label="Periodo">
@@ -158,10 +199,11 @@
             <button class="mode active" data-mode="week" title="Ultimi 7 giorni">7 g</button>
           </div>
           <div id="pviews">
-            <button id="histbtn" class="mode" aria-pressed="false" title="Pioggia e temperatura di tutti gli anni"
-                    style="display:none">Storico</button>
-            <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false" aria-controls="cmpMenu"><span>Confronta</span><svg
-                    class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
+            <button id="histbtn" class="mode" aria-pressed="false"
+                    title="Pioggia e temperatura di tutti gli anni" style="display:none">Storico</button>
+            <button id="cmpBtn" class="mode" aria-haspopup="menu" aria-expanded="false"
+                    aria-controls="cmpMenu"><span>Confronta</span><svg class="chev" viewBox="0 0 24 24"
+                    aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg></button>
           </div>
         </div>
       </div>
@@ -172,7 +214,8 @@
       </div>
       <div id="cmpMenu" class="tb-menu" role="menu" aria-label="Confronti" hidden>
         <button data-mode="compare" role="menuitemradio" aria-checked="false" tabindex="-1">7 giorni</button>
-        <button data-mode="compare30" role="menuitemradio" aria-checked="false" tabindex="-1">30 giorni</button>
+        <button data-mode="compare30" role="menuitemradio" aria-checked="false"
+                tabindex="-1">30 giorni</button>
         <button data-mode="tabs" role="menuitem" tabindex="-1">Schede</button>
         <button data-mode="near" role="menuitemradio" aria-checked="false" tabindex="-1">Vicine</button>
       </div>
@@ -186,9 +229,11 @@
       <div id="histview">
         <div id="hvChart"></div>
         <div id="hvTable"></div>
-        <div id="hvNote"><span id="hvDates"></span><button id="hvInfoBtn" class="hv-i" type="button" aria-expanded="false" aria-controls="hvInfo"
-             aria-label="Metodo" title="Metodo" hidden>i</button><div id="hvInfo" hidden>giorno solare (UTC+1) · giorno completo = almeno 20 ore con dato
-             · più chiaro = incompleto · più sottile = anno incompleto · elaborazioni non ufficiali dei dati grezzi delle fonti</div></div>
+        <div id="hvNote"><span id="hvDates"></span><button id="hvInfoBtn" class="hv-i" type="button"
+             aria-expanded="false" aria-controls="hvInfo" aria-label="Metodo" title="Metodo"
+             hidden>i</button><div id="hvInfo" hidden>giorno solare (UTC+1) · giorno completo = almeno 20 ore
+             con dato · più chiaro = incompleto · più sottile = anno incompleto · elaborazioni non ufficiali
+             dei dati grezzi delle fonti</div></div>
       </div>
       <div id="windrose"></div>
       <div id="climaview"></div>
@@ -203,7 +248,8 @@
 <div id="pngsheet">
   <img id="pngimg" alt="Grafico">
   <div class="pt">Tieni premuto sull'immagine → Salva</div>
-  <div class="row"><button id="pngshare" class="btn">Condividi</button><button id="pngclose" class="btn">Chiudi</button></div>
+  <div class="row"><button id="pngshare" class="btn">Condividi</button><button
+       id="pngclose" class="btn">Chiudi</button></div>
 </div>
 
 <script>
@@ -218,8 +264,11 @@
 const DATA_BASE = '.';
 const HIST_BASE = DATA_BASE.startsWith('http') ? DATA_BASE.replace(/\/data$/, '/history') : './_HIST';
 </script>
-<!-- radar.js, poi comune.js (gli altri usano le sue costanti mentre si caricano), poi un file per argomento; la pagina parte quando tutti hanno girato (avvio, in fondo a comune.js) -->
-<!-- publish.sh pubblica e versiona i file dei tag script e link scritti col solo nome (minuscolo, finito in .js o .css, fra virgolette doppie; niente cartelle, niente ?); un altro file locale citato dalla pagina che publish.sh non pubblica (favicon.ico si') ferma la pubblicazione -->
+<!-- radar.js, poi comune.js (gli altri usano le sue costanti mentre si caricano), poi un file per argomento;
+     la pagina parte quando tutti hanno girato (avvio, in fondo a comune.js) -->
+<!-- publish.sh pubblica e versiona i file dei tag script e link scritti col solo nome (minuscolo, finito
+     in .js o .css, fra virgolette doppie; niente cartelle, niente ?); un altro file locale citato dalla
+     pagina che publish.sh non pubblica (favicon.ico si') ferma la pubblicazione -->
 <script src="radar.js"></script>
 <script src="comune.js"></script>
 <script src="mappa.js"></script>

@@ -45,7 +45,7 @@ const REGION_GROUPS = {
 const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PIE');
 
 // Categoria di ogni variabile = le 3 pagine (misure dirette, derivate, indici).
-const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (misure dirette): velocita' con le frecce
+const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (misure dirette): velocita' a frecce
 const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
 const WCLIMA = 'CLIMATOLOGIA';                   // pseudo-variabile (indici): apre il climogramma
 const WBIL = 'BILANCIO';                          // pseudo-variabile (indici): pioggia ed ET0 dei 30 giorni
@@ -224,7 +224,8 @@ const SOURCES = {
   LOM: { name:'ARPA Lombardia',                      url:'https://www.arpalombardia.it',
          data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-meteo/647i-nhxk' },
   ER:  { name:'ARPAE Emilia-Romagna',                url:'https://allertameteo.regione.emilia-romagna.it',
-         data:'https://dati.arpae.it/dataset/dati-dalle-stazioni-meteo-locali-della-rete-idrometeorologica-regionale' },
+         data:'https://dati.arpae.it/dataset/' +
+              'dati-dalle-stazioni-meteo-locali-della-rete-idrometeorologica-regionale' },
   TN:  { name:'Meteotrentino – Provincia di Trento', url:'https://www.meteotrentino.it',
          data:'http://dati.meteotrentino.it/service.asmx' },
   BZ:  { name:'Provincia Autonoma di Bolzano',       url:'https://weather.provinz.bz.it',
@@ -283,7 +284,9 @@ const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16
 // Unico punto che scrive una direzione del vento in HTML.
 function windDirHtml(deg){
   const d = ((+deg % 360) + 360) % 360, n = _dirName(d), t = 'vento da ' + n;
-  return `<span class="wdir" role="img" aria-label="${t}" title="${t}">${n}<i class="wd-ar" aria-hidden="true" style="transform:rotate(${Math.round(d * 10) / 10}deg)">↓</i></span>`;
+  const rot = `transform:rotate(${Math.round(d * 10) / 10}deg)`;
+  return `<span class="wdir" role="img" aria-label="${t}" title="${t}">${n}` +
+         `<i class="wd-ar" aria-hidden="true" style="${rot}">↓</i></span>`;
 }
 
 const escHtml = t => String(t).replace(/[&<>"]/g,

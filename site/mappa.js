@@ -157,10 +157,12 @@ const ICON = {
   up: svgIcon('<path d="M6 15l6 -6l6 6"/>'),
   down: svgIcon('<path d="M6 9l6 6l6 -6"/>'),
   rain: svgIcon(
-    '<path d="M7.5 19.4c2.6 2.1 6.4 2.1 9 0s3.3 -5.7 1.6 -8.5l-4.9 -7.3a1.4 1.4 0 0 0 -2.4 0l-4.9 7.3c-1.7 2.8 -1 6.4 1.6 8.5z"/>'),
+    '<path d="M7.5 19.4c2.6 2.1 6.4 2.1 9 0s3.3 -5.7 1.6 -8.5l-4.9 -7.3a1.4 1.4 0 0 0 -2.4 0' +
+    'l-4.9 7.3c-1.7 2.8 -1 6.4 1.6 8.5z"/>'),
   clock: svgIcon('<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/>'),
   radar: svgIcon(
-    '<path d="M21 12h-8a1 1 0 1 0 -1 1v8a9 9 0 0 0 9 -9"/><path d="M16 9a5 5 0 1 0 -7 7"/><path d="M20.5 9a9 9 0 1 0 -11.5 11.5"/>'),
+    '<path d="M21 12h-8a1 1 0 1 0 -1 1v8a9 9 0 0 0 9 -9"/><path d="M16 9a5 5 0 1 0 -7 7"/>' +
+    '<path d="M20.5 9a9 9 0 1 0 -11.5 11.5"/>'),
 };
 
 // Se radar.js non arriva un sostituto inerte tiene in piedi la pagina: il pulsante Radar resta grigio
@@ -180,26 +182,19 @@ function initMap(){
     renderer: L.canvas({ tolerance: isTouch ? 16 : 6 })
   }).setView([46.0, 12.0], 8);
   new ResizeObserver(() => map.invalidateSize()).observe(el('map'));
-  const _esriImg = () => L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 18, attribution: 'Tiles © Esri' });
+  const esri = (service, maxZoom, attribution = 'Tiles © Esri') => L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/' + service + '/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom, attribution });
   const BASEMAPS = {
     'Mappa': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom: 18, attribution: '© OpenStreetMap' }),
-    'Satellite': _esriImg(),
-    'Satellite + etichette': L.layerGroup([ _esriImg(),
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 18, attribution: 'Tiles © Esri' }) ]),
+    'Satellite': esri('World_Imagery', 18),
+    'Satellite + etichette': L.layerGroup([ esri('World_Imagery', 18),
+      esri('Reference/World_Boundaries_and_Places', 18) ]),
     'Rilievi': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
       { maxZoom: 17, attribution: '© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)' }),
-    'Mappa scura': L.layerGroup([
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 16, attribution: 'Tiles © Esri' }),
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 16, attribution: '' }) ])
+    'Mappa scura': L.layerGroup([ esri('Canvas/World_Dark_Gray_Base', 16),
+      esri('Canvas/World_Dark_Gray_Reference', 16, '') ])
   };
   let baseChoice = 'Mappa';
   try { const b = localStorage.getItem('basemap'); if (BASEMAPS[b]) baseChoice = b; } catch(e){}
@@ -223,11 +218,14 @@ function initMap(){
   mcCtl.onAdd = () => {
     const d = L.DomUtil.create('div', 'mapctl');
     d.innerHTML =
-      '<button class="mc-pill" id="mcRain" aria-label="Pioggia" title="Pioggia caduta: colora la mappa">' +
+      '<button class="mc-pill" id="mcRain" aria-label="Pioggia"' +
+        ' title="Pioggia caduta: colora la mappa">' +
         ICON.rain + '<span class="mc-l">Pioggia</span></button>' +
-      '<button class="mc-pill" id="mcSnap" aria-label="Cursore" title="Cursore: scorri gli ultimi 7 giorni">' +
+      '<button class="mc-pill" id="mcSnap" aria-label="Cursore"' +
+        ' title="Cursore: scorri gli ultimi 7 giorni">' +
         ICON.clock + '<span class="mc-l">Cursore</span></button>' +
-      '<button class="mc-pill" id="mcRadar" aria-label="Radar" title="Radar della Protezione Civile: ultime 6 ore">' +
+      '<button class="mc-pill" id="mcRadar" aria-label="Radar"' +
+        ' title="Radar della Protezione Civile: ultime 6 ore">' +
         ICON.radar + '<span class="mc-l">Radar</span></button>';
     L.DomEvent.disableClickPropagation(d);
     L.DomEvent.disableScrollPropagation(d);
@@ -1233,7 +1231,8 @@ function cardHtml(M){
                    '</span><span class="hc-delta' + (M.delta ? ' ' + M.delta.cls : '') + '">' +
                    (M.delta ? e(M.delta.text) : '') + '</span>' +
                    (bare ? '<span class="hc-lab">' + e(M.main.label) + '</span>' : '') + '</div>' : '') +
-         '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
+         '<div class="hc-spark"></div>' +
+         '<div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
          '<div class="hc-keys">' +
            M.keys.map(k => '<div><span>' + e(k.label) + '</span><b>' +
                            (k.html || e(k.text)) + '</b></div>').join('') +
@@ -1241,8 +1240,8 @@ function cardHtml(M){
 }
 // Ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa,
 // plancia
-const CARD_OBST =
-  '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, .leaflet-top .leaflet-control, #dock, #prodMenu';
+const CARD_OBST = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, ' +
+  '.leaflet-top .leaflet-control, #dock, #prodMenu';
 function cardObstacles(){
   return [...document.querySelectorAll(CARD_OBST)]
     .filter(o => o.getClientRects().length && o.offsetWidth)

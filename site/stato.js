@@ -93,9 +93,10 @@ function renderSrcPanel(){
             + '<span class="src-name">' + label + '</span>'
             + '<span class="src-age">' + age + '</span></div>';
     });
-    html += '<div class="src-note"><span class="tl tl-g" style="display:inline-block;vertical-align:-1px"></span> aggiornata &nbsp;'
-          + '<span class="tl tl-y" style="display:inline-block;vertical-align:-1px"></span> in ritardo &nbsp;'
-          + '<span class="tl tl-r" style="display:inline-block;vertical-align:-1px"></span> ferma</div>';
+    const light = c => '<span class="tl tl-' + c +
+                       '" style="display:inline-block;vertical-align:-1px"></span>';
+    html += '<div class="src-note">' + light('g') + ' aggiornata &nbsp;' + light('y') + ' in ritardo &nbsp;'
+          + light('r') + ' ferma</div>';
   }
 
   p.innerHTML = html;
