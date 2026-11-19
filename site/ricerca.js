@@ -250,6 +250,9 @@ function stationMainValue(p){
     const text = x == null ? 'n.d.' : labelText(v, x) + (u ? ' ' + u : '') + ' ' + MAP_REF[v];
     return { v, label: varLabel(v), text };
   }
+  // la marea come sulla mappa: in cm sullo zero di Punta della Salute
+  const tide = v === 'MAREA' && hasVal(lt, v) ? mapValue(p, v, 'cm') : null;
+  if(tide != null) return { v, label: varLabel(v), text: labelText(v, tide) + ' cm' };
   if(filterVar && (hasVal(lt, filterVar) || (p.variables || []).includes(filterVar)))
     return {
       v: filterVar,

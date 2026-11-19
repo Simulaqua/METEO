@@ -133,8 +133,10 @@ altre e passa da sola.
   ritardo solo dopo un giorno. Restano senza colore direzioni e tipo di precipitazione, la pressione della stazione
   con tutte le regioni (dipende dalla quota) e le misure su intervalli diversi (soleggiamento: secondi in 10
   minuti in Alto Adige, minuti in mezz'ora in Liguria). Le unita' hanno una grafia sola in tutta la pagina: m³/s, non mc/s o m3/s. La marea fuori da
-  -1.5…2.5 m si scarta: la foce del Tagliamento dava valori fino a 11 m in dieci minuti. La marea dell'Emilia-Romagna
-  e' sullo zero nazionale, circa 24 cm sopra quello di Venezia: a parita' di mare puo' stare una classe sotto.
+  -1.5…2.5 m si scarta: la foce del Tagliamento dava valori fino a 11 m in dieci minuti. In mappa la marea si
+  confronta sullo zero di Punta della Salute, quello di Venezia: l'Emilia-Romagna misura dallo zero IGM 1942,
+  23,56 cm piu' in alto (Comune di Venezia, riferimenti altimetrici), e si riporta; il Tagliamento (OGS) non
+  dice da quale zero e resta vuoto.
 - **Vuote oltre 3 ore.** Una stazione con l'ultima lettura della variabile piu' vecchia di 3 ore diventa un cerchio
   vuoto col bordo grigio (il grigio pieno si confondeva con la pioggia "0 mm") e resta fuori dalla scala. Lombardia e
   Piemonte pubblicano con 4-8 ore di ritardo e sono spesso vuote: scelta dell'utente, perche' il confronto sia

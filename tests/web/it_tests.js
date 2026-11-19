@@ -3022,13 +3022,19 @@
     eq('portata: 3.2, 150, 1200 m³/s nelle loro classi, con Tutte', [fill('Q1'), fill('Q2'), fill('Q3')],
        [FC[1], FC[5], FC[7]]);
     eq('portata: unità nella plancia', el('dkUnit').textContent, 'm³/s');
-    // marea: in cm, con le soglie di Venezia
+    // marea: in cm sullo zero di Punta della Salute, con le soglie di Venezia; l'Emilia-Romagna misura dallo zero
+    // IGM 1942, 23.56 cm piu' in alto; il Tagliamento non dice da quale zero: vuoto
     await scene([fake('MAR_VEN', 'T1', 45.4, 12.3, { MAREA:'0.77' }),
                  fake('MAR_VEN', 'T2', 45.3, 12.3, { MAREA:'1.15' }),
-                 fake('MAR_ER', 'T3', 44.7, 12.2, { MAREA:'0.41' })], 'MAREA');
-    eq('marea: 77, 115, 41 cm', [fill('T1'), fill('T2'), fill('T3')],
-       typeof TIDE_COLORS !== 'undefined' ? [TIDE_COLORS[2], TIDE_COLORS[4], TIDE_COLORS[1]] : null);
-    eq('marea: scritta in cm', [labelText('MAREA', 77), el('dkUnit').textContent], ['77', 'cm']);
+                 fake('MAR_ER', 'T3', 44.7, 12.2, { MAREA:'0.41' }),
+                 fake('MAR_FVG', 'T4', 45.67, 13.07, { MAREA:'0.93' })], 'MAREA');
+    eq('marea: 77, 115 e 41+23.56 cm', [fill('T1'), fill('T2'), fill('T3')],
+       typeof TIDE_COLORS !== 'undefined' ? [TIDE_COLORS[2], TIDE_COLORS[4], TIDE_COLORS[2]] : null);
+    const t3 = markerRefs.find(r => r.p.scode === 'T3'), t4 = markerRefs.find(r => r.p.scode === 'T4');
+    eq('marea: Emilia-Romagna sullo zero di Venezia, scritta in cm', [t3 && labelText('MAREA', t3.nv),
+       el('dkUnit').textContent, el('dkName').textContent], ['65', 'cm', 'Livello marea · zero Punta della Salute']);
+    eq('marea: zero non dichiarato, vuoto', [fill('T4'), t4 && t4.m.options.fillOpacity], [NEUTRAL_COLOR, 0]);
+    eq('marea: nella scheda lo stesso numero', (stationMainValue(t3.p) || {}).text, '65 cm');
     // laghi e falda: variazione in 24 ore, in ritardo solo dopo un giorno
     await scene([fake('LAGHI', 'G1', 45.9, 8.6, { LIVLAGO:'0.087' }, { rif:{ LIVLAGO:0.048 } }),
                  fake('PC_FVG', 'G2', 46.2, 12.6, { LIVLAGO:'307.31' }, { rif:{ LIVLAGO:-0.03 } })],

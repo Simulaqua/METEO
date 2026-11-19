@@ -77,9 +77,15 @@ const levelSteps = v => v === 'LIVIDRO' ? LEVEL_STEPS : SLOW_STEPS;
 const FLOW_VARS = new Set(['PORTATA','AFFLUSSO','DEFLUSSO']);
 const FLOW_STEPS = [1, 5, 20, 50, 100, 300, 1000];
 const FLOW_COLORS = ['#e3eef9','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#08519c','#08306b'];
-// Marea in cm, con le soglie di Venezia: 80 sostenuta, 110 molto sostenuta, 140 eccezionale
+// Marea in cm sullo zero di Punta della Salute, con le soglie di Venezia: 80 sostenuta, 110 molto sostenuta,
+// 140 eccezionale. L'Emilia-Romagna misura dallo zero IGM 1942, 23.56 cm piu' in alto (Comune di Venezia,
+// riferimenti altimetrici); il Tagliamento (OGS) non dice da quale zero e resta vuoto.
 const TIDE_STEPS = [0, 50, 80, 110, 140];
 const TIDE_COLORS = ['#2c7bb6','#abd9e9','#ffffbf','#fdae61','#f46d43','#a50026'];
+const TIDE_ZERO = { MAR_VEN:0, MAR_ER:23.56 };
+// Accanto al nome nella plancia: il riferimento del valore o lo zero a cui e' riportato
+const mapName = v => varLabel(v) +
+  (MAP_REF[v] ? ' · ' + MAP_REF[v] : v === 'MAREA' ? ' · zero Punta della Salute' : '');
 // Pioggia: classi a soglie fisse (mm) per finestra di accumulo; i colori non dipendono dai dati,
 // cosi' due momenti (o i fotogrammi del Cursore) si leggono allo stesso modo
 const RAIN_COLORS = ['#e3e9f0','#a9d6f2','#6db3e6','#3a8fd9','#2a62c4',
@@ -169,6 +175,10 @@ function mapValue(p, v, refU){
   if(isNaN(x)) return null;
   if(v === 'RADSOL' && x * unitFactor(unitOf(p._region, v), 'W/m²') > 1400) return null;    // guasto
   const fct = unitFactor(unitOf(p._region, v), refU), nv = fct === 1 ? x : Math.round(x * fct * 10) / 10;
+  if(v === 'MAREA'){
+    const zero = TIDE_ZERO[p._region];
+    return zero == null ? null : Math.round((nv + zero) * 10) / 10;
+  }
   return v === 'LIVNEVE' && nv < 0 ? 0 : nv;                       // neve: rumore del sensore attorno a zero
 }
 
@@ -528,7 +538,7 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
     scale = scaleSteps(lg.colors.map(c => c || RAIN_COLORS[0]), lg.steps);
     nd = !!(radarUi.stations && radarDotsVar());
   } else if(varName && vmin != null){
-    name = varLabel(varName) + (MAP_REF[varName] ? ' · ' + MAP_REF[varName] : '');
+    name = mapName(varName);
     if(isRainVar(varName)){
       unit = 'mm';
       menu = true;
@@ -564,7 +574,7 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
                          fmtNum(vmin), fmtNum(vmax));
     }
   } else if(varName){                                 // tutte in ritardo: nome e "in ritardo", senza scala
-    name = varLabel(varName) + (MAP_REF[varName] ? ' · ' + MAP_REF[varName] : '');
+    name = mapName(varName);
     unit = unitOverride || unitForVar(varName);
   }
   cb.style.display = name ? '' : 'none';
