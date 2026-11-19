@@ -335,7 +335,9 @@ def write_map(region, data, station_meta, zeros, coords, out_dir):
             properties.update(station_place(region, meta))
             features.append({'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
                              'properties': properties})
-    comune.save_json({'type': 'FeatureCollection', 'name': region, 'features': features},
+    # creato: l'ora civile dell'export, perche' la pagina riconosca una copia vecchia (i valori "di ieri")
+    comune.save_json({'type': 'FeatureCollection', 'name': region,
+                      'creato': iso_datetime(now.strftime('%Y%m%d%H%M')), 'features': features},
                      os.path.join(out_dir, 'stations.geojson'))
     print('Stations on map (with lat/lon): ' + str(len(features)))
     if no_coord:

@@ -2871,6 +2871,13 @@
       log(snap.var === v && n > 0 && !bad.length, 'Cursore: ' + v + ' da mezzanotte, dai fotogrammi di ' + src + ' (' + r0 + ')',
           JSON.stringify([snap.var, n, bad.slice(0, 3)]));
     }
+    if(snap.var === 'VVENTOMAX'){
+      const r0 = Object.keys(snap.data)[0], P0 = allFeatures.map(f => f.properties)
+        .find(p => p._region === r0 && snap.data[r0].s[p.scode] && snap.data[r0].s[p.scode].some(x => x != null));
+      const S0 = P0 ? await cardSeries(P0, 'VVENTOMAX', false) : null;
+      const raw = P0 ? (await (await fdata(r0 + '/snap/VVENTOMAX.json')).json()).s[P0.scode].slice(-25) : null;
+      eq('Cursore: nella scheda la raffica di ogni ora, non la massima di oggi', S0 && S0.vals, raw);
+    }
     // etichette col Cursore: a ogni fotogramma numeri nuovi, nessuna etichetta vecchia
     const labs = () => [...document.querySelectorAll('.vl')];
     const texts = () => labs().map(e => e.dataset.k + '=' + e.textContent).sort().join(' ');
@@ -2938,6 +2945,9 @@
                  fake('LOM', 'M1', 45.5, 9.2, { LIVIDRO:'120' }, { rif:{ LIVIDRO:25 } }),
                  fake('VEN', 'V6', 45.5, 11.8, { LIVIDRO:'0.8' }, { rif:{ LIVIDRO:-0.03 } })], 'LIVIDRO');
     eq('livello: +12, +25, −3 cm', [fill('V5'), fill('M1'), fill('V6')], ['#fdae61', '#f46d43', '#ffffbf']);
+    map.setView([45.45, 11.85], 11); await sleep(300);
+    const vt = [...document.querySelectorAll('.leaflet-tooltip.vlab')].map(e => e.textContent);
+    log(vt.includes('+12') && vt.includes('−3'), 'livello: scritte da zoom 11 col segno', JSON.stringify(vt));
     // neve: i negativi del sensore contano zero
     const snow = fake('VEN', 'V7', 45.4, 11.9, { LIVNEVE:'-13.8' });
     eq('neve: −13.8 conta 0', typeof mapValue === 'function' ? mapValue(snow.properties, 'LIVNEVE', 'cm') : null, 0);
@@ -2957,6 +2967,12 @@
     await scene([fake('AQ_LOM', 'P1', 45.5, 9.2, { PM10:'30' }, { rif:{ PM10:30 }, latest_time:iso(NOW - 30 * H) })],
                 'PM10');
     eq('ritardo: il PM10 di ieri non e\' mai in ritardo', fill('P1'), '#50ccaa');
+    if(typeof exportedAt !== 'undefined'){                // una copia di un altro giorno (riserva di jsDelivr)
+      exportedAt.AQ_LOM = iso(NOW - 24 * H); renderMarkers();
+      eq('ieri: da una copia di ieri non vale piu\'', fill('P1'), NEUTRAL_COLOR);
+      exportedAt.AQ_LOM = iso(NOW); renderMarkers();
+      eq('ieri: dalla copia di oggi vale', fill('P1'), '#50ccaa');
+    } else log(false, 'ieri: ora dell\'export per regione', '');
     // tutte in ritardo (la Lombardia da sola, la mattina): la plancia resta, con il nome, «in ritardo» e Valori
     await scene([fake('LOM', 'Z1', 45.5, 9.2, { TEMP:'7' }, { latest_time:iso(NOW - 8 * H) }),
                  fake('LOM', 'Z2', 45.6, 9.3, { TEMP:'6' }, { latest_time:iso(NOW - 8 * H) })], 'TEMP');
@@ -2975,6 +2991,11 @@
     eq('da mezzanotte: somma', dr([1, 1, 1, 1, 1, 1], 'sum'), [null, null, 0, 1, 2, 3]);
     eq('da mezzanotte: massimo', dr([1, 1, 1, 1, 3, 1], 'max'), [null, null, null, 1, 3, 3]);
     eq('da mezzanotte: un\'ora su tre non basta', dr([1, 1, 1, null, null, 1], 'sum'), [null, null, 0, null, null, null]);
+    eq('da mezzanotte: stazione spenta, niente zero', dr([null, null, null, null, null, null], 'sum'),
+       [null, null, null, null, null, null]);
+    const TD = [M - 3600, M, M + 3600, M + 3 * 3600];                    // ora legale: le 02:00 civili non ci sono
+    eq('da mezzanotte: il giorno dell\'ora legale conta i fotogrammi',
+       typeof dayRunning === 'function' ? dayRunning(TD, [1, 1, 1, 1], 'sum') : null, [null, 0, 1, 2]);
     // il menu della pioggia: "oggi" prima delle finestre, porta alla Precipitazione delle misure dirette
     await scene([fake('VEN', 'R1', 45.4, 11.9, { PREC:'0.2', PREC24:4 }, { rif:{ PREC:3 } })], 'PREC24');
     openProdMenu();
@@ -3027,8 +3048,43 @@
       log(n <= 2, 'ritardo: l\'ora di adesso letta una volta per disegno', n);
     }
     eq('etichette: testi', typeof labelText === 'function'
-       ? [labelText('TEMP', 8.84), labelText('UMID', 93.4), labelText('LIVIDRO', 12.4), labelText('LIVIDRO', -5)] : null,
-       ['8.8', '93', '+12', '−5']);
+       ? [labelText('TEMP', 8.84), labelText('UMID', 93.4), labelText('LIVIDRO', 12.4), labelText('LIVIDRO', -5),
+          labelText('TEMP', -0.04)] : null, ['8.8', '93', '+12', '−5', '0.0']);
+    {                                     // a ogni zoom le etichette si costruiscono una volta sola
+      let added = 0;
+      const mo = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+        if(n.querySelector && n.querySelector('.vl')) added++;
+      })));
+      mo.observe(map.getPanes().markerPane, { childList:true });
+      map.setZoom(map.getZoom() - 1); await sleep(500);
+      mo.disconnect();
+      eq('etichette: una volta sola a ogni zoom', added, labs().length);
+      map.setZoom(map.getZoom() + 1); await sleep(400);
+    }
+    {                                     // la scheda al passaggio non copre l'etichetta
+      const L1 = labs().filter(e => !e.classList.contains('late')).sort((a, b) => b.offsetWidth - a.offsetWidth)[0];
+      const R1 = L1 && markerRefs.find(r => r.p._region + '|' + r.p.scode === L1.dataset.k);
+      if(R1){
+        lastPointer = 'mouse'; showCard(R1.p, R1.m); await sleep(250);
+        const a = L1.getBoundingClientRect(), c = el('hoverCard').getBoundingClientRect();
+        log(!(a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom), 'scheda: non copre l\'etichetta',
+            JSON.stringify([Math.round(a.right), Math.round(c.left)]));
+        hideCard();
+      }
+    }
+    {
+      const L2 = labs().filter(e => !e.classList.contains('late')).pop();
+      const R2 = L2 && markerRefs.find(r => r.p._region + '|' + r.p.scode === L2.dataset.k);
+      log(!!R2, 'tocco: una stazione con l\'etichetta', '');
+      if(R2){
+        eq('tocco: prima nessun bordo', document.querySelectorAll('.vl.sel').length, 0);
+        openSheet(R2.p, R2.m); await sleep(200);
+        const sel2 = document.querySelector('.vl.sel');
+        eq('tocco: l\'etichetta della stazione toccata ha il bordo', sel2 && sel2.dataset.k, L2.dataset.k);
+        closeSheet(); await sleep(150);
+        eq('tocco: chiuso il foglio, nessun bordo', document.querySelectorAll('.vl.sel').length, 0);
+      }
+    }
     // clic su un'etichetta: apre la stazione, come il puntino; al ritorno la sua etichetta e' selezionata
     const lab0 = labs().find(e => !e.classList.contains('late'));
     if(lab0){

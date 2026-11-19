@@ -317,7 +317,7 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
 .dk-val { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
 /* Etichette coi valori sulla mappa: il numero sul colore del valore, al posto del puntino */
 .vl { box-sizing:border-box; height:16px; padding:0 4px; border:1px solid rgba(12,30,45,.35);
-      border-radius:4px; font:600 11px/14px "IBM Plex Sans", system-ui, sans-serif; text-align:center;
+      border-radius:4px; font:600 11px/14px var(--font); text-align:center;
       white-space:nowrap; cursor:pointer; }
 .vl.late { background:#fff; border-color:#8795a3; color:#8a96a3; }
 .vl.sel { border-color:#c05621; box-shadow:inset 0 0 0 1px #c05621; }

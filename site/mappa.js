@@ -27,7 +27,17 @@ const LATE_H = 3;
 const MAP_DAILY = new Set(['PM10','PM25','O3','NO2','GDD','HDD','CDD','ET0']);
 // Ora dell'ultima lettura di v (ms, ora civile letta come UTC); lag = minuti di ritardo sull'ultima misura
 const varTime = (p, v) => isoCivil(p.latest_time) - 60000 * ((p.lag || {})[v] || 0);
-const isLate = (p, v, now) => !MAP_DAILY.has(v) && (now || nowRome()) - varTime(p, v) > LATE_H * 3600000;
+// Ora civile dell'export di ogni regione: i valori "di ieri" di una copia di un altro giorno (la riserva di
+// jsDelivr puo' avere ~12 ore) non sono piu' di ieri
+const exportedAt = {};
+function isLate(p, v, now){
+  const t = now || nowRome();
+  if(MAP_REF[v] && MAP_DAILY.has(v)){
+    const made = exportedAt[p._region];
+    return !!made && made.slice(0, 10) !== new Date(t).toISOString().slice(0, 10);
+  }
+  return !MAP_DAILY.has(v) && t - varTime(p, v) > LATE_H * 3600000;
+}
 // Puntino in ritardo o senza valore: cerchio vuoto col bordo grigio, da non confondere con la pioggia "0 mm"
 const EMPTY_LINE = '#8795a3';
 const varTimeIso = (p, v) => (p.lag || {})[v] ? new Date(varTime(p, v)).toISOString().slice(0, 16)
@@ -88,15 +98,19 @@ const MAP_RUNNING = { PREC:'sum', VVENTOMAX:'max' };
 // l'ora civile letta come UTC); null con meno del 70% delle ore, come le somme dell'export
 function dayRunning(t, arr, agg){
   return t.map((tk, k) => {
-    const start = tk - tk % 86400, hours = (tk - start) / 3600;
-    if(!hours) return agg === 'sum' ? 0 : null;
-    let n = 0, acc = agg === 'sum' ? 0 : -Infinity;
+    const start = tk - tk % 86400;
+    let n = 0, frames = 0, acc = agg === 'sum' ? 0 : -Infinity;
     for(let j = k; j >= 0 && t[j] > start; j--){
+      frames++;
       if(arr[j] == null) continue;
       n++;
       acc = agg === 'sum' ? acc + arr[j] : Math.max(acc, arr[j]);
     }
-    return n < 0.7 * hours ? null : Math.round(acc * 10) / 10;
+    if(!frames)                                  // mezzanotte: zero solo con un valore nelle 3 ore prima
+      return agg === 'sum' && [1, 2, 3].some(d => arr[k - d] != null) ? 0 : null;
+    // ore attese: i fotogrammi del giorno se la serie lo copre tutto (col cambio d'ora sono 23 o 25)
+    const expected = t[0] <= start ? frames : (tk - start) / 3600;
+    return n < 0.7 * expected ? null : Math.round(acc * 10) / 10;
   });
 }
 const snap = { on:false, var:'', unit:'', T:[], data:{}, shift:{}, mul:{}, cov:[], covMax:1,
@@ -197,8 +211,9 @@ function initMap(){
   });
   markersLayer = L.layerGroup().addTo(map);
   labelsLayer = L.layerGroup().addTo(map);
-  map.on('zoomend', () => { if(allFeatures.length) renderMarkers(); });
-  map.on('moveend', renderLabels);
+  let zoomed = false;                       // dopo uno zoom le etichette le ha gia' rifatte renderMarkers
+  map.on('zoomend', () => { if(allFeatures.length){ renderMarkers(); zoomed = true; } });
+  map.on('moveend', () => { if(zoomed) zoomed = false; else renderLabels(); });
   // I crediti (obbligatori per licenza) stanno nella plancia, senza il prefisso "Leaflet"
   map.attributionControl.setPrefix(false);
   el('dkCredits').appendChild(map.attributionControl.getContainer());
@@ -261,6 +276,7 @@ async function loadRegions(regions){
     let geo;
     try { geo = await (await fdata(`${region}/stations.geojson`)).json(); }
     catch(e){ return; }
+    exportedAt[region] = geo.creato || '';
     (geo.features || []).forEach(f => {
       f.properties._region = region;
       f.properties._lon = f.geometry.coordinates[0];
@@ -329,7 +345,8 @@ function renderMarkers(){
       bubblingMouseEvents: false              // il tocco apre la stazione, non il popup del radar
     }, look));
     if(!slide && cmVar && nv != null && map.getZoom() >= 11 && !showValues)
-      m.bindTooltip(String(nv), { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
+      m.bindTooltip(labelText(cmVar, nv),
+                    { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
     m.on('mouseover', () => cardHover(p, m));
     m.on('mouseout', cardLeave);
     m.on('click', () => {
@@ -393,7 +410,8 @@ function labelText(v, x){
     return n > 0 ? '+' + n : n < 0 ? '−' + -n : '0';
   }
   const d = isRain(v) ? 1 : LABEL_DEC[v];
-  return d == null ? fmtNum(x, v) : x.toFixed(d);
+  const txt = d == null ? fmtNum(x, v) : x.toFixed(d);
+  return +txt === 0 ? txt.replace('-', '') : txt;
 }
 function renderLabels(){
   if(!labelsLayer) return;
@@ -420,7 +438,7 @@ function renderLabels(){
                        b.y0 < o.y1 + LABEL_GAP && o.y0 < b.y1 + LABEL_GAP)) return;
     boxes.push(b);
     const key = r.p._region + '|' + r.p.scode;
-    const cls = 'vl' + (r.late ? ' late' : '') + (key === selectedKey ? ' sel' : '');
+    const cls = 'vl' + (r.late ? ' late' : '') + (key === selectedKey || r.p === sheetP ? ' sel' : '');
     const paint = r.late ? '' : 'background:' + r.fill + ';color:' + inkOn(r.fill) + ';';
     const lm = L.marker(r.m.getLatLng(), { keyboard:false, icon:L.divIcon({
       className:'', iconSize:[w, LABEL_H], iconAnchor:[w / 2, LABEL_H / 2],
@@ -434,6 +452,7 @@ function renderLabels(){
     lm.addTo(labelsLayer);
     r.m.setStyle({ opacity:0, fillOpacity:0 });
     r.under = true;
+    r.lw = w;
   });
 }
 function syncValuesSwitch(){
@@ -1137,8 +1156,8 @@ function snapFile(reg, v){
 // del puntino, nell'unita' dei puntini
 async function cardSeries(p, v, frame){
   if(!SNAP_VARS.has(v)) return null;
-  const r = p._region, mem = snap.on && snap.var === v && snap.data[r], m = mem ? snap.mul[r] : 1,
-        u0 = snap.unit;
+  const r = p._region, mem = snap.on && snap.var === v && !MAP_RUNNING[v] && snap.data[r],
+        m = mem ? snap.mul[r] : 1, u0 = snap.unit;
   const t = frame && snap.data[r] ? snap.data[r].t[snap.k - (snap.shift[r] || 0)] : null;
   const d = mem || await snapFile(r, v), arr = d && d.s && d.s[p.scode];
   if(!arr) return null;
@@ -1233,11 +1252,11 @@ const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.le
                           Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 // A destra del puntino, poi a sinistra, sotto, sopra (centrata o allineata a un lato, per gli schermi
 // stretti), dentro la mappa; vince il primo posto libero, se no quello che copre meno
-function placeCard(c, x, y){
+function placeCard(c, x, y, gx){
   const V = el('views').getBoundingClientRect(), w = c.offsetWidth, h = c.offsetHeight, G = 12, M = 8,
         obs = cardObstacles();
   let best = null, bestA = Infinity;
-  for(const [x0, y0] of [[x + G, y - h / 2], [x - G - w, y - h / 2],
+  for(const [x0, y0] of [[x + gx, y - h / 2], [x - gx - w, y - h / 2],
                          [x - w / 2, y + G], [x + G - w, y + G], [x - G, y + G],
                          [x - w / 2, y - G - h], [x + G - w, y - G - h], [x - G, y - G - h]]){
     const l = Math.max(V.left + M, Math.min(x0, V.right - M - w)),
@@ -1265,7 +1284,8 @@ function positionCard(){
   }
   c.style.visibility = 'hidden';
   c.hidden = false;
-  placeCard(c, x, y);
+  const lab = markerRefs.find(r => r.m === cardM && r.under);          // con l'etichetta: oltre il suo bordo
+  placeCard(c, x, y, lab ? Math.max(12, lab.lw / 2 + 6) : 12);
   c.style.visibility = '';
 }
 // Ridisegna la scheda aperta (al passaggio e a ogni fotogramma del Cursore); l'andamento arriva dopo
@@ -1320,6 +1340,7 @@ function openSheet(p, m){
   document.body.classList.add('sheet-open');
   el('sheet').querySelector('.sh-cred').appendChild(mapCredits());
   drawSheet();
+  renderLabels();
 }
 function closeSheet(){
   sheetP = null;
@@ -1327,5 +1348,6 @@ function closeSheet(){
   el('sheet').hidden = true;
   document.body.classList.remove('sheet-open');
   if(el('sheet').contains(mapCredits())) el('dkCredits').appendChild(mapCredits());
+  renderLabels();
 }
 let shY0 = null;                                         // trascinamento in giu' dalla linguetta: chiude

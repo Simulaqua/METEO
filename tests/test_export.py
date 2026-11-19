@@ -393,6 +393,15 @@ class TestRiferimenti(unittest.TestCase):
         self.assertEqual(ew.var_lags(per_var, '202611190800'), {'PREC': 60})
         self.assertEqual(ew.map_refs('LIG', per_var, datetime.datetime(2026, 11, 19, 8, 0)), {'PREC': 0.2})
 
+    def test_ora_dell_export_nella_mappa(self):
+        # la pagina riconosce una copia vecchia (riserva di jsDelivr): "ieri" di un altro giorno non vale
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, {'LIG': {'A': (station(44.4, 8.9), {'TEMP': [('202611190700', 8.0)]})}},
+                              epoch=MORNING))
+            with open(os.path.join(folder, 'site', 'LIG', 'stations.geojson'), encoding='utf-8') as fp:
+                geo = json.load(fp)
+        self.assertEqual(geo['creato'], '2026-11-19T08:00')
+
     def test_raffica_massima_dell_ora(self):
         # il fotogramma del Cursore e' la massima dell'ora, non l'ultima lettura: le reti a 10 minuti prese
         # all'ora tonda perdevano i picchi, e la massima di oggi del Cursore non tornava con la mappa

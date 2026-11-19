@@ -1779,7 +1779,7 @@ e40d7d85787f2292997059de4e267db555878b15  site/ACQ_VEN/series30/500031867.csv
 42ac32fbad730ce81a2027c0dc2edb155f1f9bec  site/ACQ_VEN/series30/500031871.csv
 5f9e327836e4becdb9fc9ecefe5dd01d5ea00597  site/ACQ_VEN/series30/500036099.csv
 1d0f35c9c776f5adc91954c9b2b2d460e96e662c  site/ACQ_VEN/series30/500036100.csv
-5f5fdedae4622e457dd65c91f638b72be25f866d  site/ACQ_VEN/stations.geojson
+bf1465ad93e35541ce2a8d3948fd30ae2bb082bd  site/ACQ_VEN/stations.geojson
 6a86813f9318dbe2b1f67c1f2b1cf0fbd65065f4  site/ACQ_VEN/units.json
 1b995b709e258fd743ff635819e4c33c1ec889f8  site/AQ_BZ/pm10_anno.json
 5fe39baf647e9a4c856ee4319414a9957df18a76  site/AQ_BZ/series/AB2.csv
@@ -1822,7 +1822,7 @@ e8b45234b245376ce4488b29e7fcce8256019784  site/AQ_BZ/series30/ML2.csv
 ee6ab14a206eac5649bf899ea6db5d623b7291fb  site/AQ_BZ/series30/ML6.csv
 e23606b08a876033770d62d36942e3933c295467  site/AQ_BZ/series30/RE.csv
 95cfb19f776aae3b72ff389dbb128cabe97ce006  site/AQ_BZ/series30/RE1.csv
-e6c58e7f18ddd4bd8332fe70bfbe83d4bcdb7655  site/AQ_BZ/stations.geojson
+7fe8ba6e4eeac9bde994cce168d13b11d0387675  site/AQ_BZ/stations.geojson
 17d39eccb42c35a993020696bbcb332873b1fde3  site/AQ_BZ/units.json
 85236a5b43eff7c8bc814642bb2e514da5af14a5  site/AQ_ER/pm10_anno.json
 26a88e9531d66afbe38c46e12848c8a3158a0aee  site/AQ_ER/series/10000001.csv
@@ -1915,7 +1915,7 @@ e2c9b6a24612336878d71d11783e8c8f9f11e8c1  site/AQ_ER/series30/9000021.csv
 e72b90a4ecf8c77ea5246531098c28c66715f203  site/AQ_ER/series30/9000068.csv
 01addc5b9a7bd10b97d8e466bd4b902b74892b72  site/AQ_ER/series30/9000070.csv
 e096e4732ed0eaedf5a8c1f16161a81ac67e6fec  site/AQ_ER/series30/9000083.csv
-e853ca1a136106f89da78ede4dafda17a37c6ad1  site/AQ_ER/stations.geojson
+9cc21c1f0de8b95d60a1068658d36a10b62477ff  site/AQ_ER/stations.geojson
 cbccbca8b152b48653239afae63a1f6a13140a9d  site/AQ_ER/units.json
 59c0ec1f5bf3c3731deeb2bacc98b2a1c8fd257c  site/AQ_LOM/pm10_anno.json
 5d46cc87d34abb117650fa313f305aafd891737f  site/AQ_LOM/series/1264.csv
@@ -2088,7 +2088,7 @@ e027ff448ad4dc7de554feffc747a99261f29274  site/AQ_LOM/series30/705.csv
 0161e48f05f58a31e1a0afd535bbba088bcd8aa6  site/AQ_LOM/series30/708.csv
 ccac9c16bb1b75b7a45d97121288226db061574f  site/AQ_LOM/series30/709.csv
 7ae37da0a6b479b5eb64ce26bacde01d786b76cc  site/AQ_LOM/series30/9157.csv
-4aad90a6eb72944220c336d2f0844336e2186f27  site/AQ_LOM/stations.geojson
+f360891bd9dc343fe449f989b787931beb7999ca  site/AQ_LOM/stations.geojson
 cbccbca8b152b48653239afae63a1f6a13140a9d  site/AQ_LOM/units.json
 fe0b88f38e56abcf18e6dba30afdf6bd565e3d39  site/AQ_TN/pm10_anno.json
 78ff2741dfa2a58621953e46cc0eb86ef98423e8  site/AQ_TN/series/A22__Avio.csv
@@ -2107,7 +2107,7 @@ f162ed05063fba0786c7e8ae24876c8fc927771a  site/AQ_TN/series30/Monte_Gaza.csv
 7f063de699de559a7daec32331764c7015f13361  site/AQ_TN/series30/Riva_del_Garda.csv
 22f31325433dabf41f4dcc21883986e83556b55f  site/AQ_TN/series30/Rovereto.csv
 834652a66d4d905c01bc841fb528af902968ff7e  site/AQ_TN/series30/Via_Bolzano.csv
-7896651837dc84857b9d930435896573a5afc2f9  site/AQ_TN/stations.geojson
+5349ce9428cbf55df1a7071580b0ae44bd83375a  site/AQ_TN/stations.geojson
 6c0be0d4c15242ba4001e209258aee087573b878  site/AQ_TN/units.json
 4036e8c24b0a85222c835bb7742f60d21ba3fb3d  site/AQ_VEN/pm10_anno.json
 095181166741b7e77cc5820d899ce2d899cc881d  site/AQ_VEN/series/500000016.csv
@@ -2172,7 +2172,7 @@ ffb6a4fc8dadead955ed78a9806279f9e0d15060  site/AQ_VEN/series30/500021975.csv
 38494e1f4239f76d8d53ae1d24e3ebe09e2daf19  site/AQ_VEN/series30/500022612.csv
 38bb2b9a707dc2c1e83bac7788b345ec31365e4f  site/AQ_VEN/series30/500022715.csv
 d6c55148d037f688417b3d93952849fa33da6110  site/AQ_VEN/series30/500023627.csv
-f55cf45f20b4bb0fea69cf999447c19c230f57c1  site/AQ_VEN/stations.geojson
+00bb8237ae7b66b832b05cd9523782d24633fc55  site/AQ_VEN/stations.geojson
 2483b1c41132b4afad8c4ad909bd79ef4ba534d4  site/AQ_VEN/units.json
 11517aeb8933edd92c29decee17d2293e4cd2e43  site/BZ/series/00390SF.csv
 4b5a321e6c1719604a70ab3346e033f8f7788c06  site/BZ/series/00700WS.csv
@@ -2627,7 +2627,7 @@ b598ec59ea501525a8fa90b84441b98c58ea223d  site/BZ/snap/PREC3.json
 149fd0ac8489a22a8aed9d2b2a8ebf627994f4ad  site/BZ/snap/UMID.json
 f52364d813359220358f79b003084a5b801df883  site/BZ/snap/VVENTO.json
 f6b58c31f256e73c4e1401d54afa1c4d3cdd02ee  site/BZ/snap/VVENTOMAX.json
-beea372acb4c8cdfa58e5b9a6f50561a36d290f7  site/BZ/stations.geojson
+eb3bd52f71e4e607e0d3a7827a15cb3a8b7bb74c  site/BZ/stations.geojson
 e4f567155e01e9d1bc7a21ceee38b24f5a049f7f  site/BZ/units.json
 c625617da5ebbf330fa57e561021b6cac39967da  site/ER/series/10.csv
 9a1a71215c5441d3dfd2499233b8630743840117  site/ER/series/10141.csv
@@ -3635,7 +3635,7 @@ b0b4608defe06fa97212def564617df914ff2931  site/ER/series30/9889.csv
 430fff944b8bcff9a4e7372c21bcd78b1e29633e  site/ER/snap/TEMP.json
 bfac594a7491f1d99a1db025170a9c949b69c1a5  site/ER/snap/UMID.json
 e5a1c172c973675ae503db7759b475af9d0bb946  site/ER/snap/VVENTO.json
-25a20271e4b76a0c39a3f98a9aed06f70c18e685  site/ER/stations.geojson
+34c97c86c1eab9f376cc5d1e221b475f901fc438  site/ER/stations.geojson
 f0c1e9d1a4f7a98b6bca97ccf6a1f6eb03475ccb  site/ER/units.json
 17d566ee1327e605a13ed5563be809e1f7427aca  site/FVG/series/101.csv
 c937bea9252eb7d6085d2970dffa1554a06827da  site/FVG/series/102.csv
@@ -4041,13 +4041,13 @@ e0c8d4f2e5dcef74b9ef7b023a22c14eb98bcb22  site/FVG/series30/ZON.csv
 55e5c6a1b75667773286cc36123b4792bed81e6d  site/FVG/snap/TEMP.json
 423ca9fb63166105e87e70a8ad00af415b7f3ea0  site/FVG/snap/UMID.json
 23cd9c691e1c8af3f969630dfbcd28d08f9cc8ab  site/FVG/snap/VVENTO.json
-f226d59fba596259a3029c263c8269bc23b93d25  site/FVG/stations.geojson
+9cc67c456b9f3d95ee63f681872d120e54bf24e2  site/FVG/stations.geojson
 cccc1aa799167e0cd67eccec5933cc3b3367e7d3  site/FVG/units.json
 44e19c255f15c8f601e039aea2bd7261d0262b7a  site/INV_ER/series/CONCA.csv
 095ac9bebd428ded2266a3633f4f5164729f4805  site/INV_ER/series/RIDRACOLI.csv
 44e19c255f15c8f601e039aea2bd7261d0262b7a  site/INV_ER/series30/CONCA.csv
 095ac9bebd428ded2266a3633f4f5164729f4805  site/INV_ER/series30/RIDRACOLI.csv
-f37e9fa2f5162bcbe1ca613011ec7e40a628e47d  site/INV_ER/stations.geojson
+6c120d41dc289770b99225fd2d27a48c52b5ddd1  site/INV_ER/stations.geojson
 ff3c73efea7498901c37a2f42d7b9a3f874ab669  site/INV_ER/units.json
 94b2454a5e0ded900156cf090012f023298333bc  site/LAGHI/series/Lago_Maggiore.csv
 bb67d05cafde83563718ba7d4dd54db05052e8ed  site/LAGHI/series/Lago_d_Idro.csv
@@ -4059,7 +4059,7 @@ bb67d05cafde83563718ba7d4dd54db05052e8ed  site/LAGHI/series30/Lago_d_Idro.csv
 5088d03945511f4cba16b18c5e4f8f7e2fb5a7b5  site/LAGHI/series30/Lago_d_Iseo.csv
 896d10e4330500b85e8431a85bbd8403a4e457bd  site/LAGHI/series30/Lago_di_Como.csv
 e11a36ec33316d91df82d64b7c410eb46a63acbb  site/LAGHI/series30/Lago_di_Garda.csv
-5fccfd94116436a91281084c9999cdf7f3b6b958  site/LAGHI/stations.geojson
+eb97a135f0d9604c5b492a4d8f8dda3cd18163cf  site/LAGHI/stations.geojson
 94730eb6c9940d50b222459f08ecedce08e64d32  site/LAGHI/units.json
 51f5e4a3742988d0f3d99fcc54d172d31f15a203  site/LIG/series/LIGAGORR.csv
 2617aa830b9c05014b30f21e14c6e74a349758a9  site/LIG/series/LIGAIROL.csv
@@ -4558,7 +4558,7 @@ b96bda77834b18838a5ddc408698f0a8f4e343f6  site/LIG/snap/TEMP.json
 f63570b0937c2c4232bfc483eb1a2179cc484bcf  site/LIG/snap/UMID.json
 cdb423e6a876fe950e4720cde6d264d44f738a38  site/LIG/snap/VVENTO.json
 2b834d9aba586e1d1ca40c6252f5a78fa89a6b5e  site/LIG/snap/VVENTOMAX.json
-828f7e7b4fde1b418923494a2632d2b093639ab3  site/LIG/stations.geojson
+e2d404a14b96c6d641e7b7b9eb0c0e6b8eddb480  site/LIG/stations.geojson
 baabf4860df9d6131b542553c2ee1ed679fd7675  site/LIG/units.json
 25e907e7c39ca9ccb59175db713241b4f2d5f045  site/LOM/series/100.csv
 ab94cdd136afebdc978653f71a5796deb9fd0804  site/LOM/series/102.csv
@@ -5187,7 +5187,7 @@ ac926d1aef7b1dbabe6b9418b88028ff88c73f68  site/LOM/snap/PREC6.json
 e34fcaae480dfd38932e0ffd005461e58a33a205  site/LOM/snap/TEMP.json
 82647121847b6463c9bc222a63cc1cc6e54b9670  site/LOM/snap/UMID.json
 f148f3035e06a9ed8b904196ab7958f28b7ed9fa  site/LOM/snap/VVENTO.json
-624bd48f506fff198d935afe67f97b36dae49b7e  site/LOM/stations.geojson
+697af3ff8995426f9f9a619f1dceaa56a5a4d6d2  site/LOM/stations.geojson
 590a491598e65f49a9b250b8cc7161e7261b7b9f  site/LOM/units.json
 bc89590e6582135abc69eb730c23154fd92f384e  site/MAR_ER/series/Bellocchio.csv
 17d0539c0b50568adf36c51c24f95ef62e48e3cc  site/MAR_ER/series/Bocca_Scanno.csv
@@ -5216,7 +5216,7 @@ bc39094a67726a78613cc63f0eac9dad3eb68bf8  site/MAR_ER/series30/Porto_Garibaldi_E
 9a50b1871f466920f5b1db381be945bda29ec887  site/MAR_ER/snap/TEMP.json
 13391fd783bf07ca31ce9832abf86124dd7f3e0d  site/MAR_ER/snap/UMID.json
 796601d6337809ab090ba4051013816acce661b1  site/MAR_ER/snap/VVENTO.json
-a3cfdfcfe1e464a8ff9a5403dfd45d4c20d0a3bf  site/MAR_ER/stations.geojson
+26599bb8c8f492d280a99c4fc06320de2827e310  site/MAR_ER/stations.geojson
 61d8a200de280a98aa1ebc067470b26071f36cdf  site/MAR_ER/units.json
 3317fe1a8aa0c245f9f97580d5bd539c46839d84  site/MAR_FVG/series/CURRISO.csv
 a8b43c83d12e9068681366261176f652bc87a359  site/MAR_FVG/series/DWRG1.csv
@@ -5234,7 +5234,7 @@ d361a9d8a20754aecde935c51b182a5a2117a028  site/MAR_FVG/series30/PIEZTAG.csv
 ac1b21c0fe2504f21cb67a11c443ca6e2094101b  site/MAR_FVG/snap/TEMP.json
 156114313e550ef774b71ca34ee8d6e389f35324  site/MAR_FVG/snap/UMID.json
 e538808e355ea1ba49c025b4b0a32d12bfeda511  site/MAR_FVG/snap/VVENTO.json
-82d7811463ce98ed2eede0809117fede25b5d7bc  site/MAR_FVG/stations.geojson
+b7457d8a3a0559c26b131790f057fcab308941cc  site/MAR_FVG/stations.geojson
 c163c0673e25b158feee3a137222eae2ec625fe4  site/MAR_FVG/units.json
 0233f345aac57ca9c5231b38580bd38241aed0c2  site/MAR_VEN/series/1001.csv
 552c6df26af9b89f778e9625b9aed0fb44950ebc  site/MAR_VEN/series/1021.csv
@@ -5273,7 +5273,7 @@ ac78c82b0980e06f85b0985371b2a0fa7ede0bfa  site/MAR_VEN/snap/TEMP.json
 276dbfea02fb268a50bf1d5793201cd9d0210c85  site/MAR_VEN/snap/UMID.json
 cd5667a28c4c374c909115bb20c6c11717311d8a  site/MAR_VEN/snap/VVENTO.json
 7e157cf5f707429ade3bd7534fbce09233d0e7aa  site/MAR_VEN/snap/VVENTOMAX.json
-a94bd550c3a722a74476d218a04838dd12620765  site/MAR_VEN/stations.geojson
+33c5a51c369ff65513bb539c7e0a286f987dae9c  site/MAR_VEN/stations.geojson
 a07421d509ecd42a25089b457da7308b68f03187  site/MAR_VEN/units.json
 b6743072c4e779aa9ef91e40d4a8e6bff4de977e  site/PC_FVG/series/FVG1.csv
 0668befe60ca3dc361d7bc3a5704aa2e87d0fe1b  site/PC_FVG/series/FVG10.csv
@@ -5948,7 +5948,7 @@ e5aada67fe27a1792a493b62891252f5cd996446  site/PC_FVG/snap/PRESS.json
 469348adfb46ac8554a4735ad19ffd739a082cf8  site/PC_FVG/snap/UMID.json
 d61abcf20d411e0d494881f1a7cc92c2afc72b50  site/PC_FVG/snap/VVENTO.json
 a6fc60e78057bbdd4548bf417ac49cf870cf266f  site/PC_FVG/snap/VVENTOMAX.json
-27f94f3c67ea157d067b0a25e094b0ca6ea14e48  site/PC_FVG/stations.geojson
+700b8a96595c5229b02df985ea9dabeeba6db56a  site/PC_FVG/stations.geojson
 3aa6586d07688627ef4c5dfb3575bb0ff8e03c05  site/PC_FVG/units.json
 45af8406f778efe3941a293317154a05ed6b99a9  site/PC_PIE/series/PIE131.csv
 9224c6f09e091c9ace3b02f273cfdd6cee3e4646  site/PC_PIE/series/PIE138.csv
@@ -6156,7 +6156,7 @@ ba986000889eb5d116f2733987677f2e1dca4f40  site/PC_PIE/series30/PIES5166.csv
 d51a1b3ab862f1648ed7c72116decf2b4475a209  site/PC_PIE/series30/PIES6833.csv
 4beade6265efcaaadc590b35059e278fa69cb918  site/PC_PIE/series30/PIES7421.csv
 308749e4ea142d6895124b7214e7bb763298c77b  site/PC_PIE/series30/PIES7671.csv
-8df2bda289bf15244623d6767d58ded05e2edb6b  site/PC_PIE/stations.geojson
+51fd9b374ac5261f1230f7efa48a2b2c2f19090c  site/PC_PIE/stations.geojson
 61116a8010be5d97b6f71e8bfa2490fb5542327a  site/PC_PIE/units.json
 91fa6910ce95c49ee457c9e6d0835927d1722300  site/PC_PO/series/PO1095800.csv
 da0753846c599b22998ccfbf2b01b91c22618a08  site/PC_PO/series/PO1095900.csv
@@ -6309,7 +6309,7 @@ eabbfe82f06216aa513c5925c098298e58b08eed  site/PC_PO/series30/PO923800.csv
 0eedf00fae329a4cb1512eb5712924f98ebe7249  site/PC_PO/series30/PO924000.csv
 ba572ec6aa5348d1c04acae7878d1784876e321a  site/PC_PO/series30/PO946900.csv
 445395a5824d88ca08107901052640f6b6353cde  site/PC_PO/series30/PO951700.csv
-4630f4a8c72480e07e3840decd203a883d4817a9  site/PC_PO/stations.geojson
+54e180227c6b2098a2595747c0788c5af6a2aceb  site/PC_PO/stations.geojson
 61116a8010be5d97b6f71e8bfa2490fb5542327a  site/PC_PO/units.json
 c0e9ebf5d27c3ca3defb42833c1daf1c80c8e2a1  site/PC_TN/series/TN1016114.csv
 d6a5448b011927b5d93d6347631fa9c1be45e7ee  site/PC_TN/series/TN11691.csv
@@ -6558,7 +6558,7 @@ a6f556405d537625cb195ab2b857c96742e95fb3  site/PC_TN/series30/TN42997.csv
 8803a38760fa22015bd33ef6ef12781b48afcbfb  site/PC_TN/series30/TN48500.csv
 cc9546bdc18b268164ce0359cb50a604ec10424a  site/PC_TN/series30/TN49050.csv
 e17e038519f90be9afdba0127cf80ced51c7a575  site/PC_TN/series30/TN57229.csv
-35786416e316c0ce0f0428a9845856b77d7165be  site/PC_TN/stations.geojson
+3510196645e93a84d19168fbd81b12d5093d2fb2  site/PC_TN/stations.geojson
 28e913ec518d137c6d1bc03be77decd394a27565  site/PC_TN/units.json
 9f0c71819618b8bbfbaadc42fc7e518ec82ef99a  site/PIE/series/PIE001.csv
 800330771cbedf4e9c50e9d59b6d8b6de99f14b6  site/PIE/series/PIE002.csv
@@ -7302,7 +7302,7 @@ f29c707de2e77ae17847db02980c1d9636c28041  site/PIE/snap/TEMP.json
 6c4a886e4e4d5c95f2e5e20d49bf719a6ebe1b7a  site/PIE/snap/UMID.json
 a425083c91c07799562e7087984405bbebb3322e  site/PIE/snap/VVENTO.json
 c3cc7cc8f9d2246ac141f6786a18d7b1980b5c0e  site/PIE/snap/VVENTOMAX.json
-702817830aaf150ea13b6acd4e3992095c53ac70  site/PIE/stations.geojson
+3973714f7fca9450747438233195f399a15b5ae7  site/PIE/stations.geojson
 a0ace7e1e93bc5b71151dfb7c6772a1dd7f1bae7  site/PIE/units.json
 ab40a55be0d5549001744828cfca573f611aba99  site/TN/series/T0009.csv
 a42b703e6e64661c2a893b4d3ee376822cfc784e  site/TN/series/T0010.csv
@@ -7528,7 +7528,7 @@ dfcde07474a0fde5a0f1054af86bab4dacd0a0c6  site/TN/snap/PREC6.json
 cf475e87a112477c765d8a448ffd950988d3f910  site/TN/snap/TEMP.json
 757e3952fbdafdc9e9b04e9ade22b4e1307decf3  site/TN/snap/UMID.json
 068e23b5c24f7be515d34e836fb7b49b9666ed43  site/TN/snap/VVENTO.json
-61b099995575f7039b3b01fd102116ec5a711804  site/TN/stations.geojson
+18db38469020f59d3f239beefdad0820be8788e3  site/TN/stations.geojson
 3db0ff45b281bf1da108411660a3216bd5554996  site/TN/units.json
 e39a94a00aa339b4db76d92da30ddc1b92a9dd66  site/VEN/series/1.csv
 094cf6d643ce47b9d2e756eeb2ffde56b32055a6  site/VEN/series/100.csv
@@ -8231,5 +8231,5 @@ f2899f6bff6667644a6c91fe747393617205861f  site/VEN/snap/PRESS.json
 c6c6a68031bd615f737e79965315dee67911c624  site/VEN/snap/TEMP.json
 46c7e36924fd2ed942a03861c5503dd47cb0afd4  site/VEN/snap/UMID.json
 f0527297d0fe827763d2235dd3c093c47d9a2978  site/VEN/snap/VVENTO.json
-9b7fa5d1107a3bed8a71323be75f29f113654a7c  site/VEN/stations.geojson
+f79977af619d5bd053cb423efcd7a0bc1ac1260d  site/VEN/stations.geojson
 120c13172408b5d56ba1454b8bc2a79f63a42f4f  site/VEN/units.json
