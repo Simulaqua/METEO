@@ -2626,7 +2626,7 @@ b598ec59ea501525a8fa90b84441b98c58ea223d  site/BZ/snap/PREC3.json
 1df9998740d5d2a2818661d1a8aa717839a480f7  site/BZ/snap/TEMP.json
 149fd0ac8489a22a8aed9d2b2a8ebf627994f4ad  site/BZ/snap/UMID.json
 f52364d813359220358f79b003084a5b801df883  site/BZ/snap/VVENTO.json
-dbe77c0c3430bb1fda4e4f040abc8fa0b29bc712  site/BZ/snap/VVENTOMAX.json
+f6b58c31f256e73c4e1401d54afa1c4d3cdd02ee  site/BZ/snap/VVENTOMAX.json
 edc4dd421f4ffde781ef1cc19ad0e61580f3f3ee  site/BZ/stations.geojson
 e4f567155e01e9d1bc7a21ceee38b24f5a049f7f  site/BZ/units.json
 c625617da5ebbf330fa57e561021b6cac39967da  site/ER/series/10.csv
@@ -4557,7 +4557,7 @@ de83785499fb8921feac69a67ea7eb121d8952d9  site/LIG/snap/PRESS.json
 b96bda77834b18838a5ddc408698f0a8f4e343f6  site/LIG/snap/TEMP.json
 f63570b0937c2c4232bfc483eb1a2179cc484bcf  site/LIG/snap/UMID.json
 cdb423e6a876fe950e4720cde6d264d44f738a38  site/LIG/snap/VVENTO.json
-a8039d62f95019370af561d9f2549535e91760fd  site/LIG/snap/VVENTOMAX.json
+2b834d9aba586e1d1ca40c6252f5a78fa89a6b5e  site/LIG/snap/VVENTOMAX.json
 1eb9af057d622f42f98fbb23a5645ce9856c18e6  site/LIG/stations.geojson
 baabf4860df9d6131b542553c2ee1ed679fd7675  site/LIG/units.json
 25e907e7c39ca9ccb59175db713241b4f2d5f045  site/LOM/series/100.csv
@@ -7301,7 +7301,7 @@ d51a1b3ab862f1648ed7c72116decf2b4475a209  site/PIE/series30/PIES6833.csv
 f29c707de2e77ae17847db02980c1d9636c28041  site/PIE/snap/TEMP.json
 6c4a886e4e4d5c95f2e5e20d49bf719a6ebe1b7a  site/PIE/snap/UMID.json
 a425083c91c07799562e7087984405bbebb3322e  site/PIE/snap/VVENTO.json
-ad4fd435534b297328a3176251bd393cc94a155f  site/PIE/snap/VVENTOMAX.json
+c3cc7cc8f9d2246ac141f6786a18d7b1980b5c0e  site/PIE/snap/VVENTOMAX.json
 702817830aaf150ea13b6acd4e3992095c53ac70  site/PIE/stations.geojson
 a0ace7e1e93bc5b71151dfb7c6772a1dd7f1bae7  site/PIE/units.json
 ab40a55be0d5549001744828cfca573f611aba99  site/TN/series/T0009.csv

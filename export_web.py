@@ -47,6 +47,9 @@ SNAP_FRAMES = 168
 SNAP_TOL_MIN = {'PREC1': 30, 'PREC3': 45, 'VVENTO': 60, 'VVENTOMAX': 60}
 SNAP_TOL_DEF = 90
 SNAP_DEC = {'UMID': 0}
+# La raffica di un fotogramma e' la massima dell'ora che finisce li': prese all'ora tonda, le reti a 10-15
+# minuti perdevano i picchi
+SNAP_MAX = {'VVENTOMAX'}
 
 # Mappa: una stazione con l'ultima lettura di una variabile piu' vecchia di cosi' e' grigia (lo stesso
 # numero sta in site/mappa.js). Le derivate giornaliere, segnate alle 12:00, non sono mai in ritardo.
@@ -524,7 +527,12 @@ def write_snapshots(data, scodes, units, out_dir):
             for frame_moment, oldest in zip(frame_moments, oldest_moments):
                 i = bisect.bisect_right(moments, frame_moment) - 1
                 value = None
-                if i >= 0 and moments[i] >= oldest:
+                if var in SNAP_MAX:
+                    window = [comune.to_float(readings[moment])
+                              for moment in moments[bisect.bisect_right(moments, oldest):i + 1]]
+                    window = [number for number in window if number is not None]
+                    value = max(window) if window else None
+                elif i >= 0 and moments[i] >= oldest:
                     value = comune.to_float(readings[moments[i]])
                 if value is None:
                     values.append(None)

@@ -355,6 +355,19 @@ class TestRiferimenti(unittest.TestCase):
                                MORNING, 'AQ_LOM')
         self.assertEqual(props['A']['rif']['PM25'], 37)
 
+    def test_raffica_massima_dell_ora(self):
+        # il fotogramma del Cursore e' la massima dell'ora, non l'ultima lettura: le reti a 10 minuti prese
+        # all'ora tonda perdevano i picchi, e la massima di oggi del Cursore non tornava con la mappa
+        gusts = [(m, 14.0 if m == '202611190620' else 5.0)
+                 for m, _ in every('202611190610', '202611190700', 10)]
+        archive = {'LIG': {'A': (station(44.4, 8.9), {'VVENTOMAX': gusts})}}
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, archive, epoch=MORNING))
+            with open(os.path.join(folder, 'site', 'LIG', 'snap', 'VVENTOMAX.json'), encoding='utf-8') as fp:
+                frames = json.load(fp)
+        seven = calendar.timegm((2026, 11, 19, 7, 0, 0))
+        self.assertEqual(frames['s']['A'][frames['t'].index(seven)], 14.0)
+
 
 if __name__ == '__main__':
     unittest.main()
