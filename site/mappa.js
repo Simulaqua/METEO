@@ -28,6 +28,8 @@ const MAP_DAILY = new Set(['PM10','PM25','O3','NO2','GDD','HDD','CDD','ET0']);
 // Ora dell'ultima lettura di v (ms, ora civile letta come UTC); lag = minuti di ritardo sull'ultima misura
 const varTime = (p, v) => isoCivil(p.latest_time) - 60000 * ((p.lag || {})[v] || 0);
 const isLate = (p, v) => !MAP_DAILY.has(v) && nowRome() - varTime(p, v) > LATE_H * 3600000;
+const varTimeIso = (p, v) => (p.lag || {})[v] ? new Date(varTime(p, v)).toISOString().slice(0, 16)
+                                              : p.latest_time;
 
 const CMAP = [[48,18,59],[70,107,227],[40,170,225],[26,228,182],[95,251,113],
               [192,229,57],[250,175,42],[245,92,24],[122,4,3]];
@@ -1095,7 +1097,11 @@ function keyValues(p, main){
 // renderMarkers)
 const cardFrame = () => !!(snap.on && snap.T.length && snap.var === filterVar && snapCapable(filterVar));
 function cardModel(p){
-  let main = stationMainValue(p), time = timeText(p.latest_time, Date.now()), keys = null;
+  let main = stationMainValue(p), time = timeText(varTimeIso(p, main && main.v), Date.now()), keys = null;
+  let delta = null;
+  const dz = main && main.v === 'LIVIDRO' && !cardFrame() ? Math.round(mapValue(p, 'LIVIDRO', 'cm')) : 0;
+  if(dz) delta = { text:(dz > 0 ? '↑ ' : '↓ ') + Math.abs(dz) + ' cm in 3 ore',
+                   cls:dz > 0 ? 'up' : 'dn' };
   if(cardFrame()){                                       // valore al fotogramma; niente valori chiave
     const x = snapVal(p);
     main = { v: snap.var, label: varLabel(snap.var),
@@ -1106,7 +1112,7 @@ function cardModel(p){
   const src = SOURCES[p._region];
   return { name: prettyName(p.name || p.scode),
            where: regionLabel(p._region) + (src ? ' · ' + src.name : ''),
-           time, main, keys: keys || keyValues(p, main && main.v) };
+           time, main, delta, keys: keys || keyValues(p, main && main.v) };
 }
 // Andamento delle ultime 24 h dai file orari del Cursore (<REG>/snap/<VAR>.json): scaricati alla prima
 // scheda, poi restano in memoria
@@ -1165,7 +1171,7 @@ function sparkSvg(vals, bars){
 // la stessa stazione
 async function fillTrend(box, p, mainV, still){
   if(!mainV) return false;
-  const rain = isRain(mainV), frame = cardFrame(), S = await cardSeries(p, rain ? 'PREC1' : mainV, frame);
+  const rain = isMapRain(mainV), frame = cardFrame(), S = await cardSeries(p, rain ? 'PREC1' : mainV, frame);
   if(!S || !still()) return false;
   const vals = S.vals.slice(-24), xs = vals.filter(x => x != null), q = s => box.querySelector(s);
   q('.hc-spark').innerHTML = sparkSvg(vals, rain);
@@ -1195,7 +1201,8 @@ function cardHtml(M){
          '<div class="hc-where">' + e(M.where) +
            (M.time ? ' · <span class="hc-time">' + e(M.time) + '</span>' : '') + '</div>' +
          (M.main ? '<div class="hc-main"><span class="hc-val">' + e(M.main.text) +
-                   '</span><span class="hc-delta"></span>' +
+                   '</span><span class="hc-delta' + (M.delta ? ' ' + M.delta.cls : '') + '">' +
+                   (M.delta ? e(M.delta.text) : '') + '</span>' +
                    (bare ? '<span class="hc-lab">' + e(M.main.label) + '</span>' : '') + '</div>' : '') +
          '<div class="hc-spark"></div><div class="hc-cap"><span class="hc-span"></span><span class="hc-mm"></span></div>' +
          '<div class="hc-keys">' +

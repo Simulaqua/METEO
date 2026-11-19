@@ -3009,6 +3009,30 @@
       eq('etichette: deselezionata, nessun bordo', document.querySelectorAll('.vl.sel').length, 0);
     }
     else log(false, 'etichette: una non in ritardo', '');
+    // scheda al passaggio: il valore della mappa col riferimento, l'ora della variabile, il livello che sale
+    await scene([fake('VEN', 'C1', 45.4, 11.9, { PREC:'0.2', TEMP:'7' }, { rif:{ PREC:8 }, lag:{ PREC:120 } }),
+                 fake('VEN', 'C2', 45.5, 11.8, { LIVIDRO:'1.2' }, { rif:{ LIVIDRO:0.12 } })], 'PREC');
+    const C1 = allFeatures[0].properties, C2 = allFeatures[1].properties, mk = p => markerRefs.find(r => r.p === p);
+    lastPointer = 'mouse';
+    showCard(C1, mk(C1).m); await sleep(200);
+    const q = s => (el('hoverCard').querySelector(s) || {}).textContent;
+    eq('scheda: pioggia di oggi', q('.hc-val'), '8.0 mm oggi');
+    const tv = new Date(isoCivil(C1.latest_time) - 120 * 60000), hm = pad(tv.getUTCHours()) + ':' + pad(tv.getUTCMinutes());
+    log((q('.hc-time') || '').startsWith(hm), 'scheda: l\'ora della pioggia, non della stazione', JSON.stringify([q('.hc-time'), hm]));
+    hideCard();
+    setMapVar(''); setMapVar('LIVIDRO'); await sleep(200);
+    if(mk(C2)){ showCard(C2, mk(C2).m); await sleep(200); }
+    eq('scheda: livello, quanto è salito in 3 ore', q('.hc-delta'), '↑ 12 cm in 3 ore');
+    hideCard();
+    // ricerca: il suggerimento ha il valore della mappa
+    setMapVar(''); setMapVar('PREC'); await sleep(200);
+    el('stationQ').value = 'Prova C1';
+    el('stationQ').dispatchEvent(new Event('input', { bubbles:true })); await sleep(200);
+    const sv = (el('searchList').querySelector('.sr-v') || {}).textContent;
+    eq('ricerca: valore della mappa', sv, '8.0 mm oggi');
+    el('stationQ').value = '';
+    el('stationQ').dispatchEvent(new Event('input', { bubbles:true }));
+
     // telefono: l'interruttore si vede con la plancia aperta e niente esce dallo schermo
     if(PHONE.matches){
       dockMin(false); await sleep(300);

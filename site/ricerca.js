@@ -243,15 +243,21 @@ function latestText(p, v){
 const MAIN_VARS = ['TEMP', 'LIVIDRO', 'PREC24', 'EAQI'];
 const hasVal = (lt, v) => lt[v] != null && lt[v] !== '';
 function stationMainValue(p){
-  const lt = p.latest || {};
+  const lt = p.latest || {}, v = filterVar;
+  // il valore della mappa, col suo riferimento (pioggia di oggi...); il livello resta in quota
+  if(v && MAP_REF[v] && v !== 'LIVIDRO' && (p.variables || []).includes(v)){
+    const u = unitOf(p._region, v), x = mapValue(p, v, u);
+    const text = x == null ? 'n.d.' : labelText(v, x) + (u ? ' ' + u : '') + ' ' + MAP_REF[v];
+    return { v, label: varLabel(v), text };
+  }
   if(filterVar && (hasVal(lt, filterVar) || (p.variables || []).includes(filterVar)))
     return {
       v: filterVar,
       label: varLabel(filterVar),
       text: hasVal(lt, filterVar) ? latestText(p, filterVar) : 'n.d.'
     };
-  const v = MAIN_VARS.find(x => hasVal(lt, x));
-  return v ? { v, label: varLabel(v), text: latestText(p, v) } : null;
+  const k = MAIN_VARS.find(x => hasVal(lt, x));
+  return k ? { v: k, label: varLabel(k), text: latestText(p, k) } : null;
 }
 // nome della regione come nella pillola (il gruppo che contiene la sigla: PC_FVG -> Friuli V.G.)
 function regionLabel(reg){
