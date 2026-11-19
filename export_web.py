@@ -392,29 +392,45 @@ def moment_of(instant):
     return datetime.datetime.strptime(instant[:12], '%Y%m%d%H%M')
 
 
-def readings_of(series):
-    """[(momento, valore)] in ordine di tempo, senza valori vuoti e istanti illeggibili."""
+def moment_or_none(instant):
+    try:
+        return moment_of(instant)
+    except (TypeError, ValueError):
+        return None
+
+
+def readable(series):
+    """Gli istanti di una serie che hanno la forma AAAAMMGGhhmm (si ordinano come stringhe)."""
+    return [instant for instant in series if instant[:12].isdigit()]
+
+
+def readings_of(series, since=''):
+    """[(momento, valore)] in ordine di tempo dall'istante since in poi, senza valori vuoti e istanti
+    illeggibili. Si leggono solo gli istanti che servono: l'export gira a ogni pubblicazione."""
     points = []
-    for instant, value in (series or {}).items():
-        number = comune.to_float(value)
-        try:
-            if number is not None:
-                points.append((moment_of(instant), number))
-        except ValueError:
+    for instant in readable(series):
+        if instant[:12] < since:
             continue
+        number, moment = comune.to_float(series[instant]), moment_or_none(instant)
+        if number is not None and moment is not None:
+            points.append((moment, number))
     return sorted(points)
+
+
+def last_moment(series):
+    instants = readable(series or {})
+    return moment_or_none(max(instants)) if instants else None
 
 
 def var_lags(per_var, latest_moment):
     """{variabile: minuti fra la sua ultima lettura e latest_moment}, solo per quelle rimaste indietro."""
-    end = moment_of(latest_moment)
+    end = moment_or_none(latest_moment)
     lags = {}
     for var, series in per_var.items():
-        points = readings_of(series) if var not in DAILY_DERIVED else []
-        if points:
-            minutes = int((end - points[-1][0]).total_seconds() // 60)
-            if minutes > 0:
-                lags[var] = minutes
+        last = last_moment(series) if end and var not in DAILY_DERIVED else None
+        minutes = int((end - last).total_seconds() // 60) if last else 0
+        if minutes > 0:
+            lags[var] = minutes
     return lags
 
 
@@ -427,31 +443,36 @@ def civil_midnight(now):
     return midnight.strftime('%Y%m%d%H%M')
 
 
-def since_midnight(points, midnight):
+def since_midnight(series, midnight):
     """I valori letti dopo midnight (la lettura delle 00:00 chiude il giorno prima); None se sono meno di
-    quelli attesi dalla cadenza della stazione nel tempo trascorso (la regola delle somme di derive.py)."""
-    start = moment_of(midnight)
-    today = [value for moment, value in points if moment > start]
+    quelli attesi nel tempo trascorso (la regola delle somme di derive.py). La cadenza e' quella di oggi: i
+    giorni passati possono essere stati riscritti a un passo diverso (in Alto Adige 5 minuti invece di 10)."""
+    today = readings_of({instant: value for instant, value in (series or {}).items()
+                         if instant[:12] > midnight})
     if not today:
         return []
-    steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(points, points[1:]))
+    steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(today, today[1:]))
+    if len(steps) < 2:
+        whole = readings_of(series)
+        steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(whole, whole[1:]))
     step = steps[len(steps) // 2] if steps else 0
-    elapsed = (points[-1][0] - start).total_seconds()
+    elapsed = (today[-1][0] - moment_of(midnight)).total_seconds()
     need = math.ceil(derive.ACC_MIN_COVER * elapsed / step - 1e-9) if step else 1
-    return today if len(today) >= need else None
+    return [value for _, value in today] if len(today) >= need else None
 
 
-def level_change(points):
+def level_change(series):
     """Ultima lettura meno quella di LEVEL_HOURS prima (la più recente fatta allora o prima, non più vecchia
     di LEVEL_TOLERANCE), nell'unità della fonte; None se manca."""
-    if not points:
+    last = last_moment(series)
+    if last is None:
         return None
-    last, value = points[-1]
     target = last - datetime.timedelta(hours=LEVEL_HOURS)
+    points = readings_of(series, (target - LEVEL_TOLERANCE).strftime('%Y%m%d%H%M'))
     before = [point for point in points if point[0] <= target]
-    if not before or before[-1][0] < target - LEVEL_TOLERANCE:
+    if not before or points[-1][0] != last:
         return None
-    return round(value - before[-1][1], 3) + 0.0                       # niente "-0.0"
+    return round(points[-1][1] - before[-1][1], 3) + 0.0                # niente "-0.0"
 
 
 def aq_yesterday(region, var, readings, today):
@@ -482,18 +503,19 @@ def map_refs(region, per_var, now):
     variazione del livello, qualità dell'aria di ieri."""
     refs = {}
     midnight = civil_midnight(now)
-    rain = readings_of(per_var.get('PREC'))
-    if rain:
-        values = since_midnight(rain, midnight)
-        if values:
-            refs['PREC'] = max(0.0, round(sum(values), 1))
-        # nessuna lettura dopo mezzanotte: zero se il pluviometro trasmette (stazione oraria alle 00:30)
-        elif values == [] and now - rain[-1][0] <= datetime.timedelta(hours=LATE_HOURS):
+    rain = per_var.get('PREC')
+    values = since_midnight(rain, midnight)
+    if values:
+        refs['PREC'] = max(0.0, round(sum(values), 1))
+    # nessuna lettura dopo mezzanotte: zero se il pluviometro trasmette (stazione oraria alle 00:30)
+    elif values == [] and rain:
+        last = last_moment(rain)
+        if last and now - last <= datetime.timedelta(hours=LATE_HOURS):
             refs['PREC'] = 0.0
-    values = since_midnight(readings_of(per_var.get('VVENTOMAX')), midnight)
+    values = since_midnight(per_var.get('VVENTOMAX'), midnight)
     if values:
         refs['VVENTOMAX'] = round(max(values), 1)
-    change = level_change(readings_of(per_var.get('LIVIDRO')))
+    change = level_change(per_var.get('LIVIDRO'))
     if change is not None:
         refs['LIVIDRO'] = change
     for var in AQ_DAILY_MEAN + AQ_DAILY_MAX:

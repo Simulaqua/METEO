@@ -6,6 +6,7 @@
 # Le altre prove lanciano l'export vero (export) su un archivio scritto apposta, con l'orologio fermo di tests/rete.py.
 #   /usr/bin/python3 -m unittest tests.test_export -v
 import calendar, datetime, gzip, json, os, sys, tempfile, unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import comune
@@ -354,6 +355,35 @@ class TestRiferimenti(unittest.TestCase):
         props = map_properties({'AQ_LOM': {'A': (station(45.5, 9.2), {'PM25': [('202611180000', 37.0)]})}},
                                MORNING, 'AQ_LOM')
         self.assertEqual(props['A']['rif']['PM25'], 37)
+
+    def test_pioggia_di_oggi_con_cadenza_cambiata(self):
+        # i giorni passati riscritti di notte a 5 minuti, oggi il dato in diretta ogni 10 (Alto Adige): la
+        # copertura si misura sulla cadenza di oggi
+        rain = every('202611120000', '202611182355', 5, 0.0) + every('202611190010', '202611190800', 10, 0.1)
+        props = map_properties({'LIG': {'A': (station(44.4, 8.9), {'PREC': rain})}}, MORNING)
+        self.assertEqual(props['A']['rif']['PREC'], 4.8)
+
+    def test_letture_senza_rileggere_la_finestra(self):
+        # sette giorni ogni 10 minuti: per ritardi e riferimenti non si legge ogni istante (l'export a ogni
+        # pubblicazione deve restare nei suoi tempi)
+        per_var = {'PREC': dict(every('202611120000', '202611190800', 10, 0.1)),
+                   'TEMP': dict(every('202611120000', '202611190800', 10, 8.0)),
+                   'LIVIDRO': dict(every('202611120000', '202611190800', 15, 1.0))}
+        now = datetime.datetime(2026, 11, 19, 8, 0)
+        with mock.patch.object(ew, 'moment_of', wraps=ew.moment_of) as parsed:
+            ew.var_lags(per_var, '202611190800')
+            lags = parsed.call_count
+            ew.map_refs('LIG', per_var, now)
+        self.assertLessEqual(lags, 4)
+        self.assertLessEqual(parsed.call_count - lags, 48 + 15 + 5)     # oggi e le ultime 3 h e mezza
+
+    def test_istanti_illeggibili(self):
+        # un istante storto non deve fermare l'export di tutte le regioni
+        per_var = {'TEMP': {'202611190800': 8.0, 'ERRORE000000': 9.0},
+                   'PREC': {'XX': 1.0, '202611190700': 0.2}}
+        self.assertEqual(ew.var_lags(per_var, 'ERRORE000000'), {})
+        self.assertEqual(ew.var_lags(per_var, '202611190800'), {'PREC': 60})
+        self.assertEqual(ew.map_refs('LIG', per_var, datetime.datetime(2026, 11, 19, 8, 0)), {'PREC': 0.2})
 
     def test_raffica_massima_dell_ora(self):
         # il fotogramma del Cursore e' la massima dell'ora, non l'ultima lettura: le reti a 10 minuti prese
