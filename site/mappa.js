@@ -78,7 +78,25 @@ function classColor(v, x){
 }
 // Variabili con fotogrammi orari (l'export li scrive in <REGIONE>/snap/<VAR>.json)
 const SNAP_VARS = new Set(['TEMP','UMID','PRESS','VVENTO','VVENTOMAX','PREC1','PREC3','PREC6','PREC12',
-                           'PREC24','PREC48']);
+                           'PREC24','PREC48','PREC']);
+// Pioggia e raffica di oggi nel Cursore: dai fotogrammi orari che ci sono gia' (la pioggia da quelli di 1 h)
+const SNAP_FILE = { PREC:'PREC1' };
+const MAP_RUNNING = { PREC:'sum', VVENTOMAX:'max' };
+// Per ogni fotogramma la somma o il massimo delle ore dopo l'ultima mezzanotte civile (esclusa: l'epoch e'
+// l'ora civile letta come UTC); null con meno del 70% delle ore, come le somme dell'export
+function dayRunning(t, arr, agg){
+  return t.map((tk, k) => {
+    const start = tk - tk % 86400, hours = (tk - start) / 3600;
+    if(!hours) return agg === 'sum' ? 0 : null;
+    let n = 0, acc = agg === 'sum' ? 0 : -Infinity;
+    for(let j = k; j >= 0 && t[j] > start; j--){
+      if(arr[j] == null) continue;
+      n++;
+      acc = agg === 'sum' ? acc + arr[j] : Math.max(acc, arr[j]);
+    }
+    return n < 0.7 * hours ? null : Math.round(acc * 10) / 10;
+  });
+}
 const snap = { on:false, var:'', unit:'', T:[], data:{}, shift:{}, mul:{}, cov:[], covMax:1,
                k:0, k0:0, kmax:0, playing:false, timer:null, speed:1, vmin:0, vmax:1, token:0 };
 function unitForVar(v){
@@ -458,8 +476,12 @@ async function snapLoad(v){
                                       .map(f => f.properties._region))];
   const got = await Promise.all(regs.map(async r => {
     try {
-      const x = await fdata(r + '/snap/' + v + '.json');
-      return x.ok ? [r, await x.json()] : null;
+      const x = await fdata(r + '/snap/' + (SNAP_FILE[v] || v) + '.json');
+      if(!x.ok) return null;
+      const d = await x.json();
+      const agg = MAP_RUNNING[v];
+      if(agg && d.t && d.s) for(const sc in d.s) d.s[sc] = dayRunning(d.t, d.s[sc], agg);
+      return [r, d];
     } catch(e){ return null; }
   }));
   if(token !== snap.token || !snap.on) return null;
@@ -516,7 +538,7 @@ async function snapLoad(v){
   let kmax = n - 1, k0 = 0;
   while(kmax > 0 && cov[kmax] < 0.75 * mx) kmax--;
   while(k0 < kmax && cov[k0] < 0.5 * mx) k0++;
-  if(!isRain(v)){                                              // scala fissa: 2°-98° percentile
+  if(!classColor(v, 0)){                                       // scala fissa: 2°-98° percentile
     vals.sort((a, b) => a - b);
     const q = f => vals[Math.min(vals.length - 1, Math.max(0, Math.floor(f * (vals.length - 1))))];
     snap.vmin = q(0.02);
@@ -720,7 +742,7 @@ function closeSlider(){
 
 function lastRainVar(){
   let v = 'PREC24';
-  try { const s = localStorage.getItem('rainVar'); if(isRain(s)) v = s; } catch(e){}
+  try { const s = localStorage.getItem('rainVar'); if(isMapRain(s)) v = s; } catch(e){}
   return v;
 }
 let mapPrevPage = 'dirette';
@@ -730,7 +752,7 @@ function setMapVar(v){
       if(currentPage !== 'indici') mapPrevPage = currentPage;
       document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]').click();
     }
-    if(isRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
+    if(isMapRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
   } else if(currentPage === 'indici' && mapPrevPage !== 'indici'){
     document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]').click();
   }
@@ -764,10 +786,11 @@ function prodMenuHtml(){
                      ' title="' + p.name + ' (' + p.unit + ')">' +
                      pmLabel(g, p) + '</button>').join('') + '</div></div>').join('');
   }
-  if(isRain(filterVar))
+  if(isMapRain(filterVar))
     return '<div class="pm-g" data-g="Pioggia"><div class="pm-t">Pioggia caduta</div><div class="pm-seg">' +
-           RAIN_VARS.map(v => '<button data-v="' + v + '"' + (v === filterVar ? ' class="on"' : '') + '>' +
-                              v.slice(4) + ' h</button>').join('') +
+           ['PREC'].concat(RAIN_VARS).map(v =>
+             '<button data-v="' + v + '"' + (v === filterVar ? ' class="on"' : '') + '>' +
+             (v === 'PREC' ? 'oggi' : v.slice(4) + ' h') + '</button>').join('') +
            '</div></div>';
   return '';
 }
@@ -802,7 +825,7 @@ function placeTools(){
 function buildMapControls(){
   el('mcRain').addEventListener('click', () => {
     if(Radar.on){ radarOff(false); setMapVar(lastRainVar()); }
-    else setMapVar(isRain(filterVar) ? '' : lastRainVar());
+    else setMapVar(isMapRain(filterVar) ? '' : lastRainVar());
   });
   el('mcSnap').addEventListener('click', openSlider);
   el('mcRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
@@ -856,7 +879,7 @@ function buildMapControls(){
 }
 function syncMapControls(){
   const r = el('mcRain'), s = el('mcSnap');
-  r.classList.toggle('on', isRain(filterVar) && !Radar.on);            // col radar la pioggia e' il radar
+  r.classList.toggle('on', isMapRain(filterVar) && !Radar.on);         // col radar la pioggia e' il radar
   s.classList.toggle('on', snap.on);
   const sw = el('mcStations');
   sw.classList.toggle('on', radarUi.stations);

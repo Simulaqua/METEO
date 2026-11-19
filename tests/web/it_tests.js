@@ -293,8 +293,8 @@
     log(vis(el('colorbar')) && el('dkProd').textContent.includes(varLabel(filterVar)), 'legenda col nome della variabile', el('colorbar').textContent);
     el('dkProd').click(); await sleep(100);
     const items = [...document.querySelectorAll('#prodMenu [data-v]')];
-    eq('menu: finestre di pioggia', items.map(b => b.dataset.v), RAIN_VARS);
-    eq('menu: etichette', items.map(b => b.textContent), ['1 h', '3 h', '6 h', '12 h', '24 h', '48 h']);
+    eq('menu: oggi e finestre di pioggia', items.map(b => b.dataset.v), ['PREC'].concat(RAIN_VARS));
+    eq('menu: etichette', items.map(b => b.textContent), ['oggi', '1 h', '3 h', '6 h', '12 h', '24 h', '48 h']);
     const pick = document.querySelector('#prodMenu [data-v="PREC6"]');
     if(pick) pick.click();
     await until(() => filterVar === 'PREC6');
@@ -2845,6 +2845,29 @@
     };
     const fill = sc => { const r = markerRefs.find(x => x.p.scode === sc); return r ? r.m.options.fillColor : null; };
 
+    // Cursore sui dati veri, prima delle stazioni finte: pioggia di oggi = somma delle ore dopo mezzanotte (alle
+    // 00:00 vale 0), raffica massima di oggi = massimo delle massime orarie (cresce durante il giorno)
+    for(const [v, src] of [['PREC', 'PREC1'], ['VVENTOMAX', 'VVENTOMAX']]){
+      setMapVar(v); await sleep(300);
+      if(!snap.on) await openSlider(); else await snapOpenFor(v);
+      await until(() => snap.var === v && snap.T.length > 0, 20000);
+      const r0 = snap.var === v && Object.keys(snap.data)[0], d0 = r0 && snap.data[r0];
+      const raw = r0 ? await (await fdata(r0 + '/snap/' + src + '.json')).json() : null;
+      let bad = [], n = 0;
+      if(raw) for(const sc in d0.s) d0.s[sc].forEach((x, i) => {
+        const t = d0.t[i], start = t - t % 86400, own = raw.s[sc] || [];
+        const hrs = raw.t.map((tt, j) => tt > start && tt <= t ? own[j] : null).filter(y => y != null);
+        if(x == null) return;
+        n++;
+        const want = v === 'PREC' ? (t === start ? 0 : Math.round(hrs.reduce((a, y) => a + y, 0) * 10) / 10)
+                                  : Math.round(Math.max(...hrs) * 10) / 10;
+        if(Math.abs(x - want) > 0.051) bad.push([sc, t, x, want]);
+      });
+      log(snap.var === v && n > 0 && !bad.length, 'Cursore: ' + v + ' da mezzanotte, dai fotogrammi di ' + src + ' (' + r0 + ')',
+          JSON.stringify([snap.var, n, bad.slice(0, 3)]));
+    }
+    closeSlider();
+
     // vento: FVG in km/h e VEN in m/s sulla stessa scala, con "Tutte"
     await scene([fake('FVG', 'F1', 46.0, 13.2, { VVENTO:'36' }), fake('VEN', 'V1', 45.4, 11.9, { VVENTO:'10' }),
                  fake('LIG', 'L1', 44.4, 8.9, { VVENTO:'2' })], 'VVENTO');
@@ -2898,6 +2921,21 @@
     await scene([fake('VEN', 'O1', 45.4, 11.9, { PREC:'0.4' }), fake('VEN', 'O2', 45.5, 11.8, { PREC:'0' })], 'PREC');
     eq('dati vecchi: pioggia senza rif in grigio', [fill('O1'), fill('O2')], [NEUTRAL_COLOR, NEUTRAL_COLOR]);
     eq('legenda: in ritardo', el('dkNd').textContent, 'in ritardo');
+
+    // la somma e il massimo da mezzanotte (esclusa), con almeno il 70% delle ore
+    const M = Date.UTC(2026, 10, 19) / 1000, TT = [M - 7200, M - 3600, M, M + 3600, M + 7200, M + 10800];
+    const dr = (a, agg) => typeof dayRunning === 'function' ? dayRunning(TT, a, agg) : null;
+    eq('da mezzanotte: somma', dr([1, 1, 1, 1, 1, 1], 'sum'), [null, null, 0, 1, 2, 3]);
+    eq('da mezzanotte: massimo', dr([1, 1, 1, 1, 3, 1], 'max'), [null, null, null, 1, 3, 3]);
+    eq('da mezzanotte: un\'ora su tre non basta', dr([1, 1, 1, null, null, 1], 'sum'), [null, null, 0, null, null, null]);
+    // il menu della pioggia: "oggi" prima delle finestre, porta alla Precipitazione delle misure dirette
+    await scene([fake('VEN', 'R1', 45.4, 11.9, { PREC:'0.2', PREC24:4 }, { rif:{ PREC:3 } })], 'PREC24');
+    openProdMenu();
+    const first = el('prodMenu').querySelector('button');
+    eq('menu della pioggia: primo pulsante', first && first.textContent, 'oggi');
+    if(first){ first.click(); await sleep(200); }
+    eq('menu della pioggia: oggi = Precipitazione delle misure dirette',
+       [filterVar, currentPage, el('mcRain').classList.contains('on')], ['PREC', 'dirette', true]);
 
     eq('errori JS', window.__errs, []);
     finish();
