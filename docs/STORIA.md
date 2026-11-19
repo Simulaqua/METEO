@@ -124,9 +124,10 @@ altre e passa da sola.
   (il giorno che hanno pubblicato tutte le fonti), con le classi europee; il livello idrometrico come variazione in
   3 ore, perche' ogni asta ha il suo zero. L'export li scrive in `rif` di `stations.geojson`, con `lag`: i minuti
   di ritardo di ogni variabile sull'ultima misura della stazione.
-- **In grigio oltre 3 ore.** Una stazione con l'ultima lettura della variabile piu' vecchia di 3 ore e' grigia e
-  resta fuori dalla scala. Lombardia e Piemonte pubblicano con 4-8 ore di ritardo e sono spesso grigie: scelta
-  dell'utente, perche' il confronto sia onesto.
+- **Vuote oltre 3 ore.** Una stazione con l'ultima lettura della variabile piu' vecchia di 3 ore diventa un cerchio
+  vuoto col bordo grigio (il grigio pieno si confondeva con la pioggia "0 mm") e resta fuori dalla scala. Lombardia e
+  Piemonte pubblicano con 4-8 ore di ritardo e sono spesso vuote: scelta dell'utente, perche' il confronto sia
+  onesto.
 - **Etichette coi valori.** L'interruttore "Valori" nella plancia mette il numero sul colore al posto del puntino,
   solo dove le etichette non si toccano (prima le aggiornate, poi i valori piu' significativi); zoomando aumentano.
   Nel Cursore la raffica di ogni ora e' la massima dell'ora, cosi' la massima di oggi torna con la mappa.
