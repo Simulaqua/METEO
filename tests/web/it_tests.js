@@ -2837,6 +2837,7 @@
                                extra || {}) });
     const UNITS = { VEN:{ VVENTO:'m/s', RADSOL:'W/m²', LIVIDRO:'m', PREC:'mm', TEMP:'°C', UMID:'%', LIVNEVE:'cm' },
                     FVG:{ VVENTO:'km/h', RADSOL:'KJ/m^2', TEMP:'°C' }, LIG:{ VVENTO:'m/s', RADSOL:'W/m2', TEMP:'°C' },
+                    PC_FVG:{ RADSOL:'W/m²' },
                     LOM:{ LIVIDRO:'cm', TEMP:'°C' }, AQ_LOM:{ PM10:'µg/m³', O3:'µg/m³' } };
     const scene = async (features, v) => {
       if(snap.on) closeSlider();
@@ -2899,6 +2900,7 @@
       log(!!el('dkVal') && !shown('dkVal'), 'radar: prodotto senza puntini, niente interruttore', '');
       radarOff(true); await sleep(300);
     }
+    if(valuesOn()) sw.click();                                           // le prove dei puntini, senza etichette
 
     // vento: FVG in km/h e VEN in m/s sulla stessa scala, con "Tutte"
     await scene([fake('FVG', 'F1', 46.0, 13.2, { VVENTO:'36' }), fake('VEN', 'V1', 45.4, 11.9, { VVENTO:'10' }),
@@ -2915,6 +2917,10 @@
        typeof mapValue === 'function' ? mapValue(rad[0].properties, 'RADSOL', refR) : null, 500);
     log(!!fill('L2') && fill('L2') === fill('V2') && fill('L2') !== DOT_COLOR, 'radiazione: W/m2 e W/m² stesso colore',
         JSON.stringify([fill('L2'), fill('V2')]));
+    // Friuli: 64 stazioni OSMER in kJ/m² e 65 della Protezione Civile in W/m², quasi alla pari: il riferimento resta W/m²
+    const fvg = [fake('FVG', 'K1', 46.0, 13.2, { RADSOL:'500' }), fake('FVG', 'K2', 46.1, 13.3, { RADSOL:'600' }),
+                 fake('PC_FVG', 'K3', 46.2, 13.4, { RADSOL:'150' })];
+    eq('radiazione: riferimento sempre W/m²', refUnitFor('RADSOL', fvg), 'W/m²');
     // pioggia di oggi
     await scene([fake('VEN', 'V3', 45.4, 11.9, { PREC:'0.2' }, { rif:{ PREC:8 } }),
                  fake('VEN', 'V4', 45.5, 11.8, { PREC:'0' }, { rif:{ PREC:0 } })], 'PREC');
@@ -2944,11 +2950,20 @@
     eq('ritardo: 4 h fa, e 1 h fa con la temperatura indietro di 150 min, grigie', [fill('T1'), fill('T2')],
        [NEUTRAL_COLOR, NEUTRAL_COLOR]);
     log(![NEUTRAL_COLOR, DOT_COLOR].includes(fill('T3')), 'ritardo: 1 h fa colorata', fill('T3'));
+    const o1 = (markerRefs.find(r => r.p.scode === 'T1') || { m:{ options:{} } }).m.options;
+    eq('ritardo: cerchio vuoto col bordo grigio (non si confonde con 0 mm)', [o1.fillOpacity, o1.color], [0, '#8795a3']);
     eq('ritardo: la scala va da 5 a 10, senza le grigie', [...el('dkScale').querySelectorAll('.sc-ends span')]
        .map(e => e.textContent), ['5.0', '10.0']);
     await scene([fake('AQ_LOM', 'P1', 45.5, 9.2, { PM10:'30' }, { rif:{ PM10:30 }, latest_time:iso(NOW - 30 * H) })],
                 'PM10');
     eq('ritardo: il PM10 di ieri non e\' mai in ritardo', fill('P1'), '#50ccaa');
+    // tutte in ritardo (la Lombardia da sola, la mattina): la plancia resta, con il nome, «in ritardo» e Valori
+    await scene([fake('LOM', 'Z1', 45.5, 9.2, { TEMP:'7' }, { latest_time:iso(NOW - 8 * H) }),
+                 fake('LOM', 'Z2', 45.6, 9.3, { TEMP:'6' }, { latest_time:iso(NOW - 8 * H) })], 'TEMP');
+    const vis2 = id => !!el(id) && getComputedStyle(el(id)).display !== 'none';
+    log(vis2('colorbar') && el('dkName').textContent === 'Temperatura aria' && (PHONE.matches || vis2('dkNd')) &&
+        vis2('dkVal'), 'tutte in ritardo: la plancia resta', JSON.stringify([vis2('colorbar'), el('dkName').textContent,
+                                                                            vis2('dkNd'), vis2('dkVal')]));
     // dati vecchi, senza rif ne' lag (riserva di jsDelivr): grigio per le variabili col riferimento, nessun errore
     await scene([fake('VEN', 'O1', 45.4, 11.9, { PREC:'0.4' }), fake('VEN', 'O2', 45.5, 11.8, { PREC:'0' })], 'PREC');
     eq('dati vecchi: pioggia senza rif in grigio', [fill('O1'), fill('O2')], [NEUTRAL_COLOR, NEUTRAL_COLOR]);
@@ -2995,6 +3010,22 @@
     log(under.length > 0 && under.length === labs().length && under.every(r => r.m.options.opacity === 0),
         'etichette: il puntino sotto si nasconde', JSON.stringify([under.length, labs().length]));
     log(labs().some(e => e.classList.contains('late')), 'etichette: in ritardo grigie', '');
+    const lateLab = labs().find(e => e.classList.contains('late'));
+    eq('etichette: in ritardo vuote, col bordo grigio', lateLab ? [getComputedStyle(lateLab).backgroundColor,
+       getComputedStyle(lateLab).borderTopColor] : null, ['rgb(255, 255, 255)', 'rgb(135, 149, 163)']);
+    const fits = e => {                         // larghezza del testo vero (Range) contro lo spazio fra i bordi
+      const r = document.createRange(), cs = getComputedStyle(e);
+      r.selectNodeContents(e);
+      return r.getBoundingClientRect().width <= e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.25;
+    };
+    eq('etichette: il numero sta dentro', labs().filter(e => !fits(e)).map(e => e.textContent).slice(0, 4), []);
+    {                                     // l'ora di Roma si legge una volta per disegno, non per stazione
+      const orig = Date.prototype.toLocaleString;
+      let n = 0;
+      Date.prototype.toLocaleString = function(){ n++; return orig.apply(this, arguments); };
+      try { renderMarkers(); } finally { Date.prototype.toLocaleString = orig; }
+      log(n <= 2, 'ritardo: l\'ora di adesso letta una volta per disegno', n);
+    }
     eq('etichette: testi', typeof labelText === 'function'
        ? [labelText('TEMP', 8.84), labelText('UMID', 93.4), labelText('LIVIDRO', 12.4), labelText('LIVIDRO', -5)] : null,
        ['8.8', '93', '+12', '−5']);
@@ -3009,6 +3040,7 @@
       showMapView(); renderMarkers(); await sleep(400);
       const sel = document.querySelector('.vl.sel');
       eq('etichette: la stazione selezionata ha il bordo', sel && sel.dataset.k, k0);
+      log(!!sel && fits(sel), 'etichette: selezionata, il numero sta dentro', sel && sel.textContent);
       selectedKey = ''; renderMarkers(); await sleep(200);
       eq('etichette: deselezionata, nessun bordo', document.querySelectorAll('.vl.sel').length, 0);
     }

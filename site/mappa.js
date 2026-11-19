@@ -27,7 +27,9 @@ const LATE_H = 3;
 const MAP_DAILY = new Set(['PM10','PM25','O3','NO2','GDD','HDD','CDD','ET0']);
 // Ora dell'ultima lettura di v (ms, ora civile letta come UTC); lag = minuti di ritardo sull'ultima misura
 const varTime = (p, v) => isoCivil(p.latest_time) - 60000 * ((p.lag || {})[v] || 0);
-const isLate = (p, v) => !MAP_DAILY.has(v) && nowRome() - varTime(p, v) > LATE_H * 3600000;
+const isLate = (p, v, now) => !MAP_DAILY.has(v) && (now || nowRome()) - varTime(p, v) > LATE_H * 3600000;
+// Puntino in ritardo o senza valore: cerchio vuoto col bordo grigio, da non confondere con la pioggia "0 mm"
+const EMPTY_LINE = '#8795a3';
 const varTimeIso = (p, v) => (p.lag || {})[v] ? new Date(varTime(p, v)).toISOString().slice(0, 16)
                                               : p.latest_time;
 
@@ -62,8 +64,6 @@ const RAIN_STEPS = {
   PREC24:[0.2,2,5,10,25,50,100,150,200],    PREC48:[0.2,5,10,25,50,100,150,200,300]
 };
 RAIN_STEPS.PREC = RAIN_STEPS.PREC24;                  // "Precipitazione": la pioggia di oggi
-// Sulla mappa anche "Precipitazione" e' pioggia caduta
-const isMapRain = v => isRain(v) || v === 'PREC';
 const rainClass = (v, x) => {
   const st = RAIN_STEPS[v];
   let c = 0;
@@ -73,7 +73,7 @@ const rainClass = (v, x) => {
 const rainColor = (v, x) => RAIN_COLORS[rainClass(v, x)];
 // Colore delle variabili a classi fisse (pioggia, aria, livello); null per quelle a scala min-max
 function classColor(v, x){
-  if(isMapRain(v)) return rainColor(v, x);
+  if(isRainVar(v)) return rainColor(v, x);
   if(AQ_STEPS[v]) return EAQI_BANDS[AQ_STEPS[v].filter(s => x > s).length].c;
   if(v === 'LIVIDRO') return LEVEL_COLORS[LEVEL_STEPS.filter(s => x >= s).length];
   return null;
@@ -116,6 +116,7 @@ const UNIT_SAME = { 'W/m2':'W/m²', 'W/mq':'W/m²' };
 const unitOf = (region, v) => { const u = (unitsByRegion[region] || {})[v] || ''; return UNIT_SAME[u] || u; };
 function refUnitFor(v, list){
   if(v === 'LIVIDRO') return 'cm';
+  if(v === 'RADSOL') return 'W/m²';                // in Friuli le due fonti sono quasi alla pari
   const cnt = {};
   list.forEach(f => {
     const u = unitOf(f.properties._region, v);
@@ -294,7 +295,8 @@ function renderMarkers(){
   let vmin = null, vmax = null;
   const refU = cmVar ? refUnitFor(cmVar, list) : '';
   const valFor = p => !cmVar ? null : slide ? snapVal(p) : mapValue(p, cmVar, refU);
-  const late = p => !!cmVar && !slide && isLate(p, cmVar);          // col Cursore valgono i fotogrammi
+  const now = nowRome();
+  const late = p => !!cmVar && !slide && isLate(p, cmVar, now);     // col Cursore valgono i fotogrammi
   if(cmVar && classColor(cmVar, 0)){ vmin = 0; vmax = 0; }       // classi fisse, niente min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }
   else if(cmVar){
@@ -321,11 +323,11 @@ function renderMarkers(){
     }
     const z = map.getZoom();
     const rBase = z <= 7 ? 3 : (z <= 9 ? 4 : 6);
-    const m = L.circleMarker([p._lat, p._lon], {
-      radius: isSel ? rBase + 2 : rBase, color: isSel ? '#c05621' : stroke,
-      weight: isSel ? 2 : 1, fillColor: fill, fillOpacity: cmVar ? 0.9 : 0.75,
+    const look = dotLook(!!cmVar && (nv == null || stale), isSel, cmVar ? 0.9 : 0.75, stroke);
+    const m = L.circleMarker([p._lat, p._lon], Object.assign({
+      radius: isSel ? rBase + 2 : rBase, fillColor: fill,
       bubblingMouseEvents: false              // il tocco apre la stazione, non il popup del radar
-    });
+    }, look));
     if(!slide && cmVar && nv != null && map.getZoom() >= 11 && !showValues)
       m.bindTooltip(String(nv), { permanent:true, direction:'right', className:'vlab', offset:[7,0] });
     m.on('mouseover', () => cardHover(p, m));
@@ -334,7 +336,7 @@ function renderMarkers(){
       if(lastPointer === 'mouse'){ hideCard(); selectStation(p); } else openSheet(p, m);
     });
     m.addTo(markersLayer);
-    markerRefs.push({ m, p, nv: cmVar ? nv : null, fill, late: !!stale });
+    markerRefs.push({ m, p, nv: cmVar ? nv : null, fill, late: !!stale, look, sel: isSel });
     bounds.push([p._lat, p._lon]);
   });
   labelsVar = cmVar || '';
@@ -362,17 +364,23 @@ function repaintSnap(){
     let fill = NEUTRAL_COLOR;
     if(nv != null) fill = radarDotColor(v, nv) || classColor(v, nv) ||
                           colormap(snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5);
-    r.m.setStyle({ fillColor: fill });
-    Object.assign(r, { nv, fill, late: false });
+    r.look = dotLook(nv == null, r.sel, 0.9, '#33475a');
+    r.m.setStyle(Object.assign({ fillColor: fill }, r.look));
+    Object.assign(r, { nv, fill, late: false, under: false });
   });
   renderLabels();
+}
+// Bordo e riempimento di un puntino: vuoto (in ritardo o senza valore), selezionato o normale
+function dotLook(empty, sel, fillOpacity, stroke){
+  return { opacity: 1, fillOpacity: empty ? 0 : fillOpacity,
+           color: sel ? '#c05621' : empty ? EMPTY_LINE : stroke, weight: sel ? 2 : empty ? 1.5 : 1 };
 }
 
 // ---- ETICHETTE (interruttore "Valori" nella plancia): il numero sul colore del valore al posto del puntino,
 // solo dove non si toccano; le altre stazioni restano puntini e zoomando le etichette aumentano
 let showValues = false, labelsLayer = null, labelsVar = '';
 try { showValues = localStorage.getItem('mapValues') === '1'; } catch(e){}
-const LABEL_H = 16, LABEL_GAP = 2, LABEL_PAD = 9;
+const LABEL_H = 16, LABEL_GAP = 2, LABEL_PAD = 10;
 const LABEL_DEC = { TEMP:1, PREC:1, VVENTO:1, VVENTOMAX:1, UMID:0, LIVNEVE:0, RADSOL:0, PM10:0, PM25:0, O3:0,
                     NO2:0 };
 // Dove le etichette non stanno tutte vincono le stazioni aggiornate, poi i valori alti (piu' pioggia, piu'
@@ -391,7 +399,7 @@ function renderLabels(){
   if(!labelsLayer) return;
   labelsLayer.clearLayers();
   markerRefs.forEach(r => {
-    if(r.under){ r.m.setStyle({ opacity:1, fillOpacity:r.fo }); r.under = false; }
+    if(r.under){ r.m.setStyle(r.look); r.under = false; }
   });
   const v = labelsVar;
   if(!showValues || !v) return;
@@ -424,7 +432,6 @@ function renderLabels(){
       if(lastPointer === 'mouse'){ hideCard(); selectStation(r.p); } else openSheet(r.p, r.m);
     });
     lm.addTo(labelsLayer);
-    r.fo = r.m.options.fillOpacity;
     r.m.setStyle({ opacity:0, fillOpacity:0 });
     r.under = true;
   });
@@ -480,7 +487,7 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
     nd = !!(radarUi.stations && radarDotsVar());
   } else if(varName && vmin != null){
     name = varLabel(varName) + (MAP_REF[varName] ? ' · ' + MAP_REF[varName] : '');
-    if(isMapRain(varName)){
+    if(isRainVar(varName)){
       unit = 'mm';
       menu = true;
       scale = scaleSteps(RAIN_COLORS, RAIN_STEPS[varName]);
@@ -505,6 +512,9 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
                          [0, .2, .4, .6, .8, 1].map(t => colormap(t)).join(',') + ')',
                          fmtNum(vmin), fmtNum(vmax));
     }
+  } else if(varName){                                 // tutte in ritardo: nome e "in ritardo", senza scala
+    name = varLabel(varName) + (MAP_REF[varName] ? ' · ' + MAP_REF[varName] : '');
+    unit = unitOverride || unitForVar(varName);
   }
   cb.style.display = name ? '' : 'none';
   if(!name) return;
@@ -818,7 +828,7 @@ function closeSlider(){
 
 function lastRainVar(){
   let v = 'PREC24';
-  try { const s = localStorage.getItem('rainVar'); if(isMapRain(s)) v = s; } catch(e){}
+  try { const s = localStorage.getItem('rainVar'); if(isRainVar(s)) v = s; } catch(e){}
   return v;
 }
 let mapPrevPage = 'dirette';
@@ -828,7 +838,7 @@ function setMapVar(v){
       if(currentPage !== 'indici') mapPrevPage = currentPage;
       document.querySelector('#pages .pg[data-page="' + varCat(v) + '"]').click();
     }
-    if(isMapRain(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
+    if(isRainVar(v)){ try { localStorage.setItem('rainVar', v); } catch(e){} }
   } else if(currentPage === 'indici' && mapPrevPage !== 'indici'){
     document.querySelector('#pages .pg[data-page="' + mapPrevPage + '"]').click();
   }
@@ -862,7 +872,7 @@ function prodMenuHtml(){
                      ' title="' + p.name + ' (' + p.unit + ')">' +
                      pmLabel(g, p) + '</button>').join('') + '</div></div>').join('');
   }
-  if(isMapRain(filterVar))
+  if(isRainVar(filterVar))
     return '<div class="pm-g" data-g="Pioggia"><div class="pm-t">Pioggia caduta</div><div class="pm-seg">' +
            ['PREC'].concat(RAIN_VARS).map(v =>
              '<button data-v="' + v + '"' + (v === filterVar ? ' class="on"' : '') + '>' +
@@ -901,7 +911,7 @@ function placeTools(){
 function buildMapControls(){
   el('mcRain').addEventListener('click', () => {
     if(Radar.on){ radarOff(false); setMapVar(lastRainVar()); }
-    else setMapVar(isMapRain(filterVar) ? '' : lastRainVar());
+    else setMapVar(isRainVar(filterVar) ? '' : lastRainVar());
   });
   el('mcSnap').addEventListener('click', openSlider);
   el('mcValues').addEventListener('click', () => {
@@ -962,7 +972,7 @@ function buildMapControls(){
 }
 function syncMapControls(){
   const r = el('mcRain'), s = el('mcSnap');
-  r.classList.toggle('on', isMapRain(filterVar) && !Radar.on);         // col radar la pioggia e' il radar
+  r.classList.toggle('on', isRainVar(filterVar) && !Radar.on);         // col radar la pioggia e' il radar
   s.classList.toggle('on', snap.on);
   const sw = el('mcStations');
   sw.classList.toggle('on', radarUi.stations);
@@ -1171,7 +1181,7 @@ function sparkSvg(vals, bars){
 // la stessa stazione
 async function fillTrend(box, p, mainV, still){
   if(!mainV) return false;
-  const rain = isMapRain(mainV), frame = cardFrame(), S = await cardSeries(p, rain ? 'PREC1' : mainV, frame);
+  const rain = isRainVar(mainV), frame = cardFrame(), S = await cardSeries(p, rain ? 'PREC1' : mainV, frame);
   if(!S || !still()) return false;
   const vals = S.vals.slice(-24), xs = vals.filter(x => x != null), q = s => box.querySelector(s);
   q('.hc-spark').innerHTML = sparkSvg(vals, rain);
