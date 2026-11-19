@@ -7,7 +7,9 @@
 #   charts/<Codice>/Vento         grafico XML: unica fonte della DIREZIONE del vento (oraria, ~640 KB)
 # Tutti i tempi OMIRL sono UTC: ora solare = UTC + 1 h.
 # Pluvio PREC mm = pioggia dell'ora che FINISCE all'istante. Viene SOLO dalla serie oraria: il 'value'
-# dell'istantanea e' una cumulata mobile di un'ora e campionarla non da' ore sommabili.
+# dell'istantanea e' una cumulata mobile di un'ora e campionarla non da' ore sommabili. La serie ha anche
+# l'ora in corso, ancora parziale, e OMIRL completa le ore in ritardo: l'ora in corso si salta e il valore
+# della serie sostituisce quello salvato.
 # Ogni giro (cron :14 e :44): istantanee + serie oraria della pioggia (~200 CSV da 1,6 KB).
 # Ogni 3 ore: serie del vento (raffiche). Nel giro delle 03: serie complete di tutte le classi + direzione del
 # vento, per chiudere i buchi (Pi spento, fonte ferma) e avere la risoluzione piena.
@@ -119,10 +121,12 @@ def download(full=False, wind=False, debug=False):
         if debug:
             print('  %-6s serie: %d stazioni lette, %d errori' % (cls, ok, err))
 
-    # 2) pioggia oraria: serie di ogni pluviometro (l'unica fonte di ore sommabili)
+    # 2) pioggia oraria: serie di ogni pluviometro (l'unica fonte di ore sommabili), solo le ore finite
+    now = comune.now_solar().strftime('%Y%m%d%H%M')
+
     def rain(scode, code):
         for moment, values in series_csv(code, 'Pluvio'):
-            if values and values[0] is not None:
+            if moment <= now and values and values[0] is not None:
                 add(readings, 'PREC', scode, moment, values[0])
     run_series('Pluvio', rain)
 
@@ -167,7 +171,7 @@ def main():
         ' - serie complete' if full else (' + vento' if wind else '')))
     try:
         stations, readings = download(full=full, wind=wind, debug=args.debug)
-        comune.write_parsed('LIG', stations, readings, UNITS)
+        comune.write_parsed('LIG', stations, readings, UNITS, replace={'PREC'})
     except Exception as e:
         print('[LIG] ERRORE: %s' % e)
 

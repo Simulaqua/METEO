@@ -181,6 +181,30 @@ class TestScarico(unittest.TestCase):
     def test_liguria_full(self):
         self.check_source('liguria', 'full', 'dati_liguria.py', ['--full'])
 
+    def test_liguria_pioggia_ora_in_corso(self):
+        # la serie oraria di OMIRL ha anche l'ora in corso, segnata con la sua fine e ancora parziale: il giro
+        # la salta, e un'ora già salvata prende il valore della serie, che intanto si è completato
+        lig = load_file(os.path.join(registratore.PROJECT, 'dati_liguria.py'))
+        pluvio = [('LIG1', '1', 'Uno', 44.4, 8.9, None, None)]
+        snapshot = lambda cls: pluvio if cls == 'Pluvio' else []
+        csv = '19/11/2026 11:00;17.5;\n19/11/2026 12:00;0.4;\n19/11/2026 13:00;0.2;\n'      # UTC
+        now = lig.datetime.datetime(2026, 11, 19, 13, 50)                                    # solare
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(lig, 'snapshot', side_effect=snapshot), \
+                mock.patch.object(lig.comune, 'get_text', return_value=csv), \
+                mock.patch.object(lig.comune, 'now_solar', return_value=now), \
+                mock.patch.object(lig.comune, 'BASE', folder), \
+                mock.patch.object(sys, 'argv', ['dati_liguria.py']), \
+                contextlib.redirect_stdout(io.StringIO()):
+            day = os.path.join(folder, 'LIG', 'data-parsed', 'PREC', 'PREC-20261119.json')
+            os.makedirs(os.path.dirname(day))
+            with open(day, 'w', encoding='utf-8') as fp:
+                json.dump({'LIG1': {'STAZIONE': {'SCODE': 'LIG1'}, 'UM': 'mm',
+                                    'MISURE': {'ISTANTE': ['202611191200'], 'VALORE': [5.2]}}}, fp)
+            lig.main()
+            measures = read_json(day)['LIG1']['MISURE']
+        self.assertEqual(measures, {'ISTANTE': ['202611191200', '202611191300'], 'VALORE': [17.5, 0.4]})
+
     def test_pc_tutte(self):
         self.check_source('pc', 'tutte', 'dati_pc.py', ['-r', 'all'])
 

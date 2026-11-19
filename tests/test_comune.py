@@ -224,6 +224,21 @@ class TestWriteParsed(unittest.TestCase):
         write_parsed('XX', self.stations, {'TEMP': {'S1': [('202601010000', 9.0)]}}, {'TEMP': '°C'}, days=None)
         self.assertEqual(self.giorno('TEMP', '20260101')['S1']['MISURE']['VALORE'], [9.0])
 
+    def test_replace_sostituisce_solo_le_variabili_indicate(self):
+        # una fonte che completa le sue serie dopo (la pioggia oraria di OMIRL) vince sul valore salvato;
+        # le altre variabili tengono il primo, e un None non cancella niente
+        units = {'PREC': 'mm', 'TEMP': '°C'}
+        prima = {'PREC': {'S1': [('202601100100', 0.2), ('202601100200', 1.0)]},
+                 'TEMP': {'S1': [('202601100100', 1.0)]}}
+        write_parsed('XX', self.stations, prima, units)
+        dopo = {'PREC': {'S1': [('202601100100', 1.4), ('202601100200', None), ('202601100300', 0.0)]},
+                'TEMP': {'S1': [('202601100100', 5.0)]}}
+        self.assertEqual(write_parsed('XX', self.stations, dopo, units, replace={'PREC'}), 1)
+        measures = self.giorno('PREC', '20260110')['S1']['MISURE']
+        self.assertEqual(measures['ISTANTE'], ['202601100100', '202601100200', '202601100300'])
+        self.assertEqual(measures['VALORE'], [1.4, 1.0, 0.0])
+        self.assertEqual(self.giorno('TEMP', '20260110')['S1']['MISURE']['VALORE'], [1.0])
+
 
 class TestAttrezziParte3(unittest.TestCase):
     def setUp(self):

@@ -167,10 +167,10 @@ def slug(name, empty='staz'):
 
 
 # --- Fusione nei file giornalieri
-def merge_readings(parse_dir, var, readings, new_record):
+def merge_readings(parse_dir, var, readings, new_record, replace=False):
     """Fonde `readings` = {scode: [(istante, valore)]} nei file <var>-<AAAAMMGG>.json di parse_dir, per
-    istante; i None si saltano e un istante già salvato tiene il suo valore. `new_record(scode)` crea
-    il record di una stazione assente dal file. Ritorna le letture aggiunte."""
+    istante; i None si saltano e un istante già salvato tiene il suo valore (con `replace` prende il
+    nuovo). `new_record(scode)` crea il record di una stazione assente. Ritorna le letture aggiunte."""
     by_day = {}
     for sc, pts in readings.items():
         for ist, val in pts:
@@ -192,7 +192,7 @@ def merge_readings(parse_dir, var, readings, new_record):
             merged = dict(zip(m['ISTANTE'], m['VALORE']))
             before = len(merged)
             for ist, val in pts:
-                if ist not in merged:
+                if replace or ist not in merged:
                     merged[ist] = val
             keys = sorted(merged.keys())
             m['ISTANTE'] = keys
@@ -202,9 +202,10 @@ def merge_readings(parse_dir, var, readings, new_record):
     return added
 
 
-def write_parsed(region_code, stations, readings, units, days=8):
+def write_parsed(region_code, stations, readings, units, days=8, replace=()):
     """Fonde le letture in <regione>/data-parsed/<VAR>/<VAR>-<AAAAMMGG>.json, senza doppioni per istante.
-    Le letture più vecchie di `days` giorni si scartano (days=None: si tengono)."""
+    Le letture più vecchie di `days` giorni si scartano (days=None: si tengono). Per le variabili in
+    `replace` il valore nuovo di un istante sostituisce quello salvato."""
     parse_dir = os.path.join(BASE, region_code, 'data-parsed')
     stazioni_path = os.path.join(parse_dir, 'stazioni.json')
     station_list = load_json(stazioni_path)
@@ -222,7 +223,7 @@ def write_parsed(region_code, stations, readings, units, days=8):
         new_record = lambda sc, var=var: {'STAZIONE': station_list.get(sc, {'SCODE': sc}),
                                           'UM': units.get(var),
                                           'MISURE': {'ISTANTE': [], 'VALORE': []}}
-        added += merge_readings(os.path.join(parse_dir, var), var, recent, new_record)
+        added += merge_readings(os.path.join(parse_dir, var), var, recent, new_record, replace=var in replace)
     save_json(station_list, stazioni_path)
     print('[%s] stazioni: %d | nuove letture inserite: %d' % (region_code, len(stations), added))
     return added
