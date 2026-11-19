@@ -55,6 +55,10 @@ DAILY_DERIVED = {'GDD', 'HDD', 'CDD', 'ET0'}
 # Livello idrometrico: la mappa ne colora la variazione, perche' ogni asta ha il suo zero
 LEVEL_HOURS = 3
 LEVEL_TOLERANCE = datetime.timedelta(minutes=30)
+# Qualita' dell'aria sulla mappa: i valori di ieri, il giorno che hanno pubblicato tutte le fonti (ARPAE e
+# APPA Trento solo il mattino dopo). Media per le polveri, massimo orario per ozono e NO2.
+AQ_DAILY_MEAN = ('PM10', 'PM25')
+AQ_DAILY_MAX = ('O3', 'NO2')
 
 
 def main():
@@ -447,9 +451,32 @@ def level_change(points):
     return round(value - before[-1][1], 3) + 0.0                       # niente "-0.0"
 
 
+def aq_yesterday(region, var, readings, today):
+    """Il valore di ieri (today - 1, giorno solare come nella striscia del PM10), intero: per le polveri la
+    media con le regole di pm10_year, per ozono e NO2 il massimo orario; None se il giorno non è completo."""
+    day = today - datetime.timedelta(days=1)
+    values = []
+    for instant in sorted(readings):
+        number = comune.to_float(readings[instant])
+        try:
+            if number is not None and pm10_day(region, instant) == day:
+                values.append(number)
+        except ValueError:
+            continue
+    value = None
+    if var in AQ_DAILY_MAX:
+        if len(values) >= PM10_MIN_HOURS:
+            value = max(values)
+    elif values and region in PM10_LAST:
+        value = values[-1]
+    elif values and (region in PM10_DAILY or len(values) >= PM10_MIN_HOURS):
+        value = sum(values) / len(values)
+    return None if value is None else int(math.floor(value + 0.5))
+
+
 def map_refs(region, per_var, now):
     """I valori che colorano la mappa quando non sono l'ultimo letto: pioggia e raffica massima di oggi,
-    variazione del livello."""
+    variazione del livello, qualità dell'aria di ieri."""
     refs = {}
     midnight = civil_midnight(now)
     rain = readings_of(per_var.get('PREC'))
@@ -466,6 +493,10 @@ def map_refs(region, per_var, now):
     change = level_change(readings_of(per_var.get('LIVIDRO')))
     if change is not None:
         refs['LIVIDRO'] = change
+    for var in AQ_DAILY_MEAN + AQ_DAILY_MAX:
+        value = aq_yesterday(region, var, per_var.get(var) or {}, now.date())
+        if value is not None:
+            refs[var] = value
     return refs
 
 

@@ -318,6 +318,43 @@ class TestRiferimenti(unittest.TestCase):
         self.assertNotIn('TEMP', lag)
         self.assertNotIn('HDD', lag)                   # giornaliera, segnata alle 12:00: mai in ritardo
 
+    # Qualità dell'aria: i valori di ieri (18/11), il giorno che tutte le fonti hanno pubblicato
+    def test_pm10_ieri_orarie(self):
+        hours = every('202611180000', '202611182300', 60, lambda i: 10.0 + i)          # media 21.5
+        archive = {'AQ_BZ': {'A': (station(46.5, 11.3), {'PM10': hours}),
+                             'B': (station(46.6, 11.4), {'PM10': hours[:17]})}}
+        props = map_properties(archive, MORNING, 'AQ_BZ')
+        self.assertEqual(props['A']['rif']['PM10'], 22)
+        self.assertNotIn('PM10', props['B'].get('rif', {}))
+
+    def test_pm10_ieri_er(self):
+        # ARPAE segna la media del giorno alle 00:00 del giorno dopo
+        archive = {'AQ_ER': {'A': (station(44.5, 11.3), {'PM10': [('202611190000', 41.0)]}),
+                             'B': (station(44.6, 11.4), {'PM10': [('202611180000', 39.0)]})}}
+        props = map_properties(archive, MORNING, 'AQ_ER')
+        self.assertEqual(props['A']['rif']['PM10'], 41)
+        self.assertNotIn('PM10', props['B'].get('rif', {}))
+
+    def test_pm10_ieri_ven_ultimo(self):
+        # ARPAV aggiorna la media del giorno piu' volte: vale l'ultima
+        pm10 = [('202611181000', 30.0), ('202611182000', 35.0)]
+        props = map_properties({'AQ_VEN': {'A': (station(45.4, 11.9), {'PM10': pm10})}}, MORNING, 'AQ_VEN')
+        self.assertEqual(props['A']['rif']['PM10'], 35)
+
+    def test_ozono_massimo_di_ieri(self):
+        hours = [(m, 88.4 if m == '202611181400' else 40.0)
+                 for m, _ in every('202611180000', '202611182300', 60)]
+        archive = {'AQ_LOM': {'A': (station(45.5, 9.2), {'O3': hours}),
+                              'B': (station(45.6, 9.3), {'O3': hours[:17]})}}
+        props = map_properties(archive, MORNING, 'AQ_LOM')
+        self.assertEqual(props['A']['rif']['O3'], 88)
+        self.assertNotIn('O3', props['B'].get('rif', {}))
+
+    def test_pm25_come_pm10(self):
+        props = map_properties({'AQ_LOM': {'A': (station(45.5, 9.2), {'PM25': [('202611180000', 37.0)]})}},
+                               MORNING, 'AQ_LOM')
+        self.assertEqual(props['A']['rif']['PM25'], 37)
+
 
 if __name__ == '__main__':
     unittest.main()

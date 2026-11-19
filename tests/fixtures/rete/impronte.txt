@@ -1822,7 +1822,7 @@ e8b45234b245376ce4488b29e7fcce8256019784  site/AQ_BZ/series30/ML2.csv
 ee6ab14a206eac5649bf899ea6db5d623b7291fb  site/AQ_BZ/series30/ML6.csv
 e23606b08a876033770d62d36942e3933c295467  site/AQ_BZ/series30/RE.csv
 95cfb19f776aae3b72ff389dbb128cabe97ce006  site/AQ_BZ/series30/RE1.csv
-5e0617837d5c69c6994d3ba6f0acb53fdb4b580d  site/AQ_BZ/stations.geojson
+e6c58e7f18ddd4bd8332fe70bfbe83d4bcdb7655  site/AQ_BZ/stations.geojson
 17d39eccb42c35a993020696bbcb332873b1fde3  site/AQ_BZ/units.json
 85236a5b43eff7c8bc814642bb2e514da5af14a5  site/AQ_ER/pm10_anno.json
 26a88e9531d66afbe38c46e12848c8a3158a0aee  site/AQ_ER/series/10000001.csv
@@ -2088,7 +2088,7 @@ e027ff448ad4dc7de554feffc747a99261f29274  site/AQ_LOM/series30/705.csv
 0161e48f05f58a31e1a0afd535bbba088bcd8aa6  site/AQ_LOM/series30/708.csv
 ccac9c16bb1b75b7a45d97121288226db061574f  site/AQ_LOM/series30/709.csv
 7ae37da0a6b479b5eb64ce26bacde01d786b76cc  site/AQ_LOM/series30/9157.csv
-6f2560a5ab67f710b3dc351d31bffdd5dd84dc22  site/AQ_LOM/stations.geojson
+4aad90a6eb72944220c336d2f0844336e2186f27  site/AQ_LOM/stations.geojson
 cbccbca8b152b48653239afae63a1f6a13140a9d  site/AQ_LOM/units.json
 fe0b88f38e56abcf18e6dba30afdf6bd565e3d39  site/AQ_TN/pm10_anno.json
 78ff2741dfa2a58621953e46cc0eb86ef98423e8  site/AQ_TN/series/A22__Avio.csv
@@ -2172,7 +2172,7 @@ ffb6a4fc8dadead955ed78a9806279f9e0d15060  site/AQ_VEN/series30/500021975.csv
 38494e1f4239f76d8d53ae1d24e3ebe09e2daf19  site/AQ_VEN/series30/500022612.csv
 38bb2b9a707dc2c1e83bac7788b345ec31365e4f  site/AQ_VEN/series30/500022715.csv
 d6c55148d037f688417b3d93952849fa33da6110  site/AQ_VEN/series30/500023627.csv
-d0f7f028094460c8b655247bc8a4540563061f91  site/AQ_VEN/stations.geojson
+f55cf45f20b4bb0fea69cf999447c19c230f57c1  site/AQ_VEN/stations.geojson
 2483b1c41132b4afad8c4ad909bd79ef4ba534d4  site/AQ_VEN/units.json
 11517aeb8933edd92c29decee17d2293e4cd2e43  site/BZ/series/00390SF.csv
 4b5a321e6c1719604a70ab3346e033f8f7788c06  site/BZ/series/00700WS.csv
