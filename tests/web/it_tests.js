@@ -961,6 +961,27 @@
     eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
     setMapVar(''); await until(() => filterVar === '');
 
+    // testa: sotto il nome regione e fonte; a destra il valore della prima variabile, che segue il cursore
+    await open(A);
+    {
+      const src = (SOURCES[A._region] || {}).name, nowTxt = () => [el('stNowVal').textContent, el('stNowWhen').textContent];
+      eq('testa: regione e fonte sotto il nome', el('stationWhere').textContent,
+         regionLabel(A._region) + (src ? ' · ' + src : ''));
+      const [v0, w0] = nowTxt();
+      log(vis(el('stNow')) && /\d/.test(v0) && v0.includes('°C') && /\d\d:\d\d/.test(w0), 'testa: valore con unità e ora',
+          v0 + ' | ' + w0);
+      const ov = chart.over, R = ov.getBoundingClientRect();
+      ov.dispatchEvent(new MouseEvent('mousemove', { clientX:R.left + R.width * 0.3, clientY:R.top + R.height / 2, bubbles:true }));
+      await sleep(100);
+      log(nowTxt()[1] && nowTxt()[1] !== w0, 'testa: col cursore il valore e l\'ora del punto', w0 + ' → ' + nowTxt()[1]);
+      ov.dispatchEvent(new MouseEvent('mouseleave', { bubbles:true })); await sleep(100);
+      eq('testa: fuori dal grafico torna l\'ultimo', nowTxt(), [v0, w0]);
+      await pickMode('compare'); await sleep(400);
+      log(!vis(el('stNow')), 'testa: niente valore nei Confronti', '');
+      await pickMode('week'); await sleep(400);
+      log(vis(el('stNow')), 'testa: torna col grafico', '');
+    }
+
     // riga: le misure principali in ordine fisico, la scelta col trattino del suo colore; derivate e indici in "Altro"
     await open(A);
     eq('riga: le principali in ordine fisico', row(), mainNow());

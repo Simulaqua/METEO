@@ -73,6 +73,16 @@ body.view-station #panel { display:flex; }
 #stCard dt, #notepanel dt { font-weight:600; }
 #stCard dd, #notepanel dd { margin:0; }
 #stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
+#stationWhere { font-size:12.5px; color:var(--muted); }
+#stationWhere:empty { display:none; }
+/* a destra, sulla riga del nome (il grafico resta in alto): il valore della prima variabile, l'ultimo o
+   quello al cursore, e la sua ora */
+#stNow { display:flex; align-items:baseline; gap:8px; line-height:1.15; white-space:nowrap;
+         font-variant-numeric:tabular-nums; }
+#stNow[hidden], body.hist-mode #stNow, body.view-compare #stNow, body.rose-mode #stNow,
+body.clima-mode #stNow { display:none; }
+#stNow b { font-size:22px; font-weight:600; letter-spacing:-.01em; }
+#stNow span { font-size:12px; color:var(--muted); }
 #stationMeta:empty { display:none; }
 body.dark #stationMeta { color:#f0a35e; }
 #ptools { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; margin-left:auto; }
@@ -635,8 +645,8 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   .sr { padding:8px 10px; }
   .sr-n, .sr-v { font-size:15px; }
   .sr-r { font-size:12.5px; }
-  #pillRow { overflow-x:auto; scrollbar-width:none; margin:3px -3px -3px; padding:3px;
-             border-left:none; border-top:1px solid var(--pl2); }    /* la riga scorre anche fra due pulsanti */
+  #pillRow { overflow-x:auto; scrollbar-width:none; margin:3px -3px -3px; padding:3px;   /* stretta: scorre */
+             border-left:none; border-top:1px solid var(--pl2); }
   #pillRow::-webkit-scrollbar { display:none; }
   .pill { height:36px; padding:0 7px; }
   #moreBtn, #noteBtn { width:32px; }
@@ -648,7 +658,10 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #panel { padding:10px 12px 18px; }
   /* riga 1: nome e azioni (il nome va a capo); sotto periodi, Storico e Confronta su una riga loro; poi le
      variabili */
-  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 12px; }
+  #phead { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; align-items:center; gap:8px; }
+  #stNow b { font-size:18px; }
+  #stNow { gap:5px; }
+  #stationWhere { display:none; }                 /* sul telefono la riga del nome resta una */
   #pbar { flex-wrap:wrap; gap:8px; }
   #ptools { order:-1; flex:1 0 100%; margin-left:0; gap:8px; }
   /* comandi alti 32 px, da toccare col dito */

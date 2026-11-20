@@ -262,6 +262,7 @@ function renderCompareSet(label, unit, list, why){
 // ------------------------------------------------------------------------------------------------
 function clearChart(){
   if(chart){ chart.destroy(); chart = null; }
+  el('stNow').hidden = true;
   if(stackObj){ stackObj.destroy(); stackObj = null; }
   el('chart').innerHTML='';
   el('chartsum').textContent = '';
@@ -289,6 +290,26 @@ function renderLegend(u){
 }
 function legendCursor(u){
   if(u === chart && u._labs) cursorLabels(u);
+  if(u === chart && u._m){
+    const c = u.cursor, out = c.left == null || c.left < 0;
+    headValue(u, out ? null : (c.idxs && c.idxs[1] != null ? c.idxs[1] : c.idx));
+  }
+}
+// In testa alla scheda il valore della prima variabile: l'ultimo o, col cursore, quello del punto; solo col
+// grafico delle misure (niente Confronti, Impilate, Storico)
+function headValue(u, j){
+  const box = el('stNow'), m = u._m, d = m && m.s1 && u.data[1];
+  if(!d){ box.hidden = true; return; }
+  if(j == null || d[j] == null){
+    j = d.length - 1;
+    while(j >= 0 && d[j] == null) j--;
+  }
+  if(j < 0){ box.hidden = true; return; }
+  el('stNowVal').innerHTML = isDirVar(m.s1.src) ? windDirHtml(d[j])
+                            : numTxt(d[j], m.s1.src) + unitTxt(m.s1.unit);
+  const t = slotTimeTxt(u, 1, j), today = fmtDayTimeC(civT(Date.now() / 1000)).slice(0, 6);
+  el('stNowWhen').textContent = t.startsWith(today) ? t.slice(6) : t;          // di oggi basta l'ora
+  box.hidden = false;
 }
 function addLabels(u){
   u._labs = document.createElement('div');
@@ -1269,6 +1290,7 @@ function renderChart(label){
   chart._m = m;
   chart._hi = (W, H) => mainOpts(m, { w: W, h: H, hi: true });
   renderLegend(chart);
+  headValue(chart);
   addZoomUI(chart, () => m.win, HOUR);
   el('chartsum').textContent = chartSummary(m);
 }

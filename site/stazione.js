@@ -7,6 +7,8 @@ function resetPanel(){
   el('stationName').textContent = 'Seleziona una stazione';
   el('stationName').title = '';
   el('stationMeta').textContent = '';
+  el('stationWhere').textContent = '';
+  el('stNow').hidden = true;
   el('stInfo').hidden = true;
   cardClose();
   expClose();
@@ -94,6 +96,7 @@ async function selectStation(props){
   el('stationName').textContent = prettyName(props.name || props.scode);
   el('stationMeta').textContent = '';
   const src = SOURCES[region];
+  el('stationWhere').textContent = regionLabel(region) + (src ? ' · ' + src.name : '');
   el('source').innerHTML = (src
     ? `Fonte: <a href="${src.url}" target="_blank" rel="noopener">${escHtml(src.name)}</a>. `
     : '') + TZNOTE;
@@ -531,6 +534,7 @@ async function renderCompareView(){
   el('stInfo').hidden = true;
   cardClose();
   el('stationMeta').textContent = openTabs.length ? '' : 'nessuna scheda aperta';
+  el('stationWhere').textContent = '';
   el('source').innerHTML = TZNOTE;
   el('pact').hidden = el('ptools').hidden = el('pbar').hidden = false;
   el('windrose').innerHTML = '';
