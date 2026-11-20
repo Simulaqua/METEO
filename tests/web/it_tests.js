@@ -254,7 +254,7 @@
       log(!vis(el('dkToggle')) && !dock.classList.contains('min'), 'desktop: plancia sempre aperta', dock.className);
     } else {
       log(!vis(document.querySelector('.leaflet-control-zoom')), 'telefono: niente +/−', '');
-      const pa = el('pgPill').getBoundingClientRect(), pb = el('regPill').getBoundingClientRect();
+      const pa = el('regPill').getBoundingClientRect(), pb = el('varPill').getBoundingClientRect();
       const gap = document.elementFromPoint((pa.right + pb.left) / 2, (pa.top + pa.bottom) / 2);
       log(!!gap && el('pillRow').contains(gap), 'telefono: fra le pillole il tocco resta alla riga', gap && (gap.id || gap.className));
       log(dock.classList.contains('min'), 'telefono: parte chiusa', dock.className);
@@ -480,7 +480,8 @@
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     log(!vis(el('sidebar')), 'niente barra laterale', '');
     log(vis(el('topbar')) && vis(el('stationQ')), 'ricerca sopra la mappa', '');
-    eq('pillole', ['pgPill', 'regPill', 'varPill', 'srcinfo', 'noteBtn', 'moreBtn'].map(id => vis(el(id))), [true, true, true, true, true, true]);
+    eq('pillole: niente pagina, la variabile basta', [...['regPill', 'varPill', 'srcinfo', 'noteBtn', 'moreBtn']
+       .map(id => vis(el(id))), !!el('pgPill')], [true, true, true, true, true, false]);
     {                                                                // Note: la "i" fra Fonti e ⋯, un clic e si leggono
       const b = el('noteBtn'), row = [...el('pillRow').children].map(e => e.id);
       eq('Note: chip "i" fra Fonti e ⋯', [b.textContent.trim(), b.getAttribute('aria-label'), row.indexOf('noteBtn') - row.indexOf('srcinfo'),
@@ -516,16 +517,22 @@
     eq('regione scelta', el('regPill').textContent.trim(), [...el('region').options].find(o => o.value === 'FVG').textContent);
     el('varPill').click(); await sleep(50);
     const allVars = items().map(b => b.dataset.v);
-    eq('menu variabili = opzioni di #varFilter', allVars, [...el('varFilter').options].map(o => o.value));
+    const heads = [...el('pillMenu').querySelectorAll('.pm-h')].map(h => h.textContent);
+    eq('menu variabili: un solo elenco a gruppi per tema',
+       ['Temperatura e umidità', 'Pioggia e neve', 'Vento'].map(h => heads.indexOf(h) >= 0), [true, true, true]);
+    log(heads.indexOf('Temperatura e umidità') < heads.indexOf('Vento') && allVars[allVars.length - 1] === 'RADAR',
+        'menu variabili: gruppi in ordine, Radar in fondo', JSON.stringify([heads, allVars.slice(-2)]));
+    log(allVars[0] === '' && ['TEMP', 'TAPP', 'PREC24', 'RADAR'].every(v => allVars.includes(v)),
+        'menu variabili: misure, derivate, indici e radar insieme', JSON.stringify(allVars.slice(0, 14)));
     items().find(b => b.dataset.v === 'TEMP').click(); await until(() => filterVar === 'TEMP');
     log(el('varPill').textContent.includes(varLabel('TEMP')) && el('varPill').classList.contains('on'), 'variabile scelta', el('varPill').textContent);
     el('varPill').click(); await sleep(50);                          // la scelta non accorcia il suo stesso elenco
     eq('menu variabili: dopo una scelta l\'elenco resta intero', [items().map(b => b.dataset.v), items().every(vis)],
        [allVars, true]);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(50);
-    el('pgPill').click(); await sleep(50);
-    items().find(b => b.dataset.v === 'derivate').click(); await until(() => currentPage === 'derivate');
-    eq('pagina scelta', el('pgPill').textContent.trim(), 'Misure derivate');
+    items().find(b => b.dataset.v === 'TAPP').click();               // una derivata: la pagina segue da sola
+    await until(() => filterVar === 'TAPP');
+    eq('derivata dal menu: pagina e pillola', [currentPage, el('varPill').textContent.trim()],
+       ['derivate', varLabel('TAPP')]);
     el('regPill').click(); await sleep(50); el('varPill').click(); await sleep(50);
     eq('un menu alla volta', [...document.querySelectorAll('#pillMenu, #moreMenu')].filter(vis).length, 1);
     document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(50);
@@ -543,17 +550,18 @@
     el('stationQ').value = ''; el('stationQ').dispatchEvent(new Event('input'));
     // tastiera nei menu: il fuoco entra sulla voce scelta, frecce, dopo la scelta torna sulla pillola, Tab fuori chiude
     const fa = () => document.activeElement;
-    el('pgPill').focus(); el('pgPill').click(); await sleep(50);
-    log(el('pillMenu').contains(fa()) && fa().dataset.v === 'derivate', 'menu: il fuoco va sulla voce scelta', fa() && (fa().dataset.v || fa().id || fa().tagName));
+    const regs = [...el('region').options].map(o => o.value), rk = regs.indexOf('FVG');
+    el('regPill').focus(); el('regPill').click(); await sleep(50);
+    log(el('pillMenu').contains(fa()) && fa().dataset.v === 'FVG', 'menu: il fuoco va sulla voce scelta', fa() && (fa().dataset.v || fa().id || fa().tagName));
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown', bubbles:true }));
-    eq('menu: freccia giù', fa().dataset.v, 'indici');
+    eq('menu: freccia giù', fa().dataset.v, regs[rk + 1]);
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowUp', bubbles:true }));
-    eq('menu: freccia su', fa().dataset.v, 'derivate');
+    eq('menu: freccia su', fa().dataset.v, 'FVG');
     fa().click(); await sleep(50);
-    log(!vis(el('pillMenu')) && fa() === el('pgPill'), 'menu: dopo la scelta il fuoco torna sulla pillola', fa() && (fa().id || fa().tagName));
-    el('pgPill').click(); await sleep(50);
+    log(!vis(el('pillMenu')) && fa() === el('regPill'), 'menu: dopo la scelta il fuoco torna sulla pillola', fa() && (fa().id || fa().tagName));
+    el('regPill').click(); await sleep(50);
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true }));
-    log(!vis(el('pillMenu')) && fa() === el('pgPill'), 'menu: Tab lo chiude e riparte dalla pillola', fa() && (fa().id || fa().tagName));
+    log(!vis(el('pillMenu')) && fa() === el('regPill'), 'menu: Tab lo chiude e riparte dalla pillola', fa() && (fa().id || fa().tagName));
     log([...el('pillMenu').querySelectorAll('[data-v]'), ...el('moreMenu').querySelectorAll('button')].every(b => b.tabIndex === -1),
         'menu: le voci si raggiungono con le frecce, Tab esce subito', '');
     el('moreBtn').click(); await sleep(50);
@@ -563,14 +571,13 @@
     fa().dispatchEvent(new KeyboardEvent('keydown', { key:'/', bubbles:true, cancelable:true }));
     log(!vis(el('pillMenu')) && fa() === el('stationQ'), '"/" da un menu aperto: chiude e va alla ricerca', fa() && (fa().id || fa().tagName));
     el('stationQ').blur();
-    eq('pillole con nome accessibile', ['pgPill', 'regPill', 'varPill'].map(id => (el(id).getAttribute('aria-label') || '').split(':')[0]), ['Pagina', 'Regione', 'Variabile']);
+    eq('pillole con nome accessibile', ['regPill', 'varPill'].map(id => (el(id).getAttribute('aria-label') || '').split(':')[0]), ['Regione', 'Variabile']);
     el('moreBtn').click(); await sleep(50);
     const dark0 = document.body.classList.contains('dark'); el('themeBtn').click();
     log(document.body.classList.contains('dark') !== dark0, '⋯ → tema', ''); el('moreBtn').click(); el('themeBtn').click();
     el('moreBtn').click(); el('resetBtn').click(); await until(() => el('region').value === 'ALL' && !filterVar, 20000);
     eq('⋯ → azzera i filtri', [el('regPill').textContent.trim(), el('varPill').textContent.trim()], ['Tutte le regioni', 'Tutte le variabili']);
-    el('pgPill').click(); await sleep(50);
-    items().find(b => b.dataset.v === 'dirette').click(); await until(() => currentPage === 'dirette');
+    await ready();
     el('varPill').click(); await sleep(50);                                 // elenco lungo: campo per filtrare, senza accenti
     const flt = el('pillMenu').querySelector('.pm-filter');
     log(!!flt && items().length > 12, 'menu lungo: filtro', items().length);
@@ -578,10 +585,16 @@
       flt.value = 'umidita'; flt.dispatchEvent(new Event('input')); await sleep(30);
       const shown = items().filter(vis).map(b => b.dataset.v);
       log(shown.includes('UMID') && !shown.includes('TEMP'), 'filtro: "umidita" trova Umidità', JSON.stringify(shown));
+      eq('filtro: solo i gruppi con voci', [...el('pillMenu').querySelectorAll('.pm-h')].filter(vis).map(h => h.textContent),
+         ['Temperatura e umidità']);
     }
-    document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(50);
-    history.replaceState(null, '', '#FVG/A280/TAPP'); await applyHash();                       // variabile derivata
-    eq('pillole seguono lo stato', el('pgPill').textContent.trim(), 'Misure derivate');
+    items().find(b => b.dataset.v === '').click();
+    await until(() => !filterVar && currentPage === 'dirette');
+    eq('«Tutte le variabili» torna alle misure dirette', [filterVar, currentPage], ['', 'dirette']);
+    setMapVar('PREC24'); await until(() => filterVar === 'PREC24');                         // scelta da un'altra parte
+    eq('la pillola segue la variabile', el('varPill').textContent.trim(), varLabel('PREC24'));
+    setMapVar(''); await until(() => !filterVar);
+    history.replaceState(null, '', '#FVG/A280/TAPP'); await applyHash();
 
     // ricerca: senza badare ad accenti, maiuscole e punteggiatura; codice; elenco sotto il campo
     const F = (name, scode, r) => ({ properties:{ name, scode, _region:r, variables:[] } });
@@ -721,7 +734,7 @@
           JSON.stringify([R.left, R.top, R.right, R.bottom, dx, dy, who]));
     }
     {                                                                             // la mappa porta il puntino sotto una pillola
-      const pg = el('pgPill').getBoundingClientRect(), [x, y] = scr(A);
+      const pg = el('regPill').getBoundingClientRect(), [x, y] = scr(A);
       map.panBy([x - (pg.left + pg.width / 2), y - (pg.top + pg.height / 2)], { animate:false }); await sleep(150);
       log(!vis(card) || !meet(card.getBoundingClientRect(), el('pillRow').getBoundingClientRect()), 'puntino sotto la barra: la scheda non la copre', '');
       move(5, innerHeight / 2); await sleep(150);

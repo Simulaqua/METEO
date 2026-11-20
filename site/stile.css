@@ -578,6 +578,9 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 .pm-filter { flex:none; height:32px; margin:0 0 4px; padding:0 10px; border:1px solid var(--pl);
       border-radius:8px; background:var(--bg); color:var(--fg); outline:none; font:13px var(--font); }
 .pm-filter:focus { border-color:var(--accent); }
+.pm-h { flex:none; padding:8px 10px 3px; font-size:11px; font-weight:600; color:var(--muted); }
+.pm-h:empty { height:1px; margin:4px 0; padding:0; background:var(--line); }   /* titolo vuoto = linea */
+.pill.dim { opacity:.55; }                        /* radar acceso ma nascosto o non disponibile */
 /* ---- SCHEDA AL PASSAGGIO (mouse): accanto al puntino, lontana da barra, pulsanti e plancia ---- */
 #hoverCard { position:absolute; z-index:1115; width:260px; padding:10px 12px; pointer-events:none;
       background:var(--pbg); border:1px solid var(--pl); border-radius:12px; box-shadow:var(--psh);

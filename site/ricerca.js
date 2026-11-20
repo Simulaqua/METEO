@@ -67,9 +67,53 @@ function _syncThemeBtn(){
 }
 
 // ---- PILLOLE della barra in alto -------------------------------------------------------------
-// I menu sono costruiti dalle tendine nascoste (#pages, #region, #varFilter) e la scelta passa da
-// quelle: la logica dei filtri resta una sola.
+// Il menu delle regioni passa dalla tendina nascosta #region; quello delle variabili da setMapVar, che porta
+// anche la pagina (misure dirette, derivate, indici: stato interno, #pages nascosto).
 let menuAnchor = null;
+// Menu delle variabili: un elenco solo, a gruppi per tema (derivate e indici nel loro tema), il radar in
+// fondo; una variabile senza gruppo va in "Altro"
+const VAR_GROUPS = [
+  ['Temperatura e umidità', ['TEMP', 'TAPP', 'TDEW', 'UMID', 'QSPEC', 'VPD', 'GDD', 'HDD', 'CDD']],
+  ['Pioggia e neve', ['PREC', 'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'PREC_TYPE', 'LIVNEVE',
+                      'ET0']],
+  ['Vento', ['VVENTO', 'VVENTOMAX', 'VVENTOSCAL', 'DVENTO', 'DVENTOMAX', 'UWND', 'VWND']],
+  ['Sole e pressione', ['RADSOL', 'SOLEGG', 'CLOUDINESS', 'VISIB', 'BAGNATURA', 'PRESS', 'PSLM']],
+  ['Fiumi e laghi', ['LIVIDRO', 'PORTATA', 'FREATICA', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO', 'VOLINVASO',
+                     'TEMPACQUA', 'SOLIDI']],
+  ['Mare', ['MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA']],
+  ['Aria', ['EAQI', 'PM10', 'PM25', 'NO2', 'O3', 'O3_8H', 'SO2', 'CO', 'C6H6', 'GAMMA']]
+];
+const RADAR_V = 'RADAR';
+const RADAR_STATE = { nd:'Radar non disponibile', zoom:'Radar visibile fino a zoom 10',
+                      fermo:'Radar fermo: ultimo fotogramma vecchio' };
+// Voci: le variabili delle stazioni caricate, di tutte le pagine; con una stazione scelta solo le sue.
+// { head } = titolo del gruppo ('' = linea).
+function varMenuItems(){
+  const sf = selectedFeature(), have = new Set(), cur = Radar.on ? RADAR_V : filterVar || '';
+  (sf ? [sf] : allFeatures).forEach(f => (f.properties.variables || []).forEach(v => have.add(v)));
+  const item = v => ({ v, label:varLabel(v), on:v === cur });
+  const items = [{ v:'', label:'Tutte le variabili', on:!cur }], placed = new Set();
+  VAR_GROUPS.forEach(([head, vs]) => {
+    const own = vs.filter(v => have.has(v));
+    own.forEach(v => placed.add(v));
+    if(own.length) items.push({ head }, ...own.map(item));
+  });
+  const rest = [...have].filter(v => !placed.has(v)).sort((a, b) => natLabel(varLabel(a), varLabel(b)));
+  if(rest.length) items.push({ head:'Altro' }, ...rest.map(item));
+  items.push({ head:'' }, { v:RADAR_V, label:'Radar', on:cur === RADAR_V });
+  return items;
+}
+// Scelta dal menu: il radar si accende o si spegne (tornando alla variabile di prima); un'altra voce lo spegne;
+// "Tutte le variabili" torna alle misure dirette
+function pickMapVar(v){
+  if(v === RADAR_V){
+    if(Radar.on) radarOff(true); else radarOn();
+    return;
+  }
+  if(Radar.on) radarOff(false);
+  if(!v && currentPage !== 'dirette') document.querySelector('#pages .pg[data-page="dirette"]').click();
+  setMapVar(v);
+}
 // minuscole, senza accenti, punteggiatura -> spazio (filtri dei menu e ricerca delle stazioni)
 function normTxt(s){
   return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -95,6 +139,13 @@ function openMenu(anchor, items, onPick, opts){
   m.innerHTML = '';
   list.className = 'pm-list';
   items.forEach(it => {
+    if(it.head !== undefined){
+      const h = document.createElement('div');
+      h.className = 'pm-h';
+      h.textContent = it.head;
+      list.appendChild(h);
+      return;
+    }
     const b = document.createElement('button');
     b.dataset.v = it.v;
     b.textContent = it.label;
@@ -118,9 +169,21 @@ function openMenu(anchor, items, onPick, opts){
     f.autocomplete = 'off';
     f.spellcheck = false;
     f.setAttribute('aria-label', 'Filtra le voci');
-    f.addEventListener('input', () => {
+    f.addEventListener('input', () => {                 // un titolo resta solo con qualche voce sotto
       const q = normTxt(f.value);
-      [...list.children].forEach(b => { b.hidden = !!q && !normTxt(b.textContent).includes(q); });
+      let head = null, any = false;
+      const closeGroup = () => { if(head) head.hidden = !any; };
+      [...list.children].forEach(c => {
+        if(c.classList.contains('pm-h')){
+          closeGroup();
+          head = c;
+          any = false;
+          return;
+        }
+        c.hidden = !!q && !normTxt(c.textContent).includes(q);
+        any = any || !c.hidden;
+      });
+      closeGroup();
     });
     m.appendChild(f);
   }
@@ -180,18 +243,20 @@ function closeMenu(){
   document.querySelectorAll('#pillRow [aria-expanded="true"]')
     .forEach(b => b.setAttribute('aria-expanded', 'false'));
 }
+// col radar acceso la pillola dice "Radar" e il suo stato (attenuata se non si vede)
 function syncPills(){
-  const rp = el('regPill'), vp = el('varPill');
-  const pg = document.querySelector('#pages .pg.active'), r = el('region'), ro = r.options[r.selectedIndex];
+  const rp = el('regPill'), vp = el('varPill'), r = el('region'), ro = r.options[r.selectedIndex];
   const set = (b, what, txt) => {
     b.querySelector('span').textContent = txt;
     b.setAttribute('aria-label', what + ': ' + txt);
   };
-  set(el('pgPill'), 'Pagina', pg ? pg.textContent : 'Misure dirette');
   set(rp, 'Regione', (!ro || ro.value === 'ALL') ? 'Tutte le regioni' : ro.textContent);
   rp.classList.toggle('on', !!ro && ro.value !== 'ALL');
-  set(vp, 'Variabile', filterVar ? varLabel(filterVar) : 'Tutte le variabili');
-  vp.classList.toggle('on', !!filterVar);
+  set(vp, 'Variabile', Radar.on ? 'Radar' : filterVar ? varLabel(filterVar) : 'Tutte le variabili');
+  vp.classList.toggle('on', Radar.on || !!filterVar);
+  const st = Radar.on ? Radar.state : '';
+  vp.classList.toggle('dim', st === 'zoom' || st === 'nd');
+  vp.title = RADAR_STATE[st] || '';
 }
 function pillToggle(btn, items, onPick, opts){
   if(menuAnchor === btn) closeMenu();
@@ -414,9 +479,13 @@ function buildSearchControls(){
   });
 
   el('resetBtn').addEventListener('click', () => {
+    radarOff(false);
     el('region').value = 'ALL';
     filterVar = '';
     selectedKey = '';
+    currentPage = 'dirette';
+    [...document.querySelectorAll('#pages .pg')]
+      .forEach(x => x.classList.toggle('active', x.dataset.page === 'dirette'));
     syncPills();
     loadRegions(REGIONS_ALL);
   });
@@ -434,22 +503,16 @@ function buildSearchControls(){
     snapSync();
   }));
   ['pillMenu', 'moreMenu'].forEach(id => el(id).addEventListener('keydown', menuKeys));
-  el('pgPill').addEventListener('click', () => pillToggle(el('pgPill'),
-    () => [...document.querySelectorAll('#pages .pg')]
-      .map(b => ({ v:b.dataset.page, label:b.textContent, on:b.classList.contains('active') })),
-    v => {
-      const b = document.querySelector('#pages .pg[data-page="' + v + '"]');
-      if(b && !b.classList.contains('active')) b.click();
-    }));
   el('regPill').addEventListener('click', () => pillToggle(el('regPill'),
     () => [...el('region').options].map(o => ({
       v:o.value, label:o.value === 'ALL' ? 'Tutte le regioni' : o.textContent, on:o.selected
     })),
     v => setSelect('region', v)));
-  el('varPill').addEventListener('click', () => pillToggle(el('varPill'),
-    () => [...el('varFilter').options]
-      .map(o => ({ v:o.value, label:o.textContent, on:o.value === (filterVar || '') })),
-    v => setSelect('varFilter', v), { filter: el('varFilter').options.length > 12 }));
+  el('varPill').addEventListener('click', () => {
+    const items = varMenuItems();
+    pillToggle(el('varPill'), () => items, pickMapVar,
+               { filter:items.filter(it => it.head === undefined).length > 12 });
+  });
   el('moreBtn').addEventListener('click', () => {
     const mm = el('moreMenu');
     if(!mm.hidden){
@@ -469,7 +532,7 @@ function buildSearchControls(){
     el('moreBtn').focus();
   }, true);
   document.addEventListener('click', e => {
-    if(e.target.closest('#pillMenu, #moreMenu, #pgPill, #regPill, #varPill, #moreBtn')) return;
+    if(e.target.closest('#pillMenu, #moreMenu, #regPill, #varPill, #moreBtn')) return;
     if(menuAnchor || !el('moreMenu').hidden) closeMenu();
   });
   document.addEventListener('keydown', e => {
