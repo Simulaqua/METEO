@@ -3230,7 +3230,7 @@
     eq('menu della pioggia: primo pulsante', first && first.textContent, 'oggi');
     if(first){ first.click(); await sleep(200); }
     eq('menu della pioggia: oggi = Precipitazione delle misure dirette',
-       [filterVar, currentPage, el('mcRain').classList.contains('on')], ['PREC', 'dirette', true]);
+       [filterVar, currentPage, el('varPill').textContent.trim()], ['PREC', 'dirette', varLabel('PREC')]);
 
     // etichette: 60 stazioni fitte, una ogni nove in ritardo
     const many = [];
