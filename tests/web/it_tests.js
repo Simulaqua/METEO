@@ -134,7 +134,8 @@
     setFrame(Radar.source.max());
     // zoom: da 11 nascosto, pulsante attenuato
     map.setZoom(11); await sleep(300);
-    log(Radar.state === 'zoom' && btn.classList.contains('dim') && /zoom 10/.test(btn.title), 'zoom 11: nascosto e pillola attenuata',
+    log(Radar.state === 'zoom' && btn.classList.contains('dim') && /zoom 10/.test(btn.title) && el('dkRadar').classList.contains('dim'),
+        'zoom 11: nascosto, pillola e pulsante Radar attenuati',
         Radar.state + ' ' + btn.title);
     map.setZoom(8); await sleep(300);
     log(Radar.state !== 'zoom' && !btn.classList.contains('dim'), 'zoom 8: di nuovo visibile', Radar.state);
@@ -309,6 +310,16 @@
         filterVar + ' ' + snap.on);
     el('dkTime').click(); await sleep(200);
     log(!snap.on && el('dkTime').getAttribute('aria-pressed') === 'false', '«Ora» lo richiude', snap.on);
+    {                                                   // Radar a vista, accanto a «Ora»: un clic lo accende, un altro lo spegne
+      const rb = el('dkRadar');
+      log(vis(rb) && dock.contains(rb) && rb.previousElementSibling === el('dkTime') && rb.textContent.includes('Radar'),
+          'pulsante Radar a vista accanto a «Ora»', rb && rb.outerHTML.slice(0, 60));
+      const v0 = filterVar;
+      rb.click(); await until(() => Radar.on && snap.on, 20000);
+      log(Radar.on && rb.getAttribute('aria-pressed') === 'true', 'Radar: un clic lo accende', Radar.state);
+      rb.click(); await until(() => !Radar.on, 10000);
+      log(!Radar.on && rb.getAttribute('aria-pressed') === 'false' && filterVar === v0, 'Radar: un altro clic lo spegne', filterVar);
+    }
     await pickVarMenu('PREC'); await until(() => filterVar === 'PREC');
     log(el('varPill').classList.contains('on') && el('varPill').textContent.includes(varLabel('PREC')), 'pioggia dal menu',
         el('varPill').textContent);
@@ -343,6 +354,9 @@
     const v0 = filterVar;
     await pickVarMenu('RADAR'); await sleep(300);
     log(el('toast').textContent.includes('Radar non disponibile') && filterVar === v0, 'clic: avviso e nient\'altro', el('toast').textContent);
+    el('toast').textContent = ''; el('dkRadar').click(); await sleep(300);
+    log(el('toast').textContent.includes('Radar non disponibile') && el('dkRadar').classList.contains('dim'),
+        'pulsante Radar: grigio e avviso', el('toast').textContent);
     setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
     await openSlider(); await until(() => snap.on && snap.T.length, 20000);
     log(snap.on && +el('tsRange').max === snap.kmax, 'Cursore delle stazioni funziona', snap.kmax);
@@ -546,6 +560,11 @@
        ['Temperatura e umidità', 'Pioggia e neve', 'Vento'].map(h => heads.indexOf(h) >= 0), [true, true, true]);
     log(heads.indexOf('Temperatura e umidità') < heads.indexOf('Vento') && allVars[allVars.length - 1] === 'RADAR',
         'menu variabili: gruppi in ordine, Radar in fondo', JSON.stringify([heads, allVars.slice(-2)]));
+    {
+      const h0 = el('pillMenu').querySelector('.pm-h'), it0 = el('pillMenu').querySelector('[data-v="TEMP"]'), cs = getComputedStyle(h0);
+      log(cs.color !== getComputedStyle(it0).color && +cs.fontWeight >= 700 && cs.textTransform === 'uppercase' && cs.borderTopWidth !== '0px',
+          'menu variabili: titoli dei gruppi in evidenza', JSON.stringify([cs.color, cs.fontWeight, cs.textTransform, cs.borderTopWidth]));
+    }
     log(allVars[0] === '' && ['TEMP', 'TAPP', 'PREC24', 'RADAR'].every(v => allVars.includes(v)),
         'menu variabili: misure, derivate, indici e radar insieme', JSON.stringify(allVars.slice(0, 14)));
     items().find(b => b.dataset.v === 'TEMP').click(); await until(() => filterVar === 'TEMP');

@@ -340,6 +340,7 @@ body.dark { --pbg:rgba(21,31,45,.96); --pl:rgba(255,255,255,.14); --pl2:rgba(255
       font-weight:600; cursor:pointer; white-space:nowrap; }
 .dk-tbtn:hover { background:var(--soft2); }
 .dk-tbtn[aria-pressed="true"] { background:var(--atint); color:var(--atext); border-color:var(--aline); }
+.dk-tbtn.dim { opacity:.55; }                    /* Radar: nascosto dallo zoom o non disponibile */
 /* Etichette coi valori sulla mappa: il numero sul colore del valore, al posto del puntino */
 .vl { box-sizing:border-box; height:16px; padding:0 4px; border:1px solid rgba(12,30,45,.35);
       border-radius:4px; font:600 11px/14px var(--font); text-align:center;
@@ -376,7 +377,7 @@ body.dark { --pbg:rgba(21,31,45,.96); --pl:rgba(255,255,255,.14); --pl2:rgba(255
 /* plancia chiusa (solo telefono): play, ora, cursore, nome e scala compatta, crediti */
 .dock.min #tsPrev, .dock.min #tsNext, .dock.min #tsSpeed, .dock.min #tsClose, .dock.min .dk-ticks,
 .dock.min #tsLab small, .dock.min .sc-full, .dock.min .dk-nd, .dock.min .dk-sta, .dock.min .dk-val,
-.dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg, .dock.min .dk-tbtn span { display:none; }
+.dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg, .dock.min #dkTime span { display:none; }
 .dock.min .sc-mini { display:flex; }
 .dock.min .dk-tbtn { height:22px; padding:0 5px; }
 .dock.min .dk-prod { height:auto; padding:0; border:none; font-size:11px; }
@@ -583,8 +584,11 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 .pm-filter { flex:none; height:32px; margin:0 0 4px; padding:0 10px; border:1px solid var(--pl);
       border-radius:8px; background:var(--bg); color:var(--fg); outline:none; font:13px var(--font); }
 .pm-filter:focus { border-color:var(--accent); }
-.pm-h { flex:none; padding:8px 10px 3px; font-size:11px; font-weight:600; color:var(--muted); }
-.pm-h:empty { height:1px; margin:4px 0; padding:0; background:var(--line); }   /* titolo vuoto = linea */
+/* titoli dei gruppi: si staccano dalle voci (colore principale, maiuscolo, una linea sopra); vuoto = linea */
+.pm-h { flex:none; margin-top:4px; padding:9px 10px 4px; border-top:1px solid var(--line); color:var(--atext);
+        font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.tb-menu > .pm-h:first-child { margin-top:0; padding-top:6px; border-top:none; }
+.pm-h:empty { margin:6px 0 2px; padding:0; }
 .pill.dim { opacity:.55; }                        /* radar acceso ma nascosto o non disponibile */
 /* ---- SCHEDA AL PASSAGGIO (mouse): accanto al puntino, lontana da barra, pulsanti e plancia ---- */
 #hoverCard { position:absolute; z-index:1115; width:260px; padding:10px 12px; pointer-events:none;

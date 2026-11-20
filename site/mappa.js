@@ -991,6 +991,7 @@ function closeProdMenu(){
 }
 function buildMapControls(){
   el('dkTime').addEventListener('click', openSlider);
+  el('dkRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
   el('mcValues').addEventListener('click', () => {
     showValues = !showValues;
     try { localStorage.setItem('mapValues', showValues ? '1' : '0'); } catch(e){}
@@ -1048,6 +1049,10 @@ function buildMapControls(){
 }
 function syncMapControls(){
   el('dkTime').setAttribute('aria-pressed', String(snap.on));
+  const rb = el('dkRadar'), st = Radar.state;                    // grigio se non si vede o non c'e'
+  rb.setAttribute('aria-pressed', String(Radar.on));
+  rb.classList.toggle('dim', st === 'nd' || (Radar.on && st === 'zoom'));
+  rb.title = RADAR_STATE[st] || 'Radar della Protezione Civile: ultime 6 ore';
   const sw = el('mcStations');
   sw.classList.toggle('on', radarUi.stations);
   sw.setAttribute('aria-checked', String(radarUi.stations));
