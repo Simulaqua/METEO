@@ -519,6 +519,10 @@
       const box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);
       if(innerWidth >= 900) log(Math.abs(mid(q) - mid(p)) <= 3 && p.left >= q.right && el('topbar').getBoundingClientRect().height <= 46,
                                 'computer: pillole sulla riga della ricerca', JSON.stringify([box(q), box(p)]));
+      const cut = id => { const sp = el(id).querySelector('span'); return sp.scrollWidth - sp.clientWidth; };
+      if(innerWidth >= 1000) eq('computer: nomi interi e ricerca larga 280 px',
+                                [cut('varPill'), cut('regPill'), Math.round(document.querySelector('.tb-q').getBoundingClientRect().width)],
+                                [0, 0, 280]);
       else if(innerWidth <= 720) log(p.top >= q.bottom, 'telefono: pillole sotto la ricerca', JSON.stringify([box(q), box(p)]));
       eq('pulsanti interi, nessuno schiacciato', ['noteBtn', 'moreBtn'].map(id => el(id).getBoundingClientRect().width >= 30),
          [true, true]);

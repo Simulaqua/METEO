@@ -525,7 +525,9 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 #topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-flow:row nowrap;
           align-items:center; max-width:calc(100% - 80px); padding:3px; background:var(--pbg);
           border:1px solid var(--pl); border-radius:12px; box-shadow:var(--psh); }
-.tb-q { position:relative; flex:0 1 280px; min-width:150px; }       /* stretta, cede prima dei pulsanti */
+/* larga 280 px (con flex-basis il browser la misurerebbe sul campo e accorcerebbe tutta la scheda); se manca
+   spazio si stringe */
+.tb-q { position:relative; flex:0 1 auto; width:280px; min-width:150px; }
 .tb-q svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px;
       fill:none; stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
 #stationQ { width:100%; height:36px; padding:0 34px; border:1px solid transparent; border-radius:9px;
