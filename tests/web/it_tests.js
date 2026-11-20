@@ -515,9 +515,14 @@
     await until(() => el('region').value === 'FVG' && allFeatures.length > 0 && allFeatures.every(f => (REGION_GROUPS.FVG || ['FVG']).includes(f.properties._region)), 20000);
     eq('regione scelta', el('regPill').textContent.trim(), [...el('region').options].find(o => o.value === 'FVG').textContent);
     el('varPill').click(); await sleep(50);
-    eq('menu variabili = opzioni di #varFilter', items().map(b => b.dataset.v), [...el('varFilter').options].map(o => o.value));
+    const allVars = items().map(b => b.dataset.v);
+    eq('menu variabili = opzioni di #varFilter', allVars, [...el('varFilter').options].map(o => o.value));
     items().find(b => b.dataset.v === 'TEMP').click(); await until(() => filterVar === 'TEMP');
     log(el('varPill').textContent.includes(varLabel('TEMP')) && el('varPill').classList.contains('on'), 'variabile scelta', el('varPill').textContent);
+    el('varPill').click(); await sleep(50);                          // la scelta non accorcia il suo stesso elenco
+    eq('menu variabili: dopo una scelta l\'elenco resta intero', [items().map(b => b.dataset.v), items().every(vis)],
+       [allVars, true]);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(50);
     el('pgPill').click(); await sleep(50);
     items().find(b => b.dataset.v === 'derivate').click(); await until(() => currentPage === 'derivate');
     eq('pagina scelta', el('pgPill').textContent.trim(), 'Misure derivate');
@@ -2964,6 +2969,43 @@
                  fake('LIG', 'L1', 44.4, 8.9, { VVENTO:'2' })], 'VVENTO');
     log(fill('F1') === fill('V1') && fill('F1') !== fill('L1') && ![DOT_COLOR, NEUTRAL_COLOR].includes(fill('F1')),
         'vento: 36 km/h e 10 m/s stesso colore, con Tutte', JSON.stringify([fill('F1'), fill('V1'), fill('L1')]));
+    // colori: ogni grandezza la sua scala; classi fisse dove il valore conta da solo
+    const rgbOf = c => c && c[0] === '#' ? [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16))
+                                         : String(c).match(/\d+/g).map(Number);
+    const lum = c => { const [r, g, b] = rgbOf(c); return 0.299 * r + 0.587 * g + 0.114 * b; };
+    const stepLabels = () => [...el('dkScale').querySelectorAll('.sc-full i')].map(e => e.textContent);
+    await scene([fake('VEN', 'K1', 45.4, 11.9, { TEMP:'12' }), fake('VEN', 'K2', 45.5, 11.8, { TEMP:'0' })], 'TEMP');
+    const t12 = fill('K1');
+    await scene([fake('VEN', 'K1', 45.4, 11.9, { TEMP:'12' }), fake('VEN', 'K2', 45.5, 11.8, { TEMP:'30' })], 'TEMP');
+    log(!!t12 && t12 === fill('K1') && t12 !== fill('K2'), 'temperatura: 12 °C sempre dello stesso colore',
+        JSON.stringify([t12, fill('K1'), fill('K2')]));
+    eq('temperatura: scala fissa da −20 a 40, scritte ogni 10 gradi', stepLabels(),
+       ['−20', '−10', '0', '10', '20', '30', '40']);
+    await scene([0, 3, 30, 150].map((x, i) => fake('VEN', 'S' + i, 45.4 + i / 10, 11.9, { LIVNEVE:String(x) })),
+                'LIVNEVE');
+    const sn = [0, 1, 2, 3].map(i => fill('S' + i)), blue = c => { const [r, g, b] = rgbOf(c); return b > r && b >= g; };
+    log(sn[0] === '#e3e9f0' && sn.slice(1).every(blue) && lum(sn[1]) > lum(sn[2]) && lum(sn[2]) > lum(sn[3]),
+        'neve: assente grigia, poi blu sempre più scuri', JSON.stringify(sn));
+    await scene([fake('FVG', 'F5', 46.0, 13.2, { VVENTO:'20' }), fake('FVG', 'F6', 46.1, 13.3, { VVENTO:'50' })],
+                'VVENTO');
+    eq('vento: col solo Friuli soglie in km/h', [el('dkUnit').textContent, stepLabels()],
+       ['km/h', ['4', '11', '18', '29', '40', '50', '61', '76']]);
+    await scene([fake('VEN', 'U1', 45.4, 11.9, { UMID:'25' }), fake('VEN', 'U2', 45.5, 11.8, { UMID:'97' })], 'UMID');
+    eq('umidità: dal secco (giallino) al saturo (blu scuro)', [fill('U1'), fill('U2')], ['#edf8b1', '#081d58']);
+    await scene([fake('VEN', 'R5', 45.4, 11.9, { RADSOL:'0' }), fake('VEN', 'R6', 45.5, 11.8, { RADSOL:'650' })],
+                'RADSOL');
+    eq('radiazione: di notte grigia, poi dal giallo al bruno', [fill('R5'), fill('R6')], ['#e3e9f0', '#993404']);
+    await scene([fake('VEN', 'P5', 45.4, 11.9, { PSLM:'1013' }), fake('VEN', 'P6', 45.5, 11.8, { PSLM:'990' }),
+                 fake('VEN', 'P7', 45.6, 11.7, { PSLM:'1035' })], 'PSLM');
+    eq('pressione al mare: 1013 grigio al centro, bassa viola, alta arancio', [fill('P5'), fill('P6'), fill('P7')],
+       ['#e3e9f0', '#542788', '#b35806']);
+    // le altre sfumano fra minimo e massimo nella tinta della grandezza, non nell'arcobaleno comune
+    await scene([fake('ACQ_VEN', 'W5', 45.4, 12.3, { CLOROFILLA:'1' }),
+                 fake('ACQ_VEN', 'W6', 45.3, 12.4, { CLOROFILLA:'9' })], 'CLOROFILLA');
+    const chl = fill('W6');
+    await scene([fake('BZ', 'W7', 46.5, 11.3, { SOLIDI:'1' }), fake('BZ', 'W8', 46.6, 11.4, { SOLIDI:'9' })], 'SOLIDI');
+    log(!!chl && chl !== fill('W8') && rgbOf(chl)[1] > rgbOf(chl)[0], 'sfumature: clorofilla verde, solidi d\'altra tinta',
+        JSON.stringify([chl, fill('W8')]));
     // radiazione: i kJ/m² orari di FVG in W/m², e due grafie dei W/m²
     const rad = [fake('FVG', 'F2', 46.0, 13.2, { RADSOL:'1800' }), fake('LIG', 'L2', 44.4, 8.9, { RADSOL:'300' }),
                  fake('VEN', 'V2', 45.4, 11.9, { RADSOL:'300' })];
@@ -2981,7 +3023,7 @@
     // pioggia di oggi
     await scene([fake('VEN', 'V3', 45.4, 11.9, { PREC:'0.2' }, { rif:{ PREC:8 } }),
                  fake('VEN', 'V4', 45.5, 11.8, { PREC:'0' }, { rif:{ PREC:0 } })], 'PREC');
-    eq('pioggia: colore della classe di oggi', fill('V3'), rainColor('PREC24', 8));
+    eq('pioggia: colore della classe di oggi', fill('V3'), classColor('PREC24', 8));
     eq('pioggia: nome nella plancia', el('dkName').textContent, 'Precipitazione · oggi');
     // aria: classi europee, ai confini
     await scene([fake('AQ_LOM', 'A1', 45.5, 9.2, { PM10:'38' }, { rif:{ PM10:40 } }),
@@ -3081,6 +3123,8 @@
     log(![NEUTRAL_COLOR, DOT_COLOR].includes(fill('T3')), 'ritardo: 1 h fa colorata', fill('T3'));
     const o1 = (markerRefs.find(r => r.p.scode === 'T1') || { m:{ options:{} } }).m.options;
     eq('ritardo: cerchio vuoto col bordo grigio (non si confonde con 0 mm)', [o1.fillOpacity, o1.color], [0, '#8795a3']);
+    await scene([fake('VEN', 'T5', 45.4, 11.9, { QSPEC:'40' }, { latest_time:iso(NOW - 4 * H) }),
+                 fake('VEN', 'T6', 45.6, 11.7, { QSPEC:'10' }), fake('VEN', 'T7', 45.7, 11.6, { QSPEC:'5' })], 'QSPEC');
     eq('ritardo: la scala va da 5 a 10, senza le grigie', [...el('dkScale').querySelectorAll('.sc-ends span')]
        .map(e => e.textContent), ['5.0', '10.0']);
     await scene([fake('AQ_LOM', 'P1', 45.5, 9.2, { PM10:'30' }, { rif:{ PM10:30 }, latest_time:iso(NOW - 30 * H) })],

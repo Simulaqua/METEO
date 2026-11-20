@@ -49,24 +49,88 @@ const EMPTY_LINE = '#8795a3';
 const varTimeIso = (p, v) => (p.lag || {})[v] ? new Date(varTime(p, v)).toISOString().slice(0, 16)
                                               : p.latest_time;
 
-const CMAP = [[48,18,59],[70,107,227],[40,170,225],[26,228,182],[95,251,113],
-              [192,229,57],[250,175,42],[245,92,24],[122,4,3]];
-function colormap(t){
+// COLORI: ogni grandezza ha la sua scala. Classi fisse dove il valore conta da solo (lo stesso colore e' lo
+// stesso valore in ogni ora e regione, anche col Cursore); per le altre una sfumatura fra minimo e massimo
+// delle stazioni mostrate, nella tinta della grandezza. "Niente" (neve assente, notte, calma) ha il grigio
+// chiaro della pioggia 0, che sta anche al centro delle scale a due tinte: nessun puntino valido e' bianco
+// come un cerchio vuoto.
+const NONE = '#e3e9f0';
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+function rampAt(stops, t){
   t = Math.max(0, Math.min(1, t));
-  const n = CMAP.length - 1, i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i;
-  const a = CMAP[i], b = CMAP[i+1], c = k => Math.round(a[k] + (b[k] - a[k]) * f);
+  const n = stops.length - 1, i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i;
+  const a = hexRgb(stops[i]), b = hexRgb(stops[i + 1]), c = k => Math.round(a[k] + (b[k] - a[k]) * f);
   return `rgb(${c(0)},${c(1)},${c(2)})`;
 }
+// Temperatura (anche dell'acqua, di rugiada e percepita): classi di 2 °C da -20 a 40, dal viola al rosso
+const TEMP_RAMP = ['#30123b', '#466be3', '#28aae1', '#1ae4b6', '#5ffb71',
+                   '#c0e539', '#faaf2a', '#f55c18', '#7a0403'];
+const TEMP_STEPS = Array.from({ length:31 }, (_, i) => 2 * i - 20);
+const TEMP_COLORS = [-21, ...TEMP_STEPS.map(s => s + 1)].map(m => rampAt(TEMP_RAMP, (m + 20) / 60));
+// Vento: le classi della scala Beaufort, in m/s o in km/h come la mappa
+const WIND_STEPS = { 'm/s':[1, 3, 5, 8, 11, 14, 17, 21], 'km/h':[4, 11, 18, 29, 40, 50, 61, 76] };
+// Classi fisse: soglie (per unita' se le fonti ne usano piu' d'una) e un colore in piu' delle soglie
+const CLASS_SCALES = {
+  UMID:      { steps:[40, 50, 60, 70, 80, 90, 95],
+               colors:['#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#253494',
+                       '#081d58'] },
+  LIVNEVE:   { steps:[1, 5, 10, 20, 50, 100, 200],
+               colors:[NONE, '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b', '#3f007d'] },
+  VVENTO:    { steps:WIND_STEPS,
+               colors:[NONE, '#fcc5c0', '#fa9fb5', '#f768a1', '#dd3497', '#ae017e', '#7a0177', '#49006a',
+                       '#2b0040'] },
+  VVENTOMAX: { steps:WIND_STEPS,
+               colors:[NONE, '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#a63603', '#7f2704',
+                       '#4a1600'] },
+  RADSOL:    { steps:[1, 100, 200, 300, 400, 500, 600, 800],
+               colors:[NONE, '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404',
+                       '#662506'] },
+  ONDE:      { steps:[0.1, 0.5, 1.25, 2.5, 4, 6],
+               colors:[NONE, '#a6bddb', '#67a9cf', '#3690c0', '#02818a', '#016c59', '#014636'] },
+  VISIB:     { steps:{ m:[1000, 2000, 5000, 10000] },
+               colors:['#38434f', '#5f6a76', '#8a95a1', '#b6bfc9', '#d2d9e0'] },
+  PSLM:      { steps:[995, 1000, 1005, 1010, 1016, 1020, 1025, 1030], every:10,
+               colors:['#542788', '#8073ac', '#b2abd2', '#d8daeb', NONE, '#fee0b6', '#fdb863', '#e08214',
+                       '#b35806'] },
+  UWND:      { steps:[-10, -5, -2, 2, 5, 10],
+               colors:['#2166ac', '#4393c3', '#92c5de', NONE, '#f4a582', '#d6604d', '#b2182b'] }
+};
+['TEMP', 'TEMPACQUA', 'TDEW', 'TAPP'].forEach(v => {
+  CLASS_SCALES[v] = { steps:TEMP_STEPS, colors:TEMP_COLORS, every:10 };
+});
+CLASS_SCALES.VVENTOSCAL = CLASS_SCALES.VVENTO;
+CLASS_SCALES.VWND = CLASS_SCALES.UWND;
+// Sfumature fra minimo e massimo, dal chiaro (poco) allo scuro (tanto), nella tinta dei grafici
+const RAMPS = {
+  slate:['#dfe4ea', '#c5cdd6', '#a9b3be', '#8d98a5', '#727e8c', '#596573', '#414c59', '#2b3540'],
+  gold:['#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
+  green:['#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#006d2c', '#00441b'],
+  brown:['#efe3cf', '#e0c9a6', '#cfad7e', '#b98f5c', '#a07342', '#855b30', '#694522', '#4d3117'],
+  teal:['#ccece6', '#99d8c9', '#66c2a4', '#41ae76', '#238b45', '#006d2c', '#00441b'],
+  sea:['#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#0868ac', '#084081'],
+  blue:['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b'],
+  orange:['#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#a63603', '#7f2704'],
+  red:['#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#a50f15', '#67000d'],
+  violet:['#dadaeb', '#bcbddc', '#9e9ac8', '#807dba', '#6a51a3', '#54278f', '#3f007d']
+};
+const VAR_RAMP = {
+  SOLEGG:'gold', BAGNATURA:'green', CLOROFILLA:'green', C6H6:'green', SOLIDI:'brown', O3_8H:'teal',
+  ET0:'teal', SALINITA:'sea', QSPEC:'sea', OSSIGENO:'blue', OSSIGENO_SAT:'blue', HDD:'blue', VPD:'orange',
+  CONDUCIBILITA:'orange', GDD:'orange', VVENTOMAX:'orange', CDD:'red', PH:'violet', VOLINVASO:'violet',
+  VVENTO:'violet', VVENTOSCAL:'violet'
+};
+const rampOf = v => RAMPS[VAR_RAMP[v]] || RAMPS.slate;
 const EAQI_BANDS = [
   {v:1, c:'#50f0e6', l:'Buona'},        {v:2, c:'#50ccaa', l:'Discreta'},
   {v:3, c:'#f0e641', l:'Moderata'},     {v:4, c:'#ff5050', l:'Scarsa'},
   {v:5, c:'#960032', l:'Molto scarsa'}, {v:6, c:'#7d2181', l:'Estrem. scarsa'}
 ];
-function eaqiColor(v){ return EAQI_BANDS[Math.max(1, Math.min(6, Math.round(v))) - 1].c; }
+const EAQI_COLORS = EAQI_BANDS.map(b => b.c);
+function eaqiColor(v){ return EAQI_COLORS[Math.max(1, Math.min(6, Math.round(v))) - 1]; }
 const isEaqi = v => v === 'EAQI';
 // Classi europee della qualita' dell'aria per sostanza (limiti superiori, colori di EAQI_BANDS)
 const AQ_STEPS = { PM10:[20,40,50,100,150], PM25:[10,20,25,50,75], O3:[50,100,130,240,380],
-                   NO2:[40,90,120,230,340] };
+                   NO2:[40,90,120,230,340], SO2:[100,200,350,500,750] };
 // Livello: cm in 3 ore; cala in blu, sale in rosso. Il giallino "stabile" non e' il grigio dei ritardi.
 // Laghi e falda: cm in 24 ore, coi colori del livello
 const LEVEL_STEPS = [-20, -5, 5, 20, 50, 100];
@@ -96,26 +160,22 @@ const RAIN_STEPS = {
   PREC24:[0.2,2,5,10,25,50,100,150,200],    PREC48:[0.2,5,10,25,50,100,150,200,300]
 };
 RAIN_STEPS.PREC = RAIN_STEPS.PREC24;                  // "Precipitazione": la pioggia di oggi
-const rainClass = (v, x) => {
-  const st = RAIN_STEPS[v];
-  let c = 0;
-  while(c < st.length && x >= st[c]) c++;
-  return c;
-};
-const rainColor = (v, x) => RAIN_COLORS[rainClass(v, x)];
-// Colore delle variabili a classi fisse (pioggia, aria, livelli, portata, marea); null per quelle a scala
-// min-max
-function classColor(v, x){
-  const at = (colors, steps) => colors[steps.filter(s => x >= s).length];
-  if(isRainVar(v)) return rainColor(v, x);
-  if(AQ_STEPS[v]) return EAQI_BANDS[AQ_STEPS[v].filter(s => x > s).length].c;
-  if(LEVEL_HOURS[v]){                         // la classe della cifra scritta (centimetri interi)
-    x = Math.round(x);
-    return at(LEVEL_COLORS, levelSteps(v));
-  }
-  if(FLOW_VARS.has(v)) return at(FLOW_COLORS, FLOW_STEPS);
-  if(v === 'MAREA') return at(TIDE_COLORS, TIDE_STEPS);
-  return null;
+// Classi fisse di v nell'unita' u (null: sfumatura fra minimo e massimo). La soglia apre la classe sopra;
+// l'aria segue la regola europea (la chiude sotto) e i livelli contano i centimetri scritti, col segno
+function classScale(v, u){
+  if(isRainVar(v)) return { steps:RAIN_STEPS[v], colors:RAIN_COLORS };
+  if(AQ_STEPS[v]) return { steps:AQ_STEPS[v], colors:EAQI_COLORS, below:true };
+  if(LEVEL_HOURS[v]) return { steps:levelSteps(v), colors:LEVEL_COLORS, round:true, sign:true };
+  if(FLOW_VARS.has(v)) return { steps:FLOW_STEPS, colors:FLOW_COLORS };
+  if(v === 'MAREA') return { steps:TIDE_STEPS, colors:TIDE_COLORS };
+  const s = CLASS_SCALES[v], steps = s && (Array.isArray(s.steps) ? s.steps : s.steps[u]);
+  return steps ? { steps, colors:s.colors, every:s.every } : null;
+}
+function classColor(v, x, u){
+  const s = classScale(v, u);
+  if(!s) return null;
+  if(s.round) x = Math.round(x);
+  return s.colors[s.steps.filter(t => s.below ? x > t : x >= t).length];
 }
 // Variabili con fotogrammi orari (l'export li scrive in <REGIONE>/snap/<VAR>.json)
 const SNAP_VARS = new Set(['TEMP','UMID','PRESS','VVENTO','VVENTOMAX','PREC1','PREC3','PREC6','PREC12',
@@ -341,11 +401,11 @@ function renderMarkers(){
   const cmVar = canColormap(filterVar) && (singleRegion || comparable(filterVar, list)) ? filterVar : null;
   const slide = !!(snap.on && cmVar && snap.var === cmVar);
   let vmin = null, vmax = null;
-  const refU = cmVar ? refUnitFor(cmVar, list) : '';
+  const refU = cmVar ? refUnitFor(cmVar, list) : '', unit = slide ? snap.unit : refU;
   const valFor = p => !cmVar ? null : slide ? snapVal(p) : mapValue(p, cmVar, refU);
   const now = nowRome();
   const late = p => !!cmVar && !slide && isLate(p, cmVar, now);     // col Cursore valgono i fotogrammi
-  if(cmVar && classColor(cmVar, 0)){ vmin = 0; vmax = 0; }       // classi fisse, niente min-max
+  if(cmVar && classScale(cmVar, unit)){ vmin = 0; vmax = 0; }    // classi fisse, niente min-max
   else if(cmVar && slide){ vmin = snap.vmin; vmax = snap.vmax; }
   else if(cmVar){
     list.forEach(f => {
@@ -365,8 +425,8 @@ function renderMarkers(){
       if(nv == null || stale) fill = NEUTRAL_COLOR;
       else if(radarDotColor(cmVar, nv)) fill = radarDotColor(cmVar, nv);    // stessa palette del radar
       else if(isEaqi(cmVar)) fill = eaqiColor(nv);
-      else if(classColor(cmVar, nv)) fill = classColor(cmVar, nv);
-      else fill = (vmin != null) ? colormap(vmax > vmin ? (nv - vmin) / (vmax - vmin) : 0.5) : NEUTRAL_COLOR;
+      else fill = classColor(cmVar, nv, unit) || (vmin == null ? NEUTRAL_COLOR
+                  : rampAt(rampOf(cmVar), vmax > vmin ? (nv - vmin) / (vmax - vmin) : 0.5));
       stroke = '#33475a';
     }
     const z = map.getZoom();
@@ -400,7 +460,7 @@ function renderMarkers(){
     const r = markerRefs.find(x => x.p === sheetP);
     if(r){ sheetRing.setRadius(r.m.getRadius() + 5); drawSheet(); } else closeSheet();
   }
-  updateColorbar(cmVar, vmin, vmax, slide ? snap.unit : refU);
+  updateColorbar(cmVar, vmin, vmax, unit);
   syncMapControls();
   setStatus('');
 }
@@ -411,8 +471,10 @@ function repaintSnap(){
   markerRefs.forEach(r => {
     const nv = snapVal(r.p);
     let fill = NEUTRAL_COLOR;
-    if(nv != null) fill = radarDotColor(v, nv) || classColor(v, nv) ||
-                          colormap(snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5);
+    if(nv != null){
+      const t = snap.vmax > snap.vmin ? (nv - snap.vmin) / (snap.vmax - snap.vmin) : 0.5;
+      fill = radarDotColor(v, nv) || classColor(v, nv, snap.unit) || rampAt(rampOf(v), t);
+    }
     r.look = dotLook(nv == null, r.sel, 0.9, '#33475a');
     r.m.setStyle(Object.assign({ fillColor: fill }, r.look));
     Object.assign(r, { nv, fill, late: false, under: false });
@@ -504,22 +566,24 @@ const inkOn = c => {
   return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#0c3557' : '#fff';
 };
 // Classi a soglie: colors[i] sta fra steps[i-1] e steps[i] (la prima e' "meno della prima soglia"). Con tante
-// classi (temperatura del radar) la scala piena mostra una soglia ogni k e la compatta solo gli estremi
-function scaleSteps(colors, steps){
+// classi (temperatura) la scala piena scrive una soglia ogni k, o i multipli di every, e la compatta solo gli
+// estremi; sign mette il "+" alle soglie positive (variazioni dei livelli)
+function scaleSteps(colors, steps, every, sign){
   const k = Math.ceil(colors.length / 10);
+  const txt = x => (sign && x > 0 ? '+' : '') + String(x).replace('-', '−');
+  const shown = i => i < steps.length && (every ? steps[i] % every === 0 : i % k === 0);
   const full = colors.map((c, i) => '<span style="background:' + c + '">' +
-                          (i < steps.length && i % k === 0 ? '<i>' + steps[i] + '</i>' : '') +
-                          '</span>').join('');
+                          (shown(i) ? '<i>' + txt(steps[i]) + '</i>' : '') + '</span>').join('');
   if(colors.length > 12){
     const w = 100 / colors.length;
     return '<div class="sc-full sc-steps">' + full + '</div>' +
       scaleRange('background:linear-gradient(to right,' +
         colors.map((c, i) => c + ' ' + (i * w).toFixed(2) + '% ' +
                              ((i + 1) * w).toFixed(2) + '%').join(',') + ')',
-        steps[0], steps[steps.length - 1], true);
+        txt(steps[0]), txt(steps[steps.length - 1]), true);
   }
   const mini = colors.map((c, i) => '<span style="background:' + c + ';color:' + inkOn(c) + '">' +
-                          (i ? steps[i - 1] : '') + '</span>').join('');
+                          (i ? txt(steps[i - 1]) : '') + '</span>').join('');
   return '<div class="sc-full sc-steps">' + full + '</div><div class="sc-mini">' + mini + '</div>';
 }
 function scaleRange(bg, lo, hi, miniOnly){
@@ -539,40 +603,26 @@ function updateColorbar(varName, vmin, vmax, unitOverride){
     nd = !!(radarUi.stations && radarDotsVar());
   } else if(varName && vmin != null){
     name = mapName(varName);
-    if(isRainVar(varName)){
-      unit = 'mm';
-      menu = true;
-      scale = scaleSteps(RAIN_COLORS, RAIN_STEPS[varName]);
-    }
-    else if(AQ_STEPS[varName]){
-      unit = unitOverride || unitForVar(varName);
-      scale = scaleSteps(EAQI_BANDS.map(b => b.c), AQ_STEPS[varName]);
-    }
-    else if(LEVEL_HOURS[varName]){
-      unit = 'cm';
-      const signed = x => x > 0 ? '+' + x : String(x).replace('-', '−');
-      scale = scaleSteps(LEVEL_COLORS, levelSteps(varName).map(signed));
-    }
-    else if(FLOW_VARS.has(varName)){
-      unit = unitOverride || 'm³/s';
-      scale = scaleSteps(FLOW_COLORS, FLOW_STEPS);
-    }
-    else if(varName === 'MAREA'){
-      unit = 'cm';
-      scale = scaleSteps(TIDE_COLORS, TIDE_STEPS);
-    }
-    else if(isEaqi(varName)){
+    unit = unitOverride || unitForVar(varName);
+    const cs = classScale(varName, unit);
+    if(isEaqi(varName)){
       name = 'Qualità aria (EAQI)';
+      unit = '';
       scale = scaleRange('background:linear-gradient(to right,' + EAQI_BANDS.map((b, i) =>
                 b.c + ' ' + (i * 100 / 6).toFixed(2) + '% ' +
                 ((i + 1) * 100 / 6).toFixed(2) + '%').join(',') + ')',
                 EAQI_BANDS[0].l, EAQI_BANDS[5].l);
-    } else {
-      unit = unitOverride || unitForVar(varName);
-      scale = scaleRange('background:linear-gradient(to right,' +
-                         [0, .2, .4, .6, .8, 1].map(t => colormap(t)).join(',') + ')',
+    } else if(cs){
+      if(isRainVar(varName)){
+        unit = 'mm';
+        menu = true;
+      }
+      else if(LEVEL_HOURS[varName] || varName === 'MAREA') unit = 'cm';
+      else if(FLOW_VARS.has(varName)) unit = unit || 'm³/s';
+      scale = scaleSteps(cs.colors, cs.steps, cs.every, cs.sign);
+    } else
+      scale = scaleRange('background:linear-gradient(to right,' + rampOf(varName).join(',') + ')',
                          fmtNum(vmin), fmtNum(vmax));
-    }
   } else if(varName){                                 // tutte in ritardo: nome e "in ritardo", senza scala
     name = mapName(varName);
     unit = unitOverride || unitForVar(varName);
@@ -686,7 +736,7 @@ async function snapLoad(v){
   let kmax = n - 1, k0 = 0;
   while(kmax > 0 && cov[kmax] < 0.75 * mx) kmax--;
   while(k0 < kmax && cov[k0] < 0.5 * mx) k0++;
-  if(!classColor(v, 0)){                                       // scala fissa: 2°-98° percentile
+  if(!classScale(v, unit)){                                    // scala fissa: 2°-98° percentile
     vals.sort((a, b) => a - b);
     const q = f => vals[Math.min(vals.length - 1, Math.max(0, Math.floor(f * (vals.length - 1))))];
     snap.vmin = q(0.02);

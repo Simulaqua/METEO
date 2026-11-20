@@ -8,16 +8,17 @@ const featKey  = f => f.properties._region + '|' + f.properties.scode;
 const featName = f => prettyName(f.properties.name || f.properties.scode);
 const selectedFeature = () => selectedKey ? allFeatures.find(f => featKey(f) === selectedKey) : null;
 
-// stazioni da mostrare in elenco e mappa: quelle della pagina attiva, filtrate per variabile
-function stationsForList(){
+// stazioni della pagina attiva; gli indici valgono anche per chi misura temperatura o pioggia
+function pageStations(){
   return allFeatures.filter(f => {
     const vars = f.properties.variables || [];
-    let ok = vars.some(v => varCat(v) === currentPage);
-    if(!ok && currentPage === 'indici')
-      ok = vars.includes('TEMP') || vars.includes('PREC');
-    if(!ok) return false;
-    return !filterVar || vars.includes(filterVar);
+    return vars.some(v => varCat(v) === currentPage)
+        || (currentPage === 'indici' && (vars.includes('TEMP') || vars.includes('PREC')));
   });
+}
+// stazioni da mostrare in elenco e mappa: quelle della pagina, filtrate per variabile
+function stationsForList(){
+  return pageStations().filter(f => !filterVar || (f.properties.variables || []).includes(filterVar));
 }
 
 function refreshFilters(){
@@ -41,13 +42,14 @@ function buildStationFilter(){
   sel.value = (selectedKey && list.some(f => featKey(f) === selectedKey)) ? selectedKey : '';
 }
 
-// con una stazione scelta solo le sue variabili, altrimenti l'unione di quelle in elenco
+// con una stazione scelta solo le sue variabili, altrimenti tutte quelle della pagina: la variabile scelta
+// non accorcia il suo stesso elenco
 function buildVarFilter(){
   const set = new Set();
   const sf = selectedFeature();
   const add = v => { if(varCat(v) === currentPage) set.add(v); };
   if(sf) (sf.properties.variables || []).forEach(add);
-  else stationsForList().forEach(f => (f.properties.variables || []).forEach(add));
+  else pageStations().forEach(f => (f.properties.variables || []).forEach(add));
   const sel = el('varFilter');
   sel.innerHTML = '<option value="">Tutte le variabili</option>';
   [...set].sort((a,b) => natLabel(varLabel(a), varLabel(b))).forEach(v => {
