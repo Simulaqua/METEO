@@ -73,12 +73,13 @@
       </div>
       <div id="searchList" role="listbox" aria-label="Stazioni trovate"></div>
       <div id="pillRow">
-        <button id="regPill" class="pill" aria-haspopup="menu"
-                aria-expanded="false"><span>Tutte le regioni</span><svg
-                viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
         <button id="varPill" class="pill" aria-haspopup="menu"
                 aria-expanded="false"><span>Tutte le variabili</span><svg
                 viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <button id="regPill" class="pill" aria-haspopup="menu"
+                aria-expanded="false"><span>Tutte le regioni</span><svg
+                viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+        <span class="tb-sep" aria-hidden="true"></span>
         <button id="srcinfo" class="pill"
                 title="Stato delle fonti dati"><span id="srcdot"></span>Fonti</button>
         <button id="noteBtn" class="pill" aria-label="Note" title="Note" aria-expanded="false"
@@ -86,7 +87,10 @@
         <button id="moreBtn" class="pill" aria-haspopup="menu" aria-expanded="false" aria-label="Altro"
                 title="Altro">⋯</button>
       </div>
+      <!-- gli sfondi li aggiunge initMap sotto il titolo -->
       <div id="moreMenu" class="tb-menu" role="menu" hidden>
+        <div class="pm-h">Sfondo</div>
+        <hr>
         <button id="themeBtn" role="menuitem" tabindex="-1">Tema scuro</button>
         <button id="resetBtn" role="menuitem" tabindex="-1">Azzera i filtri</button>
       </div>
@@ -153,6 +157,9 @@
                   title="Mostra o nascondi i puntini delle stazioni"></button>Stazioni<span
                   id="mcStaTime" class="dk-sub"></span></span>
         </div>
+        <button id="dkTime" class="dk-tbtn" aria-pressed="false" title="Cursore: ultimi 7 giorni"><svg
+                viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path
+                d="M12 7v5l3 3"/></svg><span>Ora</span></button>
         <div id="dkCredits" class="dk-credits"></div>
       </div>
     </div>

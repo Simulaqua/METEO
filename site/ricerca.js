@@ -103,8 +103,8 @@ function varMenuItems(){
   items.push({ head:'' }, { v:RADAR_V, label:'Radar', on:cur === RADAR_V });
   return items;
 }
-// Scelta dal menu: il radar si accende o si spegne (tornando alla variabile di prima); un'altra voce lo spegne;
-// "Tutte le variabili" torna alle misure dirette
+// Scelta dal menu: il radar si accende o si spegne (tornando alla variabile di prima); un'altra voce lo
+// spegne; "Tutte le variabili" torna alle misure dirette
 function pickMapVar(v){
   if(v === RADAR_V){
     if(Radar.on) radarOff(true); else radarOn();
@@ -250,8 +250,9 @@ function syncPills(){
     b.querySelector('span').textContent = txt;
     b.setAttribute('aria-label', what + ': ' + txt);
   };
-  set(rp, 'Regione', (!ro || ro.value === 'ALL') ? 'Tutte le regioni' : ro.textContent);
-  rp.classList.toggle('on', !!ro && ro.value !== 'ALL');
+  const all = !ro || ro.value === 'ALL';                      // sul telefono la riga e' stretta: "Tutte"
+  set(rp, 'Regione', all ? (PHONE.matches ? 'Tutte' : 'Tutte le regioni') : ro.textContent);
+  rp.classList.toggle('on', !all);
   set(vp, 'Variabile', Radar.on ? 'Radar' : filterVar ? varLabel(filterVar) : 'Tutte le variabili');
   vp.classList.toggle('on', Radar.on || !!filterVar);
   const st = Radar.on ? Radar.state : '';
@@ -548,6 +549,7 @@ function buildSearchControls(){
     else if(!el('moreMenu').hidden) placeMenu(el('moreMenu'), el('moreBtn'));
   });
   syncPills();
+  if(PHONE.addEventListener) PHONE.addEventListener('change', syncPills);
   el('stationQ').addEventListener('input', renderSearch);
   el('stationQ').addEventListener('focus', renderSearch);
   el('stationQ').addEventListener('keydown', e => {

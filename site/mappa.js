@@ -248,16 +248,9 @@ const ICON = {
   pause: svgIcon('<path d="M6 5h4v14h-4z"/><path d="M14 5h4v14h-4z"/>'),
   up: svgIcon('<path d="M6 15l6 -6l6 6"/>'),
   down: svgIcon('<path d="M6 9l6 6l6 -6"/>'),
-  rain: svgIcon(
-    '<path d="M7.5 19.4c2.6 2.1 6.4 2.1 9 0s3.3 -5.7 1.6 -8.5l-4.9 -7.3a1.4 1.4 0 0 0 -2.4 0' +
-    'l-4.9 7.3c-1.7 2.8 -1 6.4 1.6 8.5z"/>'),
-  clock: svgIcon('<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/>'),
-  radar: svgIcon(
-    '<path d="M21 12h-8a1 1 0 1 0 -1 1v8a9 9 0 0 0 9 -9"/><path d="M16 9a5 5 0 1 0 -7 7"/>' +
-    '<path d="M20.5 9a9 9 0 1 0 -11.5 11.5"/>'),
 };
 
-// Se radar.js non arriva un sostituto inerte tiene in piedi la pagina: il pulsante Radar resta grigio
+// Se radar.js non arriva un sostituto inerte tiene in piedi la pagina: la voce Radar dice che non c'e'
 if(typeof Radar === 'undefined') window.Radar = { on:false, state:'nd', index:-1, source:null,
   init(){}, enable: async () => false, disable(){}, poll(){}, gridPixel: () => null,
   setProduct: () => false, products: () => [], legend: () => ({ steps:[], colors:[] }), product:null };
@@ -291,9 +284,22 @@ function initMap(){
   let baseChoice = 'Mappa';
   try { const b = localStorage.getItem('basemap'); if (BASEMAPS[b]) baseChoice = b; } catch(e){}
   BASEMAPS[baseChoice].addTo(map);
-  L.control.layers(BASEMAPS, null, { position:'topright' }).addTo(map);
-  map.on('baselayerchange', e => {
-    try { localStorage.setItem('basemap', e.name); } catch(err){}
+  // Sfondi nel menu ⋯, sotto il loro titolo; la scelta resta nel browser
+  el('moreMenu').querySelector('.pm-h').insertAdjacentHTML('afterend', Object.keys(BASEMAPS).map(n =>
+    '<button role="menuitemradio" tabindex="-1" data-bg="' + n + '">' + n + '</button>').join(''));
+  const markBase = () => el('moreMenu').querySelectorAll('[data-bg]').forEach(b => {
+    b.classList.toggle('on', b.dataset.bg === baseChoice);
+    b.setAttribute('aria-checked', String(b.dataset.bg === baseChoice));
+  });
+  markBase();
+  el('moreMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-bg]');
+    if(!b || b.dataset.bg === baseChoice) return;
+    map.removeLayer(BASEMAPS[baseChoice]);
+    baseChoice = b.dataset.bg;
+    BASEMAPS[baseChoice].addTo(map);
+    try { localStorage.setItem('basemap', baseChoice); } catch(err){}
+    markBase();
     dockLayout();
   });
   markersLayer = L.layerGroup().addTo(map);
@@ -304,30 +310,8 @@ function initMap(){
   // I crediti (obbligatori per licenza) stanno nella plancia, senza il prefisso "Leaflet"
   map.attributionControl.setPrefix(false);
   el('dkCredits').appendChild(map.attributionControl.getContainer());
-  // Pulsanti Pioggia, Cursore e Radar: colonna a destra fra sfondi e zoom (solo icone); sul telefono
-  // nella riga delle pillole (placeTools)
-  const mcCtl = L.control({ position:'topright' });
-  mcCtl.onAdd = () => {
-    const d = L.DomUtil.create('div', 'mapctl');
-    d.innerHTML =
-      '<button class="mc-pill" id="mcRain" aria-label="Pioggia"' +
-        ' title="Pioggia caduta: colora la mappa">' +
-        ICON.rain + '<span class="mc-l">Pioggia</span></button>' +
-      '<button class="mc-pill" id="mcSnap" aria-label="Cursore"' +
-        ' title="Cursore: scorri gli ultimi 7 giorni">' +
-        ICON.clock + '<span class="mc-l">Cursore</span></button>' +
-      '<button class="mc-pill" id="mcRadar" aria-label="Radar"' +
-        ' title="Radar della Protezione Civile: ultime 6 ore">' +
-        ICON.radar + '<span class="mc-l">Radar</span></button>';
-    L.DomEvent.disableClickPropagation(d);
-    L.DomEvent.disableScrollPropagation(d);
-    return d;
-  };
-  mcCtl.addTo(map);
-  map.zoomControl.setPosition('topright');               // ultimo dell'angolo: sotto i pulsanti
+  map.zoomControl.setPosition('topright');               // a destra solo lo zoom
   buildMapControls();
-  placeTools();
-  if(PHONE.addEventListener) PHONE.addEventListener('change', placeTools);
   let radarProd = 'SRI';
   try { radarProd = localStorage.getItem('radarProd') || 'SRI'; } catch(e){}
   Radar.init({ map, onState: syncMapControls, onTime: radarTime, onFrames: radarFrames, product: radarProd,
@@ -1005,27 +989,8 @@ function closeProdMenu(){
   el('prodMenu').classList.remove('open');
   el('dkProd').setAttribute('aria-expanded', 'false');
 }
-// Desktop: pulsanti della mappa in alto a destra, fra sfondi e zoom. Telefono: nella riga delle pillole,
-// prima di "Fonti", e gli angoli alti della mappa (sfondi) scendono sotto la barra in alto
-function placeTools(){
-  const d = document.querySelector('.mapctl');
-  const corners = map.getContainer().querySelectorAll('.leaflet-top');
-  if(PHONE.matches){
-    el('pillRow').insertBefore(d, el('srcinfo'));
-    corners.forEach(c => { c.style.top = (el('topbar').offsetHeight + 8) + 'px'; });
-  } else {
-    const tr = map.getContainer().querySelector('.leaflet-top.leaflet-right'),
-          z = map.zoomControl.getContainer();
-    tr.insertBefore(d, z.parentNode === tr ? z : null);
-    corners.forEach(c => { c.style.top = ''; });
-  }
-}
 function buildMapControls(){
-  el('mcRain').addEventListener('click', () => {
-    if(Radar.on){ radarOff(false); setMapVar(lastRainVar()); }
-    else setMapVar(isRainVar(filterVar) ? '' : lastRainVar());
-  });
-  el('mcSnap').addEventListener('click', openSlider);
+  el('dkTime').addEventListener('click', openSlider);
   el('mcValues').addEventListener('click', () => {
     showValues = !showValues;
     try { localStorage.setItem('mapValues', showValues ? '1' : '0'); } catch(e){}
@@ -1033,7 +998,6 @@ function buildMapControls(){
     renderMarkers();
   });
   syncValuesSwitch();
-  el('mcRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
   el('mcStations').addEventListener('click', () => {
     radarUi.stations = !radarUi.stations;
     renderMarkers();
@@ -1083,18 +1047,10 @@ function buildMapControls(){
   syncMapControls();
 }
 function syncMapControls(){
-  const r = el('mcRain'), s = el('mcSnap');
-  r.classList.toggle('on', isRainVar(filterVar) && !Radar.on);         // col radar la pioggia e' il radar
-  s.classList.toggle('on', snap.on);
+  el('dkTime').setAttribute('aria-pressed', String(snap.on));
   const sw = el('mcStations');
   sw.classList.toggle('on', radarUi.stations);
   sw.setAttribute('aria-checked', String(radarUi.stations));
-  const rd = el('mcRadar'), st = Radar.state;
-  rd.classList.toggle('on', Radar.on);
-  rd.classList.toggle('dim', st === 'zoom' || st === 'nd');
-  rd.title = st === 'nd' ? 'Radar non disponibile' : st === 'zoom' ? 'Radar visibile fino a zoom 10'
-           : st === 'fermo' ? 'Radar fermo: ultimo fotogramma vecchio'
-           : 'Radar della Protezione Civile: ultime 6 ore';
   if(prodMenuOpen()) openProdMenu();
   dockSync();
   syncPills();
@@ -1336,7 +1292,7 @@ function cardHtml(M){
 }
 // Ostacoli che la scheda non deve coprire: ricerca, pillole, menu e pannelli aperti, pulsanti della mappa,
 // plancia
-const CARD_OBST = '.tb-q, #pillRow, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, ' +
+const CARD_OBST = '#topbar, #searchList, #pillMenu, #moreMenu, #srcpanel, #notepanel, ' +
   '.leaflet-top .leaflet-control, #dock, #prodMenu';
 function cardObstacles(){
   return [...document.querySelectorAll(CARD_OBST)]

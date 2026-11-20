@@ -224,8 +224,8 @@ body.clima-mode #chartwrap { display:none; }
 .wdir { white-space:nowrap; }
 .wd-ar { display:inline-block; font-style:normal; font-weight:400; line-height:1; width:.9em;
          text-align:center; margin-left:.12em; transform-origin:50% 55%; }
-/* ---- MAPPA: in alto a destra sfondi, Pioggia · Cursore · Radar e zoom; in basso la PLANCIA (tempo,
-   legenda, crediti in un solo pannello, che sul telefono si chiude). Un solo materiale per tutti:
+/* ---- MAPPA: in alto a destra lo zoom; in basso la PLANCIA (tempo, legenda, «Ora», crediti in un solo
+   pannello, che sul telefono si chiude). Un solo materiale per tutti:
    --pbg sfondo, --pl bordo, --psh ombra ---- */
 :root { --pbg:rgba(255,255,255,.96); --pl:rgba(16,24,40,.14); --pl2:rgba(16,24,40,.08); --trk:#e1e7ee;
         --buf:#bacdd2; --ink:#3b4a5c; --psh:0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.12);
@@ -236,32 +236,13 @@ body.dark { --pbg:rgba(21,31,45,.96); --pl:rgba(255,255,255,.14); --pl2:rgba(255
             --cool:#7fb0e6; }
 .leaflet-top.leaflet-right .leaflet-control { margin:12px 12px 0 0; }
 .leaflet-top.leaflet-right .leaflet-control + .leaflet-control { margin-top:8px; }
-.leaflet-container .leaflet-control-zoom, .leaflet-container .leaflet-control-layers {
+.leaflet-container .leaflet-control-zoom {
       border:1px solid var(--pl); border-radius:10px; background:var(--pbg); box-shadow:var(--psh);
       overflow:hidden; }
 .leaflet-container .leaflet-control-zoom a { width:32px; height:30px; line-height:30px; font-size:17px;
       color:var(--fg); background:transparent; border-bottom-color:var(--pl2); }
 .leaflet-container .leaflet-control-zoom a:hover { background:var(--soft2); }
-.leaflet-container .leaflet-control-layers-toggle { width:32px; height:32px; background-size:18px 18px; }
-.leaflet-container .leaflet-control-layers-expanded { color:var(--fg); }
-body.dark .leaflet-control-layers-toggle { filter:invert(1); }
-.mapctl { display:flex; gap:2px; padding:3px; background:var(--pbg); border:1px solid var(--pl);
-          border-radius:10px; box-shadow:var(--psh); }
-.mc-pill { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 9px; border:none;
-      border-radius:7px; background:transparent; color:var(--ink); font-size:12px; cursor:pointer;
-      white-space:nowrap; }
-.mc-pill:hover { background:var(--soft2); }
-.mc-pill.on { background:var(--atint); color:var(--atext); font-weight:600; }
-.mc-pill.dim { opacity:.55; }                 /* Radar: nascosto dallo zoom o non disponibile */
-.leaflet-right .mapctl { flex-direction:column; padding:2px; }          /* desktop: colonna di icone */
-.leaflet-right .mc-pill { width:28px; padding:0; justify-content:center; }
-.leaflet-right .mc-l { display:none; }
-#pillRow .mapctl { display:contents; }                                  /* telefono: pillole con la scritta */
-#pillRow .mc-pill { height:30px; gap:6px; padding:0 11px; border:1px solid var(--pl); border-radius:999px;
-      background:var(--pbg); box-shadow:0 1px 3px rgba(16,24,40,.2); font:500 13px var(--font); }
-#pillRow .mc-pill.on { background:var(--atint); color:var(--atext); border-color:var(--aline);
-                       font-weight:600; }
-.mapctl svg, .dock svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:2;
+.dock svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:2;
       stroke-linecap:round; stroke-linejoin:round; }
 .dock { position:absolute; left:12px; right:12px; bottom:12px; z-index:1100; display:flex;
         flex-direction:column; background:var(--pbg); border:1px solid var(--pl); border-radius:12px;
@@ -343,6 +324,12 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
 .dk-sta { display:inline-flex; align-items:center; gap:8px; margin-left:auto; white-space:nowrap; }
 .dk-sub { color:var(--muted); }
 .dk-val { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+/* «Ora»: apre e chiude il Cursore; c'e' anche senza variabile */
+.dk-tbtn { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px 0 8px;
+      border:1px solid var(--pl); border-radius:7px; background:transparent; color:var(--fg); font-size:12px;
+      font-weight:600; cursor:pointer; white-space:nowrap; }
+.dk-tbtn:hover { background:var(--soft2); }
+.dk-tbtn[aria-pressed="true"] { background:var(--atint); color:var(--atext); border-color:var(--aline); }
 /* Etichette coi valori sulla mappa: il numero sul colore del valore, al posto del puntino */
 .vl { box-sizing:border-box; height:16px; padding:0 4px; border:1px solid rgba(12,30,45,.35);
       border-radius:4px; font:600 11px/14px var(--font); text-align:center;
@@ -379,8 +366,9 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
 /* plancia chiusa (solo telefono): play, ora, cursore, nome e scala compatta, crediti */
 .dock.min #tsPrev, .dock.min #tsNext, .dock.min #tsSpeed, .dock.min #tsClose, .dock.min .dk-ticks,
 .dock.min #tsLab small, .dock.min .sc-full, .dock.min .dk-nd, .dock.min .dk-sta, .dock.min .dk-val,
-.dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg { display:none; }
+.dock.min .dk-prod .dk-unit, .dock.min .dk-prod svg, .dock.min .dk-tbtn span { display:none; }
 .dock.min .sc-mini { display:flex; }
+.dock.min .dk-tbtn { height:22px; padding:0 5px; }
 .dock.min .dk-prod { height:auto; padding:0; border:none; font-size:11px; }
 .dock.min .dk-track { order:0; flex:1 1 auto; height:34px; margin:0 4px; }
 .dock.min #tsRange { top:8px; }
@@ -403,7 +391,7 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
   .dock.min .dk-info { border-top:none; padding-top:2px; }
   .dk-info { padding:6px 10px 7px; }
   .dock.no-time .dk-info { padding-right:44px; }
-  .dk-legend { flex-wrap:wrap; flex:1 1 100%; gap:4px 10px; }
+  .dk-legend { flex-wrap:wrap; flex:1 1 0; gap:4px 10px; }
   .dk-legend .sc-full { order:5; flex:1 0 100%; width:auto; margin:4px 6px 14px; }
   .dk-legend .sc-cont { margin:0 6px; padding-top:2px; }
   .dk-nd { display:none; }
@@ -521,19 +509,19 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 #pngsheet .pt { color:#fff; font-size:14px; text-align:center; }
 #pngsheet .row { display:flex; gap:10px; }
 
-/* ---- BARRA IN ALTO sulla mappa: ricerca (con suggerimenti) e pillole Pagina, Regione, Variabile, Fonti, ⋯
-   sulla stessa riga; se non ci stanno, le pillole vanno sotto. Le tendine di prima (#pages, #region,
-   #stationFilter, #varFilter) restano nascoste in #legacyCtl: fonte unica ---- */
-#topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-flow:row wrap;
-          align-items:center; gap:8px; max-width:calc(100% - 80px); pointer-events:none; }
-#topbar > *, #pillRow > * { pointer-events:auto; }
-.tb-q { position:relative; width:300px; max-width:100%; }
+/* ---- BARRA IN ALTO sulla mappa: una scheda con la ricerca (e i suggerimenti) e i pulsanti Variabile,
+   Regione | Fonti, i, ⋯ sulla stessa riga; sul telefono i pulsanti vanno sotto, nella stessa scheda. Le
+   tendine di prima (#pages, #region, #stationFilter, #varFilter) restano nascoste in #legacyCtl ---- */
+#topbar { position:absolute; left:12px; top:12px; z-index:1120; display:flex; flex-flow:row nowrap;
+          align-items:center; max-width:calc(100% - 80px); padding:3px; background:var(--pbg);
+          border:1px solid var(--pl); border-radius:12px; box-shadow:var(--psh); }
+.tb-q { position:relative; flex:none; width:280px; max-width:100%; }
 .tb-q svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:16px; height:16px;
       fill:none; stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
-#stationQ { width:100%; height:38px; padding:0 34px; border:1px solid var(--pl); border-radius:10px;
-      background:var(--pbg); color:var(--fg); box-shadow:var(--psh); font:14px var(--font); outline:none; }
+#stationQ { width:100%; height:36px; padding:0 34px; border:1px solid transparent; border-radius:9px;
+      background:transparent; color:var(--fg); font:14px var(--font); outline:none; }
 #stationQ::placeholder { color:var(--muted); }
-#stationQ:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--aring), var(--psh); }
+#stationQ:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--aring); }
 .tb-q kbd { position:absolute; right:9px; top:50%; transform:translateY(-50%); padding:0 5px;
       border:1px solid var(--pl); border-radius:4px; font:11px ui-monospace,Menlo,monospace;
       color:var(--muted); pointer-events:none; }
@@ -552,15 +540,17 @@ body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible
 .sr-v { grid-column:2; grid-row:1 / span 2; align-self:center; font-size:13px; color:var(--ink);
       white-space:nowrap; font-variant-numeric:tabular-nums; }
 .sr-none { padding:8px 10px; font-size:13px; color:var(--muted); }
-#pillRow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; pointer-events:none; }
-.pill { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 11px;
-      border:1px solid var(--pl); border-radius:999px; background:var(--pbg); color:var(--ink);
-      box-shadow:var(--psh); cursor:pointer; white-space:nowrap; font:500 13px var(--font); }
+#pillRow { display:flex; align-items:center; gap:2px; margin-left:3px; padding-left:5px;
+           border-left:1px solid var(--pl2); }
+.pill { display:inline-flex; flex:none; align-items:center; gap:6px; height:34px; padding:0 10px;
+      border:none; border-radius:8px; background:transparent; color:var(--ink); cursor:pointer;
+      white-space:nowrap; font:500 13px var(--font); }
 .pill:hover { background:var(--soft2); }
-.pill.on { background:var(--atint); color:var(--atext); border-color:var(--aline); font-weight:600; }
+.pill.on { background:var(--atint); color:var(--atext); font-weight:600; }
+.tb-sep { flex:none; width:1px; height:22px; margin:0 4px; background:var(--pl2); }
 .pill svg { width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:2;
       stroke-linecap:round; stroke-linejoin:round; opacity:.7; }
-#moreBtn, #noteBtn { width:30px; padding:0; justify-content:center; font-size:15px; }
+#moreBtn, #noteBtn { width:34px; padding:0; justify-content:center; font-size:15px; }
 #noteBtn { font-weight:700; }
 /* menu delle pillole e menu ⋯: uno alla volta, sotto la pillola; l'elenco lungo scorre dentro il menu */
 .tb-menu { position:fixed; z-index:5; display:flex; flex-direction:column; min-width:190px;
@@ -645,10 +635,11 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   .sr { padding:8px 10px; }
   .sr-n, .sr-v { font-size:15px; }
   .sr-r { font-size:12.5px; }
-  #pillRow { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:0 -10px; padding:2px 10px 6px;
-             pointer-events:auto; }                    /* la striscia scorre anche partendo fra due pillole */
+  #pillRow { overflow-x:auto; scrollbar-width:none; margin:3px -3px -3px; padding:3px;
+             border-left:none; border-top:1px solid var(--pl2); }    /* la riga scorre anche fra due pulsanti */
   #pillRow::-webkit-scrollbar { display:none; }
-  .pill { box-shadow:0 1px 3px rgba(16,24,40,.2); }
+  .pill { height:36px; padding:0 7px; }
+  #moreBtn, #noteBtn { width:32px; }
   .tb-menu { max-width:none; }
   .tb-menu button { min-height:40px; font-size:15px; }
   .pm-filter { height:38px; font-size:16px; }

@@ -31,6 +31,13 @@
     ['mousedown', 'mouseup', 'click'].forEach(type =>
       t.dispatchEvent(new MouseEvent(type, { clientX:x, clientY:y, bubbles:true, cancelable:true, view:window })));
   }
+  // scelta dal menu delle variabili, come la fa chi usa la pagina (RADAR accende o spegne il radar)
+  async function pickVarMenu(v){
+    el('varPill').click(); await sleep(50);
+    const b = el('pillMenu').querySelector('[data-v="' + v + '"]');
+    if(b) b.click(); else document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' }));
+    await sleep(50);
+  }
   // niente esce dalla pagina: ne' la pagina ne' la scheda scorrono di lato e nessun elemento visibile sporge dallo schermo
   // (tranne dentro le zone che scorrono da se', come la riga 2 sul telefono o una tabella larga)
   function noOverflow(tag){
@@ -69,14 +76,13 @@
   }
 
   async function suiteRadar(){
-    const btn = el('mcRadar');
-    log(!!btn, 'pulsante Radar', 'assente');
-    if(!btn) return finish();
+    const btn = el('varPill');
+    log(varMenuItems().some(it => it.v === 'RADAR'), 'voce Radar nel menu delle variabili', 'assente');
     const rawIdx = await (await fetch('https://raw.githubusercontent.com/Simulaqua/METEO/radar/index.json', { cache:'no-store' })).json();
     const fr = rawIdx.products.SRI.frames, age = Math.round((Date.now() / 1000 - fr[fr.length - 1]) / 60);
     setMapVar('TEMP');                                 // variabile di partenza da ripristinare
     await until(() => filterVar === 'TEMP');
-    btn.click();
+    await pickVarMenu('RADAR');
     await until(() => Radar.on && snap.on && filterVar === 'PREC1' && tsSrc === Radar.source, 20000);
     log(Radar.on, 'radar acceso', Radar.state);
     eq('puntini su PREC1', filterVar, 'PREC1');
@@ -105,8 +111,9 @@
     log(staT() === fmtFrame(snap.T[snap.k]).slice(-5), 'etichetta = ora usata dai puntini', staT() + ' k=' + snap.k);
     log(el('colorbar').textContent.includes('Pioggia adesso') && el('colorbar').textContent.includes('mm/h') &&
         el('colorbar').contains(el('mcStations')), 'legenda unica radar/stazioni', el('colorbar').textContent);
-    eq('in alto solo Pioggia, Cursore, Radar', [...document.querySelectorAll('.mapctl button')].map(b => b.id), ['mcRain', 'mcSnap', 'mcRadar']);
-    log(!el('mcRain').classList.contains('on'), 'Pioggia spento col radar', el('mcRain').className);
+    eq('a destra solo lo zoom', [!!document.querySelector('.mapctl'), !!document.querySelector('.leaflet-control-layers')],
+       [false, false]);
+    eq('pillola: Radar', [btn.textContent.trim(), btn.classList.contains('on')], ['Radar', true]);
     el('dkProd').click(); await sleep(100);
     eq('menu del radar a gruppi', [...document.querySelectorAll('#prodMenu .pm-g')].map(g => g.dataset.g),
        ['Pioggia', 'Riflettività', 'Temporali', 'Altro']);
@@ -127,9 +134,10 @@
     setFrame(Radar.source.max());
     // zoom: da 11 nascosto, pulsante attenuato
     map.setZoom(11); await sleep(300);
-    log(Radar.state === 'zoom' && el('mcRadar').classList.contains('dim'), 'zoom 11: nascosto e pulsante attenuato', Radar.state);
+    log(Radar.state === 'zoom' && btn.classList.contains('dim') && /zoom 10/.test(btn.title), 'zoom 11: nascosto e pillola attenuata',
+        Radar.state + ' ' + btn.title);
     map.setZoom(8); await sleep(300);
-    log(Radar.state !== 'zoom' && !el('mcRadar').classList.contains('dim'), 'zoom 8: di nuovo visibile', Radar.state);
+    log(Radar.state !== 'zoom' && !btn.classList.contains('dim'), 'zoom 8: di nuovo visibile', Radar.state);
     // tocco in un punto vuoto della vista (nessun puntino entro 20 px): popup con la classe del radar
     const sz = map.getSize();
     let empty = null;
@@ -164,22 +172,22 @@
     // la x chiude la barra, il radar resta acceso e torna all'ultimo
     el('tsClose').click(); await sleep(200);
     log(!snap.on && Radar.on, 'x chiude la barra, radar resta acceso', snap.on + ' ' + Radar.on);
-    el('mcSnap').click(); await until(() => snap.on && tsSrc === Radar.source);
+    el('dkTime').click(); await until(() => snap.on && tsSrc === Radar.source);
     eq('Cursore riaperto in modo radar', tsSrc === Radar.source, true);
     // un'altra variabile spegne il radar; la barra (aperta dal radar) si chiude
     setMapVar('UMID'); await until(() => !Radar.on);
     log(!Radar.on && !snap.on && tsSrc === snapSource, 'altra variabile spegne il radar e chiude la barra', Radar.on + ' ' + snap.on);
     // acceso e spento dal pulsante: torna la variabile di prima
-    el('mcRadar').click(); await until(() => Radar.on && filterVar === 'PREC1');
-    el('mcRadar').click(); await until(() => !Radar.on && filterVar === 'UMID');
+    await pickVarMenu('RADAR'); await until(() => Radar.on && filterVar === 'PREC1');
+    await pickVarMenu('RADAR'); await until(() => !Radar.on && filterVar === 'UMID');
     log(filterVar === 'UMID', 'spento: torna la variabile di prima',
         'filterVar "' + filterVar + '", pagina ' + currentPage + ', UMID nel selettore ' + [...el('varFilter').options].some(o => o.value === 'UMID') +
         ', avviso "' + el('toast').textContent + '", prevVar "' + radarUi.prevVar + '", busy ' + radarUi.busy + ', snap.on ' + snap.on);
     // Cursore delle stazioni aperto prima del radar: spento il radar si torna ai 7 giorni
     setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
     await openSlider(); await until(() => snap.on && snap.var === 'PREC24');
-    el('mcRadar').click(); await until(() => Radar.on && tsSrc === Radar.source);
-    el('mcRadar').click(); await until(() => !Radar.on && filterVar === 'PREC24' && snap.on && snap.var === 'PREC24');
+    await pickVarMenu('RADAR'); await until(() => Radar.on && tsSrc === Radar.source);
+    await pickVarMenu('RADAR'); await until(() => !Radar.on && filterVar === 'PREC24' && snap.on && snap.var === 'PREC24');
     log(snap.on && tsSrc === snapSource && +el('tsRange').max === snap.kmax, 'spento: la barra torna ai 7 giorni', snap.on);
     closeSlider();
     eq('errori JS', window.__errs, []);
@@ -211,9 +219,9 @@
     if(new URLSearchParams(location.search).get('dark')) document.body.classList.add('dark');
     el('region').value = 'FVG';
     await loadRegions(REGION_GROUPS.FVG || ['FVG']);
-    const btn = el('mcRadar'), noradar = new URLSearchParams(location.search).get('noradar');
+    const noradar = new URLSearchParams(location.search).get('noradar');
     if(noradar){ setMapVar('PREC24'); await until(() => filterVar === 'PREC24'); }           // confronto: solo stazioni
-    else if(btn){ btn.click(); await until(() => Radar.on && snap.on, 20000); }
+    else { await pickVarMenu('RADAR'); await until(() => Radar.on && snap.on, 20000); }
     await sleep(800);
     const dock = el('dock'), phone = innerWidth <= 720;
     log(!!dock, 'plancia', 'assente');
@@ -221,11 +229,10 @@
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const inside = (a, b) => a.left >= b.left - 0.5 && a.right <= b.right + 0.5 && a.top >= b.top - 0.5 && a.bottom <= b.bottom + 0.5;
     function check(tag){
-      const sels = { pulsanti:'.mapctl', zoom:'.leaflet-control-zoom', sfondi:'.leaflet-control-layers', plancia:'#dock', barra:'#topbar' };
+      const sels = { zoom:'.leaflet-control-zoom', plancia:'#dock', barra:'#topbar' };
       const R = {};
       for(const k in sels){
         const e = document.querySelector(sels[k]);
-        if(k === 'pulsanti' && e && el('topbar') && el('topbar').contains(e)) continue;     // telefono: nella riga delle pillole
         if(vis(e)) R[k] = e.getBoundingClientRect();
       }
       const over = [], ks = Object.keys(R);
@@ -242,19 +249,23 @@
       log(vis(lg) && dock.contains(lg) && inside(lg.getBoundingClientRect(), D), tag + 'legenda nella plancia', lg && lg.textContent);
       return D.height;
     }
-    log(noradar || (!!btn && Radar.on), 'radar acceso', '');
-    const inRow = !!el('pillRow') && el('pillRow').contains(document.querySelector('.mapctl'));
-    const inRight = !!document.querySelector('.leaflet-top.leaflet-right .mapctl');
-    eq('pulsanti mappa al posto giusto', [inRow, inRight], phone ? [true, false] : [false, true]);
-    const lab = [...document.querySelectorAll('.mapctl .mc-l')].map(s => vis(s));
-    log(lab.length === 3 && (phone ? lab.every(Boolean) : lab.every(v => !v)), phone ? 'etichette visibili sul telefono' : 'solo icone su desktop', JSON.stringify(lab));
-    log([...document.querySelectorAll('.mapctl button')].every(b => b.getAttribute('aria-label')), 'pulsanti con aria-label', '');
+    log(noradar || Radar.on, 'radar acceso', '');
+    eq('a destra solo lo zoom', [!!document.querySelector('.mapctl'), !!document.querySelector('.leaflet-control-layers')],
+       [false, false]);
+    {                                                         // in alto una scheda sola: ricerca e pulsanti dentro
+      const tb = el('topbar').getBoundingClientRect(), box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);
+      const q = el('stationQ').getBoundingClientRect(), pr = el('pillRow').getBoundingClientRect();
+      log(getComputedStyle(el('topbar')).backgroundColor !== 'rgba(0, 0, 0, 0)' && inside(q, tb) && inside(pr, tb),
+          'barra in alto: una scheda con ricerca e pulsanti', JSON.stringify([box(tb), box(q), box(pr)]));
+    }
+    log(vis(el('dkTime')) && dock.contains(el('dkTime')) && el('dkTime').getAttribute('aria-pressed') === String(snap.on),
+        '«Ora» nella plancia', el('dkTime') && el('dkTime').outerHTML.slice(0, 80));
     if(!phone){
       check('');
       log(!vis(el('dkToggle')) && !dock.classList.contains('min'), 'desktop: plancia sempre aperta', dock.className);
     } else {
       log(!vis(document.querySelector('.leaflet-control-zoom')), 'telefono: niente +/−', '');
-      const pa = el('regPill').getBoundingClientRect(), pb = el('varPill').getBoundingClientRect();
+      const pa = el('varPill').getBoundingClientRect(), pb = el('regPill').getBoundingClientRect();
       const gap = document.elementFromPoint((pa.right + pb.left) / 2, (pa.top + pa.bottom) / 2);
       log(!!gap && el('pillRow').contains(gap), 'telefono: fra le pillole il tocco resta alla riga', gap && (gap.id || gap.className));
       log(dock.classList.contains('min'), 'telefono: parte chiusa', dock.className);
@@ -291,9 +302,16 @@
     if(!dock) return finish();
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     setMapVar(''); await sleep(200);
-    log(!vis(el('colorbar')) && vis(document.querySelector('.leaflet-control-attribution')), 'nessuna variabile: solo crediti', dock.className);
-    el('mcRain').click(); await until(() => isRain(filterVar));
-    log(el('mcRain').classList.contains('on'), 'Pioggia acceso', el('mcRain').className);
+    log(!vis(el('colorbar')) && vis(el('dkTime')) && vis(document.querySelector('.leaflet-control-attribution')),
+        'nessuna variabile: «Ora» e crediti', dock.className);
+    el('dkTime').click(); await until(() => snap.on && snap.T.length, 20000);    // il Cursore sceglie la pioggia
+    log(snap.on && isRain(filterVar) && el('dkTime').getAttribute('aria-pressed') === 'true', '«Ora» apre il Cursore',
+        filterVar + ' ' + snap.on);
+    el('dkTime').click(); await sleep(200);
+    log(!snap.on && el('dkTime').getAttribute('aria-pressed') === 'false', '«Ora» lo richiude', snap.on);
+    await pickVarMenu('PREC'); await until(() => filterVar === 'PREC');
+    log(el('varPill').classList.contains('on') && el('varPill').textContent.includes(varLabel('PREC')), 'pioggia dal menu',
+        el('varPill').textContent);
     log(vis(el('colorbar')) && el('dkProd').textContent.includes(varLabel(filterVar)), 'legenda col nome della variabile', el('colorbar').textContent);
     el('dkProd').click(); await sleep(100);
     const items = [...document.querySelectorAll('#prodMenu [data-v]')];
@@ -305,8 +323,7 @@
     eq('scelta 6 h', filterVar, 'PREC6');
     log(!vis(el('prodMenu')), 'menu chiuso dopo la scelta', '');
     setMapVar('TEMP'); await until(() => filterVar === 'TEMP');
-    log(!el('mcRain').classList.contains('on') && el('colorbar').textContent.includes(varLabel('TEMP')),
-        'temperatura: legenda, Pioggia spento', el('colorbar').textContent);
+    log(el('colorbar').textContent.includes(varLabel('TEMP')), 'temperatura: legenda', el('colorbar').textContent);
     el('dkProd').click(); await sleep(100);
     log(!vis(el('prodMenu')), 'temperatura: nessun menu', '');
     setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
@@ -322,9 +339,9 @@
   // radar.js non arrivato: la pagina deve funzionare lo stesso (puntini, Cursore), pulsante Radar grigio
   async function suiteResilience(){
     log(markerRefs.length > 0, 'puntini disegnati', markerRefs.length);
-    log(el('mcRadar').classList.contains('dim'), 'pulsante Radar grigio', el('mcRadar').className);
+    log(varMenuItems().some(it => it.v === 'RADAR'), 'voce Radar nel menu', '');
     const v0 = filterVar;
-    el('mcRadar').click(); await sleep(300);
+    await pickVarMenu('RADAR'); await sleep(300);
     log(el('toast').textContent.includes('Radar non disponibile') && filterVar === v0, 'clic: avviso e nient\'altro', el('toast').textContent);
     setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
     await openSlider(); await until(() => snap.on && snap.T.length, 20000);
@@ -341,7 +358,7 @@
     const openMenu = async () => { if(!shown()){ el('dkProd').click(); await sleep(50); } };
     const pick = async key => { await openMenu(); const b = document.querySelector('#prodMenu [data-key="' + key + '"]'); if(b) b.click(); };
     const fills = () => markerRefs.map(r => r.m.options.fillColor);
-    el('mcRadar').click();
+    await pickVarMenu('RADAR');
     await until(() => Radar.on && snap.on && el('dkProd'), 20000);
     log(!!el('dkProd') && !!el('prodMenu'), 'menu prodotti', 'assente');
     if(!el('dkProd') || !el('prodMenu')) return finish();
@@ -377,7 +394,7 @@
     await pick('VMI'); await until(() => Radar.product.key === 'VMI');
     setMapVar('UMID'); await until(() => !Radar.on);
     log(!Radar.on && filterVar === 'UMID', 'altra variabile: radar spento', Radar.on + ' ' + filterVar);
-    el('mcRadar').click(); await until(() => Radar.on && Radar.product);
+    await pickVarMenu('RADAR'); await until(() => Radar.on && Radar.product);
     eq('prodotto ricordato', Radar.product.key, 'VMI');
     eq('errori JS', window.__errs, []);
     finish();
@@ -385,7 +402,7 @@
 
   // caricamento del radar: il play aspetta il fotogramma non ancora scaricato; sul cursore la striscia del gia' scaricato
   async function suiteBuffer(){
-    el('mcRadar').click();
+    await pickVarMenu('RADAR');
     await until(() => Radar.on && snap.on && tsSrc === Radar.source, 20000);
     log(typeof Radar.source.ready === 'function' && typeof Radar.source.buffered === 'function', 'radar.js: ready e buffered', '');
     if(typeof Radar.source.ready !== 'function') return finish();
@@ -486,7 +503,8 @@
       const b = el('noteBtn'), row = [...el('pillRow').children].map(e => e.id);
       eq('Note: chip "i" fra Fonti e ⋯', [b.textContent.trim(), b.getAttribute('aria-label'), row.indexOf('noteBtn') - row.indexOf('srcinfo'),
                                           row.indexOf('moreBtn') - row.indexOf('noteBtn')], ['i', 'Note', 1, 1]);
-      eq('menu ⋯ senza Note', [...el('moreMenu').querySelectorAll('button')].map(x => x.textContent.trim()), ['Tema scuro', 'Azzera i filtri']);
+      eq('menu ⋯: sfondi, tema, azzera (niente Note)', [...el('moreMenu').querySelectorAll('button')].map(x => x.textContent.trim()),
+         ['Mappa', 'Satellite', 'Satellite + etichette', 'Rilievi', 'Mappa scura', 'Tema scuro', 'Azzera i filtri']);
       b.click(); await sleep(50);
       const n = el('notepanel'), r = n.getBoundingClientRect();
       eq('Note: un clic le apre', [getComputedStyle(n).display, b.getAttribute('aria-expanded')], ['block', 'true']);
@@ -499,9 +517,11 @@
     {                                                                // computer: pillole sulla riga della ricerca (piu' mappa); telefono: sotto
       const q = el('stationQ').getBoundingClientRect(), p = el('pillRow').getBoundingClientRect(), mid = r => (r.top + r.bottom) / 2;
       const box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);
-      if(innerWidth >= 900) log(Math.abs(mid(q) - mid(p)) <= 3 && p.left >= q.right + 4 && el('topbar').getBoundingClientRect().height <= 42,
+      if(innerWidth >= 900) log(Math.abs(mid(q) - mid(p)) <= 3 && p.left >= q.right && el('topbar').getBoundingClientRect().height <= 46,
                                 'computer: pillole sulla riga della ricerca', JSON.stringify([box(q), box(p)]));
       else if(innerWidth <= 720) log(p.top >= q.bottom, 'telefono: pillole sotto la ricerca', JSON.stringify([box(q), box(p)]));
+      eq('pulsanti interi, nessuno schiacciato', ['noteBtn', 'moreBtn'].map(id => el(id).getBoundingClientRect().width >= 30),
+         [true, true]);
     }
     log(/^Cerca fra \d+ stazioni…$/.test(el('stationQ').placeholder), 'segnaposto col numero di stazioni', el('stationQ').placeholder);
     log(!vis(el('legacyCtl')) && !!el('region') && !!el('varFilter') && !!el('stationFilter'), 'tendine nascoste ma presenti', '');
@@ -575,8 +595,18 @@
     el('moreBtn').click(); await sleep(50);
     const dark0 = document.body.classList.contains('dark'); el('themeBtn').click();
     log(document.body.classList.contains('dark') !== dark0, '⋯ → tema', ''); el('moreBtn').click(); el('themeBtn').click();
+    el('moreBtn').click(); await sleep(50);                                 // sfondo: dal menu ⋯, ricordato
+    const bg = n => el('moreMenu').querySelector('[data-bg="' + n + '"]');
+    bg('Satellite').click(); await sleep(100);
+    let savedBg = null; try { savedBg = localStorage.getItem('basemap'); } catch(e){}
+    log(savedBg === 'Satellite' && [...document.querySelectorAll('.leaflet-tile-pane img')].some(i => /World_Imagery/.test(i.src)),
+        '⋯ → sfondo Satellite, ricordato', savedBg);
+    el('moreBtn').click(); await sleep(50);
+    log(bg('Satellite').classList.contains('on') && bg('Satellite').getAttribute('aria-checked') === 'true', '⋯: sfondo scelto segnato', '');
+    bg('Mappa').click(); await sleep(100);
     el('moreBtn').click(); el('resetBtn').click(); await until(() => el('region').value === 'ALL' && !filterVar, 20000);
-    eq('⋯ → azzera i filtri', [el('regPill').textContent.trim(), el('varPill').textContent.trim()], ['Tutte le regioni', 'Tutte le variabili']);
+    eq('⋯ → azzera i filtri', [el('regPill').textContent.trim(), el('varPill').textContent.trim()],
+       [PHONE.matches ? 'Tutte' : 'Tutte le regioni', 'Tutte le variabili']);
     await ready();
     el('varPill').click(); await sleep(50);                                 // elenco lungo: campo per filtrare, senza accenti
     const flt = el('pillMenu').querySelector('.pm-filter');
@@ -886,7 +916,7 @@
     const hover = async p => { map.panTo(mk(p).m.getLatLng(), { animate:false }); await sleep(150);
       move(5, innerHeight / 2); await sleep(60); move(...scr(mk(p))); await until(() => vis(card), 2000); };
     el('region').value = 'FVG'; await loadRegions(REGION_GROUPS.FVG || ['FVG']); await sleep(300);
-    el('mcRadar').click(); await until(() => Radar.on && snap.on && el('dkProd') && snap.var === 'PREC1', 20000);
+    await pickVarMenu('RADAR'); await until(() => Radar.on && snap.on && el('dkProd') && snap.var === 'PREC1', 20000);
     map.setZoom(10, { animate:false }); await sleep(300);
     const A = markerRefs.find(r => r.p._region === 'FVG' && r.p.latest.TEMP != null && lone(r)), AP = A.p;
     await hover(AP);
