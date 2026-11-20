@@ -248,6 +248,9 @@ const ICON = {
   pause: svgIcon('<path d="M6 5h4v14h-4z"/><path d="M14 5h4v14h-4z"/>'),
   up: svgIcon('<path d="M6 15l6 -6l6 6"/>'),
   down: svgIcon('<path d="M6 9l6 6l6 -6"/>'),
+  radar: svgIcon(
+    '<path d="M21 12h-8a1 1 0 1 0 -1 1v8a9 9 0 0 0 9 -9"/><path d="M16 9a5 5 0 1 0 -7 7"/>' +
+    '<path d="M20.5 9a9 9 0 1 0 -11.5 11.5"/>'),
 };
 
 // Se radar.js non arriva un sostituto inerte tiene in piedi la pagina: la voce Radar dice che non c'e'
@@ -284,24 +287,6 @@ function initMap(){
   let baseChoice = 'Mappa';
   try { const b = localStorage.getItem('basemap'); if (BASEMAPS[b]) baseChoice = b; } catch(e){}
   BASEMAPS[baseChoice].addTo(map);
-  // Sfondi nel menu ⋯, sotto il loro titolo; la scelta resta nel browser
-  el('moreMenu').querySelector('.pm-h').insertAdjacentHTML('afterend', Object.keys(BASEMAPS).map(n =>
-    '<button role="menuitemradio" tabindex="-1" data-bg="' + n + '">' + n + '</button>').join(''));
-  const markBase = () => el('moreMenu').querySelectorAll('[data-bg]').forEach(b => {
-    b.classList.toggle('on', b.dataset.bg === baseChoice);
-    b.setAttribute('aria-checked', String(b.dataset.bg === baseChoice));
-  });
-  markBase();
-  el('moreMenu').addEventListener('click', e => {
-    const b = e.target.closest('[data-bg]');
-    if(!b || b.dataset.bg === baseChoice) return;
-    map.removeLayer(BASEMAPS[baseChoice]);
-    baseChoice = b.dataset.bg;
-    BASEMAPS[baseChoice].addTo(map);
-    try { localStorage.setItem('basemap', baseChoice); } catch(err){}
-    markBase();
-    dockLayout();
-  });
   markersLayer = L.layerGroup().addTo(map);
   labelsLayer = L.layerGroup().addTo(map);
   let zoomed = false;                       // dopo uno zoom le etichette le ha gia' rifatte renderMarkers
@@ -310,7 +295,25 @@ function initMap(){
   // I crediti (obbligatori per licenza) stanno nella plancia, senza il prefisso "Leaflet"
   map.attributionControl.setPrefix(false);
   el('dkCredits').appendChild(map.attributionControl.getContainer());
-  map.zoomControl.setPosition('topright');               // a destra solo lo zoom
+  // A destra, dall'alto: zoom, sfondi (la scelta resta nel browser) e Radar col suo nome, da trovare subito
+  map.zoomControl.setPosition('topright');
+  L.control.layers(BASEMAPS, null, { position:'topright' }).addTo(map);
+  map.on('baselayerchange', e => {
+    try { localStorage.setItem('basemap', e.name); } catch(err){}
+    dockLayout();                                        // i crediti dello sfondo cambiano l'altezza
+  });
+  const radarCtl = L.control({ position:'topright' });
+  radarCtl.onAdd = () => {
+    const d = L.DomUtil.create('div', 'mapctl');
+    d.innerHTML = '<button id="mcRadar" aria-pressed="false">' + ICON.radar + '<span>Radar</span></button>';
+    L.DomEvent.disableClickPropagation(d);
+    L.DomEvent.disableScrollPropagation(d);
+    return d;
+  };
+  radarCtl.addTo(map);
+  placeCorners();
+  if(PHONE.addEventListener) PHONE.addEventListener('change', placeCorners);
+  new ResizeObserver(placeCorners).observe(el('topbar'));
   buildMapControls();
   let radarProd = 'SRI';
   try { radarProd = localStorage.getItem('radarProd') || 'SRI'; } catch(e){}
@@ -740,6 +743,11 @@ async function snapLoad(v){
   return true;
 }
 
+// Sul telefono la barra in alto prende tutta la larghezza: sfondi e Radar scendono sotto di lei
+function placeCorners(){
+  const tb = el('topbar'), top = PHONE.matches ? tb.offsetTop + tb.offsetHeight + 'px' : '';
+  map.getContainer().querySelectorAll('.leaflet-top').forEach(c => { c.style.top = top; });
+}
 // PLANCIA: altezza in --dockh (il menu del prodotto si apre sopra); su desktop il menu segue il suo pulsante
 function dockLayout(){
   const d = el('dock'), m = el('prodMenu');
@@ -991,7 +999,7 @@ function closeProdMenu(){
 }
 function buildMapControls(){
   el('dkTime').addEventListener('click', openSlider);
-  el('dkRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
+  el('mcRadar').addEventListener('click', () => Radar.on ? radarOff(true) : radarOn());
   el('mcValues').addEventListener('click', () => {
     showValues = !showValues;
     try { localStorage.setItem('mapValues', showValues ? '1' : '0'); } catch(e){}
@@ -1049,7 +1057,7 @@ function buildMapControls(){
 }
 function syncMapControls(){
   el('dkTime').setAttribute('aria-pressed', String(snap.on));
-  const rb = el('dkRadar'), st = Radar.state;                    // grigio se non si vede o non c'e'
+  const rb = el('mcRadar'), st = Radar.state;                    // grigio se non si vede o non c'e'
   rb.setAttribute('aria-pressed', String(Radar.on));
   rb.classList.toggle('dim', st === 'nd' || (Radar.on && st === 'zoom'));
   rb.title = RADAR_STATE[st] || 'Radar della Protezione Civile: ultime 6 ore';
@@ -1307,19 +1315,30 @@ function cardObstacles(){
 const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
                           Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 // A destra del puntino, poi a sinistra, sotto, sopra (centrata o allineata a un lato, per gli schermi
-// stretti), dentro la mappa; vince il primo posto libero, se no quello che copre meno
+// stretti), dentro la mappa; se coprono tutti qualcosa (la colonna a destra arriva al Radar), gli stessi
+// scostati quanto basta. Vince il primo posto libero, se no quello che copre meno
 function placeCard(c, x, y, gx){
   const V = el('views').getBoundingClientRect(), w = c.offsetWidth, h = c.offsetHeight, G = 12, M = 8,
         obs = cardObstacles();
-  let best = null, bestA = Infinity;
-  for(const [x0, y0] of [[x + gx, y - h / 2], [x - gx - w, y - h / 2],
-                         [x - w / 2, y + G], [x + G - w, y + G], [x - G, y + G],
-                         [x - w / 2, y - G - h], [x + G - w, y - G - h], [x - G, y - G - h]]){
+  const box = (x0, y0) => {
     const l = Math.max(V.left + M, Math.min(x0, V.right - M - w)),
           t = Math.max(V.top + M, Math.min(y0, V.bottom - M - h));
-    const R = { left:l, top:t, right:l + w, bottom:t + h };
-    let a = obs.reduce((s, o) => s + overlap(R, o), 0);
-    if(x > R.left - 6 && x < R.right + 6 && y > R.top - 6 && y < R.bottom + 6) a += w * h;  // mai sul puntino
+    return { left:l, top:t, right:l + w, bottom:t + h };
+  };
+  const onDot = R => x > R.left - 6 && x < R.right + 6 && y > R.top - 6 && y < R.bottom + 6;
+  function* places(){
+    const base = [[x + gx, y - h / 2], [x - gx - w, y - h / 2],
+                  [x - w / 2, y + G], [x + G - w, y + G], [x - G, y + G],
+                  [x - w / 2, y - G - h], [x + G - w, y - G - h], [x - G, y - G - h]].map(p => box(...p));
+    yield* base;
+    for(const R of base) for(const o of obs) if(overlap(R, o)){
+      yield box(o.left - M - w, R.top); yield box(o.right + M, R.top);
+      yield box(R.left, o.bottom + M); yield box(R.left, o.top - M - h);
+    }
+  }
+  let best = null, bestA = Infinity;
+  for(const R of places()){
+    const a = obs.reduce((s, o) => s + overlap(R, o), 0) + (onDot(R) ? w * h : 0);     // mai sul puntino
     if(a < bestA){ bestA = a; best = R; }
     if(a === 0) break;
   }

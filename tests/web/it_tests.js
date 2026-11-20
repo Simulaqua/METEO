@@ -38,6 +38,10 @@
     if(b) b.click(); else document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' }));
     await sleep(50);
   }
+  // controlli in alto a destra sulla mappa, dall'alto (sul telefono lo zoom c'e' ma e' nascosto)
+  const rightCol = () => [...document.querySelectorAll('.leaflet-top.leaflet-right > .leaflet-control')].map(c =>
+    c.classList.contains('leaflet-control-zoom') ? 'zoom' : c.classList.contains('leaflet-control-layers') ? 'sfondo'
+    : c.contains(el('mcRadar')) ? 'radar' : c.className);
   // niente esce dalla pagina: ne' la pagina ne' la scheda scorrono di lato e nessun elemento visibile sporge dallo schermo
   // (tranne dentro le zone che scorrono da se', come la riga 2 sul telefono o una tabella larga)
   function noOverflow(tag){
@@ -111,8 +115,7 @@
     log(staT() === fmtFrame(snap.T[snap.k]).slice(-5), 'etichetta = ora usata dai puntini', staT() + ' k=' + snap.k);
     log(el('colorbar').textContent.includes('Pioggia adesso') && el('colorbar').textContent.includes('mm/h') &&
         el('colorbar').contains(el('mcStations')), 'legenda unica radar/stazioni', el('colorbar').textContent);
-    eq('a destra solo lo zoom', [!!document.querySelector('.mapctl'), !!document.querySelector('.leaflet-control-layers')],
-       [false, false]);
+    eq('a destra: zoom, sfondo e Radar', rightCol(), ['zoom', 'sfondo', 'radar']);
     eq('pillola: Radar', [btn.textContent.trim(), btn.classList.contains('on')], ['Radar', true]);
     el('dkProd').click(); await sleep(100);
     eq('menu del radar a gruppi', [...document.querySelectorAll('#prodMenu .pm-g')].map(g => g.dataset.g),
@@ -134,7 +137,7 @@
     setFrame(Radar.source.max());
     // zoom: da 11 nascosto, pulsante attenuato
     map.setZoom(11); await sleep(300);
-    log(Radar.state === 'zoom' && btn.classList.contains('dim') && /zoom 10/.test(btn.title) && el('dkRadar').classList.contains('dim'),
+    log(Radar.state === 'zoom' && btn.classList.contains('dim') && /zoom 10/.test(btn.title) && el('mcRadar').classList.contains('dim'),
         'zoom 11: nascosto, pillola e pulsante Radar attenuati',
         Radar.state + ' ' + btn.title);
     map.setZoom(8); await sleep(300);
@@ -230,7 +233,8 @@
     const vis = e => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().width > 0;
     const inside = (a, b) => a.left >= b.left - 0.5 && a.right <= b.right + 0.5 && a.top >= b.top - 0.5 && a.bottom <= b.bottom + 0.5;
     function check(tag){
-      const sels = { zoom:'.leaflet-control-zoom', plancia:'#dock', barra:'#topbar' };
+      const sels = { zoom:'.leaflet-control-zoom', sfondo:'.leaflet-control-layers', radar:'.mapctl', plancia:'#dock',
+                     barra:'#topbar' };
       const R = {};
       for(const k in sels){
         const e = document.querySelector(sels[k]);
@@ -251,8 +255,7 @@
       return D.height;
     }
     log(noradar || Radar.on, 'radar acceso', '');
-    eq('a destra solo lo zoom', [!!document.querySelector('.mapctl'), !!document.querySelector('.leaflet-control-layers')],
-       [false, false]);
+    eq('a destra: zoom, sfondo e Radar', rightCol(), ['zoom', 'sfondo', 'radar']);
     {                                                         // in alto una scheda sola: ricerca e pulsanti dentro
       const tb = el('topbar').getBoundingClientRect(), box = r => [r.left, r.top, r.right, r.bottom].map(Math.round);
       const q = el('stationQ').getBoundingClientRect(), pr = el('pillRow').getBoundingClientRect();
@@ -310,10 +313,10 @@
         filterVar + ' ' + snap.on);
     el('dkTime').click(); await sleep(200);
     log(!snap.on && el('dkTime').getAttribute('aria-pressed') === 'false', '«Ora» lo richiude', snap.on);
-    {                                                   // Radar a vista, accanto a «Ora»: un clic lo accende, un altro lo spegne
-      const rb = el('dkRadar');
-      log(vis(rb) && dock.contains(rb) && rb.previousElementSibling === el('dkTime') && rb.textContent.includes('Radar'),
-          'pulsante Radar a vista accanto a «Ora»', rb && rb.outerHTML.slice(0, 60));
+    {                              // Radar a vista a destra sotto zoom e sfondo: un clic lo accende, un altro lo spegne
+      const rb = el('mcRadar');
+      log(vis(rb) && !dock.contains(rb) && rightCol().join() === 'zoom,sfondo,radar' && rb.textContent.includes('Radar'),
+          'pulsante Radar a vista a destra, sotto lo sfondo', rb && rb.outerHTML.slice(0, 60));
       const v0 = filterVar;
       rb.click(); await until(() => Radar.on && snap.on, 20000);
       log(Radar.on && rb.getAttribute('aria-pressed') === 'true', 'Radar: un clic lo accende', Radar.state);
@@ -354,8 +357,8 @@
     const v0 = filterVar;
     await pickVarMenu('RADAR'); await sleep(300);
     log(el('toast').textContent.includes('Radar non disponibile') && filterVar === v0, 'clic: avviso e nient\'altro', el('toast').textContent);
-    el('toast').textContent = ''; el('dkRadar').click(); await sleep(300);
-    log(el('toast').textContent.includes('Radar non disponibile') && el('dkRadar').classList.contains('dim'),
+    el('toast').textContent = ''; el('mcRadar').click(); await sleep(300);
+    log(el('toast').textContent.includes('Radar non disponibile') && el('mcRadar').classList.contains('dim'),
         'pulsante Radar: grigio e avviso', el('toast').textContent);
     setMapVar('PREC24'); await until(() => filterVar === 'PREC24');
     await openSlider(); await until(() => snap.on && snap.T.length, 20000);
@@ -517,8 +520,8 @@
       const b = el('noteBtn'), row = [...el('pillRow').children].map(e => e.id);
       eq('Note: chip "i" fra Fonti e ⋯', [b.textContent.trim(), b.getAttribute('aria-label'), row.indexOf('noteBtn') - row.indexOf('srcinfo'),
                                           row.indexOf('moreBtn') - row.indexOf('noteBtn')], ['i', 'Note', 1, 1]);
-      eq('menu ⋯: sfondi, tema, azzera (niente Note)', [...el('moreMenu').querySelectorAll('button')].map(x => x.textContent.trim()),
-         ['Mappa', 'Satellite', 'Satellite + etichette', 'Rilievi', 'Mappa scura', 'Tema scuro', 'Azzera i filtri']);
+      eq('menu ⋯: tema e azzera (niente Note, sfondi a destra)', [...el('moreMenu').querySelectorAll('button')]
+         .map(x => x.textContent.trim()), ['Tema scuro', 'Azzera i filtri']);
       b.click(); await sleep(50);
       const n = el('notepanel'), r = n.getBoundingClientRect();
       eq('Note: un clic le apre', [getComputedStyle(n).display, b.getAttribute('aria-expanded')], ['block', 'true']);
@@ -634,15 +637,19 @@
     el('moreBtn').click(); await sleep(50);
     const dark0 = document.body.classList.contains('dark'); el('themeBtn').click();
     log(document.body.classList.contains('dark') !== dark0, '⋯ → tema', ''); el('moreBtn').click(); el('themeBtn').click();
-    el('moreBtn').click(); await sleep(50);                                 // sfondo: dal menu ⋯, ricordato
-    const bg = n => el('moreMenu').querySelector('[data-bg="' + n + '"]');
-    bg('Satellite').click(); await sleep(100);
-    let savedBg = null; try { savedBg = localStorage.getItem('basemap'); } catch(e){}
-    log(savedBg === 'Satellite' && [...document.querySelectorAll('.leaflet-tile-pane img')].some(i => /World_Imagery/.test(i.src)),
-        '⋯ → sfondo Satellite, ricordato', savedBg);
-    el('moreBtn').click(); await sleep(50);
-    log(bg('Satellite').classList.contains('on') && bg('Satellite').getAttribute('aria-checked') === 'true', '⋯: sfondo scelto segnato', '');
-    bg('Mappa').click(); await sleep(100);
+    {                                                 // sfondo: a destra sotto lo zoom, non nel menu ⋯; ricordato
+      const lay = document.querySelector('.leaflet-control-layers');
+      const bg = n => [...(lay ? lay.querySelectorAll('label') : [])].find(l => l.textContent.trim() === n);
+      log(!!bg('Satellite') && !el('moreMenu').textContent.includes('Sfondo'), 'sfondo a destra, non nel menu ⋯',
+          el('moreMenu').textContent.trim());
+      if(bg('Satellite')){
+        bg('Satellite').querySelector('input').click(); await sleep(100);
+        let saved = null; try { saved = localStorage.getItem('basemap'); } catch(e){}
+        log(saved === 'Satellite' && [...document.querySelectorAll('.leaflet-tile-pane img')].some(i => /World_Imagery/.test(i.src)),
+            'sfondo Satellite, ricordato', saved);
+        bg('Mappa').querySelector('input').click(); await sleep(100);
+      }
+    }
     el('moreBtn').click(); el('resetBtn').click(); await until(() => el('region').value === 'ALL' && !filterVar, 20000);
     eq('⋯ → azzera i filtri', [el('regPill').textContent.trim(), el('varPill').textContent.trim()],
        [PHONE.matches ? 'Tutte' : 'Tutte le regioni', 'Tutte le variabili']);
@@ -687,6 +694,15 @@
     await until(() => currentStation && currentStation.scode === 'A280');
     eq('Invio apre la stazione', [currentStation.scode, q.value, vis(el('searchList'))], ['A280', '', false]);
     showMapView();
+    {                  // tornati alla mappa con la stazione aperta il menu resta intero e ogni voce si sceglie
+      const all = new Set(allFeatures.flatMap(f => f.properties.variables || []));
+      const menu = varMenuItems().filter(it => it.v && it.v !== 'RADAR');
+      eq('menu intero anche con una stazione aperta', [!!selectedKey, menu.length], [true, all.size]);
+      const v = [...all].find(x => varCat(x) === 'dirette' && !(currentStation.variables || []).includes(x));
+      pickMapVar(v); await until(() => filterVar === v, 3000);
+      eq('voce che la stazione non ha: scelta', filterVar, v);
+      pickMapVar(''); await until(() => !filterVar);
+    }
     type('zzzz'); await sleep(100);
     eq('nessun risultato', el('searchList').textContent.trim(), 'Nessuna stazione');
     q.blur(); document.body.dispatchEvent(new KeyboardEvent('keydown', { key:'/', bubbles:true }));
@@ -1001,13 +1017,13 @@
     eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
     setMapVar(''); await until(() => filterVar === '');
 
-    // testa: regione e fonte accanto al nome; il valore attuale della variabile scelta, come sulla mappa (fermo:
-    // i valori al cursore li scrive il grafico), a sinistra accanto al nome; niente valore se e' in ritardo
+    // testa: il nome e il valore attuale della variabile scelta, come sulla mappa (fermo: i valori al cursore li
+    // scrive il grafico), a sinistra accanto al nome; niente valore se e' in ritardo; la fonte sta a piè pagina
     await open(A);
     {
       const src = (SOURCES[A._region] || {}).name, nowTxt = () => [el('stNowVal').textContent, el('stNowWhen').textContent];
-      eq('testa: regione e fonte accanto al nome', el('stationWhere').textContent,
-         regionLabel(A._region) + (src ? ' · ' + src : ''));
+      log(!document.getElementById('stationWhere') && !(src && el('ptitle').innerText.includes(src)),
+          'testa: niente regione e fonte (sono a piè pagina)', el('ptitle').innerText);
       const late = isLate(A, 'TEMP', nowRome()), [v0, w0] = nowTxt();
       log(late ? !vis(el('stNow')) : vis(el('stNow')) && /\d/.test(v0) && v0.includes('°C') && /^(alle \d\d:\d\d|\d\d\/\d\d \d\d:\d\d)$/.test(w0),
           'testa: il valore attuale con unità e ora (niente se in ritardo)', late + ' ' + v0 + ' | ' + w0);

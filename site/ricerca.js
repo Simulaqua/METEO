@@ -44,14 +44,12 @@ function buildStationFilter(){
   sel.value = (selectedKey && list.some(f => featKey(f) === selectedKey)) ? selectedKey : '';
 }
 
-// con una stazione scelta solo le sue variabili, altrimenti tutte quelle della pagina: la variabile scelta
-// non accorcia il suo stesso elenco
+// tutte le variabili della pagina: ne' la stazione aperta ne' la variabile scelta accorciano l'elenco
 function buildVarFilter(){
   const set = new Set();
-  const sf = selectedFeature();
-  const add = v => { if(varCat(v) === currentPage) set.add(v); };
-  if(sf) (sf.properties.variables || []).forEach(add);
-  else pageStations(currentPage).forEach(f => (f.properties.variables || []).forEach(add));
+  pageStations(currentPage).forEach(f => (f.properties.variables || []).forEach(v => {
+    if(varCat(v) === currentPage) set.add(v);
+  }));
   const sel = el('varFilter');
   sel.innerHTML = '<option value="">Tutte le variabili</option>';
   [...set].sort((a,b) => natLabel(varLabel(a), varLabel(b))).forEach(v => {
@@ -88,11 +86,11 @@ const VAR_GROUPS = [
 const RADAR_V = 'RADAR';
 const RADAR_STATE = { nd:'Radar non disponibile', zoom:'Radar visibile fino a zoom 10',
                       fermo:'Radar fermo: ultimo fotogramma vecchio' };
-// Voci: le variabili delle stazioni caricate, di tutte le pagine; con una stazione scelta solo le sue.
+// Voci: le variabili delle stazioni caricate, di tutte le pagine, anche con una stazione aperta.
 // { head } = titolo del gruppo ('' = linea).
 function varMenuItems(){
-  const sf = selectedFeature(), have = new Set(), cur = Radar.on ? RADAR_V : filterVar || '';
-  (sf ? [sf] : allFeatures).forEach(f => (f.properties.variables || []).forEach(v => have.add(v)));
+  const have = new Set(), cur = Radar.on ? RADAR_V : filterVar || '';
+  allFeatures.forEach(f => (f.properties.variables || []).forEach(v => have.add(v)));
   const item = v => ({ v, label:varLabel(v), on:v === cur });
   const items = [{ v:'', label:'Tutte le variabili', on:!cur }], placed = new Set();
   VAR_GROUPS.forEach(([head, vs]) => {
