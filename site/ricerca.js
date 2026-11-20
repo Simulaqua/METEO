@@ -8,17 +8,19 @@ const featKey  = f => f.properties._region + '|' + f.properties.scode;
 const featName = f => prettyName(f.properties.name || f.properties.scode);
 const selectedFeature = () => selectedKey ? allFeatures.find(f => featKey(f) === selectedKey) : null;
 
-// stazioni della pagina attiva; gli indici valgono anche per chi misura temperatura o pioggia
-function pageStations(){
+// stazioni di una pagina; gli indici valgono anche per chi misura temperatura o pioggia
+function pageStations(page){
   return allFeatures.filter(f => {
     const vars = f.properties.variables || [];
-    return vars.some(v => varCat(v) === currentPage)
-        || (currentPage === 'indici' && (vars.includes('TEMP') || vars.includes('PREC')));
+    return vars.some(v => varCat(v) === page)
+        || (page === 'indici' && (vars.includes('TEMP') || vars.includes('PREC')));
   });
 }
-// stazioni da mostrare in elenco e mappa: quelle della pagina, filtrate per variabile
+// stazioni in elenco e sulla mappa: quelle con la variabile scelta; senza variabile tutte, qualunque pagina
+// sia rimasta (la pagina e' solo stato interno)
 function stationsForList(){
-  return pageStations().filter(f => !filterVar || (f.properties.variables || []).includes(filterVar));
+  if(!filterVar) return pageStations('dirette');
+  return pageStations(currentPage).filter(f => (f.properties.variables || []).includes(filterVar));
 }
 
 function refreshFilters(){
@@ -49,7 +51,7 @@ function buildVarFilter(){
   const sf = selectedFeature();
   const add = v => { if(varCat(v) === currentPage) set.add(v); };
   if(sf) (sf.properties.variables || []).forEach(add);
-  else pageStations().forEach(f => (f.properties.variables || []).forEach(add));
+  else pageStations(currentPage).forEach(f => (f.properties.variables || []).forEach(add));
   const sel = el('varFilter');
   sel.innerHTML = '<option value="">Tutte le variabili</option>';
   [...set].sort((a,b) => natLabel(varLabel(a), varLabel(b))).forEach(v => {

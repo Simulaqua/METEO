@@ -79,6 +79,7 @@ function setRadar(on){
 async function selectStation(props){
   snapPause();
   closeSheet();
+  el('stNow').hidden = true;                    // il valore della stazione di prima non resta col nuovo nome
   // serie recente (< 5 min, cambio scheda) riusata; il radar si riprende con la serie, solo con la pioggia
   const fresh = props._table && props._tableAt && (Date.now() - props._tableAt) < 5*60*1000;
   const radarLoad = showRadar && hasRain(props) && (!fresh || props._radar === undefined)
@@ -769,11 +770,6 @@ async function applyHash(){
              ? allFeatures.find(x => x.properties._region === 'PIE' && x.properties.scode === sc)
              : null);
   if(!f) return;
-  if(v && varCat(v) !== currentPage){
-    currentPage = varCat(v);
-    [...document.querySelectorAll('#pages .pg')]
-      .forEach(x => x.classList.toggle('active', x.dataset.page === currentPage));
-  }
   await selectStation(f.properties);
   if(v && stationVars.includes(v)) drawVar(v);
   const sp = parts[3];

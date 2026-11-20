@@ -553,6 +553,22 @@
     await until(() => filterVar === 'TAPP');
     eq('derivata dal menu: pagina e pillola', [currentPage, el('varPill').textContent.trim()],
        ['derivate', varLabel('TAPP')]);
+    {                                         // nomi lunghi: tutti i pulsanti restano nella scheda (anche sul tablet)
+      const T = el('topbar').getBoundingClientRect();
+      const out = [...el('pillRow').children].filter(vis).filter(c => { const r = c.getBoundingClientRect();
+        return r.left < T.left - 0.5 || r.right > T.right + 0.5; });
+      eq('barra: i pulsanti stanno nella scheda a ' + innerWidth + ' px', out.map(c => c.id || c.className), []);
+    }
+    {                                         // senza variabile tutte le stazioni, qualunque pagina sia rimasta
+      const keep = [currentPage, filterVar];
+      filterVar = '';
+      currentPage = 'dirette';
+      const all = stationsForList().length;
+      currentPage = 'indici';
+      const left = stationsForList().length;
+      [currentPage, filterVar] = keep;
+      eq('senza variabile: tutte le stazioni, anche con la pagina rimasta indietro', left, all);
+    }
     el('regPill').click(); await sleep(50); el('varPill').click(); await sleep(50);
     eq('un menu alla volta', [...document.querySelectorAll('#pillMenu, #moreMenu')].filter(vis).length, 1);
     document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' })); await sleep(50);
@@ -625,6 +641,7 @@
     eq('la pillola segue la variabile', el('varPill').textContent.trim(), varLabel('PREC24'));
     setMapVar(''); await until(() => !filterVar);
     history.replaceState(null, '', '#FVG/A280/TAPP'); await applyHash();
+    eq('link a una derivata: la mappa resta alle misure dirette', currentPage, 'dirette');
 
     // ricerca: senza badare ad accenti, maiuscole e punteggiatura; codice; elenco sotto il campo
     const F = (name, scode, r) => ({ properties:{ name, scode, _region:r, variables:[] } });
@@ -980,6 +997,19 @@
       log(!vis(el('stNow')), 'testa: niente valore nei Confronti', '');
       await pickMode('week'); await sleep(400);
       log(vis(el('stNow')), 'testa: torna col grafico', '');
+      // col radar le barre del pluviometro nei suoi intervalli passano nella serie a meta': conta anche quella
+      const fake = { _m:{ s1:{ src:'PREC', unit:'mm' }, iHalf:2 }, data:[[0, 3600, 7200], [1, null, null], [null, 2, 3]],
+                     series:[{}, { slotTxt:'' }, { slotTxt:'' }] };
+      headValue(fake, null);
+      const lastBar = el('stNowVal').textContent;
+      headValue(fake, 1);
+      eq('testa: col radar l\'ultima barra del pluviometro e quella al cursore', [lastBar, el('stNowVal').textContent],
+         ['3 mm', '2 mm']);
+      renderChart(currentVar); await sleep(200);
+      delete A2._table; delete A2._tableAt;                       // serie da scaricare: il nome cambia prima del grafico
+      const pending = selectStation(A2);
+      log(!vis(el('stNow')), 'testa: aprendo un\'altra stazione il valore di prima sparisce subito', el('stNowVal').textContent);
+      await pending; await until(() => currentStation === A2);
     }
 
     // riga: le misure principali in ordine fisico, la scelta col trattino del suo colore; derivate e indici in "Altro"
@@ -1887,6 +1917,11 @@
     log(/^234\b/.test(name.title) && !vis(el('stationMeta')), 'riga 1: codice e ultimo dato nel titolo del nome, niente scritte accanto', name.title);
     eq('riga 1: azioni', acts(), ['refresh', 'expBtn']);
     log(sameRow([name, ...acts().map(el)]), 'riga 1: il nome e le azioni', JSON.stringify([name, ...acts().map(el)].map(e => Math.round(mid(e)))));
+    if(phone){
+      const nv = el('stNow');
+      log(vis(nv) && R(nv).top >= R(name).bottom - 1 && R(nv).right <= innerWidth + 0.5 && R(name).width >= 60,
+          'telefono: il valore sotto il nome, dentro lo schermo', JSON.stringify([R(nv).top, R(name).bottom, R(nv).right, R(name).width]));
+    }
     eq('periodi, Storico, Confronta', tools().map(b => b.dataset.mode || b.id), ['mn', 'day', 'day3', 'week', 'histbtn', 'cmpBtn']);
     const n2 = names(), tl = tools();
     log(n2.length >= 3 && below([...n2, ...tl], R(name).bottom) && [...n2, ...tl].every(e => R(e).bottom <= R(el('chart')).top + 1),

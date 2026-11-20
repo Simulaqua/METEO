@@ -300,14 +300,18 @@ function legendCursor(u){
 function headValue(u, j){
   const box = el('stNow'), m = u._m, d = m && m.s1 && u.data[1];
   if(!d){ box.hidden = true; return; }
-  if(j == null || d[j] == null){
+  // col radar le barre del pluviometro nei suoi intervalli stanno nella serie a meta'
+  const half = m.iHalf != null ? u.data[m.iHalf] : null;
+  const at = k => d[k] != null ? d[k] : half ? half[k] : null;
+  if(j == null || at(j) == null){
     j = d.length - 1;
-    while(j >= 0 && d[j] == null) j--;
+    while(j >= 0 && at(j) == null) j--;
   }
   if(j < 0){ box.hidden = true; return; }
-  el('stNowVal').innerHTML = isDirVar(m.s1.src) ? windDirHtml(d[j])
-                            : numTxt(d[j], m.s1.src) + unitTxt(m.s1.unit);
-  const t = slotTimeTxt(u, 1, j), today = fmtDayTimeC(civT(Date.now() / 1000)).slice(0, 6);
+  el('stNowVal').innerHTML = isDirVar(m.s1.src) ? windDirHtml(at(j))
+                            : numTxt(at(j), m.s1.src) + unitTxt(m.s1.unit);
+  const si = d[j] != null ? 1 : m.iHalf;
+  const t = slotTimeTxt(u, si, j), today = fmtDayTimeC(civT(Date.now() / 1000)).slice(0, 6);
   el('stNowWhen').textContent = t.startsWith(today) ? t.slice(6) : t;          // di oggi basta l'ora
   box.hidden = false;
 }
