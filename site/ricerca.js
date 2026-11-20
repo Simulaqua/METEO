@@ -312,23 +312,22 @@ function latestText(p, v){
 // altrimenti la prima fra temperatura, livello, pioggia 24 h, indice dell'aria.
 const MAIN_VARS = ['TEMP', 'LIVIDRO', 'PREC24', 'EAQI'];
 const hasVal = (lt, v) => lt[v] != null && lt[v] !== '';
+// Il valore di v come sulla mappa: col suo riferimento (pioggia di oggi, aria di ieri...), la marea in cm
+// sullo zero di Punta della Salute, il resto com'e' letto (i livelli in quota); null se non c'e'
+function varValueText(p, v){
+  const lt = p.latest || {};
+  if(MAP_REF[v] && !LEVEL_HOURS[v] && (p.variables || []).includes(v)){
+    const u = unitOf(p._region, v), x = mapValue(p, v, u);
+    return x == null ? null : labelText(v, x) + (u ? ' ' + u : '') + ' ' + MAP_REF[v];
+  }
+  const tide = v === 'MAREA' && hasVal(lt, v) ? mapValue(p, v, 'cm') : null;
+  if(tide != null) return labelText(v, tide) + ' cm';
+  return hasVal(lt, v) ? latestText(p, v) : null;
+}
 function stationMainValue(p){
   const lt = p.latest || {}, v = filterVar;
-  // il valore della mappa, col suo riferimento (pioggia di oggi...); i livelli restano in quota
-  if(v && MAP_REF[v] && !LEVEL_HOURS[v] && (p.variables || []).includes(v)){
-    const u = unitOf(p._region, v), x = mapValue(p, v, u);
-    const text = x == null ? 'n.d.' : labelText(v, x) + (u ? ' ' + u : '') + ' ' + MAP_REF[v];
-    return { v, label: varLabel(v), text };
-  }
-  // la marea come sulla mappa: in cm sullo zero di Punta della Salute
-  const tide = v === 'MAREA' && hasVal(lt, v) ? mapValue(p, v, 'cm') : null;
-  if(tide != null) return { v, label: varLabel(v), text: labelText(v, tide) + ' cm' };
-  if(filterVar && (hasVal(lt, filterVar) || (p.variables || []).includes(filterVar)))
-    return {
-      v: filterVar,
-      label: varLabel(filterVar),
-      text: hasVal(lt, filterVar) ? latestText(p, filterVar) : 'n.d.'
-    };
+  if(v && (hasVal(lt, v) || (p.variables || []).includes(v)))
+    return { v, label: varLabel(v), text: varValueText(p, v) || 'n.d.' };
   const k = MAIN_VARS.find(x => hasVal(lt, x));
   return k ? { v: k, label: varLabel(k), text: latestText(p, k) } : null;
 }

@@ -244,10 +244,24 @@ function fillVarRow(){
   box.innerHTML = '';
   shown.forEach(v => box.appendChild(varItem(v, sel.includes(v), plus && v !== currentVar && !isView(v))));
   if(all.some(v => !isMainVar(v, all)) || radarFits()) box.appendChild(altButton());
-  if(sel.length >= 2 && !cmp)
+  if(!cmp && !histMode && !isView(currentVar) && (sel.length >= 2 || stackMains().length >= 2))
     box.appendChild(rowButton('stackbtn', 'Impilate', {
       'aria-pressed': String(stackMode), title: 'Una fascia per variabile, con cursore e zoom insieme'
     }));
+  showNow();
+}
+// In testa il valore attuale della variabile scelta, come sulla mappa (al cursore i valori li scrive il
+// grafico); niente se e' in ritardo, lo dice gia' "dati fermi"
+function showNow(){
+  const p = currentStation, v = currentVar === WARROW ? 'VVENTO' : currentVar, box = el('stNow');
+  const text = p && v && !isView(v) && !isLate(p, v, nowRome()) ? varValueText(p, v) : null;
+  box.hidden = !text;
+  if(!text) return;
+  const d = new Date(varTime(p, v)), hm = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+  const today = d.toISOString().slice(0, 10) === new Date(nowRome()).toISOString().slice(0, 10);
+  el('stNowVal').textContent = text;
+  el('stNowWhen').textContent = MAP_REF[v] ? ''
+    : today ? 'alle ' + hm : pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + hm;
 }
 
 function drawVar(v){
@@ -418,8 +432,12 @@ async function refreshStation(){
 
 // "Impilate": una fascia per variabile scelta. Resta una preferenza: con una variabile sola il grafico e'
 // unico.
-let stackMode = false, stackObj = null;
+let stackMode = false, stackObj = null, stackPrev = null;
 const stacked = () => stackMode && selVars().length >= 2 && !isCompareMode() && !isView(currentVar);
+// le misure principali da impilare, con la scelta per prima
+const stackMains = () => [currentVar]
+  .concat(stationVars.filter(v => isMainVar(v, stationVars)).sort(byVarOrder))
+  .filter((v, i, a) => v && !isView(v) && a.indexOf(v) === i).slice(0, maxVars());
 function exitStack(){
   if(!stackMode) return;
   stackMode = false;
@@ -429,7 +447,11 @@ function exitStack(){
 function setStackMode(on, vars){
   if(on){
     if(!currentStation) return;
-    const ok = (vars || []).filter(v => !isView(v) && stationVars.includes(v));
+    let ok = (vars || []).filter(v => !isView(v) && stationVars.includes(v));
+    if(ok.length < 2 && selVars().length < 2){            // una variabile sola: le principali in fila
+      stackPrev = { cur:currentVar, extra:extraVars.slice() };
+      ok = stackMains();
+    }
     if(ok.length >= 2){
       currentVar = chartVar = ok[0];
       extraVars = ok.slice(1, maxVars());
@@ -440,7 +462,11 @@ function setStackMode(on, vars){
     }
     document.body.classList.remove('rose-mode', 'clima-mode');
     stackMode = true;
-  } else exitStack();
+  } else {
+    exitStack();
+    if(stackPrev){ currentVar = chartVar = stackPrev.cur; extraVars = stackPrev.extra; }
+    stackPrev = null;
+  }
   buildVarRow();
   if(currentStation && currentVar) renderChart(currentVar);
   updateHash();
@@ -600,8 +626,10 @@ async function ensureTable30(){
 
 // Periodi (Oggi, 24 h, 3 g, 7 g) e, nel menu "Confronta", Confronto 7 giorni / 30 giorni / schede / Vicine.
 // Un periodo chiude lo Storico e la Climatologia; la rosa segue il periodo.
+let lastPeriod = 'week';                            // spento un confronto si torna qui
 async function pickMode(mode){
   if(mode === 'tabs'){ openCompareTab(); return; }
+  if(['mn', 'day', 'day3', 'week'].includes(mode)) lastPeriod = mode;
   if(histMode) exitHist();
   chartMode = mode;
   // la rosa non ha giorni da confrontare, la Climatologia nessun periodo: torna al grafico
@@ -641,6 +669,7 @@ function syncModes(){
   const cmp = !free && CMP_LABEL[chartMode];
   el('cmpBtn').classList.toggle('active', !!cmp);
   el('cmpBtn').firstElementChild.textContent = cmp || 'Confronta';
+  el('cmpOff').hidden = !cmp;
   el('histbtn').classList.toggle('active', histMode);
   el('histbtn').setAttribute('aria-pressed', String(histMode));
 }
@@ -820,7 +849,11 @@ function buildStationControls(){
     if(!v) return;
     if(document.body.classList.contains('view-compare')) pickCompareVar(v);
     else if(b.classList.contains('vp')) addVar(v);
-    else drawVar(v);
+    else {
+      exitStack();
+      stackPrev = null;
+      drawVar(v);
+    }
   });
   el('altMenu').addEventListener('click', e => {
     if(e.target.closest('[data-opt="radar"]')){ altClose(true); setRadar(!showRadar); return; }
@@ -834,8 +867,9 @@ function buildStationControls(){
   el('cmpBtn').addEventListener('click', () => el('cmpMenu').hidden ? cmpOpen() : cmpClose());
   el('cmpMenu').addEventListener('click', e => {
     const b = e.target.closest('[data-mode]');
-    if(b){ cmpClose(true); pickMode(b.dataset.mode); }
+    if(b){ cmpClose(true); pickMode(b.dataset.mode === chartMode ? lastPeriod : b.dataset.mode); }
   });
+  el('cmpOff').addEventListener('click', () => pickMode(lastPeriod));
   menuNav(el('cmpMenu'), cmpClose);
   menuNav(el('altMenu'), altClose);
   menuNav(el('expMenu'), expClose);

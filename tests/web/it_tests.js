@@ -975,7 +975,7 @@
   }
 
   async function suiteStazione(){                     // apertura, riga delle variabili, "+" e assi, Impilate, Altro, link, cursore, PNG
-    const has = (p, v) => (p.variables || []).includes(v);
+    const has = (p, v) => (p.variables || []).includes(v), phone = innerWidth <= 720;
     const pick = test => (allFeatures.find(f => test(f.properties)) || {}).properties;
     const A = pick(p => ['TEMP', 'UMID', 'PREC', 'PRESS', 'TDEW'].every(v => has(p, v)));
     const A2 = pick(p => has(p, 'TEMP') && has(p, 'UMID') && p !== A);
@@ -1001,39 +1001,45 @@
     eq('la variabile scelta sulla mappa vince', await open(A), 'UMID');
     setMapVar(''); await until(() => filterVar === '');
 
-    // testa: sotto il nome regione e fonte; a destra il valore della prima variabile, che segue il cursore
+    // testa: regione e fonte accanto al nome; il valore attuale della variabile scelta, come sulla mappa (fermo:
+    // i valori al cursore li scrive il grafico), a sinistra accanto al nome; niente valore se e' in ritardo
     await open(A);
     {
       const src = (SOURCES[A._region] || {}).name, nowTxt = () => [el('stNowVal').textContent, el('stNowWhen').textContent];
-      eq('testa: regione e fonte sotto il nome', el('stationWhere').textContent,
+      eq('testa: regione e fonte accanto al nome', el('stationWhere').textContent,
          regionLabel(A._region) + (src ? ' · ' + src : ''));
-      const [v0, w0] = nowTxt();
-      log(vis(el('stNow')) && /\d/.test(v0) && v0.includes('°C') && /\d\d:\d\d/.test(w0), 'testa: valore con unità e ora',
-          v0 + ' | ' + w0);
+      const late = isLate(A, 'TEMP', nowRome()), [v0, w0] = nowTxt();
+      log(late ? !vis(el('stNow')) : vis(el('stNow')) && /\d/.test(v0) && v0.includes('°C') && /^(alle \d\d:\d\d|\d\d\/\d\d \d\d:\d\d)$/.test(w0),
+          'testa: il valore attuale con unità e ora (niente se in ritardo)', late + ' ' + v0 + ' | ' + w0);
+      if(!phone){
+        const nr = el('stationName').getBoundingClientRect(), vr = el('stNow').getBoundingClientRect();
+        log(late || (vr.left >= nr.right && vr.right < el('pact').getBoundingClientRect().left - 60),
+            'testa: il valore a sinistra, accanto al nome, lontano dai pulsanti', JSON.stringify([nr.right, vr.left, vr.right]));
+      }
       const ov = chart.over, R = ov.getBoundingClientRect();
       ov.dispatchEvent(new MouseEvent('mousemove', { clientX:R.left + R.width * 0.3, clientY:R.top + R.height / 2, bubbles:true }));
       await sleep(100);
-      log(nowTxt()[1] && nowTxt()[1] !== w0, 'testa: col cursore il valore e l\'ora del punto', w0 + ' → ' + nowTxt()[1]);
-      ov.dispatchEvent(new MouseEvent('mouseleave', { bubbles:true })); await sleep(100);
-      eq('testa: fuori dal grafico torna l\'ultimo', nowTxt(), [v0, w0]);
-      await pickMode('compare'); await sleep(400);
-      log(!vis(el('stNow')), 'testa: niente valore nei Confronti', '');
-      await pickMode('week'); await sleep(400);
-      log(vis(el('stNow')), 'testa: torna col grafico', '');
-      // col radar le barre del pluviometro nei suoi intervalli passano nella serie a meta': conta anche quella
-      const fake = { _m:{ s1:{ src:'PREC', unit:'mm' }, iHalf:2 }, data:[[0, 3600, 7200], [1, null, null], [null, 2, 3]],
-                     series:[{}, { slotTxt:'' }, { slotTxt:'' }] };
-      headValue(fake, null);
-      const lastBar = el('stNowVal').textContent;
-      headValue(fake, 1);
-      eq('testa: col radar l\'ultima barra del pluviometro e quella al cursore', [lastBar, el('stNowVal').textContent],
-         ['3 mm', '2 mm']);
-      renderChart(currentVar); await sleep(200);
+      eq('testa: il valore resta quello attuale col cursore', nowTxt(), [v0, w0]);
+      ov.dispatchEvent(new MouseEvent('mouseleave', { bubbles:true })); await sleep(50);
+      drawVar('PREC'); await sleep(300);                                      // la pioggia: quella di oggi, come sulla mappa
+      log(isLate(A, 'PREC', nowRome()) || /mm oggi$/.test(nowTxt()[0]), 'testa: la pioggia di oggi', nowTxt().join(' | '));
+      drawVar('TEMP'); await sleep(300);
       delete A2._table; delete A2._tableAt;                       // serie da scaricare: il nome cambia prima del grafico
       const pending = selectStation(A2);
       log(!vis(el('stNow')), 'testa: aprendo un\'altra stazione il valore di prima sparisce subito', el('stNowVal').textContent);
       await pending; await until(() => currentStation === A2);
     }
+    // Confronta: la × accanto al confronto acceso lo toglie; anche la voce scelta, cliccata di nuovo
+    await open(A); await pickMode('day3'); await sleep(200);
+    await pickMode('compare'); await sleep(300);
+    log(vis(el('cmpOff')) && el('cmpBtn').textContent.includes('Confronto'), 'Confronta acceso: c\'è la × per toglierlo', '');
+    el('cmpOff').click(); await until(() => chartMode === 'day3', 4000);
+    eq('×: si torna al periodo di prima', [chartMode, vis(el('cmpOff'))], ['day3', false]);
+    await pickMode('compare'); await sleep(300);
+    el('cmpBtn').click(); await sleep(60);
+    el('cmpMenu').querySelector('[data-mode="compare"]').click(); await until(() => chartMode === 'day3', 4000);
+    eq('Confronta: la voce scelta, cliccata di nuovo, lo toglie', chartMode, 'day3');
+    await pickMode('week'); await sleep(200);
 
     // riga: le misure principali in ordine fisico, la scelta col trattino del suo colore; derivate e indici in "Altro"
     await open(A);
@@ -1088,12 +1094,26 @@
     eq('Impilate: una fascia per variabile', stackObj && stackObj.panels.map(p => p.v), selVars());
     log(stackObj && stackObj.panels.every(p => p.u.series[1].stroke(p.u, 1) === varColor(p.v)), 'Impilate: ogni fascia del colore della sua variabile', '');
     log(/\/S:TEMP,UMID$/.test(location.hash), 'Impilate: nel link', location.hash);
-    drawVar('TEMP'); await sleep(200);
-    log(!el('stackbtn') && !stackObj && !!chart, 'una variabile sola: niente Impilate', '');
-    addVar('UMID'); await until(() => stackObj); await sleep(200);
-    log(!!stackObj, 'Impilate resta scelto: con due variabili tornano le fasce', '');
+    {                                                    // le fasce si dividono l'altezza del grafico
+      const wrap = el('chartwrap').getBoundingClientRect(), last = stackObj.panels[stackObj.panels.length - 1].u.root.getBoundingClientRect();
+      log(phone || wrap.bottom - last.bottom <= 30, 'Impilate: due fasce riempiono l\'altezza', JSON.stringify([wrap.bottom, last.bottom]));
+    }
     el('stackbtn').click(); await sleep(200);
-    log(!stackObj && !!chart, 'Impilate spento', '');
+    log(!stackObj && !!chart && stackMode === false, 'Impilate: un altro clic lo spegne', '');
+    drawVar('TEMP'); await sleep(200);                   // una variabile sola: il pulsante resta e impila le principali
+    log(vis(el('stackbtn')) && el('stackbtn').getAttribute('aria-pressed') === 'false', 'Impilate a vista anche con una variabile', '');
+    el('stackbtn').click(); await until(() => stackObj); await sleep(300);
+    log(stackObj && stackObj.panels.length >= 2 && stackObj.panels[0].v === 'TEMP' &&
+        stackObj.panels.every(p => isMainVar(p.v, stationVars)), 'Impilate con una variabile: le principali una sotto l\'altra',
+        JSON.stringify(stackObj && stackObj.panels.map(p => p.v)));
+    el('stackbtn').click(); await sleep(200);
+    eq('Impilate spento: torna il grafico di prima', [!!stackObj, !!chart, selVars()], [false, true, ['TEMP']]);
+    el('stackbtn').click(); await until(() => stackObj); await sleep(200);
+    const chip = el('vars').querySelector('.vb[data-var="UMID"]');
+    if(chip) chip.click(); await sleep(300);
+    log(!stackObj && !stackMode && selVars().join() === 'UMID', 'Impilate: scegliendo una variabile si torna al grafico singolo',
+        JSON.stringify([!!stackObj, stackMode, selVars()]));
+    drawVar('TEMP'); await sleep(200);
 
     // Altro: misure secondarie, derivate, indici; la scelta entra nella riga e ne esce lasciandola
     drawVar('TEMP'); await sleep(200);

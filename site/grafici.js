@@ -262,7 +262,6 @@ function renderCompareSet(label, unit, list, why){
 // ------------------------------------------------------------------------------------------------
 function clearChart(){
   if(chart){ chart.destroy(); chart = null; }
-  el('stNow').hidden = true;
   if(stackObj){ stackObj.destroy(); stackObj = null; }
   el('chart').innerHTML='';
   el('chartsum').textContent = '';
@@ -290,30 +289,6 @@ function renderLegend(u){
 }
 function legendCursor(u){
   if(u === chart && u._labs) cursorLabels(u);
-  if(u === chart && u._m){
-    const c = u.cursor, out = c.left == null || c.left < 0;
-    headValue(u, out ? null : (c.idxs && c.idxs[1] != null ? c.idxs[1] : c.idx));
-  }
-}
-// In testa alla scheda il valore della prima variabile: l'ultimo o, col cursore, quello del punto; solo col
-// grafico delle misure (niente Confronti, Impilate, Storico)
-function headValue(u, j){
-  const box = el('stNow'), m = u._m, d = m && m.s1 && u.data[1];
-  if(!d){ box.hidden = true; return; }
-  // col radar le barre del pluviometro nei suoi intervalli stanno nella serie a meta'
-  const half = m.iHalf != null ? u.data[m.iHalf] : null;
-  const at = k => d[k] != null ? d[k] : half ? half[k] : null;
-  if(j == null || at(j) == null){
-    j = d.length - 1;
-    while(j >= 0 && at(j) == null) j--;
-  }
-  if(j < 0){ box.hidden = true; return; }
-  el('stNowVal').innerHTML = isDirVar(m.s1.src) ? windDirHtml(at(j))
-                            : numTxt(at(j), m.s1.src) + unitTxt(m.s1.unit);
-  const si = d[j] != null ? 1 : m.iHalf;
-  const t = slotTimeTxt(u, si, j), today = fmtDayTimeC(civT(Date.now() / 1000)).slice(0, 6);
-  el('stNowWhen').textContent = t.startsWith(today) ? t.slice(6) : t;          // di oggi basta l'ora
-  box.hidden = false;
 }
 function addLabels(u){
   u._labs = document.createElement('div');
@@ -1294,7 +1269,6 @@ function renderChart(label){
   chart._m = m;
   chart._hi = (W, H) => mainOpts(m, { w: W, h: H, hi: true });
   renderLegend(chart);
-  headValue(chart);
   addZoomUI(chart, () => m.win, HOUR);
   el('chartsum').textContent = chartSummary(m);
 }
@@ -1779,7 +1753,8 @@ function createStack(host, cfg){
     ? [Math.floor((win0[0] - 1) / HOUR) * HOUR, win0[1]] : win0;
   const rgut = vars.some(isSumVar) ? STACK_RGUT : 0;
   const sync = uPlot.sync('stk' + (++_stackSeq)).key;
-  const ph = stackPanelH(n), AX = 30;
+  let ph = stackPanelH(n);
+  const AX = 30;
   const root = document.createElement('div');
   root.className = 'stk';
   host.appendChild(root);
@@ -1860,13 +1835,30 @@ function createStack(host, cfg){
     panels.push(p);
   });
   ready = true;
+  // computer: le fasce si dividono l'altezza del grafico; sotto i 110 px restano di 110 e la scheda scorre.
+  // Si misurano solo riga del tempo e testate: uPlot da' la sua altezza ai grafici piu' tardi
+  const wrap = el('chartwrap');
+  function fit(){
+    wrap.style.minHeight = '';
+    if(matchMedia('(max-width:720px)').matches) return;
+    const heads = [...root.querySelectorAll('.stk-h')].reduce((a, e) => a + e.offsetHeight, 0);
+    const fixed = timeEl.offsetHeight + heads + 2 * n + AX;           // 2 = spazio fra le fasce (.stk)
+    const h = Math.max(110, Math.floor((host.clientHeight - fixed) / n));
+    if(h !== ph){
+      ph = h;
+      panels.forEach((p, i) => p.u.setSize({ width:width(), height: ph + (i === n - 1 ? AX : 0) }));
+    }
+    if(fixed + n * ph > host.clientHeight) wrap.style.minHeight = (fixed + n * ph) + 'px';
+  }
+  fit();
   return {
     panels, win, rgut,
     resize(){
       const w = width();
       panels.forEach((p, i) => p.u.setSize({ width:w, height: ph + (i === n - 1 ? AX : 0) }));
+      fit();
     },
-    destroy(){ panels.forEach(p => p.u.destroy()); host.innerHTML = ''; }
+    destroy(){ panels.forEach(p => p.u.destroy()); host.innerHTML = ''; wrap.style.minHeight = ''; }
   };
 }
 

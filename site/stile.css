@@ -53,8 +53,7 @@ body.view-station #panel { display:flex; }
    loro colore. */
 :root { --ctl:#cfd6de; } body.dark { --ctl:#34465b; }
 #phead { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; }
-#ptitle { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px;
-          margin-right:auto; min-width:0; }
+#ptitle { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; min-width:0; }
 #stationName { font-size:24px; font-weight:600; line-height:1.1; letter-spacing:-.01em;
                overflow-wrap:anywhere; }
 .ib { width:22px; height:22px; flex:none; padding:0; border:1px solid var(--ctl); border-radius:50%;
@@ -75,18 +74,21 @@ body.view-station #panel { display:flex; }
 #stationMeta { font-size:12px; color:#b45309; white-space:nowrap; }
 #stationWhere { font-size:12.5px; color:var(--muted); }
 #stationWhere:empty { display:none; }
-/* a destra, sulla riga del nome (il grafico resta in alto): il valore della prima variabile, l'ultimo o
-   quello al cursore, e la sua ora */
+/* accanto al nome, sulla sua riga (il grafico resta in alto): il valore attuale della variabile scelta */
 #stNow { display:flex; align-items:baseline; gap:8px; line-height:1.15; white-space:nowrap;
          font-variant-numeric:tabular-nums; }
-#stNow[hidden], body.hist-mode #stNow, body.view-compare #stNow, body.rose-mode #stNow,
-body.clima-mode #stNow { display:none; }
-#stNow b { font-size:22px; font-weight:600; letter-spacing:-.01em; }
+#stNow[hidden], body.view-compare #stNow, body.hist-mode #stNow { display:none; }    /* nello Storico no */
+#stNow b { font-size:20px; font-weight:600; letter-spacing:-.01em; }
 #stNow span { font-size:12px; color:var(--muted); }
 #stationMeta:empty { display:none; }
 body.dark #stationMeta { color:#f0a35e; }
 #ptools { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:none; margin-left:auto; }
 #pviews, #pact { display:flex; align-items:center; gap:6px; }
+#pact { margin-left:auto; }
+/* × accanto al confronto acceso: lo spegne e torna al periodo di prima */
+#cmpOff { padding:0 7px; }
+#ptools #cmpOff[hidden] { display:none; }
+#cmpOff svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 #ptools[hidden], #pact[hidden], #pbar[hidden] { display:none; }
 #modes, .hv-seg { display:inline-flex; border:1px solid var(--ctl); border-radius:7px; overflow:hidden; }
 #ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn {
@@ -495,7 +497,7 @@ body.dark .hv-k5 { background:#8a3b3b; }
 #hvInfo { flex:1 0 100%; }
 /* modo "Impilato": un pannello per variabile, asse del tempo condiviso, cursore e zoom sincronizzati */
 body.stacked #chartlegend { display:none; }
-body.stacked #chartwrap { flex:0 0 auto; min-height:0; }
+body.stacked #chartwrap { flex:1 1 auto; min-height:0; }       /* le fasce si dividono l'altezza */
 body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible; }
 .stk { display:flex; flex-direction:column; gap:2px; width:100%; }
 .stk-time { font-size:12px; color:var(--muted); text-align:right; min-height:16px;
@@ -690,7 +692,8 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
      flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra
      (stazioni con tante variabili) veniva schiacciato a 200px mentre il grafico restava alto 46vh,
      e le scritte sotto (min/max/media, fonte) finivano sovrapposte al grafico. */
-  #chartwrap { flex:0 0 auto; min-height:0; flex-direction:column; overflow:visible; }
+  #chartwrap, body.stacked #chartwrap { flex:0 0 auto; min-height:0; flex-direction:column;
+                                        overflow:visible; }
   #chart { flex:0 0 auto; width:100%; height:46vh; min-height:220px; overflow:hidden; }
   body.rose-mode #windrose { flex:0 0 auto; min-height:0; }
   body.clima-mode #climaview { flex:0 0 auto; height:46vh; min-height:220px; }
