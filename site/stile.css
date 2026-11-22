@@ -452,8 +452,9 @@ body.hist-mode #hvChart { flex:1 1 0; min-height:240px; }
 /* Giorni: la mano dice che si trascina */
 .hv-pan { cursor:grab; -webkit-user-select:none; user-select:none; }
 .hv-pan.hv-grab { cursor:grabbing; }
-.hv-yl { position:absolute; left:0; top:0; font-size:11px; font-weight:600; line-height:13px;
-         white-space:nowrap; pointer-events:none; text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
+/* Anni: in una riga sopra il grafico, a destra (a sinistra c'e' l'unita' dell'asse) */
+.hv-yk { position:absolute; top:3px; right:12px; display:flex; gap:10px; font-size:12px; font-weight:600;
+         line-height:16px; white-space:nowrap; pointer-events:none; }
 .hv-tip { white-space:normal; max-width:calc(100% - 4px); }
 .hv-tip .part { color:var(--muted); }
 /* tabella: mesi in riga, anni in colonna (--ny anni: ~96 px l'uno, al massimo 520 px; sul telefono larga

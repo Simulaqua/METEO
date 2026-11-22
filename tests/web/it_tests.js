@@ -38,6 +38,8 @@
     if(b) b.click(); else document.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape' }));
     await sleep(50);
   }
+  // nomi scritti sopra gli assi del grafico della stazione
+  const axisNames = () => chart ? chart.axes.flatMap(a => (a.names || []).map(n => n.text)) : [];
   // controlli in alto a destra sulla mappa, dall'alto (sul telefono lo zoom c'e' ma e' nascosto)
   const rightCol = () => [...document.querySelectorAll('.leaflet-top.leaflet-right > .leaflet-control')].map(c =>
     c.classList.contains('leaflet-control-zoom') ? 'zoom' : c.classList.contains('leaflet-control-layers') ? 'sfondo'
@@ -1522,22 +1524,13 @@
       const thin = older.filter(s => part.includes(String(s.label))).map(s => s.width), full = older.filter(s => !part.includes(String(s.label))).map(s => s.width);
       log(thin.length > 0 && new Set(thin).size === 1 && new Set(full).size <= 1 && thin[0] < Math.min(S[n - 1].width, ...full),
           name + ': anni incompleti più sottili (' + part.join(', ') + ')', JSON.stringify(S.map(s => [s.label, s.width])));
-      const o = histU.over, w = o.parentNode, labs = [...w.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
-      eq(name + ': il nome di ogni anno sul grafico', labs.map(l => l.textContent.trim()).sort(), yrs.slice().sort());
-      eq(name + ': il nome di ogni anno del colore della sua linea', yrs.map(y => { const l = labs.find(e => e.textContent.trim() === y); return l ? getComputedStyle(l).color : null; }), cols);
-      const bad = [];
-      S.forEach((s, k) => {
-        const d = histU.data[k + 1], lab = labs.find(l => l.textContent.trim() === yrs[k]); let j = d.length - 1;
-        while(j >= 0 && d[j] == null) j--;
-        if(!lab || j < 0){ bad.push(yrs[k] + ' senza nome'); return; }
-        const px = R(o).left + histU.valToPos(histU.data[0][j], 'x'), py = R(o).top + histU.valToPos(d[j], 'y'), r = R(lab);
-        if(r.left < px || r.left > px + 12 || Math.abs((r.top + r.bottom) / 2 - py) > 20 || r.right > R(w).right + 0.5 || r.top < R(w).top - 0.5 || r.bottom > R(w).bottom + 0.5)
-          bad.push(yrs[k] + ' ' + JSON.stringify([Math.round(r.left), Math.round((r.top + r.bottom) / 2), Math.round(px), Math.round(py)]));
-      });
-      eq(name + ': nome in fondo alla propria linea, dentro il grafico', bad, []);
-      const ov = []; labs.forEach((a, i) => labs.slice(i + 1).forEach(b => { const p = R(a), q = R(b);
-        if(p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom) ov.push(a.textContent + '/' + b.textContent); }));
-      log(labs.length === n && !ov.length, name + ': nomi degli anni non sovrapposti', JSON.stringify(ov));
+      // gli anni in una riga sopra il grafico, ognuno del colore della sua linea; nessun nome sulle linee
+      const o = histU.over, w = o.parentNode, key = w.querySelector('.hv-yk'), labs = key ? [...key.children] : [];
+      eq(name + ': gli anni in alto, ognuno del colore della sua linea', labs.map(l => [l.textContent.trim(), getComputedStyle(l).color]),
+         yrs.map((y, k) => [y, cols[k]]));
+      log(!!key && vis(key) && R(key).bottom <= R(o).top + 0.5 && R(key).right <= R(w).right + 0.5 && R(key).left >= R(w).left,
+          name + ': la riga degli anni sopra il grafico, non dentro', key ? JSON.stringify([R(key).top, R(key).bottom, R(o).top]) : 'manca');
+      eq(name + ': nessun nome sulle linee', [...w.children].filter(e => e !== key && vis(e) && /^\d{4}$/.test(e.textContent.trim())).length, 0);
       let ml = []; try { const a = histU.axes[0]; ml = a.values(histU, a.splits(histU, 0, 0, 365, 1, 1), 0, 30, 1).filter(Boolean); } catch(e){ ml = [String(e)]; }
       log(ml.length >= 6 && R(o).width / ml.length >= 26, name + ': nomi dei mesi sull\'asse non sovrapposti (almeno 26 px l\'uno)', JSON.stringify([ml, R(o).width]));
     };
@@ -1657,9 +1650,10 @@
       document.body.classList.add('dark'); await renderHist(); await sleep(100);       // tema scuro (il pulsante del tema ridisegna lo Storico cosi')
       {
         const yrsD = histU.series.slice(1).map(s => String(s.label)), colsD = yearCols(), o = histU.over;
-        const labs = [...o.parentNode.children].filter(e => vis(e) && /^\d{4}$/.test(e.textContent.trim()));
+        const key = o.parentNode.querySelector('.hv-yk'), labs = key ? [...key.children] : [];
         okColors('Pioggia/Anni, tema scuro', colsD, yrsD);
-        eq('Pioggia/Anni, tema scuro: il nome di ogni anno del colore della sua linea', yrsD.map(y => { const l = labs.find(e => e.textContent.trim() === y); return l ? getComputedStyle(l).color : null; }), colsD);
+        eq('Pioggia/Anni, tema scuro: gli anni in alto, ognuno del colore della sua linea',
+           labs.map(l => [l.textContent.trim(), getComputedStyle(l).color]), yrsD.map((y, k) => [y, colsD[k]]));
       }
       document.body.classList.remove('dark'); await renderHist(); await sleep(100);
     }
@@ -2542,18 +2536,20 @@
     log(/^data;pioggia_mm/.test(await blobText('csv') || ''), 'Esporta nello Storico: il CSV giornaliero', '');
     await setHistMode(false); await sleep(300);
 
-    // linee a 2 px senza pallini (il pallino solo al cursore); nomi in fondo alle linee quando sono due o piu'
+    // linee a 2 px senza pallini (il pallino solo al cursore); con due o piu' variabili il nome sta sopra il suo
+    // asse, accanto all'unita', mai dentro il grafico
     drawVar('TEMP'); addVar('UMID'); await sleep(300);
     const dots = (s, i) => typeof s.points.show === 'function' ? s.points.show(chart, i) : s.points.show;   // uPlot ne fa una funzione
     const lines = chart.series.map((s, i) => [s, i]).filter(([s, i]) => i && s.kind === 'line');
     log(lines.length === 2 && lines.every(([s, i]) => s.width === 2 && !dots(s, i)), 'linee a 2 px senza pallini',
         JSON.stringify(lines.map(([s, i]) => [s.width, dots(s, i)])));
-    eq('nomi in fondo alle linee', chart._ends, ['Temperatura', 'Umidità']);
-    // unita' in orizzontale sopra il loro asse, del colore della variabile quando l'asse e' suo
     const ys = () => chart.axes.filter(a => a.scale && a.scale !== 'x');
+    eq('nomi sopra i loro assi, niente in fondo alle linee', [ys().map(a => (a.names || []).map(n => n.text)), typeof endLabels],
+       [[['Temperatura'], ['Umidità']], 'undefined']);
+    // unita' in orizzontale sopra il loro asse, del colore della variabile quando l'asse e' suo
     eq('unità sopra gli assi, niente scritte ruotate', ys().map(a => [a.label || null, a.unit]), [[null, '°C'], [null, '%']]);
     drawVar('TEMP'); await sleep(300);
-    eq('una linea sola: niente nome in fondo', chart._ends || [], []);
+    eq('una linea sola: sopra l\'asse solo l\'unità', ys().map(a => a.names || null), [null]);
     // tempo su due righe: le ore, sotto i giorni
     const xs = chart.axes.filter(a => a.scale === 'x');
     eq('asse del tempo su due righe', xs.length, 2);
@@ -2619,7 +2615,7 @@
     P._radar = undefined; P._tableAt = 0;
     await open(P, 'PREC');
     eq('radar: spento all\'inizio, niente richiesta', asked, []);
-    log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'),
+    log(!chart._m.iRadar && !axisNames().includes('Radar'),
         'radar: spento all\'inizio, niente barre', '');
     let item = await radarItem();
     log(!!item && item.getAttribute('aria-checked') === 'false' && item.textContent.trim() === 'Radar',
@@ -2664,7 +2660,7 @@
           JSON.stringify(R.slice(-2)));
       const end = R.length ? R[R.length - 1][0] : 0;
       log(end > last, tag + ': il radar va oltre l\'ultima lettura della stazione', JSON.stringify([end, last]));
-      log((chart._ends || []).includes('Radar'), tag + ': la chiave «Radar»', JSON.stringify(chart._ends));
+      log(axisNames().includes('Radar'), tag + ': «Radar» sopra l\'asse della pioggia', JSON.stringify(axisNames()));
       if(R.length){
         const [x] = R[1] || R[0];
         chart.setCursor({ left:chart.valToPos(x + (m.radar.align === 1 ? slot / 2 : -slot / 2), 'x'), top:20 });
@@ -2685,7 +2681,7 @@
     // spento da «Altro»: via le barre, la scelta resta
     (await radarItem()).click(); await sleep(300);
     try { stored = localStorage.getItem('stRadar'); } catch(e){}
-    log(!showRadar && !chart._m.iRadar && !(chart._ends || []).includes('Radar') && stored === '0',
+    log(!showRadar && !chart._m.iRadar && !axisNames().includes('Radar') && stored === '0',
         'radar: spento da «Altro», niente barre', JSON.stringify([showRadar, stored]));
     // senza file del radar: il grafico di oggi, senza errori
     setRadar(true);
@@ -2693,7 +2689,7 @@
     P._radar = undefined;
     await loadRadarPoints(P);
     renderChart('PREC'); await sleep(300);
-    log(!chart._m.iRadar && !(chart._ends || []).includes('Radar'), 'senza radar: niente serie né chiave', '');
+    log(!chart._m.iRadar && !axisNames().includes('Radar'), 'senza radar: niente serie né chiave', '');
     setRadar(false);
     Radar.points = realPoints;
     P._radar = undefined;
@@ -2819,6 +2815,7 @@
     await until(() => chart && chart._bil, 8000); await sleep(300);
     log(!!chart && chart.series.length === 3 && chart.series[1].label === 'Pioggia' && chart.series[2].label === 'Evapotraspirazione',
         'Bilancio: pioggia ed evapotraspirazione cumulate', chart && JSON.stringify(chart.series.map(s => s.label)));
+    eq('Bilancio: i due nomi sopra l\'asse, non in fondo alle linee', axisNames(), ['Pioggia', 'Evapotraspirazione']);
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Bilancio: senza periodo', '');
     {
       const j = chart.data[0].length - 1;

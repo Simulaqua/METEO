@@ -492,52 +492,42 @@ function timeAxes(hi, stroke, show){
   ];
 }
 
-// Unita' sopra il loro asse, in orizzontale (a.unit, a.unitSize px), del colore dell'asse
+// Sopra ogni asse, in orizzontale (a.unitSize px), il suo nome: le variabili che porta (a.names, ognuna nel
+// suo colore) e l'unita' nel colore dell'asse. Centrato sull'asse e dentro il grafico; due vicini non si
+// accavallano (chi tocca quello alla sua destra si sposta a sinistra).
 function drawUnits(u){
-  const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width);
+  const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width), W = ctx.canvas.width, tags = [];
   ctx.save();
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'left';                 // uPlot lascia quello dell'ultimo asse disegnato
   u.axes.forEach((a, i) => {
-    if(!a.unit || !a.show || !a._show || a._pos == null) return;
-    ctx.font = cssFont((a.unitSize || 12) * pr, 600);
-    ctx.fillStyle = typeof a.stroke === 'function' ? a.stroke(u, i) : a.stroke;
-    const w = ctx.measureText(a.unit).width;
+    if(!(a.unit || a.names) || !a.show || !a._show || a._pos == null) return;
+    const font = cssFont((a.unitSize || 12) * pr, 600), parts = [];
+    const ac = typeof a.stroke === 'function' ? a.stroke(u, i) : a.stroke;
+    (a.names || []).forEach((n, k) => {
+      if(k) parts.push({ t:' · ', c:ac });
+      parts.push({ t:n.text, c:n.color });
+    });
+    if(a.unit) parts.push({ t:(parts.length ? ' ' : '') + a.unit, c:ac });
+    ctx.font = font;
+    parts.forEach(p => { p.w = ctx.measureText(p.t).width; });
+    const w = parts.reduce((s, p) => s + p.w, 0);
     const c = (a.side === 1 ? a._pos + a._size / 2 : a._pos - a._size / 2) * pr;   // centro dell'asse
-    const x = Math.max(2 * pr, Math.min(ctx.canvas.width - 2 * pr - w, c - w / 2));
-    ctx.fillText(a.unit, x, u.bbox.top - 7 * pr);
+    tags.push({ font, parts, w, x:Math.max(2 * pr, Math.min(W - 2 * pr - w, c - w / 2)) });
   });
-  ctx.restore();
-}
-// Con piu' variabili, il nome di ognuna in fondo alla sua linea e nel suo colore; u._ends = i nomi scritti
-function endLabels(u, list){
-  const ctx = u.ctx, pr = ctx.canvas.width / Math.max(1, u.width), sx = u.scales.x;
-  const { left, top, width } = u.bbox;
-  const tags = [];
-  list.forEach(o => {
-    const d = u.data[o.i];
-    let j = d.length - 1;
-    while(j >= 0 && (d[j] == null || u.data[0][j] > sx.max)) j--;
-    if(j < 0 || u.data[0][j] < sx.min) return;
-    tags.push({ o, x:Math.min(left + width - 2 * pr, u.valToPos(u.data[0][j], 'x', true) - 4 * pr),
-                y:Math.max(top + 14 * pr, u.valToPos(d[j], u.series[o.i].scale, true) - 7 * pr) });
-  });
-  tags.sort((a, b) => a.y - b.y);
-  for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 15 * pr);
-  ctx.save();
-  ctx.font = cssFont(12 * pr, 600);
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.lineWidth = 3 * pr;                 // bordo del colore del fondo: il nome si legge anche sopra le linee
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = document.body.classList.contains('dark') ? '#0e1621' : '#fff';
+  tags.sort((p, q) => p.x - q.x);
+  for(let k = tags.length - 2; k >= 0; k--)
+    tags[k].x = Math.max(2 * pr, Math.min(tags[k].x, tags[k + 1].x - 10 * pr - tags[k].w));
   tags.forEach(t => {
-    ctx.strokeText(t.o.name, t.x, t.y);
-    ctx.fillStyle = t.o.color;
-    ctx.fillText(t.o.name, t.x, t.y);
+    ctx.font = t.font;
+    let x = t.x;
+    t.parts.forEach(p => {
+      ctx.fillStyle = p.c;
+      ctx.fillText(p.t, x, u.bbox.top - 7 * pr);
+      x += p.w;
+    });
   });
   ctx.restore();
-  u._ends = list.filter(o => tags.some(t => t.o === o)).map(o => o.name);
 }
 
 // LIVIDRO -> quota assoluta (m s.m.m.): il livello e' sommato allo zero idrometrico (zero_idro, dal PDF
@@ -1323,7 +1313,6 @@ async function renderBilancio(){
   const opts = (hi, W, H) => {
     const fnt = { font:cssFont(hi ? 20 : 12) }, grid = hi ? '#e3e9f0' : GRID(), ax = hi ? '#33475a' : AXTX();
     const cP = varColor('PREC', false, hi), cE = varColor('ET0', false, hi);
-    const ends = [{ i:1, name:'Pioggia', color:cP }, { i:2, name:'Evapotraspirazione', color:cE }];
     return {
       width:W, height:H, tzDate:TZ_CIV, legend:{ show:false },
       scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(1, mx * 1.08)] } },
@@ -1332,13 +1321,13 @@ async function renderBilancio(){
               mkSeries({ label:'Evapotraspirazione', color:cE }, hi)],
       axes:[dateAxis(hi, ax), Object.assign({
         grid:{ stroke:grid }, size:hi ? 82 : 58, unit:'mm', unitSize:hi ? 20 : 12, stroke:ax,
+        names:hi ? null : [{ text:'Pioggia', color:cP }, { text:'Evapotraspirazione', color:cE }],
         incrs:TICK_STEPS, values:tickTexts
       }, fnt)],
       padding:[hi ? 44 : 24, null, null, null],
       cursor:hi ? { show:false }
                 : { y:false, drag:{ x:true, y:false }, dataIdx:cursorDataIdx, points:{ show:hoverPt } },
-      hooks:hi ? { draw:[drawUnits] }
-               : { draw:[drawUnits, u => endLabels(u, ends)], setCursor:[legendCursor] }
+      hooks:hi ? { draw:[drawUnits] } : { draw:[drawUnits], setCursor:[legendCursor] }
     };
   };
   chart = new uPlot(opts(false, chartWidth(), chartHeight()), [b.x, b.p, b.e], el('chart'));
@@ -1498,10 +1487,15 @@ function mainOpts(m, o){
   });
   const axes = timeAxes(hi, ax, true);
   const scales = {};
+  // con piu' serie il nome di ognuna sta sopra il suo asse (il radar con la pioggia); nel PNG c'e' la legenda
+  const named = !hi && (m.ss.length > 1 || !!m.radar);
   groups.forEach((g, k) => {
     const one = g.ss.length === 1 ? g.ss[0].v : null;
+    const names = g.ss.map(s => ({ text:varShort(s.v), color:col(s.v) }))
+      .concat(m.radar && g.key === m.s1.scale ? [{ text:'Radar', color:col('RADAR') }] : []);
     const a = Object.assign({
       scale: g.key, grid: k ? { show:false } : { stroke: grid }, unit: g.unit, unitSize: hi ? 20 : 12,
+      names: named ? names : null,
       size: hi ? 82 : narrow ? 38 : 54, stroke: many && one ? col(one, true) : ax, space: hi ? 70 : 44,
       incrs: TICK_STEPS, values: tickTexts
     }, fnt);
@@ -1541,9 +1535,6 @@ function mainOpts(m, o){
     drawArrows(m.wind.arrows, col(WARROW), hi, m.wind.dense, m.ss[m.wind.i - 1].scale));
   hooks.draw = (hooks.draw || []).concat(drawUnits);
   if(m.events && m.events.length) hooks.draw.push(drawEvents(m.events, col(m.s1.v), hi));
-  const ends = (m.ss.length > 1 ? m.ss.map((s, k) => ({ i:k + 1, name:varShort(s.v), color:col(s.v) })) : [])
-    .concat(m.radar ? [{ i:m.iRadar, name:'Radar', color:col('RADAR') }] : []);
-  if(!hi && ends.length) hooks.draw.push(u => endLabels(u, ends));
   return {
     width: o.w, height: o.h, tzDate: TZ_CIV, legend: { show:false }, series, axes, scales, hooks,
     padding: [hi ? 44 : 24, null, null, null],

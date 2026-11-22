@@ -155,8 +155,8 @@ const hvDayLabel = ts => {
   return d.getUTCDate() + ' ' + MESI_BR[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 };
 
-// Niente legenda: i nomi sono nel riquadro al passaggio e in fondo alle linee degli anni (hvDecorate); la
-// chiave c'e' solo nel PNG, dove il riquadro non c'e'.
+// Niente legenda: i nomi sono nel riquadro al passaggio e, per gli anni della pioggia, in una riga sopra il
+// grafico (hvDecorate); la chiave c'e' solo nel PNG, dove il riquadro non c'e'.
 // Giorni: niente selezione col trascinamento ne' doppio clic di uPlot (li gestisce hvZoom).
 function hvBase(extra, days){
   return Object.assign({
@@ -167,7 +167,7 @@ function hvBase(extra, days){
           bind:{ mousedown:() => null, mouseup:() => null, dblclick:() => null }
         }
       : { y:false, drag:{ x:true, y:false } },
-    hooks:{ setCursor:[hvCursor], draw:[hvPlaceYears, drawUnits] }
+    hooks:{ setCursor:[hvCursor], draw:[drawUnits] }
   }, extra);
 }
 // etichette dell'asse del tempo: mesi (gen, feb...) o giorni (5 mar), con l'anno sotto quando cambia
@@ -321,12 +321,6 @@ function hvRainYearsView(h){
     // incompleto (piu' sottile): dati da dopo il 10 gennaio o meno del 90% dei giorni completi
     part:Y.first > 10 || Y.have < 0.9 * (Y.last - Y.first + 1)
   }));
-  const ends = [];
-  lines.forEach(o => {
-    let j = 365;
-    while(j >= 0 && o.Y.arr[j] == null) j--;
-    if(j >= 0) ends.push({ name:String(o.Y.y), color:o.color, x:j, y:o.Y.arr[j] });
-  });
   const read = i => hvTip(
     dayLab(i),
     lines.filter(o => o.Y.arr[i] != null).reverse().map(o =>          // dal piu' recente
@@ -334,7 +328,6 @@ function hvRainYearsView(h){
       Math.round(o.Y.arr[i]) + ' mm</span>')
   );
   const opts = hvBase({
-    padding:[24, 44, 0, 0],                                        // a destra il posto per il nome degli anni
     scales:{ x:{ time:false, range:[0, 365] }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.06, 1)] } },
     // spessore: ultimo anno 2.6, gli altri 1.6; incompleto 0.6 in meno (l'ultimo resta il piu' spesso)
     series:[{}].concat(lines.map((o, k) => ({
@@ -343,9 +336,12 @@ function hvRainYearsView(h){
     }))),
     axes:[hvMonthAxis(MS, 44), hvYAxis('mm da inizio anno')]
   });
+  // gli anni in una riga sopra il grafico (nel PNG nella chiave), mai in fondo alle linee
+  const yearKey = lines.map(o => ({ name:String(o.Y.y), color:o.color }));
   return {
-    opts, data:[x, ...lines.map(o => o.Y.arr)], read, ends,
-    key:lines.some(o => o.part) ? [hvSw('var(--muted)', true, 'thin') + 'incompleto'] : []
+    opts, data:[x, ...lines.map(o => o.Y.arr)], read, yearKey,
+    key:yearKey.map(y => hvSw(y.color, true) + y.name)
+      .concat(lines.some(o => o.part) ? [hvSw('var(--muted)', true, 'thin') + 'incompleto'] : [])
   };
 }
 
@@ -459,21 +455,20 @@ function hvDaysView(h, v){
   return { opts:hvTempOpts(1.6, true), data:[h.x, h.tx, h.tn, h.tm], read, key:hvTempKey(), days:true };
 }
 
-// riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e trascinamento) e nomi degli anni in
-// fondo alle linee
+// riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e trascinamento) e, sopra il grafico,
+// la riga degli anni
 function hvDecorate(u, r){
-  const wrap = u.over.parentNode, add = (cls, html) => {
-    const d = document.createElement('div');
-    d.className = cls;
-    d.innerHTML = html;
-    wrap.appendChild(d);
-    return d;
-  };
-  u._ends = (r.ends || []).map(e => {
-    const d = add('hv-yl', e.name);
-    d.style.color = e.color;
-    return Object.assign({ el:d }, e);
-  });
+  if(r.yearKey){
+    const k = document.createElement('div');
+    k.className = 'hv-yk';
+    r.yearKey.forEach(y => {
+      const s = document.createElement('span');
+      s.textContent = y.name;
+      s.style.color = y.color;
+      k.appendChild(s);
+    });
+    u.over.parentNode.appendChild(k);
+  }
   u._read = r.read;
   u._tip = document.createElement('div');
   u._tip.className = 'ctip hv-tip';
@@ -680,30 +675,6 @@ function hvCursor(u){
   const x = l + 10 + w <= W - 2 ? l + 10 : Math.max(2, Math.min(l - 10 - w, W - w - 2));
   tip.style.transform = 'translate(' + Math.round(x) + 'px,2px)';
 }
-// Nomi degli anni a destra dell'ultimo punto. Due vicini che si toccherebbero vanno uno sotto l'altro;
-// se i piu' bassi uscirebbero dal fondo del grafico, il gruppo risale.
-function hvPlaceYears(u){
-  if(!u._ends) return;
-  const H = 13, top = u.over.offsetTop, bottom = top + u.over.clientHeight - H,
-        near = (p, q) => Math.abs(p.x - q.x) < 36;
-  const ps = u._ends.map(e => ({
-    el:e.el, x:u.over.offsetLeft + u.valToPos(e.x, 'x') + 5, y:top + u.valToPos(e.y, 'y') - H / 2
-  })).sort((a, b) => a.y - b.y);
-  ps.forEach((p, k) => ps.slice(0, k).forEach(q => {
-    if(near(p, q) && p.y < q.y + H) p.y = q.y + H;
-  }));
-  for(let k = ps.length - 1; k >= 0; k--){
-    const p = ps[k];
-    p.y = Math.min(p.y, bottom);
-    ps.slice(k + 1).forEach(q => {
-      if(near(p, q) && p.y > q.y - H) p.y = q.y - H;
-    });
-  }
-  ps.forEach(p => {
-    p.el.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px)';
-  });
-}
-
 // Giorni: la finestra dello zoom se c'e' (stessa stazione), se no il periodo scelto (all'inizio "Tutto")
 function hvApplyRange(){
   if(!histU || histView !== 'giorni' || !histData) return;
@@ -857,7 +828,7 @@ async function hvChartCanvas(h, title, what){
   if(r.msg) return null;
   const W = 1500, H = 640, TOP = 124, L = 12, o = r.opts;
   Object.assign(o, { width:W, height:H, hooks:{ draw:[drawUnits] }, cursor:{ show:false } });
-  o.padding = [44, o.padding[1] * 2, 0, 0];                 // a destra il posto per i nomi degli anni
+  o.padding = [44, o.padding[1] * 2, 0, 0];
   o.axes.forEach(a => Object.assign(a, { font:cssFont(20), unitSize:20, size:(a.size || 50) * 1.5 }));
   if(histView === 'giorni' && histU && histU.scales.x.min != null){
     const xr = [histU.scales.x.min, histU.scales.x.max];
@@ -869,7 +840,6 @@ async function hvChartCanvas(h, title, what){
   pngHead(ctx, title, what, true, 'Giorno solare (UTC+1)');
   hvDrawKey(ctx, r.keyEl, L, 104);
   ctx.drawImage(plot.u.ctx.canvas, L, TOP, W, H);
-  if(r.ends) hvDrawEnds(ctx, plot.u, r.ends, L, TOP);
   plot.done();
   return cv;
 }
@@ -897,25 +867,6 @@ function hvDrawKey(ctx, keyEl, x, y){
     ctx.fillStyle = '#22303c';
     ctx.fillText(text, x + 34, y);
     x += 34 + ctx.measureText(text).width + 28;
-  });
-  ctx.textBaseline = 'alphabetic';
-}
-// nomi degli anni a destra dell'ultimo punto, uno sotto l'altro se si toccherebbero (come hvPlaceYears)
-function hvDrawEnds(ctx, u, ends, ox, oy){
-  const H = 22, near = (p, q) => Math.abs(p.x - q.x) < 60;
-  const bottom = oy + (u.bbox.top + u.bbox.height) / PNG_R - H;
-  const ps = ends.map(e => ({ e, x:ox + u.valToPos(e.x, 'x', true) / PNG_R + 8,
-                              y:oy + u.valToPos(e.y, 'y', true) / PNG_R - H / 2 })).sort((a, b) => a.y - b.y);
-  ps.forEach((p, k) => ps.slice(0, k).forEach(q => { if(near(p, q) && p.y < q.y + H) p.y = q.y + H; }));
-  for(let k = ps.length - 1; k >= 0; k--){
-    ps[k].y = Math.min(ps[k].y, bottom);
-    ps.slice(k + 1).forEach(q => { if(near(ps[k], q) && ps[k].y > q.y - H) ps[k].y = q.y - H; });
-  }
-  ctx.font = cssFont(18, 600);
-  ctx.textBaseline = 'top';
-  ps.forEach(p => {
-    ctx.fillStyle = p.e.color;
-    ctx.fillText(p.e.name, p.x, p.y);
   });
   ctx.textBaseline = 'alphabetic';
 }
