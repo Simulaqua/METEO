@@ -175,6 +175,11 @@ class TestScarico(unittest.TestCase):
     def test_mare_acqven(self):
         self.check_source('mare', 'acqven', 'dati_mare.py', ['-r', 'ACQVEN'])
 
+    def test_mare_terra_er(self):
+        # le risposte di mare/reti con l'anagrafica dell'allerta in iniziali/: le sue stazioni prendono dal file
+        # di ARPAE solo le grandezze che l'API non dà, le altre entrano tutte con la sigla A_
+        self.check_source('mare', 'terra_er', 'dati_mare.py', ['-r', 'ER'])
+
     def test_liguria(self):
         self.check_source('liguria', 'normale', 'dati_liguria.py', [])
 

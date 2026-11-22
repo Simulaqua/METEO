@@ -80,7 +80,7 @@ const MORE_VARS = ['TEMP50', 'TEMP0', 'TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO
   'USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30',
   'TNEVE60', 'TNEVE90', 'VVENTOVETT', 'DVENTOVETT', 'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2',
   'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'LIVIDRO2', 'LIVIDRO3', 'PORTATA2',
-  'PORTATASUP', 'PORTATAINF', 'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA'];
+  'PORTATASUP', 'PORTATAINF', 'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX'];
 // Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
 // le misure secondarie, le derivate e gli indici stanno sotto "Altro".
 const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
@@ -137,7 +137,7 @@ const VAR_COLORS = {
 const SISTER_COLORS = [['TSUOLO', '#8a5a2b'], ['TEMP0', '#8a5a2b'], ['TEMP50', '#f08c00'],
   ['USUOLO', '#0b7285'], ['TNEVE', '#74c0fc'], ['VVENTOMAX', '#f08c00'], ['DVENTOMAX', '#f08c00'],
   ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'], ['LIVIDRO', INK],
-  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b']];
+  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b'], ['POTREDOX', '#5f3dc4']];
 MORE_VARS.forEach(v => { VAR_COLORS[v] = SISTER_COLORS.find(([p]) => v.startsWith(p))[1]; });
 // testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
 const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',
@@ -226,7 +226,7 @@ const VAR_LABELS = {
   LIVIDRO3:'Livello idrometrico (3° sensore)', PORTATA2:'Portata (2° sensore)',
   PORTATASUP:'Portata strato superiore', PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
   VELACQUASUP:'Velocità acqua strato superiore', VELACQUAINF:'Velocità acqua strato inferiore',
-  TORBIDITA:'Torbidità'
+  TORBIDITA:'Torbidità', POTREDOX:'Potenziale redox'
 };
 [5, 10, 20, 30, 40, 50].forEach(cm => {
   VAR_LABELS['TSUOLO' + cm] = 'Temperatura suolo (' + cm + ' cm)';

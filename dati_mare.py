@@ -2,7 +2,8 @@
 # dati_mare.py - maree e dati marini, ogni rete come regione a sé (MAR_<RETE>, ACQ_VEN):
 #   VEN     MAR_VEN  CPSM Venezia (dati.venezia.it): un JSON per grandezza, dato ogni ~5 min; i 'valore' sono
 #                    stringhe con l'unità, se ne leggono i numeri; le coordinate si uniscono per ID
-#   ER      MAR_ER   ARPAE-SIMC, boe e mareografi, da realtime.jsonl (codici BUFR)
+#   ER      MAR_ER   ARPAE-SIMC, boe e mareografi, da realtime.jsonl (codici BUFR); dallo stesso file anche
+#                    le misure a terra che l'API dell'allerta non dà (regione ER)
 #   ACQVEN  ACQ_VEN  ARPAV, qualità delle acque: boe del Delta del Po e delle lagune (REST JSON)
 #   FVG     MAR_FVG  OGS Trieste (ERDDAP): boe e sensori del Golfo di Trieste e della costa
 # Ogni stazione ha lat/lon. Gli istanti sono in ora solare (UTC+1).
@@ -10,9 +11,11 @@
 import argparse
 import datetime
 import json
+import os
 import re
 
 import comune
+import dati_emilia_romagna
 
 # unità per sigla, per la legenda
 UNITS = {'MAREA': 'm', 'ONDE': 'm', 'TEMP': '°C', 'TEMPACQUA': '°C', 'UMID': '%',
@@ -31,6 +34,24 @@ ER_URL = 'https://dati-simc.arpae.it/opendata/osservati/meteo/realtime/realtime.
 ER_NETWORKS = ('boa', 'marefe')          # solo boe e mareografi
 ER_CODES = {'B22037': ('MAREA', False), 'B22070': ('ONDE', False), 'B22043': ('TEMPACQUA', True),
             'B12101': ('TEMP', True), 'B13003': ('UMID', False), 'B11002': ('VVENTO', False)}
+# A terra lo stesso file ha le stazioni dell'allerta: a quelle dell'API (riconosciute dalle coordinate)
+# si aggiunge ciò che l'API non dà; le stazioni che l'API non ha entrano con tutte le misure, con la sigla
+# A_ e il nome. Restano fuori la rete partecipativa rmap e i codici locali B112xx e B14199-201, di cui la
+# fonte non dice il significato. Codice B -> (sigla, conversione dall'unità BUFR).
+ER_LAND = {
+    'B12101': ('TEMP', lambda v: round(v - 273.15, 1)), 'B13003': ('UMID', None), 'B13011': ('PREC', None),
+    'B11002': ('VVENTO', None), 'B11001': ('DVENTO', None), 'B11041': ('VVENTOMAX', None),
+    'B11043': ('DVENTOMAX', None), 'B10004': ('PRESS', lambda v: round(v / 100.0, 1)),
+    'B13215': ('LIVIDRO', None), 'B13013': ('LIVNEVE', lambda v: round(v * 100, 1)),
+    'B14198': ('RADSOL', None), 'B13082': ('TEMPACQUA', lambda v: round(v - 273.15, 1)),
+    'B13080': ('PH', None), 'B13081': ('CONDUCIBILITA', lambda v: round(v * 1e4)),
+    'B13083': ('OSSIGENO', lambda v: round(v * 1e3, 2)), 'B13084': ('TORBIDITA', None),
+    'B13085': ('POTREDOX', lambda v: round(v * 1e3))}
+ER_LAND_UNITS = {'TEMP': '°C', 'UMID': '%', 'PREC': 'mm', 'VVENTO': 'm/s', 'DVENTO': '°N', 'VVENTOMAX': 'm/s',
+                 'DVENTOMAX': '°N', 'PRESS': 'hPa', 'LIVIDRO': 'm', 'LIVNEVE': 'cm', 'RADSOL': 'W/m²',
+                 'TEMPACQUA': '°C', 'PH': 'pH', 'CONDUCIBILITA': 'µS/cm', 'OSSIGENO': 'mg/l',
+                 'TORBIDITA': 'NTU', 'POTREDOX': 'mV'}
+ER_LAND_SKIP = ER_NETWORKS + ('rmap',)
 
 # ACQVEN: parametro ARPAV -> sigla
 ACQUE_BASE = 'https://api.arpa.veneto.it/REST/v1'
@@ -123,15 +144,22 @@ def download_ven(debug=False):
 
 
 def download_er(debug=False):
-    raw = comune.get_text(ER_URL, timeout=90)
-    stations, readings, units = {}, {}, {}
-    for line in raw.split('\n'):
-        if not line.strip():
-            continue
+    records = []
+    for line in comune.get_text(ER_URL, timeout=90).split('\n'):
         try:
-            o = json.loads(line)
+            records.append(json.loads(line))
         except ValueError:
             continue
+    result = {'MAR_ER': er_sea(records)}
+    land = er_land(records)
+    if land[1]:
+        result['ER'] = land
+    return result
+
+
+def er_sea(records):
+    stations, readings, units = {}, {}, {}
+    for o in records:
         if o.get('network') not in ER_NETWORKS:
             continue
         name, lat, lon, vals = None, None, None, {}
@@ -158,6 +186,61 @@ def download_er(debug=False):
         for var, v in vals.items():
             readings.setdefault(var, {}).setdefault(sc, []).append((moment, v))
             units[var] = UNITS.get(var)
+    return stations, readings, units
+
+
+def er_land(records):
+    """Le stazioni a terra. Per stazione e grandezza un solo passo, l'istantaneo o il più breve: la pioggia
+    di 15 minuti e quella oraria della stessa stazione non si sommano."""
+    registry = comune.load_json(os.path.join(comune.region_dir('ER'), 'data-parsed', 'stazioni.json'))
+    api = {}
+    for sc, meta in (registry or {}).items():
+        lat, lon = comune.to_float(meta.get('LAT')), comune.to_float(meta.get('LON'))
+        if sc.isdigit() and lat is not None and lon is not None:
+            api[(round(lon * 1e5), round(lat * 1e5))] = sc
+    if not api:                 # senza l'anagrafica dell'allerta ogni sua stazione sembrerebbe nuova
+        return {}, {}, {}
+    api_vars = set(dati_emilia_romagna.VARIABLES)
+    stations, found = {}, []
+    for o in records:
+        if o.get('network') in ER_LAND_SKIP:
+            continue
+        try:
+            moment = comune.utc_to_solar(datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%SZ'))
+        except (KeyError, ValueError):
+            continue
+        blocks = o.get('data', [])
+        meta = {k: c.get('v') for b in blocks if 'timerange' not in b for k, c in b.get('vars', {}).items()}
+        sc = api.get((o.get('lon'), o.get('lat')))
+        from_api = sc is not None
+        if not from_api:
+            name = meta.get('B01019')
+            lat, lon = comune.to_float(meta.get('B05001')), comune.to_float(meta.get('B06001'))
+            if not name or lat is None or lon is None:
+                continue
+            sc = 'A_' + comune.slug(name)
+            stations[sc] = {'NOME': name, 'LAT': lat, 'LON': lon}
+        for b in blocks:
+            if 'timerange' not in b:
+                continue
+            step = (b['timerange'][0] != 254, b['timerange'][2], json.dumps(b.get('level')))
+            for code, cell in b.get('vars', {}).items():
+                if code not in ER_LAND:
+                    continue
+                var, conv = ER_LAND[code]
+                value = comune.to_float(cell.get('v'))
+                if value is None or (from_api and var in api_vars):
+                    continue
+                found.append((sc, var, step, moment, conv(value) if conv else value))
+    chosen = {}
+    for sc, var, step, _, _ in found:
+        if (sc, var) not in chosen or step < chosen[(sc, var)]:
+            chosen[(sc, var)] = step
+    readings, units = {}, {}
+    for sc, var, step, moment, value in found:
+        if step == chosen[(sc, var)]:
+            readings.setdefault(var, {}).setdefault(sc, []).append((moment, value))
+            units[var] = ER_LAND_UNITS[var]
     return stations, readings, units
 
 
@@ -242,8 +325,11 @@ def main():
             continue
         code, download = NETWORKS[name]
         try:
-            stations, readings, units = download(debug=args.debug)
-            comune.write_parsed(code, stations, readings, units)
+            result = download(debug=args.debug)
+            # un solo scarico può scrivere più regioni (il file di ARPAE: mare e terra)
+            for region, (stations, readings, units) in (result.items() if isinstance(result, dict)
+                                                         else [(code, result)]):
+                comune.write_parsed(region, stations, readings, units)
         except Exception as e:
             print('[%s] ERRORE: %s' % (name, e))
 

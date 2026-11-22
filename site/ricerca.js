@@ -85,7 +85,7 @@ const VAR_GROUPS = [
              'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50']],
   ['Fiumi e laghi', ['LIVIDRO', 'LIVIDRO2', 'LIVIDRO3', 'PORTATA', 'PORTATA2', 'PORTATASUP', 'PORTATAINF',
                      'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'FREATICA', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO',
-                     'VOLINVASO', 'TEMPACQUA', 'SOLIDI', 'TORBIDITA']],
+                     'VOLINVASO', 'TEMPACQUA', 'SOLIDI', 'TORBIDITA', 'POTREDOX']],
   ['Mare', ['MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA']],
   ['Aria', ['EAQI', 'PM10', 'PM25', 'NO2', 'O3', 'O3_8H', 'SO2', 'CO', 'C6H6', 'GAMMA']]
 ];
