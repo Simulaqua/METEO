@@ -3,14 +3,29 @@
 # INV_ER = Romagna Acque: un JSON con la diga di RIDRACOLI (timestamp direttaDt+direttaOra in ora civile,
 # aggiornato ogni 30-60 min) e la traversa del CONCA (senza timestamp proprio: usa quello generale).
 # Livelli in m (Ridracoli = quota s.l.m.), volumi in Mm³. Una lettura per giro: il merge per istante evita
-# i doppioni.
+# i doppioni. Sul coronamento di Ridracoli anche il meteo orario della diga (le misure «D» della pagina di
+# Romagna Acque, con data e ora proprie): la pioggia arriva cumulata da mezzanotte e si archivia la caduta
+# dalla lettura precedente, che resta in INV_ER/pioggia_diga.json.
 # Uso: python3 dati_invasi.py [-r ER|all] [--debug]
 import argparse
 import datetime
+import os
 
 import comune
 
 DATA_URL = 'https://www.romagnacque.it/datidiretta/index2.php'
+RAIN_STATE = os.path.join(comune.region_dir('INV_ER'), 'pioggia_diga.json')
+
+
+def rain_since_last(total, day, moment):
+    """Pioggia dalla lettura precedente, data la cumulata del giorno; None alla prima lettura o se l'ora è già
+    stata letta. Una cumulata più bassa della precedente vuol dire che è ripartita da zero."""
+    last = comune.load_json(RAIN_STATE)
+    comune.save_json({'giorno': day, 'istante': moment, 'cumulata': total}, RAIN_STATE)
+    if not last or last.get('istante') == moment:
+        return None
+    previous = last.get('cumulata') if last.get('giorno') == day else 0.0
+    return total - previous if previous is not None and total >= previous else total
 
 
 def download(debug=False):
@@ -24,21 +39,36 @@ def download(debug=False):
     moment = comune.civil_to_solar(dt)
     stations, readings, units = {}, {}, {}
 
-    def put(code, var, unit, value):
+    def put(code, var, unit, value, at=None):
         value = comune.to_float(value)
         if value is None:
             return
-        readings.setdefault(var, {}).setdefault(code, []).append((moment, round(value, 3)))
+        readings.setdefault(var, {}).setdefault(code, []).append((at or moment, round(value, 3)))
         units[var] = unit
 
-    # Ridracoli: il livello è la quota assoluta s.l.m.
-    stations['RIDRACOLI'] = {'NOME': 'Diga di Ridracoli', 'LAT': 43.9711, 'LON': 11.8261}
+    # Ridracoli: il livello è la quota assoluta s.l.m.; la posizione è il coronamento (OpenStreetMap)
+    stations['RIDRACOLI'] = {'NOME': 'Diga di Ridracoli', 'LAT': 43.87328, 'LON': 11.83642}
     put('RIDRACOLI', 'LIVLAGO', 'm', d.get('livelloInvaso'))
     volume = comune.to_float(d.get('volumeInvaso'))
     put('RIDRACOLI', 'VOLINVASO', 'Mm³', volume / 1e6 if volume is not None else None)
     put('RIDRACOLI', 'AFFLUSSO', 'm³/s', d.get('apporto'))
     put('RIDRACOLI', 'DEFLUSSO', 'm³/s', d.get('deflusso'))
     put('RIDRACOLI', 'TEMPACQUA', '°C', d.get('temperaturaAcqua'))
+    meteo = d.get('idrometeoRidraccoli') or {}
+    try:
+        when = datetime.datetime.strptime('%s %s' % (meteo.get('dt'), meteo.get('ora')), '%d/%m/%Y %H:%M')
+    except (ValueError, TypeError):
+        when = None
+    if when:
+        at = comune.civil_to_solar(when)
+        put('RIDRACOLI', 'TEMP', '°C', meteo.get('DtemperaturaAria'), at)
+        put('RIDRACOLI', 'UMID', '%', meteo.get('Dumidita'), at)
+        wind = comune.to_float(meteo.get('DvelocitaVento'))
+        put('RIDRACOLI', 'VVENTO', 'm/s', wind / 3.6 if wind is not None else None, at)
+        put('RIDRACOLI', 'PRESS', 'hPa', meteo.get('DpressioneAtmosferica'), at)
+        total = comune.to_float(meteo.get('DpioggiaGiornaliera'))
+        if total is not None:
+            put('RIDRACOLI', 'PREC', 'mm', rain_since_last(total, when.strftime('%Y%m%d'), at), at)
     # Conca: coordinate approssimative
     conca = d.get('concaDati') or {}
     if conca:
