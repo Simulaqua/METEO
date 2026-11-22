@@ -1741,10 +1741,10 @@ function stackPanelOpts(p, o){
 function varPanels(cfg, hourly){
   const st = cfg.station, t = cfg.table, units = unitsByRegion[st._region] || {}, mode = cfg.mode || 'week';
   const srcOf = v => v === WARROW ? 'VVENTO' : v;
-  const win0 = stackWindow(t, mode, cfg.vars.map(srcOf));
+  const win0 = cfg.win || stackWindow(t, mode, cfg.vars.map(srcOf));
   if(!win0) return null;
-  // con barre orarie la finestra parte dall'inizio della prima ora (la prima barra resta intera)
-  const win = (hourly && cfg.vars.map(srcOf).some(isRainVar))
+  // senza il periodo della curva singola, con barre orarie la finestra parte dall'inizio della prima ora
+  const win = (!cfg.win && hourly && cfg.vars.map(srcOf).some(isRainVar))
     ? [Math.floor((win0[0] - 1) / HOUR) * HOUR, win0[1]] : win0;
   const panels = cfg.vars.map(v => {
     const src = srcOf(v);

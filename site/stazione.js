@@ -473,7 +473,10 @@ function renderStackView(){
   const t = currentStation && currentStation._table;
   if(!t) return;
   const vars = selVars().filter(v => t.cols[v === WARROW ? 'VVENTO' : v]);
-  stackObj = createStack(el('chart'), { station: currentStation, table: t, vars, mode: chartMode });
+  // lo stesso periodo della curva singola da cui si arriva (e a cui si torna): stesse ore sull'asse
+  const single = stackPrev ? [stackPrev.cur].concat(stackPrev.extra) : vars;
+  const win = mainModel(currentStation, single, chartMode).win;
+  stackObj = createStack(el('chart'), { station: currentStation, table: t, vars, mode: chartMode, win });
 }
 
 let openTabs = [];
