@@ -459,7 +459,7 @@
     eq('etichetta: 02:30 della prima volta', fmtFull(U(10, 25, 0, 30)), '25/10/2026 02:30');
     eq('etichetta: 02:30 della seconda volta', fmtFull(U(10, 25, 1, 30)), '25/10/2026 02:30');
     eq('etichetta: estate e inverno', [fmtFull(U(7, 1, 10, 0)), fmtFull(U(12, 1, 11, 0))], ['01/07/2026 12:00', '01/12/2026 12:00']);
-    eq('asse: a mezzanotte (CEST e CET) nessuna ora, il giorno sta sotto', [hourTxt(U(10, 24, 22, 0)), hourTxt(U(10, 25, 23, 0))], ['', '']);
+    eq('asse: a mezzanotte (CEST e CET) l\'ora 0, il giorno sta sotto', [hourTxt(U(10, 24, 22, 0)), hourTxt(U(10, 25, 23, 0))], ['0', '0']);
     eq('asse: le 2 della seconda volta', hourTxt(U(10, 25, 1, 0)), '2');
     {                                                  // il 25/10 dura 25 ore: il suo nome sta a meta' delle sue 25
       const sp = daySplits(null, 0, U(10, 24, 22, 0), U(10, 26, 23, 0));
@@ -1116,6 +1116,15 @@
       const wrap = el('chartwrap').getBoundingClientRect(), last = stackObj.panels[stackObj.panels.length - 1].u.root.getBoundingClientRect();
       log(phone || wrap.bottom - last.bottom <= 30, 'Impilate: due fasce riempiono l\'altezza', JSON.stringify([wrap.bottom, last.bottom]));
     }
+    {                             // al cursore il valore accanto alla linea del tempo in ogni fascia, l'ora sopra la prima
+      const ps = stackObj.panels, X = Math.round(ps[0].u.over.clientWidth * 0.5);
+      ps.forEach(p => p.u.setCursor({ left:X, top:10 })); await sleep(100);
+      const at = ps.map(p => { const l = p.u._labs && p.u._labs.querySelector('.cl-v'); return l ? Math.round(parseFloat(l.style.left)) : null; });
+      log(at.every(x => x != null && Math.abs(x - X) <= 1), 'Impilate: il valore accanto alla linea del tempo, in ogni fascia', JSON.stringify([X, at]));
+      log(!!ps[0].u._labs && !!ps[0].u._labs.querySelector('.cl-t') && !ps.slice(1).some(p => p.u._labs && p.u._labs.querySelector('.cl-t')),
+          'Impilate: l\'ora una volta sola, sopra la prima fascia', '');
+      eq('Impilate: niente valori in fondo a destra', el('chart').querySelectorAll('.stk-v, .stk-time').length, 0);
+    }
     el('stackbtn').click(); await sleep(200);
     log(!stackObj && !!chart && stackMode === false, 'Impilate: un altro clic lo spegne', '');
     drawVar('TEMP'); await sleep(200);                   // una variabile sola: il pulsante resta e impila le principali
@@ -1285,6 +1294,22 @@
       log(!!p && p.kb > 40 && p.type === 'image/png' && /\.png$/.test(p.f), 'PNG: ' + tag, JSON.stringify(p || null));
     };
     await open(A); await png('una variabile');
+    {                                  // legenda in alto accanto al titolo: il grafico prende tutta la larghezza
+      const out = await chartPNG(), b = out ? new Uint8Array(await out.blob.arrayBuffer()) : [];
+      const width = b.length > 24 ? ((b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19]) : null;   // IHDR
+      eq('PNG: legenda in alto, niente colonna bianca a destra', width, (12 + 1500 + 12) * PNG_R);
+    }
+    {                                  // evento di pioggia: nel PNG sopra la sua linea solo il totale
+      const cv = document.createElement('canvas'), ctx = cv.getContext('2d'), texts = [], ft = ctx.fillText.bind(ctx);
+      cv.width = 400; cv.height = 200;
+      ctx.fillText = (t, x, y) => { texts.push(t); ft(t, x, y); };
+      const u = { ctx, width:400, bbox:{ left:20, top:30, width:360, height:150 }, valToPos:v => 20 + v };
+      drawEvents([{ a:10, b:100, mm:9 }], '#2b6cb0', true, 'mm')(u);
+      eq('PNG: sopra l\'evento solo il totale', texts, ['9 mm']);
+      texts.length = 0;
+      drawEvents([{ a:10, b:100, mm:9 }], '#2b6cb0', false, 'mm')(u);
+      eq('schermo: l\'evento senza scritte (il totale al passaggio)', texts, []);
+    }
     addVar('UMID'); addVar('PRESS'); await sleep(300); await png('tre variabili');
     el('stackbtn').click(); await until(() => stackObj); await sleep(300); await png('Impilate');
     el('stackbtn').click(); await sleep(200);
@@ -2731,6 +2756,66 @@
     {
       const got = await chartPNG();
       log(!!got && /vicine/.test(got.fname), 'Vicine: PNG', got && got.fname);
+    }
+    // Vicine, pioggia: una fascia per stazione con la stessa scala, sopra il nome e il totale, barre piene senza
+    // bordo; al cursore il valore accanto alla linea del tempo in ogni fascia
+    await open(P, 'PREC'); await pickMode('near');
+    await until(() => chartMode === 'near' && !!stackObj && !!stackObj.near, 15000); await sleep(300);
+    {
+      const ps = stackObj ? stackObj.panels : [], nr = (stackObj && stackObj.near) || [];
+      const heads = [...el('chart').querySelectorAll('.stk-h')].map(h => h.textContent.replace(/\s+/g, ' ').trim());
+      log(!chart && ps.length >= 2 && ps.length === nr.length, 'Vicine pioggia: una fascia per stazione',
+          JSON.stringify([!!chart, ps.length, nr.length]));
+      log(heads.length === nr.length && heads.every((h, k) => h.startsWith(prettyName(nr[k].props.name || nr[k].props.scode))
+          && /\d mm/.test(h)), 'Vicine pioggia: sopra ogni fascia il nome e il totale', JSON.stringify(heads));
+      const tops = ps.map(p => p.u.scales.y.max);
+      log(tops.length >= 2 && tops.every(t => t === tops[0]), 'Vicine pioggia: la stessa scala per tutte', JSON.stringify(tops));
+      log(ps.every(p => p.u.series[1].width === 0), 'Vicine pioggia: barre senza bordo', JSON.stringify(ps.map(p => p.u.series[1].width)));
+      log(!vis(el('chartlegend')), 'Vicine pioggia: i nomi solo sopra le fasce', '');
+      const X = ps[0] ? Math.round(ps[0].u.over.clientWidth * 0.6) : 0;
+      ps.forEach(p => p.u.setCursor({ left:X, top:10 })); await sleep(100);
+      const at = ps.map(p => {
+        const j = p.u.cursor.idx, v = j != null ? p.u.data[1][j] : null, l = p.u._labs && p.u._labs.querySelector('.cl-v');
+        return v == null ? 'vuoto' : (l ? Math.round(parseFloat(l.style.left)) : null);
+      });
+      log(at.some(x => typeof x === 'number') && at.every(x => x === 'vuoto' || (x != null && Math.abs(x - X) <= 1)),
+          'Vicine pioggia: il valore accanto alla linea del tempo', JSON.stringify([X, at]));
+      let text = null; const OB = window.Blob, oc = HTMLAnchorElement.prototype.click;
+      window.Blob = function(parts, o){ text = (parts || []).join(''); return new OB(parts, o); };
+      HTMLAnchorElement.prototype.click = function(){ if(!this.download) oc.call(this); };
+      exportData(); await sleep(100);
+      window.Blob = OB; HTMLAnchorElement.prototype.click = oc;
+      eq('Vicine pioggia: CSV con una colonna per stazione', text ? text.split('\n')[0].split(',').length : 0, nr.length + 1);
+      const got = typeof stackPNG === 'function' ? await stackPNG() : null;
+      log(!!got && /vicine/.test(got.fname), 'Vicine pioggia: PNG', got && got.fname);
+      log(stackObj.withSource === true, 'Vicine pioggia: nel PNG la fonte', '');
+      const cm = chartMode;                                // Confronto schede: il periodo nel nome, niente fonte
+      chartMode = 'week'; renderCompareSet('PREC', 'mm', nr, '');
+      log(!!stackObj && stackObj.withSource === false && stackObj.fname === 'confronto_schede_PREC_week.png',
+          'Confronto schede pioggia: periodo nel nome del PNG, niente fonte', stackObj && stackObj.fname);
+      chartMode = cm; clearChart();
+    }
+    {                    // dalla revisione: fasce coi dati finti (finestre mobili, stazione senza dati, Oggi dopo
+                         // mezzanotte), legenda del PNG su piu' righe, PNG di 8 fasce entro il limite di Safari
+      const H = 3600, t0 = Math.floor(Date.now() / 1000 / H) * H - 10 * H, xs = Array.from({ length:10 }, (_, i) => t0 + (i + 1) * H);
+      const mk = (name, ys, v, x = xs) => ({ props:{ name, scode:name, _table:{ x, header:['ora', v], cols:{ [v]:ys } } }, sub:'' });
+      const C = ['#2b6cb0', '#e53e3e'], cfg = (list, src, mode) => ({ list, src, unit:'mm', mode, colors:C });
+      const r24 = stationPanels(cfg([mk('A', xs.map(() => 13), 'PREC24'), mk('B', xs.map(() => 5), 'PREC24')], 'PREC24', 'week'), true);
+      eq('revisione: pioggia 24 h, niente somma delle finestre mobili', r24.panels.map(p => p.head.extra), ['mm', 'mm']);
+      const r1 = stationPanels(cfg([mk('A', xs.map(() => 1), 'PREC'), mk('B', xs.map(() => null), 'PREC')], 'PREC', 'week'), true);
+      log(/^\d/.test(r1.panels[0].head.extra) && r1.panels[1].head.extra === 'n.d.', 'revisione: senza dati nel periodo «n.d.», non 0 mm',
+          JSON.stringify(r1.panels.map(p => p.head.extra)));
+      const o = stackPanelOpts(r1.panels[1], { w:300, h:100, last:true, win:r1.win, hooks:{} });
+      eq('revisione: fascia vuota, l\'asse del tempo resta il periodo', o.scales.x.range({ data:[[]] }, null, null), r1.win);
+      const old = xs.map(x => x - 2 * DAY_S);
+      const rM = stationPanels(cfg([mk('A', old.map(() => 1), 'PREC', old), mk('B', old.map(() => 1), 'PREC', old)], 'PREC', 'mn'), false);
+      log(!!rM && rM.win[1] - rM.win[0] >= H, 'revisione: Oggi senza letture di oggi, finestra non rovesciata', rM && JSON.stringify(rM.win));
+      const mc = document.createElement('canvas').getContext('2d');
+      const many = [{}].concat(Array.from({ length:30 }, (_, i) => ({ label:'giorno ' + (i + 1), kind:'line', stroke:'#888' })));
+      const lay = pngLegendRow(mc, many, 0, 0, false, 1500);
+      log(lay.rows > 1 && lay.w <= 1500, 'revisione: legenda del PNG su più righe', JSON.stringify(lay));
+      const s8 = stackPngSize(8);
+      log(s8.W * s8.H * PNG_R * PNG_R <= 16777216, 'revisione: PNG di 8 fasce entro il limite di Safari', JSON.stringify(s8));
     }
     const W = allFeatures.map(f => f.properties).find(p => (p.variables || []).includes('LIVIDRO')
                                                        && (p.variables || []).includes('PREC'));

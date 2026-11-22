@@ -742,7 +742,7 @@ function exportData(){
   else if(histMode) exportHistCSV();
   else if(currentVar === WCLIMA) exportClimaCSV();
   else if(currentVar === WBIL) exportBilancioCSV();
-  else if(chartMode === 'near' && chart && chart._near)
+  else if(chartMode === 'near' && ((chart && chart._near) || (stackObj && stackObj.near)))
     exportCompareCSV(pngBase() + '_vicine_' + currentVar + '.csv');
   else if(currentStation){
     const p = currentStation, a = document.createElement('a');

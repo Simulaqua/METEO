@@ -502,19 +502,19 @@ body.dark .hv-k5 { background:#8a3b3b; }
 /* da toccare col dito */
 @media (max-width:720px){ .hv-i { width:24px; height:24px; font-size:12px; line-height:22px; } }
 #hvInfo { flex:1 0 100%; }
-/* modo "Impilato": un pannello per variabile, asse del tempo condiviso, cursore e zoom sincronizzati */
-body.stacked #chartlegend { display:none; }
-body.stacked #chartwrap { flex:1 1 auto; min-height:0; }       /* le fasce si dividono l'altezza */
-body.stacked #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible; }
+/* modo "Impilato" (e la pioggia di Vicine e Confronto schede, una fascia per stazione: body.strips): un
+   pannello per fascia, asse del tempo condiviso, cursore e zoom sincronizzati; le fasce si dividono
+   l'altezza */
+body.stacked #chartlegend, body.strips #chartlegend { display:none; }
+body.stacked #chartwrap, body.strips #chartwrap { flex:1 1 auto; min-height:0; }
+body.stacked #chart, body.strips #chart { flex:1 1 auto; height:auto; min-height:0; overflow:visible; }
 .stk { display:flex; flex-direction:column; gap:2px; width:100%; }
-.stk-time { font-size:12px; color:var(--muted); text-align:right; min-height:16px;
-            font-variant-numeric:tabular-nums; }
 .stk-h { display:flex; align-items:center; flex-wrap:wrap; gap:2px 7px; font-size:12px; padding:2px 4px 0 6px;
          min-height:20px; }
 .stk-h .sw { width:14px; height:3px; border-radius:2px; flex:0 0 auto; }
 .stk-h b { font-weight:600; }
 .stk-h .un { color:var(--muted); }
-.stk-h .stk-v { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; }
+.stk-h .sub { color:var(--muted); font-size:11px; }
 .stk-note { font-size:12px; color:var(--muted); padding:4px 6px; }
 /* avviso a comparsa (es. file salvato) + anteprima del PNG su cellulare */
 #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:6000; max-width:90vw;
@@ -698,8 +698,8 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
      flex:0 0 auto = il blocco NON si comprime mai: il pannello scorre. Con molti pulsanti sopra
      (stazioni con tante variabili) veniva schiacciato a 200px mentre il grafico restava alto 46vh,
      e le scritte sotto (min/max/media, fonte) finivano sovrapposte al grafico. */
-  #chartwrap, body.stacked #chartwrap { flex:0 0 auto; min-height:0; flex-direction:column;
-                                        overflow:visible; }
+  #chartwrap, body.stacked #chartwrap, body.strips #chartwrap {
+    flex:0 0 auto; min-height:0; flex-direction:column; overflow:visible; }
   #chart { flex:0 0 auto; width:100%; height:46vh; min-height:220px; overflow:hidden; }
   body.rose-mode #windrose { flex:0 0 auto; min-height:0; }
   body.clima-mode #climaview { flex:0 0 auto; height:46vh; min-height:220px; }

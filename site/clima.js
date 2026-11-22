@@ -119,19 +119,19 @@ function exportClimaCSV(){
            'climatologia_' + pngBase() + '.csv');
 }
 
-// PNG: il climogramma grande, su bianco, con la legenda (nell'immagine non c'e' il cursore)
+// PNG: il climogramma grande, su bianco, con la legenda in alto (nell'immagine non c'e' il cursore)
 async function climaPNG(){
   if(!climaData || !currentStation) return null;
-  const { h, s } = climaData, W = 1500, H = 760, W_LEG = 340, TOP = 84, L = 12;
+  const { h, s } = climaData, W = 1500, H = 760, L = 12;
   const opts = hvLight(() => climaOpts(s, { w:W, h:H, hi:true }));
   const plot = await offPlot(opts, climaSeries(s), W, H);
-  const { cv, ctx } = pngCanvas(L + W + W_LEG, TOP + H + 18);
   const day = ts => new Date(ts * 1000).toISOString().slice(0, 10).split('-').reverse().join('/');
-  pngHead(ctx, prettyName(currentStation.name || currentStation.scode) + ' — Climatologia',
-          'Medie dei mesi completi, dati dal ' + day(h.x[0]) + ' al ' + day(h.x[h.n - 1]), true,
-          'Giorno solare (UTC+1)');
-  ctx.drawImage(plot.u.ctx.canvas, L, TOP, W, H);
+  const { cv, ctx, top } = pngFrame(L + W + 12, H, {
+    title: prettyName(currentStation.name || currentStation.scode) + ' — Climatologia',
+    what: 'Medie dei mesi completi, dati dal ' + day(h.x[0]) + ' al ' + day(h.x[h.n - 1]), withSource: true,
+    when: 'Giorno solare (UTC+1)'
+  }, opts.series);
+  ctx.drawImage(plot.u.ctx.canvas, L, top, W, H);
   plot.done();
-  pngLegend(ctx, opts.series, L + W + 26, TOP + 30, TOP + H);
   return { blob:toPng(cv), fname:pngBase() + '_climatologia.png' };
 }
