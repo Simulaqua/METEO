@@ -5,7 +5,8 @@
 # Livelli in m (Ridracoli = quota s.l.m.), volumi in Mm³. Una lettura per giro: il merge per istante evita
 # i doppioni. Sul coronamento di Ridracoli anche il meteo orario della diga (le misure «D» della pagina di
 # Romagna Acque, con data e ora proprie): la pioggia arriva cumulata da mezzanotte e si archivia la caduta
-# dalla lettura precedente, che resta in INV_ER/pioggia_diga.json.
+# dalla lettura precedente, che resta in INV_ER/pioggia_diga.json. Le altre tre serie (S, C, L) restano
+# fuori: sono altri posti, senza nome né posizione.
 # Uso: python3 dati_invasi.py [-r ER|all] [--debug]
 import argparse
 import datetime

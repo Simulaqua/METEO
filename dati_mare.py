@@ -22,7 +22,8 @@ UNITS = {'MAREA': 'm', 'ONDE': 'm', 'ONDEMAX': 'm', 'ONDEPERIODO': 's', 'ONDEPER
          'ONDEDIR': '°N', 'CORRENTE': 'm/s', 'CORRENTEDIR': '°N', 'TEMP': '°C', 'TEMPACQUA': '°C',
          'UMID': '%', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'DVENTO': '°N', 'VVENTO': 'm/s', 'VVENTOMAX': 'm/s',
          'DVENTOMAX': '°N', 'PORTATA': 'm³/s', 'LIVIDRO': 'm', 'SALINITA': 'PSU', 'PH': 'pH',
-         'CONDUCIBILITA': 'µS/cm', 'OSSIGENO': 'mg/l', 'TORBIDITA': 'NTU', 'PCO2': 'µatm'}
+         'CONDUCIBILITA': 'µS/cm', 'OSSIGENO': 'mg/l', 'OSSIGENO_SAT': '% di sat', 'TORBIDITA': 'NTU',
+         'PCO2': 'µatm'}
 
 # VEN: file -> sigla. Il vento è a parte: tre numeri (direzione, velocità, raffica).
 CPSM_BASE = 'http://dati.venezia.it/sites/default/files/dataset/opendata/'
@@ -31,8 +32,8 @@ CPSM_SCALAR = [('livello', 'MAREA'), ('onde_mare', 'ONDE'), ('onde_laguna', 'OND
                ('pressione', 'PRESS'), ('radiazione', 'RADSOL')]
 
 # ER: codice B -> (sigla, conversione dall'unità BUFR). Coordinate nei campi B05001 (lat) e B06001 (lon);
-# le date di primo livello sono in UTC. Restano fuori i codici locali B22196, B13231 e B11209, di cui la
-# fonte non dice il significato.
+# le date di primo livello sono in UTC. Il codice locale B13231 è la saturazione dell'ossigeno (75-130 %,
+# accanto all'ossigeno disciolto); restano fuori B22196 e B11209, di cui la fonte non dice il significato.
 ER_URL = 'https://dati-simc.arpae.it/opendata/osservati/meteo/realtime/realtime.jsonl'
 ER_NETWORKS = ('boa', 'marefe')          # solo boe e mareografi
 KELVIN = lambda v: round(v - 273.15, 1)
@@ -42,8 +43,9 @@ ER_SEA = {
     'B22032': ('CORRENTE', None), 'B22004': ('CORRENTEDIR', None), 'B22043': ('TEMPACQUA', KELVIN),
     'B22062': ('SALINITA', None), 'B13080': ('PH', None),
     'B13081': ('CONDUCIBILITA', lambda v: round(v * 1e4)),
-    'B13083': ('OSSIGENO', lambda v: round(v * 1e3, 2)), 'B13084': ('TORBIDITA', None),
-    'B13215': ('LIVIDRO', None), 'B12101': ('TEMP', KELVIN), 'B13003': ('UMID', None),
+    'B13083': ('OSSIGENO', lambda v: round(v * 1e3, 2)), 'B13231': ('OSSIGENO_SAT', None),
+    'B13084': ('TORBIDITA', None), 'B13215': ('LIVIDRO', None), 'B12101': ('TEMP', KELVIN),
+    'B13003': ('UMID', None),
     'B11002': ('VVENTO', None), 'B11001': ('DVENTO', None), 'B11041': ('VVENTOMAX', None),
     'B11043': ('DVENTOMAX', None), 'B10004': ('PRESS', lambda v: round(v / 100.0, 1))}
 # A terra lo stesso file ha le stazioni dell'allerta: a quelle dell'API (riconosciute dalle coordinate)
