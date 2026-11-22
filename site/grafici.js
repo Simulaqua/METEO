@@ -314,8 +314,9 @@ function dayPair(u, at){
   }
   return [today, best];
 }
-// Al cursore: il valore accanto a ogni punto, l'ora in alto; niente riquadro. Le etichette stanno sopra il
-// punto, a destra del cursore (a sinistra vicino al bordo destro), e non si sovrappongono.
+// Al cursore: l'ora in alto e sotto, in colonna accanto alla linea del tempo, il valore di ogni serie col
+// trattino del suo colore; mai all'altezza della curva, che coprirebbe. A destra della linea (a sinistra
+// vicino al bordo destro); niente riquadro.
 function cursorLabels(u){
   const box = u._labs, gi = u.cursor.idx, left = u.cursor.left;
   if(gi == null || left == null || left < 0){ box.hidden = true; return; }
@@ -340,28 +341,25 @@ function cursorLabels(u){
     }
     if(html == null) continue;
     if(only) html = sr.label + ' ' + html;
-    tags.push({ y: u.valToPos(v, sr.scale), html: '<i class="k" style="background:' + c + '"></i>' + html });
+    tags.push('<i class="k" style="background:' + c + '"></i>' + html);
   }
-  // dentro un evento di pioggia: il suo totale, in alto accanto alla sua linea
+  // in cima alla colonna: dentro un evento di pioggia il suo totale, poi la riga in piu' della vista
+  // (bilancio), poi i valori
   const evs = m && m.events, xv = evs && evs.length ? u.posToVal(left, 'x') : null;
-  const ev = xv == null ? null : evs.find(e => xv >= e.a && xv <= e.b);
-  if(ev) tags.push({ y:0, html:'<i class="k" style="background:' + varColor(m.s1.v) + '"></i>'
-                                + eventTxt(ev, m.s1.unit) });
-  const extra = u._extra && u._extra(gi);
-  if(extra) tags.push({ y:0, html:extra });
-  tags.sort((a, b) => a.y - b.y);
-  tags.forEach(t => { t.y = Math.min(Math.max(t.y - 18, 16), H - 16); });
-  for(let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + 16);
-  for(let k = tags.length - 1; k >= 0; k--)          // troppi in fondo: risalgono, dentro il grafico
-    tags[k].y = Math.min(tags[k].y, k === tags.length - 1 ? H - 16 : tags[k + 1].y - 16);
+  const ev = xv == null ? null : evs.find(e => xv >= e.a && xv <= e.b), extra = u._extra && u._extra(gi);
+  const key = c => '<i class="k" style="background:' + c + '"></i>';
+  const evTag = ev && key(varColor(m.s1.v)) + eventTxt(ev, m.s1.unit);
+  const col = [evTag, extra].filter(Boolean).concat(tags);
   // l'ora dell'intervallo della prima serie; dopo l'ultima lettura, quello del radar
   const j1 = at(1), x1 = j1 != null ? u.data[0][j1] : null, jr = m && m.iRadar ? at(m.iRadar) : null;
   const tt = u._top ? u._top(gi) : u._days ? (u.data[0][gi] != null ? hhmm(u.data[0][gi]) : '')
            : x1 != null ? slotTimeTxt(u, 1, j1) : jr != null ? slotTimeTxt(u, m.iRadar, jr)
            : (u.data[0][gi] != null ? fmtDayTime(u.data[0][gi]) : '');
   const side = left < W * 0.7 ? '' : ' l', tx = Math.min(Math.max(left, 48), W - 48);
-  box.innerHTML = (tt ? `<span class="cl-t" style="left:${tx}px">${tt}</span>` : '') + tags.map(t =>
-    `<span class="cl-v${side}" style="left:${left}px;top:${Math.round(t.y)}px">${t.html}</span>`).join('');
+  const top0 = tt ? 18 : 2;
+  box.innerHTML = (tt ? `<span class="cl-t" style="left:${tx}px">${tt}</span>` : '') + col.map((h, k) =>
+    `<span class="cl-v${side}" style="left:${left}px;top:${Math.min(top0 + 16 * k, H - 16)}px">${h}</span>`)
+    .join('');
   box.hidden = false;
 }
 

@@ -1202,6 +1202,15 @@
       const tops = [...fake._labs.querySelectorAll('.cl-v')].map(e => parseFloat(e.style.top));
       log(tops.length === 5 && tops.every(t => t >= 0 && t <= 300 - 16), 'cursore: valori fitti in basso restano dentro il grafico', JSON.stringify(tops));
     }
+    {                         // i valori in colonna in alto accanto alla linea del tempo, mai all'altezza della curva
+      const mk = y => ({ _labs: document.createElement('div'), cursor: { idx: 0, left: 50, idxs: null }, over: { clientWidth: 400, clientHeight: 300 },
+                         series: [{}].concat([1, 2, 3].map(() => ({ show: true, scale: 'y' }))), data: [[1794700000], [1], [2], [3]],
+                         valToPos: () => y, scales: {}, _unit: 'x' });
+      const tops = y => { const f = mk(y); cursorLabels(f); return [...f._labs.querySelectorAll('.cl-v')].map(e => parseFloat(e.style.top)); };
+      const a = tops(296), b = tops(20);
+      log(a.length === 3 && JSON.stringify(a) === JSON.stringify(b) && a[0] <= 24 && a.every((t, k) => !k || t - a[k - 1] === 16),
+          'cursore: valori in colonna in alto, mai all\'altezza della curva', JSON.stringify([a, b]));
+    }
     {                                                  // indici: niente tabelle, nulla sopra il grafico
       const G = stationVars.find(v => v === 'PREC3') || stationVars.find(v => varCat(v) === 'indici');
       if(G){
