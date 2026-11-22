@@ -13,7 +13,9 @@
  "FVG/data-parsed/PRESS",
  "FVG/data-parsed/RADSOL",
  "FVG/data-parsed/TEMP",
+ "FVG/data-parsed/TEMP50",
  "FVG/data-parsed/TEMPACQUA",
+ "FVG/data-parsed/TSUOLO10",
  "FVG/data-parsed/UMID",
  "FVG/data-parsed/VVENTO",
  "FVG/data-parsed/VVENTOSCAL"

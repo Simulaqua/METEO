@@ -23,15 +23,33 @@ import comune
 
 # codice della fonte -> sigla. FVG_MAP e TN_MAP sono letti da check_updates.py (grandezze nuove).
 FVG_API = 'https://monitor.protezionecivile.fvg.it/api'
-# portata: Q_1 nelle sezioni dei fiumi; la foce dell'Isonzo ha solo la totale (Q_tot).
-# Il livello del mare ha due codici, secondo la stazione.
-FVG_MAP = {'IDRO': 'LIVIDRO', 'NIVO': 'LIVNEVE', 'T': 'TEMP', 'U': 'UMID', 'Vv': 'VVENTO',
-           'VvMax': 'VVENTOMAX', 'Dv': 'DVENTO', 'B': 'PRESS', 'RG': 'RADSOL', 'P_1h': 'PREC',
-           'Q_1': 'PORTATA', 'Q_tot': 'PORTATA', 'BF': 'BAGNATURA', 'Tm': 'TEMPACQUA',
-           'LIV_MARE_IGM': 'MAREA', 'LIV_MARE_IGM42': 'MAREA'}
-FVG_UNITS = {'LIVIDRO': 'm', 'LIVLAGO': 'm', 'LIVNEVE': 'cm', 'TEMP': '°C', 'UMID': '%', 'VVENTO': 'm/s',
-             'VVENTOMAX': 'm/s', 'DVENTO': '°N', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'PREC': 'mm',
-             'PORTATA': 'm³/s', 'BAGNATURA': 'min', 'TEMPACQUA': '°C', 'MAREA': 'm'}
+# Si prende ogni misura idro-meteo. Portata: Q_1 nelle sezioni dei fiumi; alla foce dell'Isonzo la totale
+# (Q_tot) più portate e correnti degli strati sopra e sotto. Il livello del mare ha due codici, secondo la
+# stazione. Restano fuori batterie e correnti di carica, lo stato dei sensori, il sensore di prova U_2, la
+# temperatura interna del nivometro (Tamb) e la pioggia di P_1h contata in altri passi (P, RR, PPWD, Prec_*).
+FVG_MAP = {
+    'T': 'TEMP', 'T50': 'TEMP50', 'T0': 'TEMP0', 'U': 'UMID', 'B': 'PRESS', 'RG': 'RADSOL', 'Rr': 'RADRIFL',
+    'BF': 'BAGNATURA', 'P_1h': 'PREC',
+    'T-5': 'TSUOLO5', 'T-10': 'TSUOLO10', 'T-20': 'TSUOLO20', 'T-30': 'TSUOLO30', 'T-40': 'TSUOLO40',
+    'T-50': 'TSUOLO50', 'Us-5': 'USUOLO5', 'Us-10': 'USUOLO10', 'Us-20': 'USUOLO20', 'Us-30': 'USUOLO30',
+    'Us-40': 'USUOLO40', 'Us-50': 'USUOLO50',
+    'NIVO': 'LIVNEVE', 'TnIR': 'TNEVESUP', 'Tn0cm': 'TNEVE0', 'Tn30cm': 'TNEVE30', 'Tn60cm': 'TNEVE60',
+    'Tn90cm': 'TNEVE90',
+    'Vv': 'VVENTO', 'VvMax': 'VVENTOMAX', 'Dv': 'DVENTO', 'DvMax': 'DVENTOMAX', 'VvVett': 'VVENTOVETT',
+    'DvVett': 'DVENTOVETT', 'Vv2': 'VVENTO2', 'Vv2max': 'VVENTOMAX2', 'Dv2': 'DVENTO2',
+    'Dv2max': 'DVENTOMAX2', 'Vv2vett': 'VVENTOVETT2', 'Dv2vett': 'DVENTOVETT2', 'Vvmax1s': 'VVENTOMAX1S',
+    'DvMax1s': 'DVENTOMAX1S',
+    'IDRO': 'LIVIDRO', 'IDRO_2': 'LIVIDRO2', 'IDRO_3': 'LIVIDRO3', 'Q_1': 'PORTATA', 'Q_tot': 'PORTATA',
+    'Q_2': 'PORTATA2', 'Q_sup': 'PORTATASUP', 'Q_inf': 'PORTATAINF', 'VH2O': 'VELACQUA',
+    'CV_med': 'VELACQUA', 'CV_sup': 'VELACQUASUP', 'CV_inf': 'VELACQUAINF', 'TORB': 'TORBIDITA',
+    'Tm': 'TEMPACQUA', 'LIV_MARE_IGM': 'MAREA', 'LIV_MARE_IGM42': 'MAREA'}
+FVG_UNITS = {'LIVIDRO': 'm', 'LIVIDRO2': 'm', 'LIVIDRO3': 'm', 'LIVLAGO': 'm', 'MAREA': 'm', 'LIVNEVE': 'cm',
+             'UMID': '%', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'RADRIFL': 'W/m²', 'PREC': 'mm',
+             'BAGNATURA': 'min', 'TORBIDITA': 'NTU'}
+UNIT_BY_PREFIX = [(('TEMP', 'TSUOLO', 'TNEVE'), '°C'), (('USUOLO',), '% vol'),
+                  (('VVENTO', 'VELACQUA'), 'm/s'), (('DVENTO',), '°N'), (('PORTATA',), 'm³/s')]
+FVG_UNITS.update({v: next(unit for prefixes, unit in UNIT_BY_PREFIX if v.startswith(prefixes))
+                  for v in set(FVG_MAP.values()) - set(FVG_UNITS)})
 
 TN_BASE = 'https://www.floods.it/api/v1/monitoring/'
 TN_MAP = {'gage height': 'LIVIDRO', 'discharge': 'PORTATA'}

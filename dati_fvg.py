@@ -43,6 +43,8 @@ VARIABLES = {
     'DVENTOMAX': 'dd10max',             # direzione della raffica
     'TEMPACQUA': 'tmare',               # solo le stazioni sul mare
     'LIVNEVE': 'hneve',
+    'TEMP50': 't50',                    # temperatura a 50 cm dal suolo
+    'TSUOLO10': 'tm10',                 # temperatura del suolo a -10 cm
 }
 # altri valori da tenere nel file di una variabile: variabile -> {nome nelle MISURE: tag}
 EXTRA = {'VVENTO': {'VMAX': 'vmax'}}

@@ -20,7 +20,18 @@ LIMITS = {
     'PREC': (0.0, 1000.0),
     'RADSOL': (-50.0, 10000.0),
     'MAREA': (-1.5, 2.5),                                   # m; l'acqua alta record a Venezia e' 1.94
+    'TEMP50': (-60.0, 60.0), 'TEMP0': (-60.0, 80.0),        # al suolo, col sole, si passano i 60
+    'RADRIFL': (-50.0, 10000.0),
 }
+# le altre misure dei profili (suolo, neve) e del vento a 2 m o su 1 s, come le grandezze sorelle
+LIMITS.update({v: (-50.0, 70.0) for v in ('TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40',
+                                          'TSUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30', 'TNEVE60', 'TNEVE90')})
+LIMITS.update({v: (0.0, 100.0) for v in ('USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40',
+                                         'USUOLO50')})
+LIMITS.update({v: (0.0, 400.0) for v in ('VVENTO2', 'VVENTOVETT', 'VVENTOVETT2')})
+LIMITS.update({v: (0.0, 500.0) for v in ('VVENTOMAX2', 'VVENTOMAX1S')})
+LIMITS.update({v: (0.0, 360.0) for v in ('DVENTO2', 'DVENTOMAX2', 'DVENTOVETT', 'DVENTOVETT2',
+                                         'DVENTOMAX1S')})
 
 def _limits(var):
     lim = LIMITS.get(var)
