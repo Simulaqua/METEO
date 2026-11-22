@@ -61,7 +61,9 @@ const isRain = v => RAIN_VARS.indexOf(v) >= 0;
 // la pioggia (per intervallo e cumulate 1-48 h) e' sempre a barre verticali
 const isRainVar = v => v === 'PREC' || isRain(v);
 // la direzione del vento e' a puntini
-const isDirVar = v => v === 'DVENTO' || v === 'DVENTOMAX';
+const DIR_VARS = new Set(['DVENTO', 'DVENTOMAX', 'DVENTO2', 'DVENTOMAX2', 'DVENTOVETT', 'DVENTOVETT2',
+                          'DVENTOMAX1S']);
+const isDirVar = v => DIR_VARS.has(v);
 function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
 let currentPage = 'dirette';
 
@@ -73,18 +75,24 @@ const natCode = (a, b) => {                                     // codici: ordin
 };
 const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
 
+// Misure di poche stazioni: profili di suolo e neve, vento a 2 m e vettoriale, sensori in piu' sui fiumi
+const MORE_VARS = ['TEMP50', 'TEMP0', 'TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40', 'TSUOLO50',
+  'USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30',
+  'TNEVE60', 'TNEVE90', 'VVENTOVETT', 'DVENTOVETT', 'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2',
+  'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'LIVIDRO2', 'LIVIDRO3', 'PORTATA2',
+  'PORTATASUP', 'PORTATAINF', 'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA'];
 // Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
 // le misure secondarie, le derivate e gli indici stanno sotto "Altro".
 const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
   'RADSOL', 'LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO',
   'VOLINVASO', 'MAREA', 'ONDE', 'PM10', 'PM25', 'NO2', 'O3', 'SO2', 'CO', 'C6H6', 'GAMMA', 'SALINITA',
   'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA',
-  'VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS', 'VISIB',
+  'VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS', 'VISIB', ...MORE_VARS,
   SNOWNEW, 'TDEW', 'TAPP', 'VPD', 'QSPEC', 'PSLM', 'UWND', 'VWND', WROSE,
   'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'GDD', 'HDD', 'CDD', 'ET0', WBIL, 'EAQI', 'O3_8H',
   WCLIMA];
 const SECONDARY = new Set(['VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS',
-                           'VISIB']);
+                           'VISIB', ...MORE_VARS]);
 const varRank = v => {
   const i = VAR_ORDER.indexOf(v), c = varCat(v);
   return i >= 0 ? i : 500 + (c === 'derivate' ? 100 : c === 'indici' ? 200 : 0);
@@ -125,6 +133,12 @@ const VAR_COLORS = {
   // le barre del radar accanto al pluviometro: un colore diverso, se no sembrano la sua continuazione
   RADAR:'#e8590c'
 };
+// le misure in piu' prendono il colore della grandezza sorella
+const SISTER_COLORS = [['TSUOLO', '#8a5a2b'], ['TEMP0', '#8a5a2b'], ['TEMP50', '#f08c00'],
+  ['USUOLO', '#0b7285'], ['TNEVE', '#74c0fc'], ['VVENTOMAX', '#f08c00'], ['DVENTOMAX', '#f08c00'],
+  ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'], ['LIVIDRO', INK],
+  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b']];
+MORE_VARS.forEach(v => { VAR_COLORS[v] = SISTER_COLORS.find(([p]) => v.startsWith(p))[1]; });
 // testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
 const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',
                   '#74c0fc':'#1971c2', '#868e96':'#5f6670', '#e8590c':'#c2410c', '#1098ad':'#0b7285' };
@@ -156,7 +170,7 @@ function saveBlob(blob, fname){
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 // Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
-const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
+const CM_VARS = new Set(['LIVIDRO','LIVIDRO2','LIVIDRO3','LIVLAGO','FREATICA','MAREA']);
 // Una grafia per unita': le fonti scrivono la stessa in modi diversi
 const UNIT_NAMES = { 'mc/s':'m³/s', 'm3/s':'m³/s', 'm^3/s':'m³/s', 'mc':'m³', 'W/m2':'W/m²', 'W/mq':'W/m²',
                      'KJ/m^2':'kJ/m²', 'gradi':'°', '°N':'°', 'gN':'°' };
@@ -201,8 +215,24 @@ const VAR_LABELS = {
   FRECCEVENTO:'Vento',
   ROSAVENTO:'Rosa dei venti',
   CLIMATOLOGIA:'Climatologia', BILANCIO:'Bilancio idrico',
-  NEVEFRESCA:'Neve fresca stimata dall\'altezza della neve'
+  NEVEFRESCA:'Neve fresca stimata dall\'altezza della neve',
+  // misure di poche stazioni (MORE_VARS); i profili di suolo e neve sono qui sotto
+  TEMP50:'Temperatura a 50 cm', TEMP0:'Temperatura al suolo', RADRIFL:'Radiazione riflessa',
+  TNEVESUP:'Temperatura superficie neve', VVENTOVETT:'Velocità vento vettoriale',
+  DVENTOVETT:'Direzione vento vettoriale', VVENTO2:'Velocità vento a 2 m', VVENTOMAX2:'Raffica a 2 m',
+  DVENTO2:'Direzione vento a 2 m', DVENTOMAX2:'Direzione raffica a 2 m', VVENTOVETT2:'Vento vettoriale a 2 m',
+  DVENTOVETT2:'Direzione vento vettoriale a 2 m', VVENTOMAX1S:'Raffica su 1 secondo',
+  DVENTOMAX1S:'Direzione raffica su 1 secondo', LIVIDRO2:'Livello idrometrico (2° sensore)',
+  LIVIDRO3:'Livello idrometrico (3° sensore)', PORTATA2:'Portata (2° sensore)',
+  PORTATASUP:'Portata strato superiore', PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
+  VELACQUASUP:'Velocità acqua strato superiore', VELACQUAINF:'Velocità acqua strato inferiore',
+  TORBIDITA:'Torbidità'
 };
+[5, 10, 20, 30, 40, 50].forEach(cm => {
+  VAR_LABELS['TSUOLO' + cm] = 'Temperatura suolo (' + cm + ' cm)';
+  VAR_LABELS['USUOLO' + cm] = 'Umidità suolo (' + cm + ' cm)';
+});
+[0, 30, 60, 90].forEach(cm => { VAR_LABELS['TNEVE' + cm] = 'Temperatura neve (' + cm + ' cm)'; });
 const varLabel = v => VAR_LABELS[v] || v;
 
 // Alcune fonti (Bolzano) scrivono i nomi TUTTI MAIUSCOLI: si porta a Title Case all'italiana, con

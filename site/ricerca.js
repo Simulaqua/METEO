@@ -73,13 +73,19 @@ let menuAnchor = null;
 // Menu delle variabili: un elenco solo, a gruppi per tema (derivate e indici nel loro tema), il radar in
 // fondo; una variabile senza gruppo va in "Altro"
 const VAR_GROUPS = [
-  ['Temperatura e umidità', ['TEMP', 'TAPP', 'TDEW', 'UMID', 'QSPEC', 'VPD', 'GDD', 'HDD', 'CDD']],
+  ['Temperatura e umidità', ['TEMP', 'TEMP50', 'TEMP0', 'TAPP', 'TDEW', 'UMID', 'QSPEC', 'VPD', 'GDD', 'HDD',
+                             'CDD']],
   ['Pioggia e neve', ['PREC', 'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'PREC_TYPE', 'LIVNEVE',
-                      'ET0']],
-  ['Vento', ['VVENTO', 'VVENTOMAX', 'VVENTOSCAL', 'DVENTO', 'DVENTOMAX', 'UWND', 'VWND']],
-  ['Sole e pressione', ['RADSOL', 'SOLEGG', 'CLOUDINESS', 'VISIB', 'BAGNATURA', 'PRESS', 'PSLM']],
-  ['Fiumi e laghi', ['LIVIDRO', 'PORTATA', 'FREATICA', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO', 'VOLINVASO',
-                     'TEMPACQUA', 'SOLIDI']],
+                      'TNEVESUP', 'TNEVE0', 'TNEVE30', 'TNEVE60', 'TNEVE90', 'ET0']],
+  ['Vento', ['VVENTO', 'VVENTOMAX', 'VVENTOSCAL', 'DVENTO', 'DVENTOMAX', 'VVENTOVETT', 'DVENTOVETT',
+             'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2', 'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S',
+             'DVENTOMAX1S', 'UWND', 'VWND']],
+  ['Sole e pressione', ['RADSOL', 'RADRIFL', 'SOLEGG', 'CLOUDINESS', 'VISIB', 'BAGNATURA', 'PRESS', 'PSLM']],
+  ['Suolo', ['TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40', 'TSUOLO50', 'USUOLO5', 'USUOLO10',
+             'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50']],
+  ['Fiumi e laghi', ['LIVIDRO', 'LIVIDRO2', 'LIVIDRO3', 'PORTATA', 'PORTATA2', 'PORTATASUP', 'PORTATAINF',
+                     'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'FREATICA', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO',
+                     'VOLINVASO', 'TEMPACQUA', 'SOLIDI', 'TORBIDITA']],
   ['Mare', ['MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA']],
   ['Aria', ['EAQI', 'PM10', 'PM25', 'NO2', 'O3', 'O3_8H', 'SO2', 'CO', 'C6H6', 'GAMMA']]
 ];

@@ -5,7 +5,7 @@ const DOT_COLOR   = '#6795A1', DOT_LINE = '#264E5D';      // senza variabile: se
 const NEUTRAL_COLOR = '#cfd6dd';               // valore mancante o in ritardo (il puntino resta cliccabile)
 
 // Direzioni e categorie non hanno colori: si filtra la stazione ma i puntini restano uniformi
-const NO_COLORMAP = new Set(['DVENTO','DVENTOMAX','PREC_TYPE']);
+const NO_COLORMAP = new Set([...DIR_VARS, 'PREC_TYPE']);
 const canColormap = v => !!v && !NO_COLORMAP.has(v);
 
 // Livelli di fiumi, laghi e falda: ogni stazione ha il suo zero, quindi la mappa ne colora la variazione
@@ -95,10 +95,13 @@ const CLASS_SCALES = {
   UWND:      { steps:[-10, -5, -2, 2, 5, 10],
                colors:['#2166ac', '#4393c3', '#92c5de', NONE, '#f4a582', '#d6604d', '#b2182b'] }
 };
-['TEMP', 'TEMPACQUA', 'TDEW', 'TAPP'].forEach(v => {
-  CLASS_SCALES[v] = { steps:TEMP_STEPS, colors:TEMP_COLORS, every:10 };
+const TEMP_LIKE = ['TEMP', 'TEMPACQUA', 'TDEW', 'TAPP']
+  .concat(MORE_VARS.filter(v => /^(TEMP|TSUOLO|TNEVE)/.test(v)));
+TEMP_LIKE.forEach(v => { CLASS_SCALES[v] = { steps:TEMP_STEPS, colors:TEMP_COLORS, every:10 }; });
+['VVENTOSCAL', 'VVENTO2', 'VVENTOVETT', 'VVENTOVETT2'].forEach(v => {
+  CLASS_SCALES[v] = CLASS_SCALES.VVENTO;
 });
-CLASS_SCALES.VVENTOSCAL = CLASS_SCALES.VVENTO;
+['VVENTOMAX2', 'VVENTOMAX1S'].forEach(v => { CLASS_SCALES[v] = CLASS_SCALES.VVENTOMAX; });
 CLASS_SCALES.VWND = CLASS_SCALES.UWND;
 // Sfumature fra minimo e massimo, dal chiaro (poco) allo scuro (tanto), nella tinta dei grafici
 const RAMPS = {
@@ -119,6 +122,8 @@ const VAR_RAMP = {
   CONDUCIBILITA:'orange', GDD:'orange', VVENTOMAX:'orange', CDD:'red', PH:'violet', VOLINVASO:'violet',
   VVENTO:'violet', VVENTOSCAL:'violet'
 };
+[['USUOLO', 'teal'], ['VELACQUA', 'blue'], ['TORBIDITA', 'brown'], ['RADRIFL', 'gold']].forEach(([p, r]) =>
+  MORE_VARS.filter(v => v.startsWith(p)).forEach(v => { VAR_RAMP[v] = r; }));
 const rampOf = v => RAMPS[VAR_RAMP[v]] || RAMPS.slate;
 const EAQI_BANDS = [
   {v:1, c:'#50f0e6', l:'Buona'},        {v:2, c:'#50ccaa', l:'Discreta'},
@@ -146,7 +151,8 @@ const FLOW_COLORS = ['#e3eef9','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5'
 // riferimenti altimetrici); il Tagliamento (OGS) non dice da quale zero e resta vuoto.
 const TIDE_STEPS = [0, 50, 80, 110, 140];
 const TIDE_COLORS = ['#2c7bb6','#abd9e9','#ffffbf','#fdae61','#f46d43','#a50026'];
-const TIDE_ZERO = { MAR_VEN:0, MAR_ER:23.56 };
+// I mareografi della Protezione civile del Friuli dichiarano lo zero IGM 1942, come l'Emilia-Romagna.
+const TIDE_ZERO = { MAR_VEN:0, MAR_ER:23.56, PC_FVG:23.56 };
 // Accanto al nome nella plancia: il riferimento del valore o lo zero a cui e' riportato
 const mapName = v => varLabel(v) +
   (MAP_REF[v] ? ' · ' + MAP_REF[v] : v === 'MAREA' ? ' · zero Punta della Salute' : '');
