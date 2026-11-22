@@ -22,6 +22,7 @@ LIMITS = {
     'MAREA': (-1.5, 2.5),                                   # m; l'acqua alta record a Venezia e' 1.94
     'TEMP50': (-60.0, 60.0), 'TEMP0': (-60.0, 80.0),        # al suolo, col sole, si passano i 60
     'RADRIFL': (-50.0, 10000.0),
+    'ONDEPERIODO': (0.0, 25.0), 'ONDEPERIODOM': (0.0, 25.0),  # s; con mare piatto gli ondametri danno 40
 }
 # le altre misure dei profili (suolo, neve) e del vento a 2 m o su 1 s, come le grandezze sorelle
 LIMITS.update({v: (-50.0, 70.0) for v in ('TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40',
