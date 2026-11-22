@@ -31,7 +31,7 @@ LIMITS.update({v: (0.0, 100.0) for v in ('USUOLO5', 'USUOLO10', 'USUOLO20', 'USU
 LIMITS.update({v: (0.0, 400.0) for v in ('VVENTO2', 'VVENTOVETT', 'VVENTOVETT2')})
 LIMITS.update({v: (0.0, 500.0) for v in ('VVENTOMAX2', 'VVENTOMAX1S')})
 LIMITS.update({v: (0.0, 360.0) for v in ('DVENTO2', 'DVENTOMAX2', 'DVENTOVETT', 'DVENTOVETT2',
-                                         'DVENTOMAX1S')})
+                                         'DVENTOMAX1S', 'ONDEDIR', 'CORRENTEDIR')})
 
 def _limits(var):
     lim = LIMITS.get(var)

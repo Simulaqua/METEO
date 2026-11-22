@@ -18,9 +18,11 @@ import comune
 import dati_emilia_romagna
 
 # unità per sigla, per la legenda
-UNITS = {'MAREA': 'm', 'ONDE': 'm', 'TEMP': '°C', 'TEMPACQUA': '°C', 'UMID': '%',
-         'PRESS': 'hPa', 'RADSOL': 'W/m²', 'DVENTO': '°N', 'VVENTO': 'm/s', 'VVENTOMAX': 'm/s',
-         'PORTATA': 'm³/s'}
+UNITS = {'MAREA': 'm', 'ONDE': 'm', 'ONDEMAX': 'm', 'ONDEPERIODO': 's', 'ONDEPERIODOM': 's',
+         'ONDEDIR': '°N', 'CORRENTE': 'm/s', 'CORRENTEDIR': '°N', 'TEMP': '°C', 'TEMPACQUA': '°C',
+         'UMID': '%', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'DVENTO': '°N', 'VVENTO': 'm/s', 'VVENTOMAX': 'm/s',
+         'DVENTOMAX': '°N', 'PORTATA': 'm³/s', 'LIVIDRO': 'm', 'SALINITA': 'PSU', 'PH': 'pH',
+         'CONDUCIBILITA': 'µS/cm', 'OSSIGENO': 'mg/l', 'TORBIDITA': 'NTU', 'PCO2': 'µatm'}
 
 # VEN: file -> sigla. Il vento è a parte: tre numeri (direzione, velocità, raffica).
 CPSM_BASE = 'http://dati.venezia.it/sites/default/files/dataset/opendata/'
@@ -28,22 +30,32 @@ CPSM_SCALAR = [('livello', 'MAREA'), ('onde_mare', 'ONDE'), ('onde_laguna', 'OND
                ('tempacqua', 'TEMPACQUA'), ('temparia', 'TEMP'), ('umidita', 'UMID'),
                ('pressione', 'PRESS'), ('radiazione', 'RADSOL')]
 
-# ER: codice B -> (sigla, in kelvin?). Coordinate nei campi B05001 (lat) e B06001 (lon); le date di primo
-# livello sono in UTC.
+# ER: codice B -> (sigla, conversione dall'unità BUFR). Coordinate nei campi B05001 (lat) e B06001 (lon);
+# le date di primo livello sono in UTC. Restano fuori i codici locali B22196, B13231 e B11209, di cui la
+# fonte non dice il significato.
 ER_URL = 'https://dati-simc.arpae.it/opendata/osservati/meteo/realtime/realtime.jsonl'
 ER_NETWORKS = ('boa', 'marefe')          # solo boe e mareografi
-ER_CODES = {'B22037': ('MAREA', False), 'B22070': ('ONDE', False), 'B22043': ('TEMPACQUA', True),
-            'B12101': ('TEMP', True), 'B13003': ('UMID', False), 'B11002': ('VVENTO', False)}
+KELVIN = lambda v: round(v - 273.15, 1)
+ER_SEA = {
+    'B22037': ('MAREA', None), 'B22070': ('ONDE', None), 'B22073': ('ONDEMAX', None),
+    'B22071': ('ONDEPERIODO', None), 'B22074': ('ONDEPERIODOM', None), 'B22001': ('ONDEDIR', None),
+    'B22032': ('CORRENTE', None), 'B22004': ('CORRENTEDIR', None), 'B22043': ('TEMPACQUA', KELVIN),
+    'B22062': ('SALINITA', None), 'B13080': ('PH', None),
+    'B13081': ('CONDUCIBILITA', lambda v: round(v * 1e4)),
+    'B13083': ('OSSIGENO', lambda v: round(v * 1e3, 2)), 'B13084': ('TORBIDITA', None),
+    'B13215': ('LIVIDRO', None), 'B12101': ('TEMP', KELVIN), 'B13003': ('UMID', None),
+    'B11002': ('VVENTO', None), 'B11001': ('DVENTO', None), 'B11041': ('VVENTOMAX', None),
+    'B11043': ('DVENTOMAX', None), 'B10004': ('PRESS', lambda v: round(v / 100.0, 1))}
 # A terra lo stesso file ha le stazioni dell'allerta: a quelle dell'API (riconosciute dalle coordinate)
 # si aggiunge ciò che l'API non dà; le stazioni che l'API non ha entrano con tutte le misure, con la sigla
 # A_ e il nome. Restano fuori la rete partecipativa rmap e i codici locali B112xx e B14199-201, di cui la
 # fonte non dice il significato. Codice B -> (sigla, conversione dall'unità BUFR).
 ER_LAND = {
-    'B12101': ('TEMP', lambda v: round(v - 273.15, 1)), 'B13003': ('UMID', None), 'B13011': ('PREC', None),
+    'B12101': ('TEMP', KELVIN), 'B13003': ('UMID', None), 'B13011': ('PREC', None),
     'B11002': ('VVENTO', None), 'B11001': ('DVENTO', None), 'B11041': ('VVENTOMAX', None),
     'B11043': ('DVENTOMAX', None), 'B10004': ('PRESS', lambda v: round(v / 100.0, 1)),
     'B13215': ('LIVIDRO', None), 'B13013': ('LIVNEVE', lambda v: round(v * 100, 1)),
-    'B14198': ('RADSOL', None), 'B13082': ('TEMPACQUA', lambda v: round(v - 273.15, 1)),
+    'B14198': ('RADSOL', None), 'B13082': ('TEMPACQUA', KELVIN),
     'B13080': ('PH', None), 'B13081': ('CONDUCIBILITA', lambda v: round(v * 1e4)),
     'B13083': ('OSSIGENO', lambda v: round(v * 1e3, 2)), 'B13084': ('TORBIDITA', None),
     'B13085': ('POTREDOX', lambda v: round(v * 1e3))}
@@ -64,24 +76,29 @@ ACQUE_PARAMETERS = {
 # FVG: ERDDAP tabledap, un dataset '<ID>_TS' per piattaforma. Il time è UTC con la 'Z' finale, tolta prima di
 # leggerlo. Coordinate fisse, scritte qui invece di una query per riga. MAMBO1 ha righe doppie sullo stesso
 # istante, quasi tutte nulle: i valori nulli si scartano per colonna. La portata RVFL alla foce dell'Isonzo
-# può essere negativa (la marea risale): è un valore vero, passa com'è.
+# può essere negativa (la marea risale): è un valore vero, passa com'è. Di MAMBO1 si prendono i sensori a 2 m
+# (_1: gli altri, più profondi, sono spenti); restano fuori velocità del suono, assetto della boa e pressione
+# dei sensori. Delle onde: altezza significativa e massima, periodo di picco e medio, direzione.
 OGS_BASE = 'https://nodc.ogs.it/erddap/tabledap/'
+OGS_WAVES = [('VAVH', 'ONDE'), ('VZMX', 'ONDEMAX'), ('VTPK', 'ONDEPERIODO'), ('VTZA', 'ONDEPERIODOM'),
+             ('VPED', 'ONDEDIR')]
 OGS_STATIONS = [
     # dataset ERDDAP, sigla stazione, nome, lat, lon, [(variabile OGS, sigla comune), ...]
     ('MAMBO1_TS',  'MAMBO1',  'Boa MAMBO1 (Golfo di Trieste)',      45.6976667, 13.7083333,
-     [('WSPD', 'VVENTO'), ('WDIR', 'DVENTO'), ('DRYT', 'TEMP'), ('ATMS', 'PRESS'), ('RELH', 'UMID')]),
-    ('DWRG1_TS',   'DWRG1',   'Ondametro DWRG1 (Golfo di Trieste)', 45.5655,    13.248,
-     [('VAVH', 'ONDE')]),
-    ('DWRG2_TS',   'DWRG2',   'Ondametro DWRG2 (Golfo di Trieste)', 45.6995,    13.209,
-     [('VAVH', 'ONDE')]),
-    ('DWRG3_TS',   'DWRG3',   'Ondametro DWRG3 (Golfo di Trieste)', 45.688266,  13.521316,
-     [('VAVH', 'ONDE')]),
+     [('WSPD', 'VVENTO'), ('WDIR', 'DVENTO'), ('GSPD', 'VVENTOMAX'), ('GDIR', 'DVENTOMAX'), ('DRYT', 'TEMP'),
+      ('ATMS', 'PRESS'), ('RELH', 'UMID'), ('TEMP_1', 'TEMPACQUA'), ('PSAL_1', 'SALINITA'),
+      ('DOXY_1', 'OSSIGENO'), ('CNDC_1', 'CONDUCIBILITA'), ('PCO2', 'PCO2')]),
+    ('DWRG1_TS',   'DWRG1',   'Ondametro DWRG1 (Golfo di Trieste)', 45.5655,    13.248,     OGS_WAVES),
+    ('DWRG2_TS',   'DWRG2',   'Ondametro DWRG2 (Golfo di Trieste)', 45.6995,    13.209,     OGS_WAVES),
+    ('DWRG3_TS',   'DWRG3',   'Ondametro DWRG3 (Golfo di Trieste)', 45.688266,  13.521316,  OGS_WAVES),
     ('CURRISO_TS', 'CURRISO', 'CURRISO - Foce Isonzo',              45.7616667, 13.4963333,
      [('RVFL', 'PORTATA'), ('TEMP', 'TEMPACQUA')]),
     ('PIEZTAG_TS', 'PIEZTAG', 'PIEZTAG - Foce Tagliamento',         45.6714885, 13.0685195,
      [('ASLV', 'MAREA'), ('TEMP', 'TEMPACQUA')]),
 ]
 OGS_QC_OK = (0, 1, 2)   # SeaDataNet L20: non controllato, buono, probabilmente buono; 3-9 si scartano
+# ossigeno da ml/l a mg/l, conducibilità da S/m a µS/cm (come le altre fonti)
+OGS_CONV = {'DOXY_1': lambda v: round(v * 1.429, 2), 'CNDC_1': lambda v: round(v * 1e4)}
 
 
 def numbers(text):
@@ -157,41 +174,66 @@ def download_er(debug=False):
     return result
 
 
+def er_moment_meta(o):
+    """Istante (ora solare) e dati di stazione (nome, coordinate) di un record del file."""
+    try:
+        moment = comune.utc_to_solar(datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%SZ'))
+    except (KeyError, ValueError):
+        return None, {}
+    meta = {k: c.get('v') for b in o.get('data', []) if 'timerange' not in b
+            for k, c in b.get('vars', {}).items()}
+    return moment, meta
+
+
+def er_measures(o, codes):
+    """Le misure di un record: (sigla, passo, valore). Il passo: istantanea o no, durata, livello."""
+    out = []
+    for b in o.get('data', []):
+        if 'timerange' not in b:
+            continue
+        step = (b['timerange'][0] != 254, b['timerange'][2], json.dumps(b.get('level')))
+        for code, cell in b.get('vars', {}).items():
+            value = comune.to_float(cell.get('v')) if code in codes else None
+            if value is not None:
+                var, conv = codes[code]
+                out.append((var, step, conv(value) if conv else value))
+    return out
+
+
+def one_step(found, units_of):
+    """Per stazione e grandezza un solo passo, l'istantaneo o il più breve, e un solo livello: la pioggia di
+    15 minuti e quella oraria della stessa stazione non si sommano, due profondità non si mescolano."""
+    chosen = {}
+    for sc, var, step, _, _ in found:
+        if (sc, var) not in chosen or step < chosen[(sc, var)]:
+            chosen[(sc, var)] = step
+    readings, units = {}, {}
+    for sc, var, step, moment, value in found:
+        if step == chosen[(sc, var)]:
+            readings.setdefault(var, {}).setdefault(sc, []).append((moment, value))
+            units[var] = units_of[var]
+    return readings, units
+
+
 def er_sea(records):
-    stations, readings, units = {}, {}, {}
+    stations, found = {}, []
     for o in records:
         if o.get('network') not in ER_NETWORKS:
             continue
-        name, lat, lon, vals = None, None, None, {}
-        for blk in o.get('data', []):
-            vs = blk.get('vars', {})
-            if 'B01019' in vs: name = vs['B01019']['v']
-            if 'B05001' in vs: lat = comune.to_float(vs['B05001']['v'])
-            if 'B06001' in vs: lon = comune.to_float(vs['B06001']['v'])
-            for code, (var, kelvin) in ER_CODES.items():
-                if code in vs:
-                    v = comune.to_float(vs[code]['v'])
-                    if v is None:
-                        continue
-                    vals[var] = round(v - 273.15, 1) if kelvin else v
-        if not name or lat is None or lon is None or not vals:
-            continue
-        try:
-            dt = datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%SZ')
-        except (KeyError, ValueError):
+        moment, meta = er_moment_meta(o)
+        name = meta.get('B01019')
+        lat, lon = comune.to_float(meta.get('B05001')), comune.to_float(meta.get('B06001'))
+        measures = er_measures(o, ER_SEA)
+        if moment is None or not name or lat is None or lon is None or not measures:
             continue
         sc = comune.slug(name)
-        moment = comune.utc_to_solar(dt)
         stations[sc] = {'NOME': name, 'LAT': lat, 'LON': lon}
-        for var, v in vals.items():
-            readings.setdefault(var, {}).setdefault(sc, []).append((moment, v))
-            units[var] = UNITS.get(var)
-    return stations, readings, units
+        found += [(sc, var, step, moment, value) for var, step, value in measures]
+    return (stations,) + one_step(found, UNITS)
 
 
 def er_land(records):
-    """Le stazioni a terra. Per stazione e grandezza un solo passo, l'istantaneo o il più breve: la pioggia
-    di 15 minuti e quella oraria della stessa stazione non si sommano."""
+    """Le stazioni a terra: a quelle dell'API le grandezze che l'API non dà, alle altre tutte."""
     registry = comune.load_json(os.path.join(comune.region_dir('ER'), 'data-parsed', 'stazioni.json'))
     api = {}
     for sc, meta in (registry or {}).items():
@@ -205,12 +247,9 @@ def er_land(records):
     for o in records:
         if o.get('network') in ER_LAND_SKIP:
             continue
-        try:
-            moment = comune.utc_to_solar(datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%SZ'))
-        except (KeyError, ValueError):
+        moment, meta = er_moment_meta(o)
+        if moment is None:
             continue
-        blocks = o.get('data', [])
-        meta = {k: c.get('v') for b in blocks if 'timerange' not in b for k, c in b.get('vars', {}).items()}
         sc = api.get((o.get('lon'), o.get('lat')))
         from_api = sc is not None
         if not from_api:
@@ -220,28 +259,9 @@ def er_land(records):
                 continue
             sc = 'A_' + comune.slug(name)
             stations[sc] = {'NOME': name, 'LAT': lat, 'LON': lon}
-        for b in blocks:
-            if 'timerange' not in b:
-                continue
-            step = (b['timerange'][0] != 254, b['timerange'][2], json.dumps(b.get('level')))
-            for code, cell in b.get('vars', {}).items():
-                if code not in ER_LAND:
-                    continue
-                var, conv = ER_LAND[code]
-                value = comune.to_float(cell.get('v'))
-                if value is None or (from_api and var in api_vars):
-                    continue
-                found.append((sc, var, step, moment, conv(value) if conv else value))
-    chosen = {}
-    for sc, var, step, _, _ in found:
-        if (sc, var) not in chosen or step < chosen[(sc, var)]:
-            chosen[(sc, var)] = step
-    readings, units = {}, {}
-    for sc, var, step, moment, value in found:
-        if step == chosen[(sc, var)]:
-            readings.setdefault(var, {}).setdefault(sc, []).append((moment, value))
-            units[var] = ER_LAND_UNITS[var]
-    return stations, readings, units
+        found += [(sc, var, step, moment, value) for var, step, value in er_measures(o, ER_LAND)
+                  if not (from_api and var in api_vars)]
+    return (stations,) + one_step(found, ER_LAND_UNITS)
 
 
 def download_acque_ven(debug=False):
@@ -292,11 +312,13 @@ def download_fvg(debug=False):
             except (TypeError, ValueError):
                 continue
             moment = comune.utc_to_solar(dt)
-            for i, (_, var) in enumerate(colmap):
+            for i, (column, var) in enumerate(colmap):
                 v = comune.to_float(row[1 + i])
                 qc = row[1 + len(colmap) + i]
                 if v is None or qc not in OGS_QC_OK:
                     continue
+                if column in OGS_CONV:
+                    v = OGS_CONV[column](v)
                 readings.setdefault(var, {}).setdefault(sc, []).append((moment, v))
                 units[var] = UNITS.get(var)
                 got = True

@@ -366,7 +366,7 @@ const NEAR_KM = 25, NEAR_N = 3, NEAR_DZ = { TEMP:300, TDEW:300, TAPP:300, PRESS:
 const WATER_VARS = new Set(['LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO',
   'DEFLUSSO', 'VOLINVASO', 'MAREA', 'ONDE', 'SALINITA', 'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA',
   'CONDUCIBILITA', 'PORTATASUP', 'PORTATAINF', 'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA',
-  'POTREDOX']);
+  'POTREDOX', 'ONDEMAX', 'ONDEPERIODO', 'ONDEPERIODOM', 'ONDEDIR', 'CORRENTE', 'CORRENTEDIR', 'PCO2']);
 const nearOk = v => !!v && !isView(v) && v !== WARROW && v !== SNOWNEW && !WATER_VARS.has(v);
 function distKm(a, b){
   const r = Math.PI / 180, dLat = (b._lat - a._lat) * r, dLon = (b._lon - a._lon) * r;

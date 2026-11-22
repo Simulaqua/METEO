@@ -102,6 +102,7 @@ TEMP_LIKE.forEach(v => { CLASS_SCALES[v] = { steps:TEMP_STEPS, colors:TEMP_COLOR
   CLASS_SCALES[v] = CLASS_SCALES.VVENTO;
 });
 ['VVENTOMAX2', 'VVENTOMAX1S'].forEach(v => { CLASS_SCALES[v] = CLASS_SCALES.VVENTOMAX; });
+CLASS_SCALES.ONDEMAX = CLASS_SCALES.ONDE;
 CLASS_SCALES.VWND = CLASS_SCALES.UWND;
 // Sfumature fra minimo e massimo, dal chiaro (poco) allo scuro (tanto), nella tinta dei grafici
 const RAMPS = {

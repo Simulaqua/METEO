@@ -62,7 +62,7 @@ const isRain = v => RAIN_VARS.indexOf(v) >= 0;
 const isRainVar = v => v === 'PREC' || isRain(v);
 // la direzione del vento e' a puntini
 const DIR_VARS = new Set(['DVENTO', 'DVENTOMAX', 'DVENTO2', 'DVENTOMAX2', 'DVENTOVETT', 'DVENTOVETT2',
-                          'DVENTOMAX1S']);
+                          'DVENTOMAX1S', 'ONDEDIR', 'CORRENTEDIR']);
 const isDirVar = v => DIR_VARS.has(v);
 function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
 let currentPage = 'dirette';
@@ -80,7 +80,8 @@ const MORE_VARS = ['TEMP50', 'TEMP0', 'TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO
   'USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30',
   'TNEVE60', 'TNEVE90', 'VVENTOVETT', 'DVENTOVETT', 'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2',
   'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'PORTATASUP', 'PORTATAINF',
-  'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX'];
+  'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX', 'ONDEMAX', 'ONDEPERIODO', 'ONDEPERIODOM',
+  'ONDEDIR', 'CORRENTE', 'CORRENTEDIR', 'PCO2'];
 // Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
 // le misure secondarie, le derivate e gli indici stanno sotto "Altro".
 const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
@@ -137,7 +138,8 @@ const VAR_COLORS = {
 const SISTER_COLORS = [['TSUOLO', '#8a5a2b'], ['TEMP0', '#8a5a2b'], ['TEMP50', '#f08c00'],
   ['USUOLO', '#0b7285'], ['TNEVE', '#74c0fc'], ['VVENTOMAX', '#f08c00'], ['DVENTOMAX', '#f08c00'],
   ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'],
-  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b'], ['POTREDOX', '#5f3dc4']];
+  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b'], ['POTREDOX', '#5f3dc4'],
+  ['ONDE', '#1f6fd1'], ['CORRENTE', '#0b7285'], ['PCO2', '#868e96']];
 MORE_VARS.forEach(v => { VAR_COLORS[v] = SISTER_COLORS.find(([p]) => v.startsWith(p))[1]; });
 // testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
 const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',
@@ -225,7 +227,9 @@ const VAR_LABELS = {
   DVENTOMAX1S:'Direzione raffica su 1 secondo', PORTATASUP:'Portata strato superiore',
   PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
   VELACQUASUP:'Velocità acqua strato superiore', VELACQUAINF:'Velocità acqua strato inferiore',
-  TORBIDITA:'Torbidità', POTREDOX:'Potenziale redox'
+  TORBIDITA:'Torbidità', POTREDOX:'Potenziale redox', ONDEMAX:'Altezza onde massima',
+  ONDEPERIODO:'Periodo onde (picco)', ONDEPERIODOM:'Periodo onde (medio)', ONDEDIR:'Direzione onde',
+  CORRENTE:'Velocità corrente', CORRENTEDIR:'Direzione corrente', PCO2:'CO₂ nell\'acqua'
 };
 [5, 10, 20, 30, 40, 50].forEach(cm => {
   VAR_LABELS['TSUOLO' + cm] = 'Temperatura suolo (' + cm + ' cm)';
