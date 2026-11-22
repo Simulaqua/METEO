@@ -23,10 +23,13 @@ import comune
 
 # codice della fonte -> sigla. FVG_MAP e TN_MAP sono letti da check_updates.py (grandezze nuove).
 FVG_API = 'https://monitor.protezionecivile.fvg.it/api'
+# portata: Q_1 nelle sezioni dei fiumi; la foce dell'Isonzo ha solo la totale (Q_tot)
 FVG_MAP = {'IDRO': 'LIVIDRO', 'NIVO': 'LIVNEVE', 'T': 'TEMP', 'U': 'UMID', 'Vv': 'VVENTO',
-           'VvMax': 'VVENTOMAX', 'Dv': 'DVENTO', 'B': 'PRESS', 'RG': 'RADSOL', 'P_1h': 'PREC'}
+           'VvMax': 'VVENTOMAX', 'Dv': 'DVENTO', 'B': 'PRESS', 'RG': 'RADSOL', 'P_1h': 'PREC',
+           'Q_1': 'PORTATA', 'Q_tot': 'PORTATA'}
 FVG_UNITS = {'LIVIDRO': 'm', 'LIVLAGO': 'm', 'LIVNEVE': 'cm', 'TEMP': '°C', 'UMID': '%', 'VVENTO': 'm/s',
-             'VVENTOMAX': 'm/s', 'DVENTO': '°N', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'PREC': 'mm'}
+             'VVENTOMAX': 'm/s', 'DVENTO': '°N', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'PREC': 'mm',
+             'PORTATA': 'm³/s'}
 
 TN_BASE = 'https://www.floods.it/api/v1/monitoring/'
 TN_MAP = {'gage height': 'LIVIDRO', 'discharge': 'PORTATA'}

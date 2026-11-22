@@ -46,6 +46,7 @@ VARIABLES = {
     'DVENTO': 'Direzione Vento',
     'RADSOL': 'Radiazione Globale',
     'LIVIDRO': 'Livello Idrometrico',
+    'PORTATA': 'Portata fiume',
     'LIVNEVE': 'Altezza Neve',
 }
 # ogni sensore ha una serie per idoperatore: si tiene la '1' (media o istantaneo), per la pioggia la '4'
