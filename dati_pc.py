@@ -25,8 +25,9 @@ import comune
 FVG_API = 'https://monitor.protezionecivile.fvg.it/api'
 # Si prende ogni misura idro-meteo. Portata: Q_1 nelle sezioni dei fiumi; alla foce dell'Isonzo la totale
 # (Q_tot) più portate e correnti degli strati sopra e sotto. Il livello del mare ha due codici, secondo la
-# stazione. Restano fuori batterie e correnti di carica, lo stato dei sensori, il sensore di prova U_2, la
-# temperatura interna del nivometro (Tamb) e la pioggia di P_1h contata in altri passi (P, RR, PPWD, Prec_*).
+# stazione. Restano fuori i secondi strumenti di livello e portata (IDRO_2, IDRO_3, Q_2: si tiene il
+# principale), batterie e correnti di carica, lo stato dei sensori, il sensore di prova U_2, la temperatura
+# interna del nivometro (Tamb) e la pioggia di P_1h contata in altri passi (P, RR, PPWD, Prec_*).
 FVG_MAP = {
     'T': 'TEMP', 'T50': 'TEMP50', 'T0': 'TEMP0', 'U': 'UMID', 'B': 'PRESS', 'RG': 'RADSOL', 'Rr': 'RADRIFL',
     'BF': 'BAGNATURA', 'P_1h': 'PREC',
@@ -39,13 +40,11 @@ FVG_MAP = {
     'DvVett': 'DVENTOVETT', 'Vv2': 'VVENTO2', 'Vv2max': 'VVENTOMAX2', 'Dv2': 'DVENTO2',
     'Dv2max': 'DVENTOMAX2', 'Vv2vett': 'VVENTOVETT2', 'Dv2vett': 'DVENTOVETT2', 'Vvmax1s': 'VVENTOMAX1S',
     'DvMax1s': 'DVENTOMAX1S',
-    'IDRO': 'LIVIDRO', 'IDRO_2': 'LIVIDRO2', 'IDRO_3': 'LIVIDRO3', 'Q_1': 'PORTATA', 'Q_tot': 'PORTATA',
-    'Q_2': 'PORTATA2', 'Q_sup': 'PORTATASUP', 'Q_inf': 'PORTATAINF', 'VH2O': 'VELACQUA',
-    'CV_med': 'VELACQUA', 'CV_sup': 'VELACQUASUP', 'CV_inf': 'VELACQUAINF', 'TORB': 'TORBIDITA',
-    'Tm': 'TEMPACQUA', 'LIV_MARE_IGM': 'MAREA', 'LIV_MARE_IGM42': 'MAREA'}
-FVG_UNITS = {'LIVIDRO': 'm', 'LIVIDRO2': 'm', 'LIVIDRO3': 'm', 'LIVLAGO': 'm', 'MAREA': 'm', 'LIVNEVE': 'cm',
-             'UMID': '%', 'PRESS': 'hPa', 'RADSOL': 'W/m²', 'RADRIFL': 'W/m²', 'PREC': 'mm',
-             'BAGNATURA': 'min', 'TORBIDITA': 'NTU'}
+    'IDRO': 'LIVIDRO', 'Q_1': 'PORTATA', 'Q_tot': 'PORTATA', 'Q_sup': 'PORTATASUP', 'Q_inf': 'PORTATAINF',
+    'VH2O': 'VELACQUA', 'CV_med': 'VELACQUA', 'CV_sup': 'VELACQUASUP', 'CV_inf': 'VELACQUAINF',
+    'TORB': 'TORBIDITA', 'Tm': 'TEMPACQUA', 'LIV_MARE_IGM': 'MAREA', 'LIV_MARE_IGM42': 'MAREA'}
+FVG_UNITS = {'LIVIDRO': 'm', 'LIVLAGO': 'm', 'MAREA': 'm', 'LIVNEVE': 'cm', 'UMID': '%', 'PRESS': 'hPa',
+             'RADSOL': 'W/m²', 'RADRIFL': 'W/m²', 'PREC': 'mm', 'BAGNATURA': 'min', 'TORBIDITA': 'NTU'}
 UNIT_BY_PREFIX = [(('TEMP', 'TSUOLO', 'TNEVE'), '°C'), (('USUOLO',), '% vol'),
                   (('VVENTO', 'VELACQUA'), 'm/s'), (('DVENTO',), '°N'), (('PORTATA',), 'm³/s')]
 FVG_UNITS.update({v: next(unit for prefixes, unit in UNIT_BY_PREFIX if v.startswith(prefixes))

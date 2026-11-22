@@ -75,12 +75,12 @@ const natCode = (a, b) => {                                     // codici: ordin
 };
 const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
 
-// Misure di poche stazioni: profili di suolo e neve, vento a 2 m e vettoriale, sensori in piu' sui fiumi
+// Misure di poche stazioni: profili di suolo e neve, vento a 2 m e vettoriale, acque dei fiumi
 const MORE_VARS = ['TEMP50', 'TEMP0', 'TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40', 'TSUOLO50',
   'USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30',
   'TNEVE60', 'TNEVE90', 'VVENTOVETT', 'DVENTOVETT', 'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2',
-  'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'LIVIDRO2', 'LIVIDRO3', 'PORTATA2',
-  'PORTATASUP', 'PORTATAINF', 'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX'];
+  'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'PORTATASUP', 'PORTATAINF',
+  'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX'];
 // Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
 // le misure secondarie, le derivate e gli indici stanno sotto "Altro".
 const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
@@ -136,7 +136,7 @@ const VAR_COLORS = {
 // le misure in piu' prendono il colore della grandezza sorella
 const SISTER_COLORS = [['TSUOLO', '#8a5a2b'], ['TEMP0', '#8a5a2b'], ['TEMP50', '#f08c00'],
   ['USUOLO', '#0b7285'], ['TNEVE', '#74c0fc'], ['VVENTOMAX', '#f08c00'], ['DVENTOMAX', '#f08c00'],
-  ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'], ['LIVIDRO', INK],
+  ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'],
   ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b'], ['POTREDOX', '#5f3dc4']];
 MORE_VARS.forEach(v => { VAR_COLORS[v] = SISTER_COLORS.find(([p]) => v.startsWith(p))[1]; });
 // testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
@@ -170,7 +170,7 @@ function saveBlob(blob, fname){
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 // Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
-const CM_VARS = new Set(['LIVIDRO','LIVIDRO2','LIVIDRO3','LIVLAGO','FREATICA','MAREA']);
+const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
 // Una grafia per unita': le fonti scrivono la stessa in modi diversi
 const UNIT_NAMES = { 'mc/s':'m³/s', 'm3/s':'m³/s', 'm^3/s':'m³/s', 'mc':'m³', 'W/m2':'W/m²', 'W/mq':'W/m²',
                      'KJ/m^2':'kJ/m²', 'gradi':'°', '°N':'°', 'gN':'°' };
@@ -222,9 +222,8 @@ const VAR_LABELS = {
   DVENTOVETT:'Direzione vento vettoriale', VVENTO2:'Velocità vento a 2 m', VVENTOMAX2:'Raffica a 2 m',
   DVENTO2:'Direzione vento a 2 m', DVENTOMAX2:'Direzione raffica a 2 m', VVENTOVETT2:'Vento vettoriale a 2 m',
   DVENTOVETT2:'Direzione vento vettoriale a 2 m', VVENTOMAX1S:'Raffica su 1 secondo',
-  DVENTOMAX1S:'Direzione raffica su 1 secondo', LIVIDRO2:'Livello idrometrico (2° sensore)',
-  LIVIDRO3:'Livello idrometrico (3° sensore)', PORTATA2:'Portata (2° sensore)',
-  PORTATASUP:'Portata strato superiore', PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
+  DVENTOMAX1S:'Direzione raffica su 1 secondo', PORTATASUP:'Portata strato superiore',
+  PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
   VELACQUASUP:'Velocità acqua strato superiore', VELACQUAINF:'Velocità acqua strato inferiore',
   TORBIDITA:'Torbidità', POTREDOX:'Potenziale redox'
 };
