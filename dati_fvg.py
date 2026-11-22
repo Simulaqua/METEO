@@ -42,6 +42,7 @@ VARIABLES = {
     'VVENTOSCAL': 'v10',
     'DVENTOMAX': 'dd10max',             # direzione della raffica
     'TEMPACQUA': 'tmare',               # solo le stazioni sul mare
+    'LIVNEVE': 'hneve',
 }
 # altri valori da tenere nel file di una variabile: variabile -> {nome nelle MISURE: tag}
 EXTRA = {'VVENTO': {'VMAX': 'vmax'}}
