@@ -69,7 +69,8 @@ def save_json(data, path, sort_keys=False):
         os.makedirs(folder, exist_ok=True)
     tmp = '%s.%d.tmp' % (path, os.getpid())
     with open(tmp, 'w', encoding='utf-8') as fp:
-        json.dump(data, fp, ensure_ascii=False, separators=(',', ':'), sort_keys=sort_keys)
+        # dumps e non dump: solo dumps usa il codificatore in C, dieci volte più veloce (stesso testo)
+        fp.write(json.dumps(data, ensure_ascii=False, separators=(',', ':'), sort_keys=sort_keys))
         fp.flush()
         os.fsync(fp.fileno())
     os.replace(tmp, path)

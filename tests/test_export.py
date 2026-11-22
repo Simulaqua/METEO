@@ -546,5 +546,26 @@ class TestDerivate(unittest.TestCase):
         self.assertIn('202611190800', out.get('PREC24', {}))
 
 
+class TestRegioniSenzaNovita(unittest.TestCase):
+
+    def test_stessa_ora_stessi_file(self):
+        # una regione con gli stessi file, nella stessa ora, non si riesporta; l'ora nuova, un file cambiato o
+        # --tutte la riesportano
+        skipped = 'LAGHI: nessun file nuovo'
+        again = lambda folder, epoch, *args: rete.run(
+            [sys.executable, 'export_web.py', '-r', 'all', '--site-dir', 'site'] + list(args), folder, epoch=epoch)
+        later = rete.EPOCH + 3600
+        with tempfile.TemporaryDirectory() as folder:
+            rete.check(export(folder, {'LAGHI': {'S1': (station(45.6, 10.6), LAKE_LEVEL)}}))
+            self.assertIn(skipped, again(folder, rete.EPOCH).stdout)
+            self.assertNotIn(skipped, again(folder, later).stdout)
+            self.assertIn(skipped, again(folder, later).stdout)
+            path = os.path.join(folder, 'LAGHI', 'data-parsed', 'LIVLAGO', 'LIVLAGO-20261105.json')
+            info = os.stat(path)
+            os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 10 ** 9))
+            self.assertNotIn(skipped, again(folder, later).stdout)
+            self.assertNotIn(skipped, again(folder, later, '--tutte').stdout)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -51,12 +51,22 @@ def step_cap(region, usual):
     return max(usual, LIVE_STEP.get(region, 0))
 
 
+_MOMENTS = {}
+
+def _moment(ist):
+    ''' L'istante AAAAMMGGhhmm come datetime, letto una volta sola: strptime e' lento e le stazioni di una
+        regione hanno gli stessi istanti. '''
+    m = _MOMENTS.get(ist)
+    if m is None:
+        m = _MOMENTS[ist] = datetime.datetime.strptime(ist, '%Y%m%d%H%M')
+    return m
+
 def _parsed(series):
     ''' [(momento, istante, valore)] in ordine, senza istanti illeggibili (che fermerebbero la stazione). '''
     out = []
     for ist, v in series.items():
         try:
-            out.append((datetime.datetime.strptime(ist, '%Y%m%d%H%M'), ist, to_float(v)))
+            out.append((_moment(ist), ist, to_float(v)))
         except (TypeError, ValueError):
             continue
     return sorted(out)

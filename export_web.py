@@ -14,7 +14,10 @@ import bisect
 import calendar
 import csv
 import datetime
+import functools
 import glob
+import hashlib
+import json
 import math
 import os
 import sys
@@ -76,8 +79,11 @@ def main():
                     help='sottocartella delle serie (series30 per i 30 giorni)')
     ap.add_argument('--series-only', action='store_true',
                     help='solo le serie: niente derivate, mappa, unità e cursore')
+    ap.add_argument('--tutte', action='store_true',
+                    help='riesporta anche le regioni senza file nuovi dalla volta prima')
     args = ap.parse_args()
 
+    marks = comune.load_json(MARKS_PATH)
     regions = REGIONS if args.region == 'all' else [args.region]
     for region in regions:
         folder = comune.region_dir(region)
@@ -85,12 +91,51 @@ def main():
         if not os.path.isdir(parse_dir):
             print('SKIP ' + region + ': parsed dir not found (' + parse_dir + ')')
             continue
+        out_dir = os.path.join(args.site_dir, region)
+        key = '|'.join((os.path.abspath(out_dir), args.series_dir))
+        mark = inputs_mark(parse_dir, args.days, args.series_dir, args.series_only)
+        if (not args.tutte and marks.get(key) == mark
+                and os.path.isdir(os.path.join(out_dir, args.series_dir))):
+            print('\n' + region + ': nessun file nuovo nella stessa ora, il sito resta com\'era')
+            continue
         coords_path = os.path.join(folder, 'stazioni_coords.csv')
         coords = load_coords(coords_path)
         if coords:
             print('Coordinate lookup: ' + str(len(coords)) + ' stations from ' + coords_path)
-        export_region(region, parse_dir, os.path.join(args.site_dir, region), args.days, coords,
-                      args.series_dir, args.series_only)
+        export_region(region, parse_dir, out_dir, args.days, coords, args.series_dir, args.series_only)
+        marks[key] = mark
+        comune.save_json(marks, MARKS_PATH)
+
+
+# Una regione che ha gli stessi file della volta prima, nella stessa ora, si salta: il suo sito è ancora
+# giusto. All'ora nuova si riesporta comunque: il cursore, la pioggia di oggi e la finestra si spostano con
+# l'orologio.
+MARKS_PATH = os.path.join(comune.BASE, '.tracking', 'export_impronte.json')
+CODE_FILES = ('export_web.py', 'derive.py', 'quality.py', 'comune.py')
+
+
+def inputs_mark(parse_dir, days, series_subdir, series_only):
+    """L'impronta di ciò che l'export di una regione legge: ora, codice, opzioni e, per ogni file della
+    finestra (con i 2 giorni in più della pioggia), nome, dimensione e data di modifica."""
+    now = comune.now_solar()
+    since = (now - datetime.timedelta(days=days + 2)).strftime('%Y%m%d')
+    folder = os.path.dirname(parse_dir)
+    here = os.path.dirname(os.path.abspath(__file__))
+    paths = [os.path.join(here, name) for name in CODE_FILES]
+    paths += [os.path.join(parse_dir, 'stazioni.json'), os.path.join(folder, 'zero_idrometrici.json'),
+              os.path.join(folder, 'stazioni_coords.csv')]
+    for var in sorted(os.listdir(parse_dir)):
+        var_dir = os.path.join(parse_dir, var)
+        if os.path.isdir(var_dir):
+            paths += [path for day, path in sorted(comune.day_files(var_dir, var).items()) if day >= since]
+    items = [now.strftime('%Y%m%d%H'), days, series_subdir, series_only]
+    for path in paths:
+        try:
+            info = os.stat(path)
+            items.append([path, info.st_size, info.st_mtime_ns])
+        except OSError:
+            items.append([path])
+    return hashlib.sha1(json.dumps(items).encode('utf-8')).hexdigest()
 
 
 def export_region(region, parse_dir, out_dir, days, coords, series_subdir, series_only):
@@ -395,6 +440,7 @@ def station_properties(scode, name, per_var, zero, region, now):
     return properties
 
 
+@functools.lru_cache(maxsize=None)
 def moment_of(instant):
     return datetime.datetime.strptime(instant[:12], '%Y%m%d%H%M')
 
@@ -611,9 +657,11 @@ def write_snapshots(data, scodes, units, out_dir):
         print('Snapshot orari: ' + str(len(written)) + ' variabili in ' + snap_dir)
 
 
+@functools.lru_cache(maxsize=None)
 def iso_datetime(istante):
     """AAAAMMGGhhmm in ora solare -> 'AAAA-MM-GGThh:mm' in ora civile italiana. Un istante troppo corto
-    torna com'è, una data impossibile solo riscritta."""
+    torna com'è, una data impossibile solo riscritta. Ogni istante si converte una volta: le stazioni di
+    una regione hanno gli stessi."""
     if not istante or len(istante) < 12:
         return istante
     try:
