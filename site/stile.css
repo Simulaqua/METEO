@@ -442,13 +442,19 @@ body.dark #hvVar [data-v="TEMP"] { --kt:rgba(227,73,72,.2); }
 body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,.36); }
 #hvChart { width:100%; min-height:120px; }
 body.hist-mode #hvChart { flex:1 1 0; min-height:240px; }
+/* telefono: il grafico ha un'altezza sua (46% dello schermo), il riquadro segue anni e grafico */
+@media (max-width:720px){ body.hist-mode #hvChart { flex:none; } }
 /* grafici: nomi degli anni in fondo alle linee, riquadro al passaggio */
 .hv-tip .sw { display:inline-block; width:12px; height:8px; margin-right:5px; border-radius:2px;
               vertical-align:-1px; }
 .hv-tip .sw.ln { height:0; border-top:2px solid; border-radius:0; vertical-align:3px; }
 .hv-tip .sw.ln.thin { border-top-width:1px; }   /* anno incompleto: linea piu' sottile */
 .hv-tip .sw.ln.dash { border-top-style:dashed; }
-.hv-yrs { margin:0 0 6px; }                                            /* Curva: gli anni sopra il grafico */
+/* Curva: gli anni sopra il grafico; tanti anni (Veneto dal 2010) vanno a capo, un riquadro per anno */
+.hv-yrs { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 6px; border:0; border-radius:0;
+          overflow:visible; }
+.hv-yrs button, .hv-yrs button:first-child { padding:0 7px; border:1px solid var(--ctl); border-radius:7px; }
+.hv-yrs button.on { border-color:var(--accent); }
 /* Giorni: la mano dice che si trascina */
 .hv-pan { cursor:grab; -webkit-user-select:none; user-select:none; }
 .hv-pan.hv-grab { cursor:grabbing; }

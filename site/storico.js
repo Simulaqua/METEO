@@ -177,11 +177,12 @@ function hvTableHtml(months, v){
 }
 
 function histWidth(){ return Math.max(260, el('hvChart').clientWidth || (el('panel').clientWidth - 32)); }
-// Alto quanto il grafico delle misure: tutto lo spazio della scheda (telefono: il 46% dello schermo)
+// Alto quanto il grafico delle misure: tutto lo spazio della scheda (telefono: il 46% dello schermo). Con
+// tante righe di anni e la finestra bassa il grafico si accorcia invece di uscire dal suo spazio.
 function histHeight(){
   if(PHONE.matches) return Math.max(220, Math.round(innerHeight * 0.46));
   const c = el('hvChart'), yrs = c.querySelector('.hv-yrs');
-  return Math.max(240, c.clientHeight - (yrs ? yrs.offsetHeight + 6 : 0));
+  return Math.max(yrs ? 160 : 240, c.clientHeight - (yrs ? yrs.offsetHeight + 6 : 0));
 }
 const hvBars = () => uPlot.paths.bars({ size:[0.75, 60] });
 const hvMonLabel = ts =>
