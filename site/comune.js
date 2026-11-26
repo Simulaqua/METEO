@@ -16,6 +16,9 @@ async function fdata(path, opts){
   } catch(e){ if (!DATA_BASE.startsWith('http')) throw e; }
   return fetch(DATA_FALLBACK + '/' + path, opts);
 }
+// Aggiornamento automatico: solo dalla base dati, ricontrollando la cache (risposta vuota se il file non e'
+// cambiato). Niente riserva: jsDelivr puo' avere dati di ore prima di quelli gia' sulla pagina.
+const freshData = path => fetch(DATA_BASE + '/' + path, { cache:'no-cache' });
 
 // ------------------------------------------------------------------------------------------------
 // STATO

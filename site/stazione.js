@@ -113,6 +113,7 @@ async function selectStation(props){
     }
     table = parseCSV(csv);                // {header:[datetime,VAR,...], cols:{name:[...]}, x:[epoch]}
     props._table = table;
+    props._csv = csv;
     props._tableAt = Date.now();
   }
   // il radar di solito arriva con la serie; se tarda, il grafico esce subito e si ridisegna dopo
@@ -351,9 +352,23 @@ function altClose(refocus){
 async function ensureTable(p){
   if(p._table && p._tableAt && Date.now() - p._tableAt < 5 * 60 * 1000) return;
   try {
-    p._table = parseCSV(await (await fdata(`${p._region}/${p.series}`)).text());
+    const csv = await (await fdata(`${p._region}/${p.series}`)).text();
+    p._table = parseCSV(csv);
+    p._csv = csv;
     p._tableAt = Date.now();
   } catch(e){}
+}
+// La serie di p di nuovo dal server (che risponde vuoto se non e' cambiata): true se e' cambiata
+async function freshTable(p){
+  const r = await freshData(`${p._region}/${p.series}`);
+  if(!r.ok) throw new Error('serie ' + r.status);
+  const csv = await r.text();
+  p._tableAt = Date.now();
+  if(p._table && csv === p._csv) return false;
+  p._table = parseCSV(csv);
+  p._csv = csv;
+  p._table30 = null;                               // il bilancio e i 30 giorni si riprendono freschi
+  return true;
 }
 async function ensureTabTables(){
   for(const t of openTabs) await ensureTable(t.props);
@@ -394,39 +409,85 @@ async function nearStations(props, v){
 }
 const fmtKm = km => (km < 10 ? Math.round(km * 10) / 10 : Math.round(km)) + ' km';
 
+// Ultimo dato MISURATO: salta le righe con sole derivate/indici (GDD/ET0 alle 12:00 solari, la mattina sono
+// "nel futuro").
+function lastMeasured(t){
+  for(let i = t.x.length - 1; i >= 0; i--){
+    for(const v of t.header.slice(1)) if(varCat(v) === 'dirette' && t.cols[v][i] != null) return t.x[i];
+  }
+  return null;
+}
+// La stazione aperta ridisegnata con la sua serie (pulsante «Aggiorna» e aggiornamento automatico)
+async function redrawStation(){
+  const st = currentStation, t = st._table;
+  if(currentVar === WROSE) updateWindRose();
+  else if(currentVar !== WCLIMA){                  // la Climatologia non usa la serie dei 7 giorni
+    if(currentVar && ([WARROW, WBIL, SNOWNEW].includes(currentVar) || t.cols[currentVar]))
+      await renderChart(currentVar);
+    else drawVar(t.header[1]);
+  }
+  const lastX = lastMeasured(t);
+  setMeta(st.scode, lastX ? civT(lastX) : null, t);
+}
+
 async function refreshStation(){
   if(!currentStation) return;
-  const region = currentStation._region;
-  const btn = el('refresh');
-  const icon = btn.innerHTML;
+  const st = currentStation, btn = el('refresh'), icon = btn.innerHTML;
   btn.textContent = '⏳';
   btn.disabled = true;
   try {
-    const csv = await (await fdata(`${region}/${currentStation.series}`, { cache:'no-store' })).text();
-    const t = parseCSV(csv);
-    currentStation._table = t;
-    currentStation._table30 = null;                // il bilancio e i 30 giorni si riprendono freschi
+    await freshTable(st);
+    st._table30 = null;
     if(chartMode === 'compare30') await ensureTable30();
-    if(showRadar) await loadRadarPoints(currentStation, true);
-    else currentStation._radar = undefined;        // spento: quando si riaccende si riprende fresco
-    if(currentVar === WROSE) updateWindRose();
-    else if(currentVar !== WCLIMA){                // la Climatologia non usa la serie dei 7 giorni
-      if(currentVar && ([WARROW, WBIL, SNOWNEW].includes(currentVar) || t.cols[currentVar]))
-        renderChart(currentVar);
-      else drawVar(t.header[1]);
-    }
-    // Ultimo dato MISURATO: salta le righe con sole derivate/indici (GDD/ET0 alle 12:00 solari, la mattina
-    // sono "nel futuro").
-    let lastX = null;
-    for(let i = t.x.length - 1; i >= 0 && lastX == null; i--){
-      for(const v of t.header.slice(1)){
-        if(varCat(v) === 'dirette' && t.cols[v][i] != null){ lastX = t.x[i]; break; }
-      }
-    }
-    setMeta(currentStation.scode, lastX ? civT(lastX) : null, t);
+    if(showRadar) await loadRadarPoints(st, true);
+    else st._radar = undefined;                    // spento: quando si riaccende si riprende fresco
+    if(currentStation === st) await redrawStation();
   } catch(e){ setStatus('Aggiornamento non riuscito.'); }
   btn.innerHTML = icon;
   btn.disabled = false;
+}
+
+// AGGIORNAMENTO AUTOMATICO della scheda (lo chiama stato.js): le serie mostrate si ricontrollano e il grafico
+// si ridisegna solo se una e' cambiata, con lo stesso zoom. Non mentre lo si usa (puntatore sopra, un tocco
+// da poco, un menu o la «i» aperti): si riprova fra 15 secondi. Storico e Climatologia: i dati del giorno.
+let _liveRetry = null, _liveDirty = false, _touchAt = 0;
+function chartInUse(){
+  return (lastPointer === 'mouse' && el('chartwrap').matches(':hover')) || Date.now() - _touchAt < 15000
+    || ['altMenu', 'cmpMenu', 'expMenu', 'stCard'].some(id => !el(id).hidden);
+}
+function shownStations(cmp){
+  if(cmp) return openTabs.map(t => t.props);
+  const near = chartMode === 'near' && ((stackObj && stackObj.near) || (chart && chart._near));
+  return near ? near.map(o => o.props) : [currentStation];
+}
+// barre del radar accese: i punti di nuovo, true se sono cambiati
+async function freshRadar(p){
+  const all = await Radar.points(p._region, true), v = all && all.s && all.s[p.scode];
+  const r = v && v.some(x => x != null) ? { t:all.t, v } : null;
+  if(JSON.stringify(r) === JSON.stringify(p._radar || null)) return false;
+  p._radar = r;
+  return true;
+}
+async function liveStation(){
+  clearTimeout(_liveRetry);
+  const isCmp = () => document.body.classList.contains('view-compare'), cmp = isCmp(), st = currentStation;
+  const shown = document.body.classList.contains('view-station');
+  if(!shown || histMode || (!cmp && (!st || currentVar === WCLIMA))) return;
+  const later = () => { _liveRetry = setTimeout(liveStation, 15000); };
+  if(chartInUse()) return later();
+  const mode = chartMode, list = shownStations(cmp);
+  if((await Promise.all(list.map(p => freshTable(p).catch(() => false)))).some(Boolean)) _liveDirty = true;
+  if(!cmp && showRadar && radarFits() && await freshRadar(st).catch(() => false)) _liveDirty = true;
+  if(!_liveDirty || currentStation !== st || chartMode !== mode || isCmp() !== cmp) return;
+  if(chartInUse()) return later();
+  _liveDirty = false;
+  const z = zoomState();
+  if(cmp){ if(compareVar) renderCompareTabs(compareVar); }
+  else {
+    if(chartMode === 'compare30') await ensureTable30();
+    await redrawStation();
+  }
+  restoreZoom(z);
 }
 
 // "Impilate": una fascia per variabile scelta. Resta una preferenza: con una variabile sola il grafico e'
@@ -830,6 +891,8 @@ function buildStationControls(){
     }, 250);
   });
   el('refresh').addEventListener('click', refreshStation);
+  ['touchstart', 'touchmove'].forEach(ev =>
+    el('chartwrap').addEventListener(ev, () => { _touchAt = Date.now(); }, { passive:true }));
   el('stInfo').addEventListener('click', () => el('stCard').hidden ? cardOpen() : cardClose());
   el('expBtn').addEventListener('click', () => el('expMenu').hidden ? expOpen() : expClose());
   el('expMenu').addEventListener('click', e => {

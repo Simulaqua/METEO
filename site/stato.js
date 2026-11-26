@@ -1,5 +1,5 @@
-// stato.js: lo stato del sito da STATUS/status.json (banner "dati fermi" e pannello Fonti con i semafori).
-// Ascoltatori e controllo ogni 10 minuti sono in buildStatusControls(), chiamata dall'avvio (comune.js).
+// stato.js: lo stato del sito da STATUS/status.json (banner "dati fermi" e pannello Fonti con i semafori) e
+// l'aggiornamento automatico dei dati. Ascoltatori e avvio in buildStatusControls(), chiamata da comune.js.
 
 // ---- WATCHDOG "dati fermi" ---------------------------------------------------------------------
 // STATUS/status.json (scritto dal publish) ha il timestamp della misura piu' recente fra tutte le
@@ -37,7 +37,7 @@ let _lastStatus = null;
 async function checkStale(){
   const b = el('stalebanner');
   try {
-    const r = await fdata('STATUS/status.json', {cache:'no-store'});
+    const r = await freshData('STATUS/status.json');
     if(!r.ok) throw 0;
     const s = _lastStatus = await r.json();
     const ageMin = (nowRome() - isoCivil(s.latest)) / 60000;
@@ -120,5 +120,31 @@ function buildStatusControls(){
   });
 
   checkStale();
-  setInterval(checkStale, 10*60*1000);
+  startLive();
+}
+
+// AGGIORNAMENTO AUTOMATICO: il Pi pubblica ogni 10 minuti e GitHub tiene i file in cache fino a 5. Con la
+// pagina in vista, ogni 2 minuti si ricontrollano stato, stazioni (mappa.js) e scheda aperta (stazione.js):
+// un file non cambiato costa una risposta vuota. Tornando sulla pagina o in rete si ricontrolla subito.
+const LIVE_MS = 2 * 60 * 1000;
+let _liveAt = Date.now(), _liveRun = null;
+function liveTick(){
+  if(document.hidden || _liveRun) return _liveRun;
+  _liveAt = Date.now();
+  _liveRun = (async () => {
+    try {
+      await checkStale();
+      await refreshStations();
+      await liveStation();
+    } catch(e){}
+    _liveRun = null;
+  })();
+  return _liveRun;
+}
+function startLive(){
+  setInterval(liveTick, LIVE_MS);
+  const back = () => { if(Date.now() - _liveAt > LIVE_MS / 2) liveTick(); };
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) back(); });
+  addEventListener('online', back);
+  addEventListener('pageshow', e => { if(e.persisted) back(); });
 }

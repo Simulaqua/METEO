@@ -1099,6 +1099,7 @@ function cumAxis(hi, color){
 // [min, max] dell'intero periodo; minSpan = intervallo minimo (s); withBtn = false: niente pulsante.
 function addZoomUI(u, full, minSpan, withBtn){
   const over = u.over;
+  u._full = full;
   over.style.touchAction = 'pan-y';
   let btn = null;
   if(withBtn !== false){
@@ -1169,6 +1170,20 @@ function addZoomUI(u, full, minSpan, withBtn){
     if(!e.touches.length || (g && g.k === 2)) g = null;
   }, { passive:true });
   sync();
+}
+// Zoom del grafico mostrato (o delle fasce), da rimettere dopo un ridisegno coi dati nuovi: null senza zoom.
+// Se arrivava all'ultimo dato, dopo il ridisegno segue i dati nuovi con la stessa ampiezza.
+const shownPlot = () => chart || (stackObj && stackObj.panels[0] && stackObj.panels[0].u) || null;
+function zoomState(){
+  const u = shownPlot(), f = u && u._full && u._full(), s = u && u.scales.x;
+  if(!f || s.min == null || !(s.min > f[0] + 1 || s.max < f[1] - 1)) return null;
+  return { min:s.min, max:s.max, end:s.max >= f[1] - 1 };
+}
+function restoreZoom(z){
+  const u = z && shownPlot(), f = u && u._full && u._full();
+  if(!f) return;
+  const mx = z.end ? f[1] : Math.min(z.max, f[1]), mn = Math.max(f[0], mx - (z.max - z.min));
+  if(mx > mn) u.setScale('x', { min:mn, max:mx });
 }
 
 // Fine della finestra: l'ultima riga con una misura diretta o con un valore delle variabili mostrate. Le
@@ -1252,7 +1267,7 @@ function renderChart(label){
   // La colonna a destra (i nomi delle stazioni) c'e' solo nel Confronto schede, che la apre da se': va chiusa
   // PRIMA di creare il grafico, che ne prende la larghezza.
   el('chartlegend').style.display = 'none';
-  if(label === WBIL){ renderBilancio(); return; }
+  if(label === WBIL) return renderBilancio();
   const cv = label === WARROW ? 'VVENTO' : label, unit = varUnit(cv, currentStation);   // Vento: la velocita'
   if(chartMode === 'compare' || chartMode === 'compare30'){
     const t = (chartMode === 'compare30') ? currentStation._table30 : currentStation._table;
@@ -1260,7 +1275,7 @@ function renderChart(label){
     return;
   }
   if(chartMode === 'tabs'){ renderCompareTabs(cv, unit); return; }
-  if(chartMode === 'near'){ renderNear(cv, unit); return; }
+  if(chartMode === 'near') return renderNear(cv, unit);
   const m = mainModel(currentStation, selVars(), chartMode);
   chart = new uPlot(mainOpts(m, { w: chartWidth(), h: chartHeight() }), m.data, el('chart'));
   chart._m = m;
@@ -1721,7 +1736,9 @@ function stackPanelOpts(p, o){
     ca.size = rg;
     ca.unit = '';                             // il nome e l'unita' sono nella testata della fascia
     axes.push(ca);
-    scales.cum = cumY(p.daily && (u => dailyTop(u, p.daily)));
+    scales.cum = cumY(p.cumSpan || (p.daily && (u => dailyTop(u, p.daily))));
+    if(p.cumSpan)
+      h.setScale = (h.setScale || []).concat((u, key) => { if(key === 'x') fitCumSpan(u, p.cumSpan); });
   }
   return {
     width:o.w, height:o.h, tzDate:TZ_CIV, legend:{ show:false },
@@ -1778,10 +1795,11 @@ function varPanels(cfg, hourly){
   return { panels, win, rgut: cfg.vars.some(isSumVar) ? STACK_RGUT : 0 };
 }
 // Una fascia per stazione (Vicine, Confronto schede), stessa misura e stessa scala: barre affiancate in un
-// grafico solo si coprirebbero. Sopra il nome, il totale del periodo e (vicine) distanza e quota.
+// grafico solo si coprirebbero. Sopra il nome, il totale del periodo e (vicine) distanza e quota. Con la
+// pioggia per intervallo anche la cumulata, ampia uguale in ogni fascia.
 // cfg = { list:[{props, sub}], src, unit, mode, colors }
 function stationPanels(cfg, hourly){
-  const src = cfg.src, un = cfg.unit ? ' ' + cfg.unit : '';
+  const src = cfg.src, un = cfg.unit ? ' ' + cfg.unit : '', sum = isSumVar(src);
   let lo = Infinity, hi = -Infinity;
   cfg.list.forEach(t => {
     const tb = t.props._table, e = tableEnd(tb, [src]);
@@ -1794,19 +1812,52 @@ function stationPanels(cfg, hourly){
   const panels = cfg.list.map((t, k) => {
     const tb = t.props._table, rs = rainSeries(tb.x, tb.cols[src] || [], src, from, hi, hourly);
     const name = prettyName(t.props.name || t.props.scode), color = cfg.colors[k % cfg.colors.length];
+    const any = rs.y.some(y => y != null);
     // il totale solo per la pioggia per intervallo: le finestre 1-48 h sommate conterebbero piu' volte
-    const sum = () => fmtNum(round2(rs.y.reduce((a, y) => a + (y || 0), 0))) + un;
-    const extra = !rs.y.some(y => y != null) ? 'n.d.' : isSumVar(src) ? sum() : cfg.unit || '';
+    const total = () => fmtNum(round2(rs.y.reduce((a, y) => a + (y || 0), 0))) + un;
+    const extra = !any ? 'n.d.' : sum ? total() : cfg.unit || '';
+    const cum = sum && any ? rainCum(rs, win[1]) : null;
     return {
-      v: src, src, label: name, unit: cfg.unit, kind: 'bars', rs, gaps: rs.gaps, cum: false,
-      npts: rs.y.filter(y => y != null).length, data: [rs.x, rs.y], color, solid: true,
+      v: src, src, label: name, unit: cfg.unit, kind: 'bars', rs, gaps: rs.gaps, cum: !!cum,
+      npts: rs.y.filter(y => y != null).length, color, solid: true,
+      data: cum ? uPlot.join([[rs.x, rs.y], [cum.x, cum.y]]) : [rs.x, rs.y],
       head: { color, name, extra, sub: t.sub }, pngTitle: name + (extra ? ' (' + extra + ')' : '')
     };
   });
   const top = Math.max(0, ...panels.map(p => Math.max(0, ...p.rs.y.filter(y => y != null))));
   const ymax = top > 0 ? Math.max(1, uPlot.rangeNum(0, top, 0.1, true)[1]) : 1;
-  panels.forEach(p => { p.ymax = ymax; });
-  return { panels, win, rgut: 0 };
+  panels.forEach(p => {
+    p.ymax = ymax;
+    if(p.cum) p.cumSpan = u => cumRise(panels, u.scales.x);
+  });
+  return { panels, win, rgut: sum ? STACK_RGUT : 0 };
+}
+// La salita piu' alta delle cumulate nel tratto visibile: con questa ampiezza sull'asse destro di ogni fascia
+// (ognuna dal suo valore al bordo sinistro) le stazioni si confrontano a occhio
+function cumRise(panels, sx){
+  let top = 0;
+  panels.forEach(p => {
+    if(!p.cum) return;
+    const xs = p.data[0], cs = p.data[2];
+    let a = null, b = null;
+    for(let i = 0; i < xs.length; i++){
+      if(cs[i] == null || (sx.min != null && (xs[i] < sx.min || xs[i] > sx.max))) continue;
+      if(a == null) a = cs[i];
+      b = cs[i];
+    }
+    if(a != null) top = Math.max(top, b - a);
+  });
+  return top;
+}
+// uPlot calcola l'asse destro con l'intervallo di prima dello zoom: si rifa' con quello nuovo
+function fitCumSpan(u, span){
+  const xs = u.data[0], cs = u.data[2], sx = u.scales.x, sc = u.scales.cum;
+  let a = null;
+  for(let i = 0; i < xs.length && a == null; i++)
+    if(cs[i] != null && xs[i] >= sx.min && xs[i] <= sx.max) a = cs[i];
+  if(a == null) return;
+  const r = cumY(span).range(u, a, a);
+  if(r[0] !== sc.min || r[1] !== sc.max) u.setScale('cum', { min:r[0], max:r[1] });
 }
 // Valore al cursore di una fascia, accanto alla sua linea: la misura (col vento anche la direzione); la
 // cumulata no, si legge sul suo asse

@@ -354,26 +354,106 @@ async function loadRegions(regions){
   setStatus('Carico le stazioni…');
 
   allFeatures = [];
-  await Promise.all(regions.map(async region => {
-    try {
-      const units = await (await fdata(`${region}/units.json`)).json();
-      unitsByRegion[region] = Object.fromEntries(Object.entries(units).map(([v, u]) => [v, normUnit(u)]));
-    } catch(e){ unitsByRegion[region] = {}; }
-    let geo;
-    try { geo = await (await fdata(`${region}/stations.geojson`)).json(); }
-    catch(e){ return; }
-    aqDay[region] = geo.ieri || '';
-    (geo.features || []).forEach(f => {
-      f.properties._region = region;
-      f.properties._lon = f.geometry.coordinates[0];
-      f.properties._lat = f.geometry.coordinates[1];
-      allFeatures.push(f);
-    });
-  }));
+  _liveRegions = regions;
+  _loadN++;
+  _loading++;
+  try {
+    await Promise.all(regions.map(async region => {
+      try {
+        const units = await (await fdata(`${region}/units.json`)).json();
+        unitsByRegion[region] = Object.fromEntries(Object.entries(units).map(([v, u]) => [v, normUnit(u)]));
+      } catch(e){ unitsByRegion[region] = {}; }
+      let geo;
+      try {
+        const txt = await (await fdata(`${region}/stations.geojson`)).text();
+        geo = JSON.parse(txt);
+        _geoText[region] = txt;
+      } catch(e){ return; }
+      aqDay[region] = geo.ieri || '';
+      (geo.features || []).forEach(f => allFeatures.push(placeFeature(f, region)));
+    }));
+  } finally { _loading--; }
   selectedKey = '';
   refreshFilters();
   renderMarkers();
   snapSync();
+}
+// posizione e regione di una stazione, nelle sue proprieta' (le usano mappa, ricerca e scheda)
+function placeFeature(f, region){
+  const p = f.properties;
+  p._region = region;
+  p._lon = f.geometry.coordinates[0];
+  p._lat = f.geometry.coordinates[1];
+  return f;
+}
+
+// AGGIORNAMENTO AUTOMATICO della mappa (lo chiama stato.js): i file delle stazioni si ricontrollano; uno
+// cambiato aggiorna le sue stazioni sugli STESSI oggetti, cosi' stazione aperta, schede e foglio restano
+// agganciati. Vista, scelta e Cursore restano. true = mappa ridisegnata
+let _liveRegions = [], _loadN = 0, _loading = 0;
+const _geoText = {};
+async function refreshStations(){
+  const n = _loadN, regions = _liveRegions;
+  if(_loading) return false;
+  const got = await Promise.all(regions.map(async r => {
+    try {
+      const x = await freshData(r + '/stations.geojson');
+      const txt = x.ok ? await x.text() : null;
+      return txt && txt !== _geoText[r] ? [r, JSON.parse(txt), txt] : null;
+    } catch(e){ return null; }
+  }));
+  if(_loading || n !== _loadN || !got.some(Boolean)) return false;
+  got.forEach(g => {
+    if(!g) return;
+    _geoText[g[0]] = g[2];
+    mergeRegion(g[0], g[1]);
+  });
+  for(const k in _cardSnap) delete _cardSnap[k];
+  const msg = el('status').textContent;
+  refreshFilters();
+  if(!(await snapRefresh())) renderMarkers();
+  if(msg) setStatus(msg);
+  if(currentStation) showNow();
+  return true;
+}
+// Le stazioni di una regione dal file nuovo, sugli oggetti di prima (stessa stazione = stesso codice), nello
+// stesso ordine; la loro serie si riprende alla prossima apertura
+function mergeRegion(region, geo){
+  const old = new Map();
+  allFeatures.forEach(f => { if(f.properties._region === region) old.set(f.properties.scode, f); });
+  const fresh = (geo.features || []).map(f => {
+    const o = old.get(f.properties.scode);
+    if(!o) return placeFeature(f, region);
+    const p = o.properties;
+    Object.keys(p).forEach(k => { if(k[0] !== '_' && !(k in f.properties)) delete p[k]; });
+    Object.assign(p, f.properties);
+    o.geometry = f.geometry;
+    p._tableAt = 0;
+    return placeFeature(o, region);
+  });
+  aqDay[region] = geo.ieri || '';
+  const out = [];
+  let put = false;
+  allFeatures.forEach(f => {
+    if(f.properties._region !== region) out.push(f);
+    else if(!put){ out.push(...fresh); put = true; }
+  });
+  allFeatures = put ? out : out.concat(fresh);
+}
+// Cursore aperto: i fotogrammi nuovi allo stesso istante (all'ultimo, se si era all'ultimo); col radar i
+// puntini seguono il suo fotogramma. Non mentre scorrono i fotogrammi delle stazioni. true = ridisegnata
+async function snapRefresh(){
+  if(!snap.on || !snap.var || (snap.playing && tsSrc === snapSource)) return false;
+  const v = snap.var, own = tsSrc === snapSource;
+  const t = own ? snap.T[tsK] : null, end = own && tsK >= snapSource.max();
+  if(!(await snapLoad(v)) || !snap.on || snap.var !== v) return false;
+  if(tsSrc === Radar.source){ if(!snap.playing) setFrame(Radar.index); }
+  else {
+    const k = snap.T.indexOf(t);
+    setFrame(end || k < 0 ? snapSource.max() : k);
+  }
+  renderMarkers();
+  return true;
 }
 
 let _needFit = true;              // fitBounds SOLO dopo un (ri)caricamento dati, mai sullo zoom

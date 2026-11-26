@@ -2780,6 +2780,18 @@
       const tops = ps.map(p => p.u.scales.y.max);
       log(tops.length >= 2 && tops.every(t => t === tops[0]), 'Vicine pioggia: la stessa scala per tutte', JSON.stringify(tops));
       log(ps.every(p => p.u.series[1].width === 0), 'Vicine pioggia: barre senza bordo', JSON.stringify(ps.map(p => p.u.series[1].width)));
+      log(ps.length >= 2 && ps.every(p => p.u.series.length === 3 && p.u.series[2].label === 'Cumulata'),
+          'Vicine pioggia: in ogni fascia la cumulata', JSON.stringify(ps.map(p => p.u.series.map(s => s.label))));
+      const spans = () => ps.map(p => Math.round((p.u.scales.cum.max - p.u.scales.cum.min) * 100));
+      log(spans().length >= 2 && spans().every(s => s === spans()[0]), 'Vicine pioggia: la cumulata con la stessa scala',
+          JSON.stringify(spans()));
+      if(ps[0]){
+        const w = stackObj.win;
+        ps[0].u.setScale('x', { min:w[1] - 24 * 3600, max:w[1] }); await sleep(100);
+        log(spans().every(s => s === spans()[0]) && ps.every(p => p.u.scales.x.min === w[1] - 24 * 3600),
+            'Vicine pioggia: la stessa scala anche con lo zoom', JSON.stringify(spans()));
+        ps[0].u.setScale('x', { min:w[0], max:w[1] }); await sleep(100);
+      }
       log(!vis(el('chartlegend')), 'Vicine pioggia: i nomi solo sopra le fasce', '');
       const X = ps[0] ? Math.round(ps[0].u.over.clientWidth * 0.6) : 0;
       ps.forEach(p => p.u.setCursor({ left:X, top:10 })); await sleep(100);
@@ -2811,6 +2823,12 @@
       const C = ['#2b6cb0', '#e53e3e'], cfg = (list, src, mode) => ({ list, src, unit:'mm', mode, colors:C });
       const r24 = stationPanels(cfg([mk('A', xs.map(() => 13), 'PREC24'), mk('B', xs.map(() => 5), 'PREC24')], 'PREC24', 'week'), true);
       eq('revisione: pioggia 24 h, niente somma delle finestre mobili', r24.panels.map(p => p.head.extra), ['mm', 'mm']);
+      eq('cumulata: niente con le finestre mobili', [r24.panels.map(p => p.cum), r24.rgut], [[false, false], 0]);
+      const rc = stationPanels(cfg([mk('A', xs.map(() => 1), 'PREC'), mk('B', xs.map(() => 3), 'PREC')], 'PREC', 'week'), true);
+      eq('cumulata: in ogni fascia, spazio a destra per l\'asse', [rc.panels.map(p => p.cum), rc.rgut], [[true, true], STACK_RGUT]);
+      const tot = p => Math.round(p.rs.y.reduce((a, y) => a + (y || 0), 0) * 100) / 100;
+      log(rc.panels.every(p => tot(p) > 0 && p.data[2].filter(y => y != null).pop() === tot(p)),
+          'cumulata: arriva al totale della fascia', JSON.stringify(rc.panels.map(p => [p.data[2].filter(y => y != null).pop(), tot(p)])));
       const r1 = stationPanels(cfg([mk('A', xs.map(() => 1), 'PREC'), mk('B', xs.map(() => null), 'PREC')], 'PREC', 'week'), true);
       log(/^\d/.test(r1.panels[0].head.extra) && r1.panels[1].head.extra === 'n.d.', 'revisione: senza dati nel periodo «n.d.», non 0 mm',
           JSON.stringify(r1.panels.map(p => p.head.extra)));
@@ -3549,11 +3567,106 @@
     finish();
   }
 
+  async function suiteAggiorna(){                     // aggiornamento automatico: mappa, scheda aperta, Cursore, pagina nascosta
+    window.__errs = [];
+    const P = allFeatures.map(f => f.properties).find(p => p._region === 'VEN' && (p.variables || []).includes('TEMP'));
+    log(!!P, 'stazione di prova trovata', '');
+    if(!P) return finish();
+    eq('ogni 2 minuti', LIVE_MS, 120000);
+    // file finti: una richiesta che finisce con una chiave di fake ha il suo testo, il resto va al server
+    const realFetch = window.fetch, realRender = renderMarkers, fake = {}, asked = [];
+    window.fetch = (u, o) => {
+      const s = String(u).split('?')[0];
+      asked.push(s);
+      const k = Object.keys(fake).find(k => s.endsWith('/' + k));
+      return k ? Promise.resolve(new Response(fake[k], { status:200 })) : realFetch(u, o);
+    };
+    let nRender = 0;
+    renderMarkers = function(){ nRender++; return realRender.apply(this, arguments); };
+    const geo = JSON.parse(await (await realFetch('VEN/stations.geojson')).text());
+    const feat = geo.features.find(f => f.properties.scode === P.scode);
+    const bump = () => {
+      const p = feat.properties;
+      p.latest.TEMP = Math.round((Number(p.latest.TEMP) + 1.3) * 10) / 10;
+      fake['VEN/stations.geojson'] = JSON.stringify(geo);
+      return p.latest.TEMP;
+    };
+    const addRow = csv => {                           // una lettura in piu', 10 minuti dopo l'ultima
+      const rows = csv.trimEnd().split('\n'), last = rows[rows.length - 1].split(',');
+      last[0] = new Date(Date.parse(last[0] + ':00Z') + 600000).toISOString().slice(0, 16);
+      return rows.concat(last.join(',')).join('\n') + '\n';
+    };
+
+    nRender = 0;
+    eq('mappa: file uguali, niente ridisegno', [await refreshStations(), nRender], [false, 0]);
+    map.setView([45.4, 11.9], 9); await sleep(300);
+    const c0 = map.getCenter(), z0 = map.getZoom(), n0 = allFeatures.length, t1 = bump();
+    nRender = 0;
+    const r1 = await refreshStations();
+    const P2 = allFeatures.find(f => f.properties._region === 'VEN' && f.properties.scode === P.scode).properties;
+    log(r1 === true && nRender >= 1, 'mappa: file cambiato, puntini ridisegnati', JSON.stringify([r1, nRender]));
+    log(P2 === P && Number(P.latest.TEMP) === t1, 'mappa: stessa stazione, valore nuovo',
+        JSON.stringify([P2 === P, P.latest.TEMP, t1]));
+    eq('mappa: stesse stazioni', allFeatures.length, n0);
+    log(map.getZoom() === z0 && map.getCenter().distanceTo(c0) < 1, 'mappa: la vista resta', '');
+    eq('mappa: di nuovo uguale, niente ridisegno', await refreshStations(), false);
+
+    await selectStation(P); await until(() => currentStation === P && !!chart, 8000);
+    if(currentVar !== 'TEMP'){ drawVar('TEMP'); await sleep(200); }
+    const f0 = chart._full(), SPAN = 6 * 3600, c1 = chart;
+    chart.setScale('x', { min:f0[1] - SPAN, max:f0[1] });
+    await liveStation();
+    log(chart === c1, 'scheda: serie uguale, grafico non ridisegnato', '');
+    fake['VEN/' + P.series] = addRow(P._csv);
+    await liveStation();
+    const f1 = chart && chart._full(), s1 = chart && chart.scales.x;
+    log(!!chart && chart !== c1, 'scheda: lettura nuova, grafico ridisegnato', '');
+    log(!!f1 && f1[1] > f0[1] && Math.abs(s1.max - f1[1]) < 1 && Math.abs(s1.max - s1.min - SPAN) < 1,
+        'scheda: stesso zoom, che segue l\'ultimo dato', JSON.stringify([f0, f1, s1 && [s1.min, s1.max]]));
+    fake['VEN/' + P.series] = addRow(fake['VEN/' + P.series]);
+    expOpen(); await sleep(50);
+    const c2 = chart;
+    await liveStation();
+    log(chart === c2, 'scheda: menu aperto, niente ridisegno', '');
+    expClose(); await sleep(50);
+    await liveStation();
+    log(!!chart && chart !== c2, 'scheda: menu chiuso, ridisegno', '');
+
+    showMapView(); await sleep(100);
+    setMapVar('TEMP'); await sleep(100);
+    await openSlider(); await until(() => snap.on && snap.T.length > 0, 8000);
+    setFrame(snapSource.max());
+    bump(); await refreshStations();
+    log(snap.on && tsK === snapSource.max(), 'Cursore: resta all\'ultimo fotogramma', JSON.stringify([tsK, snapSource.max()]));
+    setFrame(snapSource.max() - 5);
+    const tb = snap.T[tsK];
+    bump(); await refreshStations();
+    eq('Cursore: resta alla stessa ora', snap.T[tsK], tb);
+    closeSlider();
+
+    Object.defineProperty(document, 'hidden', { configurable:true, get:() => true });
+    asked.length = 0;
+    await liveTick();
+    eq('pagina nascosta: nessuna richiesta', asked.length, 0);
+    delete document.hidden;
+    _liveAt = 0;
+    document.dispatchEvent(new Event('visibilitychange'));
+    await until(() => asked.some(u => /stations\.geojson$/.test(u)), 5000);
+    log(asked.some(u => /status\.json$/.test(u)) && asked.some(u => /stations\.geojson$/.test(u)),
+        'tornando sulla pagina: ricontrollo subito', JSON.stringify(asked.slice(0, 3)));
+    await until(() => !_liveRun, 10000);
+
+    window.fetch = realFetch;
+    renderMarkers = realRender;
+    eq('errori JS', window.__errs, []);
+    finish();
+  }
+
   const suite = new URLSearchParams(location.search).get('suite') || 'radar';
   ready().then(() => ({ cursor:suiteCursor, radar:suiteRadar, hash:suiteHash, layout:suiteLayout, resilience:suiteResilience, prodotti:suiteProdotti,
             dock:suiteDock, buffer:suiteBuffer, oralegale:suiteOraLegale, search:suiteSearch, hover:suiteHover,
             hoverradar:suiteHoverRadar, stazione:suiteStazione, storico:suiteStorico, schede:suiteSchede,
             pulizia:suitePulizia, clima:suiteClima, rifinitura:suiteRifinitura, nuove:suiteNuove,
-            valori:suiteValori })[suite]())
+            valori:suiteValori, aggiorna:suiteAggiorna })[suite]())
          .catch(e => { log(false, 'eccezione', e && e.stack || e); finish(); });
 })();
