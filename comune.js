@@ -1,0 +1,406 @@
+// comune.js: quello che usano tutti i file (stato, variabili, nomi, fonti, ore, lettura dei dati) e l'avvio.
+// Va caricato prima di mappa.js e degli altri, che usano queste costanti.
+// DATA_BASE e HIST_BASE sono in index.html.
+
+// CDN di riserva: se un file non arriva dalla base dati (raw.githubusercontent puo' dare un 400 da
+// cache), riprova da jsDelivr (stesso repo, branch data; fino a ~12 h di ritardo).
+// Solo online: in locale (DATA_BASE '.') nessun fallback.
+const DATA_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@data';
+// Il carattere della pagina (IBM Plex Sans, da jsDelivr in index.html), anche nei grafici disegnati su canvas
+const FONT = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const cssFont = (px, weight) => (weight ? weight + ' ' : '') + px + 'px ' + FONT;
+async function fdata(path, opts){
+  try {
+    const r = await fetch(DATA_BASE + '/' + path, opts);
+    if (r.ok || !DATA_BASE.startsWith('http')) return r;
+  } catch(e){ if (!DATA_BASE.startsWith('http')) throw e; }
+  return fetch(DATA_FALLBACK + '/' + path, opts);
+}
+// Aggiornamento automatico: solo dalla base dati, ricontrollando la cache (risposta vuota se il file non e'
+// cambiato). Niente riserva: jsDelivr puo' avere dati di ore prima di quelli gia' sulla pagina.
+const freshData = path => fetch(DATA_BASE + '/' + path, { cache:'no-cache' });
+
+// ------------------------------------------------------------------------------------------------
+// STATO
+// ------------------------------------------------------------------------------------------------
+let map, chart = null;
+// currentVar = prima variabile del grafico (asse sinistro); extraVars = quelle aggiunte col "+"
+let unitsByRegion = {}, currentStation = null, currentVar = null, extraVars = [], currentUnits = {};
+let allFeatures = [], filterVar = '', selectedKey = '';
+// grafico principale: 'week' | 'day3' | 'day' | 'mn'; confronti: 'compare' | 'compare30' | 'tabs'
+let chartMode = 'week';
+
+// Ogni voce geografica del menu carica piu' cartelle-dati: meteo/idro, qualita' dell'aria (AQ_),
+// idrometria Protezione Civile (PC_)... Le stazioni hanno tutte lat/lon e stanno sulla stessa mappa.
+const REGION_GROUPS = {
+  VEN: ['VEN','AQ_VEN','MAR_VEN','ACQ_VEN'],
+  LOM: ['LOM','AQ_LOM'],
+  ER:  ['ER','AQ_ER','MAR_ER','INV_ER'],
+  TN:  ['TN','AQ_TN','PC_TN'],
+  BZ:  ['BZ','AQ_BZ'],
+  FVG: ['FVG','PC_FVG','MAR_FVG'],
+  PIE: ['PIE'],
+  LIG: ['LIG'],
+  PO:  ['PC_PO','PC_PIE'],        // bacino del Po: AIPO (valle) + ARPA Piemonte (monte)
+  LAGHI: ['LAGHI'],              // Maggiore, Como, Iseo, Idro, Garda
+};
+// "Tutte" senza PC_PIE: sono gli stessi idrometri gia' dentro PIE, niente doppioni.
+const REGIONS_ALL = Object.values(REGION_GROUPS).flat().filter(r => r !== 'PC_PIE');
+
+// Categoria di ogni variabile = le 3 pagine (misure dirette, derivate, indici).
+const WARROW = 'FRECCEVENTO';                     // pseudo-variabile (misure dirette): velocita' a frecce
+const WROSE = 'ROSAVENTO';                       // pseudo-variabile (derivate): apre la rosa dei venti
+const WCLIMA = 'CLIMATOLOGIA';                   // pseudo-variabile (indici): apre il climogramma
+const WBIL = 'BILANCIO';                          // pseudo-variabile (indici): pioggia ed ET0 dei 30 giorni
+const SNOWNEW = 'NEVEFRESCA';                     // derivata nella pagina dall'altezza della neve
+// viste che prendono il posto del grafico
+const isView = v => v === WROSE || v === WCLIMA || v === WBIL;
+const CAT_DERIVATE = new Set(['TDEW','TAPP','VPD','QSPEC','PSLM','UWND','VWND', WROSE, SNOWNEW]);
+const CAT_INDICI   = new Set(['EAQI','O3_8H','PREC1','PREC3','PREC6','PREC12','PREC24','PREC48',
+                              'GDD','HDD','CDD','ET0', WBIL, WCLIMA]);
+
+const RAIN_VARS = ['PREC1','PREC3','PREC6','PREC12','PREC24','PREC48'];
+const isRain = v => RAIN_VARS.indexOf(v) >= 0;
+// la pioggia (per intervallo e cumulate 1-48 h) e' sempre a barre verticali
+const isRainVar = v => v === 'PREC' || isRain(v);
+// la direzione del vento e' a puntini
+const DIR_VARS = new Set(['DVENTO', 'DVENTOMAX', 'DVENTO2', 'DVENTOMAX2', 'DVENTOVETT', 'DVENTOVETT2',
+                          'DVENTOMAX1S', 'ONDEDIR', 'CORRENTEDIR']);
+const isDirVar = v => DIR_VARS.has(v);
+function varCat(v){ return CAT_DERIVATE.has(v) ? 'derivate' : (CAT_INDICI.has(v) ? 'indici' : 'dirette'); }
+let currentPage = 'dirette';
+
+// Ordine naturale dei numeri nei nomi (1 h, 3 h, 12 h, 24 h e non 1, 12, 24, 3).
+const padNum = s => String(s).replace(/\d+/g, m => m.padStart(4, '0'));
+const natCode = (a, b) => {                                     // codici: ordine ASCII come l'export
+  const x = padNum(a), y = padNum(b);
+  return x < y ? -1 : (x > y ? 1 : 0);
+};
+const natLabel = (a, b) => padNum(a).localeCompare(padNum(b));
+
+// Misure di poche stazioni: profili di suolo e neve, vento a 2 m e vettoriale, acque dei fiumi
+const MORE_VARS = ['TEMP50', 'TEMP0', 'TSUOLO5', 'TSUOLO10', 'TSUOLO20', 'TSUOLO30', 'TSUOLO40', 'TSUOLO50',
+  'USUOLO5', 'USUOLO10', 'USUOLO20', 'USUOLO30', 'USUOLO40', 'USUOLO50', 'TNEVESUP', 'TNEVE0', 'TNEVE30',
+  'TNEVE60', 'TNEVE90', 'VVENTOVETT', 'DVENTOVETT', 'VVENTO2', 'VVENTOMAX2', 'DVENTO2', 'DVENTOMAX2',
+  'VVENTOVETT2', 'DVENTOVETT2', 'VVENTOMAX1S', 'DVENTOMAX1S', 'RADRIFL', 'PORTATASUP', 'PORTATAINF',
+  'VELACQUA', 'VELACQUASUP', 'VELACQUAINF', 'TORBIDITA', 'POTREDOX', 'ONDEMAX', 'ONDEPERIODO', 'ONDEPERIODOM',
+  'ONDEDIR', 'CORRENTE', 'CORRENTEDIR', 'PCO2'];
+// Scheda della stazione: i nomi vanno in ordine fisico (aria, vento, pressione, sole, acqua, aria respirata);
+// le misure secondarie, le derivate e gli indici stanno sotto "Altro".
+const VAR_ORDER = ['TEMP', 'UMID', 'PREC', 'LIVNEVE', WARROW, 'VVENTO', 'VVENTOMAX', 'DVENTO', 'PRESS',
+  'RADSOL', 'LIVIDRO', 'PORTATA', 'FREATICA', 'TEMPACQUA', 'SOLIDI', 'LIVLAGO', 'AFFLUSSO', 'DEFLUSSO',
+  'VOLINVASO', 'MAREA', 'ONDE', 'PM10', 'PM25', 'NO2', 'O3', 'SO2', 'CO', 'C6H6', 'GAMMA', 'SALINITA',
+  'OSSIGENO', 'OSSIGENO_SAT', 'PH', 'CLOROFILLA', 'CONDUCIBILITA',
+  'VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS', 'VISIB', ...MORE_VARS,
+  SNOWNEW, 'TDEW', 'TAPP', 'VPD', 'QSPEC', 'PSLM', 'UWND', 'VWND', WROSE,
+  'PREC1', 'PREC3', 'PREC6', 'PREC12', 'PREC24', 'PREC48', 'GDD', 'HDD', 'CDD', 'ET0', WBIL, 'EAQI', 'O3_8H',
+  WCLIMA];
+const SECONDARY = new Set(['VVENTOSCAL', 'DVENTOMAX', 'SOLEGG', 'BAGNATURA', 'PREC_TYPE', 'CLOUDINESS',
+                           'VISIB', ...MORE_VARS]);
+const varRank = v => {
+  const i = VAR_ORDER.indexOf(v), c = varCat(v);
+  return i >= 0 ? i : 500 + (c === 'derivate' ? 100 : c === 'indici' ? 200 : 0);
+};
+const byVarOrder = (a, b) => (varRank(a) - varRank(b)) || natCode(a, b);
+// nella riga principale: le misure dirette, tranne le secondarie; con il "Vento" a frecce anche velocita' e
+// direzione vanno sotto "Altro"
+const isMainVar = (v, all) => varCat(v) === 'dirette' && !SECONDARY.has(v)
+  && !((v === 'VVENTO' || v === 'DVENTO') && all.includes(WARROW));
+const VAR_SHORT = {
+  TEMP:'Temperatura', UMID:'Umidità', PREC:'Pioggia', PRESS:'Pressione', RADSOL:'Radiazione', LIVNEVE:'Neve',
+  VVENTO:'Velocità vento', VVENTOMAX:'Raffica', VVENTOSCAL:'Vento scalare', LIVIDRO:'Livello',
+  FREATICA:'Falda', TEMPACQUA:'Temperatura acqua', SOLEGG:'Soleggiamento', BAGNATURA:'Bagnatura',
+  CLOUDINESS:'Nuvolosità', [SNOWNEW]:'Neve fresca'
+};
+const varShort = v => VAR_SHORT[v] || varLabel(v);
+
+// Un colore per grandezza, uguale in ogni vista (temperatura rossa, pioggia blu...). Le coppie che si
+// guardano insieme (T e rugiada, pioggia e livello, vento e raffica) restano distinte anche per chi non
+// vede i colori.
+const INK = '#2f3b48';
+const VAR_COLORS = {
+  TEMP:'#e34948', TAPP:'#f08c00', TDEW:'#862e9c', TEMPACQUA:'#1098ad',
+  UMID:'#2bb39a', QSPEC:'#0b7285', VPD:'#e8590c',
+  PREC:'#1f6fd1', PREC1:'#1f6fd1', PREC3:'#1f6fd1', PREC6:'#1f6fd1', PREC12:'#1f6fd1', PREC24:'#1f6fd1',
+  PREC48:'#1f6fd1', PREC_TYPE:'#74c0fc', LIVNEVE:'#74c0fc', [SNOWNEW]:'#74c0fc',
+  [WARROW]:'#a23b9e', [WROSE]:'#a23b9e', [WCLIMA]:INK, [WBIL]:INK,
+  VVENTO:'#a23b9e', VVENTOSCAL:'#a23b9e', DVENTO:'#a23b9e',
+  VVENTOMAX:'#f08c00', DVENTOMAX:'#f08c00', UWND:'#a23b9e', VWND:'#5f3dc4',
+  PRESS:INK, PSLM:'#868e96', RADSOL:'#eda100', SOLEGG:'#f08c00', CLOUDINESS:'#868e96', VISIB:'#868e96',
+  BAGNATURA:'#2b8a3e',
+  LIVIDRO:INK, LIVLAGO:INK, FREATICA:INK, MAREA:INK, PORTATA:'#e8590c', AFFLUSSO:'#e8590c',
+  DEFLUSSO:'#0b7285', VOLINVASO:'#5f3dc4', SOLIDI:'#8a5a2b', ONDE:'#1f6fd1',
+  PM10:'#8a5a2b', PM25:'#e8590c', NO2:'#5f3dc4', O3:'#2bb39a', O3_8H:'#2bb39a', SO2:'#c2255c', CO:INK,
+  C6H6:'#2b8a3e', EAQI:INK, GAMMA:'#868e96',
+  SALINITA:'#0b7285', OSSIGENO:'#1f6fd1', OSSIGENO_SAT:'#74c0fc', PH:'#5f3dc4', CLOROFILLA:'#2b8a3e',
+  CONDUCIBILITA:'#e8590c', GDD:'#e8590c', HDD:'#1f6fd1', CDD:'#e34948', ET0:'#2bb39a',
+  // le barre del radar accanto al pluviometro: un colore diverso, se no sembrano la sua continuazione
+  RADAR:'#e8590c'
+};
+// le misure in piu' prendono il colore della grandezza sorella
+const SISTER_COLORS = [['TSUOLO', '#8a5a2b'], ['TEMP0', '#8a5a2b'], ['TEMP50', '#f08c00'],
+  ['USUOLO', '#0b7285'], ['TNEVE', '#74c0fc'], ['VVENTOMAX', '#f08c00'], ['DVENTOMAX', '#f08c00'],
+  ['VVENTO', '#a23b9e'], ['DVENTO', '#a23b9e'], ['RADRIFL', '#eda100'],
+  ['PORTATA', '#e8590c'], ['VELACQUA', '#1f6fd1'], ['TORBIDITA', '#8a5a2b'], ['POTREDOX', '#5f3dc4'],
+  ['ONDE', '#1f6fd1'], ['CORRENTE', '#0b7285'], ['PCO2', '#868e96']];
+MORE_VARS.forEach(v => { VAR_COLORS[v] = SISTER_COLORS.find(([p]) => v.startsWith(p))[1]; });
+// testo sugli assi: stessa tinta, piu' scura dove la linea su bianco si leggerebbe male
+const VAR_INK = { '#e34948':'#c4302d', '#2bb39a':'#17806f', '#eda100':'#946300', '#f08c00':'#b35c00',
+                  '#74c0fc':'#1971c2', '#868e96':'#5f6670', '#e8590c':'#c2410c', '#1098ad':'#0b7285' };
+// tema scuro: le tinte scure si schiariscono
+const VAR_DARK = { [INK]:'#dce6f2', '#1f6fd1':'#4d94ea', '#a23b9e':'#c86bc4', '#862e9c':'#b565c9',
+                   '#5f3dc4':'#9179f0', '#0b7285':'#22b8cf', '#8a5a2b':'#c08a55', '#2b8a3e':'#40c057',
+                   '#c2255c':'#e64980', '#868e96':'#adb5bd' };
+// text = per scritte (assi); onWhite = per le immagini PNG, sempre su bianco
+function varColor(v, text, onWhite){
+  const c = VAR_COLORS[v] || '#868e96';
+  if(!onWhite && document.body.classList.contains('dark')) return VAR_DARK[c] || c;
+  return text ? (VAR_INK[c] || c) : c;
+}
+
+// velo del colore della variabile, per il fondo della sua chip quando e' nel grafico
+function varTint(v){
+  const c = varColor(v), a = document.body.classList.contains('dark') ? 0.2 : 0.09;
+  return 'rgba(' + [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16)).join(',') + ',' + a + ')';
+}
+
+// scarica un file generato nella pagina (CSV, PNG sul computer)
+function saveBlob(blob, fname){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+// Livelli (fiumi, laghi, falda, marea) sempre al centimetro, anche le quote assolute (108.99 m s.m.m.).
+const CM_VARS = new Set(['LIVIDRO','LIVLAGO','FREATICA','MAREA']);
+// Una grafia per unita': le fonti scrivono la stessa in modi diversi
+const UNIT_NAMES = { 'mc/s':'m³/s', 'm3/s':'m³/s', 'm^3/s':'m³/s', 'mc':'m³', 'W/m2':'W/m²', 'W/mq':'W/m²',
+                     'KJ/m^2':'kJ/m²', 'gradi':'°', '°N':'°', 'gN':'°' };
+const normUnit = u => { const s = String(u == null ? '' : u).trim(); return UNIT_NAMES[s] || s; };
+function fmtNum(v, vr){
+  const a = Math.abs(v);
+  const d = CM_VARS.has(vr) ? 2 : (a >= 100 ? 0 : (a >= 1 ? 1 : 2));
+  return (+v).toFixed(d);
+}
+
+// nomi leggibili delle variabili (sigla comune -> nome esteso)
+const VAR_LABELS = {
+  TEMP:'Temperatura aria', PREC:'Precipitazione', UMID:'Umidità relativa',
+  PRESS:'Pressione atmosferica', RADSOL:'Radiazione solare', SOLEGG:'Durata soleggiamento',
+  VVENTO:'Velocità vento', VVENTOSCAL:'Velocità vento scalare', VVENTOMAX:'Velocità raffica',
+  DVENTO:'Direzione vento', DVENTOMAX:'Direzione raffica', LIVIDRO:'Livello idrometrico',
+  PORTATA:'Portata', FREATICA:'Altezza freatimetrica', TEMPACQUA:'Temperatura acqua',
+  SOLIDI:'Solidi sospesi', LIVNEVE:'Altezza neve', VISIB:'Visibilità',
+  BAGNATURA:'Bagnatura fogliare', PREC_TYPE:'Tipo precipitazione', CLOUDINESS:'Nuvolosità',
+  // qualita' dell'aria
+  PM10:'Polveri PM10', PM25:'Polveri PM2.5', NO2:'Biossido di azoto', O3:'Ozono',
+  SO2:'Biossido di zolfo', CO:'Monossido di carbonio', C6H6:'Benzene',
+  GAMMA:'Radioattività (dose gamma)',
+  // maree / meteo-marino
+  MAREA:'Livello marea', ONDE:'Altezza onde',
+  // qualita' acque marino-costiere
+  SALINITA:'Salinità', OSSIGENO:'Ossigeno disciolto', OSSIGENO_SAT:'Ossigeno (saturazione)',
+  PH:'pH', CLOROFILLA:'Clorofilla a', CONDUCIBILITA:'Conducibilità',
+  // laghi regolati
+  LIVLAGO:'Livello lago', AFFLUSSO:'Afflusso', DEFLUSSO:'Deflusso', VOLINVASO:'Volume invasato',
+  // grandezze DERIVATE (calcolate)
+  TDEW:'Punto di rugiada', TAPP:'Temperatura percepita', VPD:'Deficit press. vapore',
+  QSPEC:'Umidità specifica', PSLM:'Pressione al livello mare',
+  UWND:'Vento (comp. Est)', VWND:'Vento (comp. Nord)',
+  // INDICI
+  EAQI:'Indice qualità aria (EAQI)', O3_8H:'Ozono (media 8h)',
+  PREC1:'Pioggia 1 h', PREC3:'Pioggia 3 h', PREC6:'Pioggia 6 h', PREC12:'Pioggia 12 h',
+  PREC24:'Pioggia 24 h', PREC48:'Pioggia 48 h',
+  GDD:'Gradi-giorno crescita', HDD:'Gradi-giorno riscaldamento', CDD:'Gradi-giorno raffrescamento',
+  ET0:'Evapotraspirazione ET₀',
+  // pseudo-variabili
+  FRECCEVENTO:'Vento',
+  ROSAVENTO:'Rosa dei venti',
+  CLIMATOLOGIA:'Climatologia', BILANCIO:'Bilancio idrico',
+  NEVEFRESCA:'Neve fresca stimata dall\'altezza della neve',
+  // misure di poche stazioni (MORE_VARS); i profili di suolo e neve sono qui sotto
+  TEMP50:'Temperatura a 50 cm', TEMP0:'Temperatura al suolo', RADRIFL:'Radiazione riflessa',
+  TNEVESUP:'Temperatura superficie neve', VVENTOVETT:'Velocità vento vettoriale',
+  DVENTOVETT:'Direzione vento vettoriale', VVENTO2:'Velocità vento a 2 m', VVENTOMAX2:'Raffica a 2 m',
+  DVENTO2:'Direzione vento a 2 m', DVENTOMAX2:'Direzione raffica a 2 m', VVENTOVETT2:'Vento vettoriale a 2 m',
+  DVENTOVETT2:'Direzione vento vettoriale a 2 m', VVENTOMAX1S:'Raffica su 1 secondo',
+  DVENTOMAX1S:'Direzione raffica su 1 secondo', PORTATASUP:'Portata strato superiore',
+  PORTATAINF:'Portata strato inferiore', VELACQUA:'Velocità acqua',
+  VELACQUASUP:'Velocità acqua strato superiore', VELACQUAINF:'Velocità acqua strato inferiore',
+  TORBIDITA:'Torbidità', POTREDOX:'Potenziale redox', ONDEMAX:'Altezza onde massima',
+  ONDEPERIODO:'Periodo onde (picco)', ONDEPERIODOM:'Periodo onde (medio)', ONDEDIR:'Direzione onde',
+  CORRENTE:'Velocità corrente', CORRENTEDIR:'Direzione corrente', PCO2:'CO₂ nell\'acqua'
+};
+[5, 10, 20, 30, 40, 50].forEach(cm => {
+  VAR_LABELS['TSUOLO' + cm] = 'Temperatura suolo (' + cm + ' cm)';
+  VAR_LABELS['USUOLO' + cm] = 'Umidità suolo (' + cm + ' cm)';
+});
+[0, 30, 60, 90].forEach(cm => { VAR_LABELS['TNEVE' + cm] = 'Temperatura neve (' + cm + ' cm)'; });
+const varLabel = v => VAR_LABELS[v] || v;
+
+// Alcune fonti (Bolzano) scrivono i nomi TUTTI MAIUSCOLI: si porta a Title Case all'italiana, con
+// preposizioni e articoli minuscoli ("ADIGE A SALORNO" -> "Adige a Salorno").
+const NAME_SMALL = new Set(['a','ad','al','allo','alla','ai','agli','alle','da','dal','dalla','dai','dagli',
+  'dalle','di','del','dello','della','dei','degli','delle','in','nel','nello','nella','nei','negli','nelle',
+  'e','ed','con',
+  'su','sul','sulla','sui','sugli','sulle','per','il','lo','la','i','gli','le','tra','fra','presso']);
+function prettyName(name){
+  if(!name || name !== name.toUpperCase()) return name;
+  return name.toLowerCase().split(' ').map((w, i) => {
+    if(!w) return w;
+    if(i > 0 && NAME_SMALL.has(w)) return w;
+    return w.split('-').map(p => p ? p[0].toUpperCase() + p.slice(1) : p).join('-');
+  }).join(' ');
+}
+
+// Fonte del dato per regione: url = sito istituzionale (riga "Fonte:" del pannello stazione),
+// data = pagina o servizio dei dati (nomi cliccabili del pannello stato fonti).
+const SOURCES = {
+  VEN: { name:'ARPA Veneto',                         url:'https://www.arpa.veneto.it',
+         data:'https://www.arpa.veneto.it/dati-ambientali/dati-in-diretta' },
+  LOM: { name:'ARPA Lombardia',                      url:'https://www.arpalombardia.it',
+         data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-meteo/647i-nhxk' },
+  ER:  { name:'ARPAE Emilia-Romagna',                url:'https://allertameteo.regione.emilia-romagna.it',
+         data:'https://dati.arpae.it/dataset/' +
+              'dati-dalle-stazioni-meteo-locali-della-rete-idrometeorologica-regionale' },
+  TN:  { name:'Meteotrentino – Provincia di Trento', url:'https://www.meteotrentino.it',
+         data:'http://dati.meteotrentino.it/service.asmx' },
+  BZ:  { name:'Provincia Autonoma di Bolzano',       url:'https://weather.provinz.bz.it',
+         data:'https://dati.retecivica.bz.it/services/meteo/v1/stations' },
+  FVG: { name:'OSMER – ARPA FVG',                    url:'https://www.meteo.fvg.it',
+         data:'https://www.osmer.fvg.it/archivio.php?ln=&p=dati' },
+  // qualita' dell'aria
+  AQ_VEN: { name:'ARPA Veneto – Qualità dell\'aria',
+            url:'https://www.arpa.veneto.it/temi-ambientali/aria',
+            data:'https://www2.arpa.veneto.it/aria-json/exported/aria/data.json' },
+  AQ_LOM: { name:'ARPA Lombardia – Qualità dell\'aria',   url:'https://www.dati.lombardia.it',
+            data:'https://www.dati.lombardia.it/Ambiente/Dati-sensori-aria/nicp-bhqi' },
+  AQ_ER:  { name:'ARPAE Emilia-Romagna – Qualità dell\'aria', url:'https://dati.arpae.it',
+            data:'https://dati.arpae.it/dataset/qualita-dell-aria-rete-di-monitoraggio' },
+  AQ_TN:  { name:'APPA Trento – Qualità dell\'aria',      url:'https://bollettino.appa.tn.it/aria',
+            data:'https://bollettino.appa.tn.it/aria/opendata/json/last/' },
+  AQ_BZ:  { name:'APPA Bolzano – Qualità dell\'aria',     url:'https://appa.provincia.bz.it',
+            data:'https://dati.retecivica.bz.it/services/airquality/stations' },
+  AQ_FVG: { name:'ARPA FVG – Qualità dell\'aria',         url:'https://www.dati.friuliveneziagiulia.it' },
+  // idrometria Protezione Civile
+  PC_FVG: { name:'Protezione Civile FVG',                url:'https://monitor.protezionecivile.fvg.it' },
+  PC_TN:  { name:'Ufficio Dighe – Provincia di Trento',  url:'https://www.floods.it' },
+  // maree e bacino del Po
+  MAR_VEN:{ name:'CPSM – Comune di Venezia (maree)',
+            url:'https://www.comune.venezia.it/it/content/le-previsioni',
+            data:'https://www.comune.venezia.it/it/content/centro-previsioni-e-segnalazioni-maree' },
+  MAR_ER: { name:'ARPAE Emilia-Romagna – Meteo-marino',
+            url:'https://allertameteo.regione.emilia-romagna.it' },
+  MAR_FVG:{ name:'OGS Trieste – Meteo-marino (Golfo di Trieste)', url:'https://www.ogs.it',
+            data:'https://nodc.ogs.it/erddap/index.html' },
+  ACQ_VEN:{ name:'ARPA Veneto – Acque marino-costiere',
+            url:'https://www.arpa.veneto.it/temi-ambientali/acqua',
+            data:'https://api.arpa.veneto.it/REST/v1' },
+  PC_PO:  { name:'AIPO – Agenzia Interregionale per il fiume Po', url:'https://www.agenziapo.it',
+            data:'https://idrometri.agenziapo.it' },
+  PC_PIE: { name:'ARPA Piemonte – Rete Meteoidrografica (bacino Po)', url:'https://www.arpa.piemonte.it',
+            data:'https://utility.arpa.piemonte.it/meteoidro/' },
+  PIE:    { name:'ARPA Piemonte – Rete Meteoidrografica',          url:'https://www.arpa.piemonte.it',
+            data:'https://utility.arpa.piemonte.it/api_realtime/docs' },
+  LIG:    { name:'ARPAL – OMIRL (Liguria)',                           url:'https://omirl.regione.liguria.it',
+            data:'https://omirl.regione.liguria.it/Omirl/rest/stations/Termo' },
+  INV_ER: { name:'Romagna Acque – Invasi (Ridracoli e Conca)',        url:'https://www.romagnacque.it',
+            data:'https://www.romagnacque.it/acqua-in-diretta/diga-di-ridracoli/' },
+  LAGHI:  { name:'laghi.net – Enti Regolatori dei Grandi Laghi',      url:'https://www.laghi.net' },
+};
+
+const el = id => document.getElementById(id);
+const setStatus = m => { el('status').textContent = m || ''; };
+
+const PHONE = matchMedia('(max-width:720px)');
+
+const _DIR16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+const _dirName = deg => _DIR16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+// Sigla + freccia piccola. La sigla e' la PROVENIENZA (NNE = da nord-nord-est); la freccia (↓ ruotata
+// dei gradi misurati) va dove VA il vento: da N punta in giu', da E a sinistra.
+// Unico punto che scrive una direzione del vento in HTML.
+function windDirHtml(deg){
+  const d = ((+deg % 360) + 360) % 360, n = _dirName(d), t = 'vento da ' + n;
+  const rot = `transform:rotate(${Math.round(d * 10) / 10}deg)`;
+  return `<span class="wdir" role="img" aria-label="${t}" title="${t}">${n}` +
+         `<i class="wd-ar" aria-hidden="true" style="${rot}">↓</i></span>`;
+}
+
+const escHtml = t => String(t).replace(/[&<>"]/g,
+  c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+
+// Orari 24 h. Il CSV ha l'ORA LOCALE ITALIANA come testo senza fuso; parseCSV la porta all'istante
+// vero (epoch UTC), cosi' l'asse resta crescente anche quando l'ora 02:00-02:59 dell'ultima domenica
+// di ottobre si ripete. Per mostrarla civT riporta l'istante all'ora civile "come UTC" e i
+// formattatori leggono le cifre con getUTC*: 24 h esatte a prescindere dal fuso del browser.
+const pad = n => String(n).padStart(2,'0');
+// ora legale europea: dall'ultima domenica di marzo all'ultima di ottobre, alle 01:00 UTC
+const _lastSun1 = (y, m) => {
+  const d = new Date(Date.UTC(y, m + 1, 0, 1));
+  return d.getTime() / 1000 - d.getUTCDay() * 86400;
+};
+const romeOffset = ts => {
+  const y = new Date(ts * 1000).getUTCFullYear();
+  return ts >= _lastSun1(y, 2) && ts < _lastSun1(y, 9) ? 7200 : 3600;
+};
+const civT = ts => ts + romeOffset(ts);
+// Ora civile "come UTC" -> istante vero. Nell'ora che si ripete vale la prima volta (CEST) se viene
+// dopo prev, altrimenti la seconda.
+function civToUtc(c, prev){
+  const a = c - 7200, b = c - 3600, okA = romeOffset(a) === 7200, okB = romeOffset(b) === 3600;
+  return okA && (!okB || prev == null || a > prev) ? a : b;
+}
+
+let _toastT = null;
+function toast(msg, ms){
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('show'), ms || 3500);
+}
+
+// ------------------------------------------------------------------------------------------------
+// CSV -> colonne + asse x (epoch UTC in secondi, l'istante vero)
+// ------------------------------------------------------------------------------------------------
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(',');
+  const cols = {}; header.slice(1).forEach(h => cols[h] = []);
+  const x = [];
+  let prev = null;
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i]) continue;
+    const cells = lines[i].split(',');
+    const t = civToUtc(Date.parse(cells[0] + 'Z') / 1000, prev);
+    x.push(t);
+    if(!isNaN(t)) prev = t;
+    for(let j=1;j<header.length;j++){
+      const raw = cells[j], nv = (raw === '' || raw === undefined) ? NaN : Number(raw);
+      cols[header[j]].push(isNaN(nv) ? null : nv);       // testo non numerico (es. '>>'): buco, non NaN
+    }
+  }
+  return { header, cols, x };
+}
+
+// ora civile "AAAA-MM-GGTHH:MM" -> secondi civili "come UTC" (null se manca o non si legge)
+function civSec(s){
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(s || '');
+  return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) / 1000 : null;
+}
+
+// ------------------------------------------------------------------------------------------------
+// AVVIO
+// ------------------------------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  buildChartControls();
+  initMap();
+  buildStationControls();
+  buildSearchControls();
+  buildHistControls();
+  buildStatusControls();
+  loadRegions(REGIONS_ALL).then(() => applyHash());
+});
