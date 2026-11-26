@@ -435,8 +435,9 @@ body.hist-mode .hv-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6
 body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,.36); }
 #hvChart { width:100%; min-height:120px; }
 body.hist-mode #hvChart { flex:1 1 0; min-height:240px; }
-/* telefono: il grafico ha un'altezza sua (46% dello schermo), il riquadro segue anni e grafico */
-@media (max-width:720px){ body.hist-mode #hvChart { flex:none; } }
+/* telefono: il grafico ha un'altezza sua (46% dello schermo), i riquadri seguono anni e grafico e la scheda
+   scorre */
+@media (max-width:720px){ body.hist-mode #hvChart, body.hist-mode #histview { flex:none; } }
 /* grafici: nomi degli anni in fondo alle linee, riquadro al passaggio */
 .hv-tip .sw { display:inline-block; width:12px; height:8px; margin-right:5px; border-radius:2px;
               vertical-align:-1px; }
