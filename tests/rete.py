@@ -55,7 +55,7 @@ BACKUP_LOG = 'logs/backup-20261105-044000.log'
 # una lettura in più (file, stazione, minuti dopo la sua ultima): LAGHI dentro la finestra dell'export; MAR_FVG
 # TEMP di oggi per lo Storico, che non legge i laghi
 NEW_DATA = ('LAGHI/data-parsed/LIVLAGO/LIVLAGO-20261104.json', 'Lago_d_Idro', 10)
-NEW_HISTORY_DATA = ('MAR_FVG/data-parsed/TEMP/TEMP-20261105.json', 'MAMBO1', 60)
+NEW_HISTORY_DATA = ('MAR_FVG/data-parsed/TEMP/TEMP-20261122.json', 'MAMBO1', 60)
 # JSON valido di forma sbagliata (una lista) in una cartella di site/ che l'export non riscrive: status.py si ferma
 BAD_STATIONS = ('site/PROVA/stations.geojson', b'[]')
 # le righe dei due bash di pubblicazione e gli errori di git; quelle dei programmi Python le coprono le impronte, e
