@@ -15,7 +15,9 @@ comune.py            attrezzi in comune dei downloader (scarico, percorsi, archi
 quality.py           scarta in lettura i valori impossibili e le sentinelle (-999...); lo usano tutti i lettori
 export_web.py        dall'archivio ai file del sito (ultimi 7 o 30 giorni, geojson, unita', fotogrammi per il cursore)
 derive.py            grandezze derivate e indici, calcolati al volo (mai archiviati)
-history.py           aggregati giornalieri di pioggia e temperatura di tutto l'archivio (Storico e Climatologia)
+history.py           aggregati giornalieri di pioggia, temperatura, livelli e portate di tutto l'archivio (Storico e
+                     Climatologia); per il Veneto anche i giornalieri ARPAV dal 2010
+arpav_storico.py     copia dei giornalieri ARPAV del Veneto dal 2010 in arpav_storico/ (si lancia a mano)
 recover.py           riempie i buchi (dopo un blackout) scaricando lo storico dalle fonti
 check_updates.py     segnala stazioni nuove e variabili non mappate
 status.py            stato del sito (site/STATUS/status.json): banner "dati fermi" e avvisi
