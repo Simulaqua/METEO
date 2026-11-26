@@ -367,7 +367,7 @@ async function freshTable(p){
   if(p._table && csv === p._csv) return false;
   p._table = parseCSV(csv);
   p._csv = csv;
-  p._table30 = null;                               // il bilancio e i 30 giorni si riprendono freschi
+  p._table30Old = true;                            // il bilancio e i 30 giorni si riprendono freschi
   return true;
 }
 async function ensureTabTables(){
@@ -448,46 +448,59 @@ async function refreshStation(){
 }
 
 // AGGIORNAMENTO AUTOMATICO della scheda (lo chiama stato.js): le serie mostrate si ricontrollano e il grafico
-// si ridisegna solo se una e' cambiata, con lo stesso zoom. Non mentre lo si usa (puntatore sopra, un tocco
-// da poco, un menu o la «i» aperti): si riprova fra 15 secondi. Storico e Climatologia: i dati del giorno.
+// si ridisegna solo se una e' cambiata, con lo stesso zoom e la scheda allo stesso punto. Non mentre lo si
+// usa (mouse sopra, un tocco da poco, un menu o la «i» aperti): si riprova fra 15 secondi. Se intanto si
+// cambia vista, il ridisegno aspetta il giro dopo. Storico e Climatologia: i dati del giorno.
 let _liveRetry = null, _liveDirty = false, _touchAt = 0;
+// sul telefono il «passaggio» resta dopo un tocco: conta solo dove c'e' un mouse
 function chartInUse(){
-  return (lastPointer === 'mouse' && el('chartwrap').matches(':hover')) || Date.now() - _touchAt < 15000
+  return (matchMedia('(hover: hover)').matches && el('chartwrap').matches(':hover'))
+    || Date.now() - _touchAt < 15000
     || ['altMenu', 'cmpMenu', 'expMenu', 'stCard'].some(id => !el(id).hidden);
 }
+const liveView = () => [currentStation, chartMode, currentVar, histMode, compareVar,
+  document.body.classList.contains('view-station'), document.body.classList.contains('view-compare')];
+const sameView = v => liveView().every((x, i) => x === v[i]);
 function shownStations(cmp){
   if(cmp) return openTabs.map(t => t.props);
   const near = chartMode === 'near' && ((stackObj && stackObj.near) || (chart && chart._near));
   return near ? near.map(o => o.props) : [currentStation];
 }
-// barre del radar accese: i punti di nuovo, true se sono cambiati
+// barre del radar accese: i punti di nuovo, true se sono cambiati; senza risposta restano quelli di prima
 async function freshRadar(p){
-  const all = await Radar.points(p._region, true), v = all && all.s && all.s[p.scode];
-  const r = v && v.some(x => x != null) ? { t:all.t, v } : null;
+  const all = await Radar.points(p._region, true);
+  if(!all || !all.s) return false;
+  const v = all.s[p.scode], r = v && v.some(x => x != null) ? { t:all.t, v } : null;
   if(JSON.stringify(r) === JSON.stringify(p._radar || null)) return false;
   p._radar = r;
   return true;
 }
 async function liveStation(){
   clearTimeout(_liveRetry);
-  const isCmp = () => document.body.classList.contains('view-compare'), cmp = isCmp(), st = currentStation;
+  const v0 = liveView(), st = currentStation, cmp = document.body.classList.contains('view-compare');
   const shown = document.body.classList.contains('view-station');
-  if(!shown || histMode || (!cmp && (!st || currentVar === WCLIMA))) return;
+  if(document.hidden || !shown || histMode || (!cmp && (!st || currentVar === WCLIMA))) return;
   const later = () => { _liveRetry = setTimeout(liveStation, 15000); };
   if(chartInUse()) return later();
-  const mode = chartMode, list = shownStations(cmp);
-  if((await Promise.all(list.map(p => freshTable(p).catch(() => false)))).some(Boolean)) _liveDirty = true;
+  if((await Promise.all(shownStations(cmp).map(p => freshTable(p).catch(() => false)))).some(Boolean))
+    _liveDirty = true;
   if(!cmp && showRadar && radarFits() && await freshRadar(st).catch(() => false)) _liveDirty = true;
-  if(!_liveDirty || currentStation !== st || chartMode !== mode || isCmp() !== cmp) return;
+  if(!_liveDirty || !sameView(v0)) return;
   if(chartInUse()) return later();
-  _liveDirty = false;
-  const z = zoomState();
-  if(cmp){ if(compareVar) renderCompareTabs(compareVar); }
-  else {
-    if(chartMode === 'compare30') await ensureTable30();
-    await redrawStation();
-  }
-  restoreZoom(z);
+  // la scheda non si accorcia mentre il grafico si rifa': sul telefono resterebbe in cima
+  const z = zoomState(), pn = el('panel'), top = pn.scrollTop, box = el('chart');
+  box.style.minHeight = box.offsetHeight + 'px';
+  try {
+    if(cmp){ if(compareVar) renderCompareTabs(compareVar); }
+    else {
+      if(chartMode === 'compare30') await ensureTable30();
+      if(sameView(v0)) await redrawStation();
+    }
+    if(!sameView(v0)) return;
+    restoreZoom(z);
+    _liveDirty = false;
+  } finally { box.style.minHeight = ''; }
+  pn.scrollTop = top;
 }
 
 // "Impilate": una fascia per variabile scelta. Resta una preferenza: con una variabile sola il grafico e'
@@ -672,16 +685,22 @@ function closeTab(key){
 async function ensureTable30(){
   const st = currentStation;
   if(!st) return false;
-  if(st._table30) return true;
-  setStatus('Carico gli ultimi 30 giorni…');
+  if(st._table30 && !st._table30Old) return true;
+  // dopo dati nuovi (_table30Old) si ricontrolla sul server; se la nuova non arriva resta quella di prima
+  const path = `${st._region}/series30/${st.scode}.csv`, old = st._table30;
+  if(!old) setStatus('Carico gli ultimi 30 giorni…');
   try {
-    const csv = await (await fdata(`${st._region}/series30/${st.scode}.csv`, {cache:'no-store'})).text();
-    st._table30 = parseCSV(csv);
+    const r = await (old ? freshData(path) : fdata(path, {cache:'no-store'}));
+    if(!r.ok) throw new Error('serie30 ' + r.status);
+    st._table30 = parseCSV(await r.text());
+    st._table30Old = false;
     if(currentStation !== st) return false;
-    setStatus('');
+    if(!old) setStatus('');
     return true;
   } catch(e){
-    if(currentStation === st) setStatus('Serie a 30 giorni non ancora disponibile.');
+    if(currentStation !== st) return false;
+    if(old) return true;
+    setStatus('Serie a 30 giorni non ancora disponibile.');
     return false;
   }
 }

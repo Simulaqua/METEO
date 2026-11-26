@@ -997,8 +997,10 @@ function dailyTop(u, daily){
   }));
   return top;
 }
-// dopo uno zoom la scala e' stata calcolata col vecchio intervallo: si ricontrolla
+// dopo uno zoom la scala e' stata calcolata col vecchio intervallo: si ricontrolla, a zoom applicato (uPlot
+// non accetta un cambio di scala chiesto mentre ne applica un altro)
 function fitDailyCum(u, daily){
+  if(!u.root.isConnected) return;
   const sc = u.scales.cum, top = dailyTop(u, daily);
   if(sc.min == null || top <= sc.max - sc.min) return;
   const r = cumY(() => top).range(u, sc.min, sc.max);
@@ -1064,7 +1066,7 @@ function addDailyHooks(hooks, daily, color, hi){
   const add = (k, f) => { hooks[k] = (hooks[k] || []).concat(f); };
   add('draw', drawDaily(daily, color, hi));
   add('ready', u => fitDailyCum(u, daily));
-  add('setScale', (u, key) => { if(key === 'x') fitDailyCum(u, daily); });
+  add('setScale', (u, key) => { if(key === 'x') queueMicrotask(() => fitDailyCum(u, daily)); });
   return hooks;
 }
 function niceStep(x){
@@ -1174,13 +1176,16 @@ function addZoomUI(u, full, minSpan, withBtn){
 // Zoom del grafico mostrato (o delle fasce), da rimettere dopo un ridisegno coi dati nuovi: null senza zoom.
 // Se arrivava all'ultimo dato, dopo il ridisegno segue i dati nuovi con la stessa ampiezza.
 const shownPlot = () => chart || (stackObj && stackObj.panels[0] && stackObj.panels[0].u) || null;
+// l'intero periodo: quello del pulsante «Tutto» o, nei grafici senza (bilancio), quello dei dati
+const plotFull = u => u._full ? u._full()
+  : (u.data && u.data[0].length ? [u.data[0][0], u.data[0][u.data[0].length - 1]] : null);
 function zoomState(){
-  const u = shownPlot(), f = u && u._full && u._full(), s = u && u.scales.x;
+  const u = shownPlot(), f = u && plotFull(u), s = u && u.scales.x;
   if(!f || s.min == null || !(s.min > f[0] + 1 || s.max < f[1] - 1)) return null;
   return { min:s.min, max:s.max, end:s.max >= f[1] - 1 };
 }
 function restoreZoom(z){
-  const u = z && shownPlot(), f = u && u._full && u._full();
+  const u = z && shownPlot(), f = u && plotFull(u);
   if(!f) return;
   const mx = z.end ? f[1] : Math.min(z.max, f[1]), mn = Math.max(f[0], mx - (z.max - z.min));
   if(mx > mn) u.setScale('x', { min:mn, max:mx });
@@ -1736,9 +1741,11 @@ function stackPanelOpts(p, o){
     ca.size = rg;
     ca.unit = '';                             // il nome e l'unita' sono nella testata della fascia
     axes.push(ca);
-    scales.cum = cumY(p.cumSpan || (p.daily && (u => dailyTop(u, p.daily))));
-    if(p.cumSpan)
-      h.setScale = (h.setScale || []).concat((u, key) => { if(key === 'x') fitCumSpan(u, p.cumSpan); });
+    const span = p.cumSpan && (u => p.cumSpan(u, o.win));
+    scales.cum = cumY(span || (p.daily && (u => dailyTop(u, p.daily))));
+    if(span) h.setScale = (h.setScale || []).concat((u, key) => {
+      if(key === 'x') queueMicrotask(() => fitCumSpan(u, span));
+    });
   }
   return {
     width:o.w, height:o.h, tzDate:TZ_CIV, legend:{ show:false },
@@ -1828,7 +1835,9 @@ function stationPanels(cfg, hourly){
   const ymax = top > 0 ? Math.max(1, uPlot.rangeNum(0, top, 0.1, true)[1]) : 1;
   panels.forEach(p => {
     p.ymax = ymax;
-    if(p.cum) p.cumSpan = u => cumRise(panels, u.scales.x);
+    // finche' il grafico non ha la sua scala (il PNG) vale la finestra disegnata
+    if(p.cum) p.cumSpan = (u, win) =>
+      cumRise(panels, u.scales.x.min != null ? u.scales.x : { min:win[0], max:win[1] });
   });
   return { panels, win, rgut: sum ? STACK_RGUT : 0 };
 }
@@ -1849,8 +1858,9 @@ function cumRise(panels, sx){
   });
   return top;
 }
-// uPlot calcola l'asse destro con l'intervallo di prima dello zoom: si rifa' con quello nuovo
+// uPlot calcola l'asse destro con l'intervallo di prima dello zoom: si rifa' con quello nuovo, a zoom fatto
 function fitCumSpan(u, span){
+  if(!u.root.isConnected) return;
   const xs = u.data[0], cs = u.data[2], sx = u.scales.x, sc = u.scales.cum;
   let a = null;
   for(let i = 0; i < xs.length && a == null; i++)

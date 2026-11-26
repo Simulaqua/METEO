@@ -408,11 +408,15 @@ async function refreshStations(){
     _geoText[g[0]] = g[2];
     mergeRegion(g[0], g[1]);
   });
-  for(const k in _cardSnap) delete _cardSnap[k];
-  const msg = el('status').textContent;
+  for(const k in _cardSnap) _cardSnap[k] = null;
   refreshFilters();
-  if(!(await snapRefresh())) renderMarkers();
+  await snapRefresh();
+  // il ridisegno toglie la scheda al passaggio e il messaggio: restano quelli di adesso
+  const card = cardP, msg = el('status').textContent;
+  renderMarkers();
   if(msg) setStatus(msg);
+  const r = card && markerRefs.find(x => x.p === card);
+  if(r) showCard(r.p, r.m);
   if(currentStation) showNow();
   return true;
 }
@@ -440,20 +444,16 @@ function mergeRegion(region, geo){
   });
   allFeatures = put ? out : out.concat(fresh);
 }
-// Cursore aperto: i fotogrammi nuovi allo stesso istante (all'ultimo, se si era all'ultimo); col radar i
-// puntini seguono il suo fotogramma. Non mentre scorrono i fotogrammi delle stazioni. true = ridisegnata
+// Cursore aperto: i fotogrammi nuovi all'istante scelto (all'ultimo, se si era all'ultimo), anche se intanto
+// lo si e' spostato; col radar i puntini seguono il suo fotogramma. Non mentre scorrono i fotogrammi delle
+// stazioni.
 async function snapRefresh(){
-  if(!snap.on || !snap.var || (snap.playing && tsSrc === snapSource)) return false;
-  const v = snap.var, own = tsSrc === snapSource;
-  const t = own ? snap.T[tsK] : null, end = own && tsK >= snapSource.max();
-  if(!(await snapLoad(v)) || !snap.on || snap.var !== v) return false;
-  if(tsSrc === Radar.source){ if(!snap.playing) setFrame(Radar.index); }
-  else {
-    const k = snap.T.indexOf(t);
-    setFrame(end || k < 0 ? snapSource.max() : k);
-  }
-  renderMarkers();
-  return true;
+  if(!snap.on || !snap.var || (snap.playing && tsSrc === snapSource)) return;
+  const v = snap.var, T0 = snap.T, max0 = snap.kmax;
+  if(!(await snapLoad(v, true)) || !snap.on || snap.var !== v || snap.playing) return;
+  if(tsSrc === Radar.source){ setFrame(Radar.index); return; }
+  const k = snap.T.indexOf(T0[tsK]);
+  setFrame(tsK >= max0 || k < 0 ? snapSource.max() : k);
 }
 
 let _needFit = true;              // fitBounds SOLO dopo un (ri)caricamento dati, mai sullo zoom
@@ -741,14 +741,16 @@ function snapVal(p){
 const snapCapable = v => !!v && SNAP_VARS.has(v) && canColormap(v) &&
                          (!ALTITUDE_BOUND.has(v) || el('region').value !== 'ALL');
 
-// Carica i fotogrammi di v per le regioni sulla mappa: true = caricati, false = nessun dato, null = superata
-async function snapLoad(v){
+// Carica i fotogrammi di v per le regioni sulla mappa: true = caricati, false = nessun dato, null = superata.
+// fresh = ricontrollati sul server (aggiornamento automatico)
+async function snapLoad(v, fresh){
   const token = ++snap.token;
   const regs = [...new Set(allFeatures.filter(f => (f.properties.variables || []).includes(v))
                                       .map(f => f.properties._region))];
   const got = await Promise.all(regs.map(async r => {
     try {
-      const x = await fdata(r + '/snap/' + (SNAP_FILE[v] || v) + '.json');
+      const path = r + '/snap/' + (SNAP_FILE[v] || v) + '.json';
+      const x = await (fresh ? freshData(path) : fdata(path));
       if(!x.ok) return null;
       const d = await x.json();
       const agg = MAP_RUNNING[v];
@@ -1294,12 +1296,13 @@ function cardModel(p){
            time, main, delta, keys: keys || keyValues(p, main && main.v) };
 }
 // Andamento delle ultime 24 h dai file orari del Cursore (<REG>/snap/<VAR>.json): scaricati alla prima
-// scheda, poi restano in memoria
+// scheda, poi restano in memoria; dopo dati nuovi (voce a null) si ricontrollano sul server
 const _cardSnap = {};
 function snapFile(reg, v){
-  const k = reg + '/' + v;
-  if(!(k in _cardSnap))
-    _cardSnap[k] = fdata(reg + '/snap/' + v + '.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  const k = reg + '/' + v, path = reg + '/snap/' + v + '.json';
+  if(!_cardSnap[k])
+    _cardSnap[k] = (k in _cardSnap ? freshData(path) : fdata(path))
+      .then(r => r.ok ? r.json() : null).catch(() => null);
   return _cardSnap[k];
 }
 // 25 ore della stazione: le ultime, nell'unita' del file; col fotogramma (frame) quelle che finiscono all'ora

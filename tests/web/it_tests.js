@@ -2786,11 +2786,15 @@
       log(spans().length >= 2 && spans().every(s => s === spans()[0]), 'Vicine pioggia: la cumulata con la stessa scala',
           JSON.stringify(spans()));
       if(ps[0]){
-        const w = stackObj.win;
+        const w = stackObj.win, full = spans()[0], fit = () => {   // la salita piu' alta nel tratto visibile
+          const r = cumY(() => cumRise(ps, ps[0].u.scales.x)).range(ps[0].u, 0, 0);
+          return Math.round(r[1] * 100);
+        };
         ps[0].u.setScale('x', { min:w[1] - 24 * 3600, max:w[1] }); await sleep(100);
-        log(spans().every(s => s === spans()[0]) && ps.every(p => p.u.scales.x.min === w[1] - 24 * 3600),
-            'Vicine pioggia: la stessa scala anche con lo zoom', JSON.stringify(spans()));
+        log(spans().every(s => s === fit()) && ps.every(p => p.u.scales.x.min === w[1] - 24 * 3600),
+            'Vicine pioggia: con lo zoom la stessa scala, sulla salita visibile', JSON.stringify([spans(), fit()]));
         ps[0].u.setScale('x', { min:w[0], max:w[1] }); await sleep(100);
+        log(spans().every(s => s === full), 'Vicine pioggia: «Tutto» torna alla scala di prima', JSON.stringify([spans(), full]));
       }
       log(!vis(el('chartlegend')), 'Vicine pioggia: i nomi solo sopra le fasce', '');
       const X = ps[0] ? Math.round(ps[0].u.over.clientWidth * 0.6) : 0;
@@ -2826,6 +2830,9 @@
       eq('cumulata: niente con le finestre mobili', [r24.panels.map(p => p.cum), r24.rgut], [[false, false], 0]);
       const rc = stationPanels(cfg([mk('A', xs.map(() => 1), 'PREC'), mk('B', xs.map(() => 3), 'PREC')], 'PREC', 'week'), true);
       eq('cumulata: in ogni fascia, spazio a destra per l\'asse', [rc.panels.map(p => p.cum), rc.rgut], [[true, true], STACK_RGUT]);
+      const half = [rc.win[0], rc.win[0] + (rc.win[1] - rc.win[0]) / 2];
+      const sp = rc.panels[0].cumSpan({ scales:{ x:{ min:null, max:null } } }, half);
+      log(sp > 0 && sp < 30, 'cumulata: nel PNG la salita del tratto mostrato', JSON.stringify(sp));
       const tot = p => Math.round(p.rs.y.reduce((a, y) => a + (y || 0), 0) * 100) / 100;
       log(rc.panels.every(p => tot(p) > 0 && p.data[2].filter(y => y != null).pop() === tot(p)),
           'cumulata: arriva al totale della fascia', JSON.stringify(rc.panels.map(p => [p.data[2].filter(y => y != null).pop(), tot(p)])));
@@ -3573,14 +3580,18 @@
     log(!!P, 'stazione di prova trovata', '');
     if(!P) return finish();
     eq('ogni 2 minuti', LIVE_MS, 120000);
-    // file finti: una richiesta che finisce con una chiave di fake ha il suo testo, il resto va al server
+    // file finti: una richiesta che finisce con una chiave di fake ha il suo testo (o la risposta della sua funzione,
+    // anche in ritardo), il resto va al server; asked = richieste fatte, con la loro cache
     const realFetch = window.fetch, realRender = renderMarkers, fake = {}, asked = [];
     window.fetch = (u, o) => {
       const s = String(u).split('?')[0];
-      asked.push(s);
+      asked.push({ u:s, c:o && o.cache });
       const k = Object.keys(fake).find(k => s.endsWith('/' + k));
-      return k ? Promise.resolve(new Response(fake[k], { status:200 })) : realFetch(u, o);
+      if(!k) return realFetch(u, o);
+      return Promise.resolve(typeof fake[k] === 'function' ? fake[k]() : new Response(fake[k], { status:200 }));
     };
+    const later = (ms, path) => async () => { await sleep(ms); return realFetch(path); };
+    const askedFor = re => asked.some(a => re.test(a.u));
     let nRender = 0;
     renderMarkers = function(){ nRender++; return realRender.apply(this, arguments); };
     const geo = JSON.parse(await (await realFetch('VEN/stations.geojson')).text());
@@ -3596,11 +3607,19 @@
       last[0] = new Date(Date.parse(last[0] + ':00Z') + 600000).toISOString().slice(0, 16);
       return rows.concat(last.join(',')).join('\n') + '\n';
     };
+    const newer = p => {
+      const k = p._region + '/' + p.series;
+      fake[k] = addRow(typeof fake[k] === 'string' ? fake[k] : p._csv);
+    };
 
+    // MAPPA
     nRender = 0;
     eq('mappa: file uguali, niente ridisegno', [await refreshStations(), nRender], [false, 0]);
     map.setView([45.4, 11.9], 9); await sleep(300);
-    const c0 = map.getCenter(), z0 = map.getZoom(), n0 = allFeatures.length, t1 = bump();
+    const c0 = map.getCenter(), z0 = map.getZoom(), n0 = allFeatures.length;
+    const mref = markerRefs.find(r => r.p === P);
+    if(mref) showCard(P, mref.m);
+    const t1 = bump();
     nRender = 0;
     const r1 = await refreshStations();
     const P2 = allFeatures.find(f => f.properties._region === 'VEN' && f.properties.scode === P.scode).properties;
@@ -3609,21 +3628,25 @@
         JSON.stringify([P2 === P, P.latest.TEMP, t1]));
     eq('mappa: stesse stazioni', allFeatures.length, n0);
     log(map.getZoom() === z0 && map.getCenter().distanceTo(c0) < 1, 'mappa: la vista resta', '');
+    log(!!mref && cardP === P && !el('hoverCard').hidden, 'mappa: la scheda al passaggio resta',
+        JSON.stringify([!!mref, !!cardP]));
+    hideCard();
     eq('mappa: di nuovo uguale, niente ridisegno', await refreshStations(), false);
 
+    // SCHEDA
     await selectStation(P); await until(() => currentStation === P && !!chart, 8000);
     if(currentVar !== 'TEMP'){ drawVar('TEMP'); await sleep(200); }
     const f0 = chart._full(), SPAN = 6 * 3600, c1 = chart;
     chart.setScale('x', { min:f0[1] - SPAN, max:f0[1] });
     await liveStation();
     log(chart === c1, 'scheda: serie uguale, grafico non ridisegnato', '');
-    fake['VEN/' + P.series] = addRow(P._csv);
+    newer(P);
     await liveStation();
     const f1 = chart && chart._full(), s1 = chart && chart.scales.x;
     log(!!chart && chart !== c1, 'scheda: lettura nuova, grafico ridisegnato', '');
     log(!!f1 && f1[1] > f0[1] && Math.abs(s1.max - f1[1]) < 1 && Math.abs(s1.max - s1.min - SPAN) < 1,
         'scheda: stesso zoom, che segue l\'ultimo dato', JSON.stringify([f0, f1, s1 && [s1.min, s1.max]]));
-    fake['VEN/' + P.series] = addRow(fake['VEN/' + P.series]);
+    newer(P);
     expOpen(); await sleep(50);
     const c2 = chart;
     await liveStation();
@@ -3631,19 +3654,114 @@
     expClose(); await sleep(50);
     await liveStation();
     log(!!chart && chart !== c2, 'scheda: menu chiuso, ridisegno', '');
+    {                                                 // il «passaggio» rimasto dopo un tocco sul telefono non blocca
+      const mm = window.matchMedia, mt = Element.prototype.matches;
+      Element.prototype.matches = function(s){ return s === ':hover' ? true : mt.call(this, s); };
+      _touchAt = 0;
+      window.matchMedia = q => /hover/.test(q) ? { matches:false } : mm.call(window, q);
+      const phone = chartInUse();
+      window.matchMedia = q => /hover/.test(q) ? { matches:true } : mm.call(window, q);
+      const desk = chartInUse();
+      window.matchMedia = mm; Element.prototype.matches = mt;
+      eq('in uso: il puntatore sopra conta solo col mouse', [phone, desk], [false, true]);
+    }
+    {                                                 // a meta' aggiornamento si apre lo Storico: niente ridisegno
+      const k = 'VEN/' + P.series, txt = addRow(fake[k]), c3 = chart;
+      fake[k] = async () => { await sleep(300); return new Response(txt); };
+      const pr = liveStation(); await sleep(60); histMode = true; await pr; histMode = false;
+      fake[k] = txt;
+      log(chart === c3, 'scheda: lo Storico aperto nel frattempo non viene coperto', '');
+    }
+    {                                                 // rete: la serie a 30 giorni e le barre del radar restano
+      const k30 = 'VEN/series30/' + P.scode + '.csv', old30 = parseCSV('datetime,TEMP\n2026-10-01T00:00,1\n');
+      P._table30 = old30;
+      newer(P);
+      await freshTable(P);
+      fake[k30] = () => new Response('', { status:500 });
+      const ok = await ensureTable30();
+      delete fake[k30];
+      log(ok === true && P._table30 === old30, 'rete: senza la serie a 30 giorni nuova resta quella di prima',
+          JSON.stringify([ok, P._table30 === old30]));
+      P._table30 = null;
+      const rp = Radar.points;
+      P._radar = { t:[1], v:[1] };
+      Radar.points = async () => null;
+      const ch = await freshRadar(P);
+      Radar.points = rp;
+      log(ch === false && !!P._radar && P._radar.v[0] === 1, 'rete: senza risposta del radar restano le barre',
+          JSON.stringify(ch));
+      P._radar = undefined;
+    }
+    {                                                 // confronto 30 giorni zoomato; a meta' aggiornamento si sceglie
+                                                      // 7 g: lo zoom di prima non passa al grafico nuovo
+      const k30 = 'VEN/series30/' + P.scode + '.csv';
+      await pickMode('compare30'); await until(() => chartMode === 'compare30' && !!chart, 8000);
+      if(chart){
+        const f = chart._full();
+        chart.setScale('x', { min:f[0] + (f[1] - f[0]) / 2, max:f[1] });
+        newer(P);
+        fake[k30] = later(300, k30);
+        const pr = liveStation(); await sleep(80); await pickMode('week'); await pr;
+        delete fake[k30];
+        log(chartMode === 'week' && !zoomState(), 'scheda: un periodo scelto a metà aggiornamento non prende lo zoom',
+            JSON.stringify([chartMode, zoomState()]));
+      } else log(false, 'scheda: confronto 30 giorni non disponibile', '');
+      await pickMode('week');
+    }
+    {                                                 // grafico senza «Tutto» (bilancio idrico): lo zoom si tiene lo stesso
+      const keep = chart, calls = [];
+      chart = { data:[[0, 100, 200, 300]], scales:{ x:{ min:100, max:200 } }, setScale:(k, o) => calls.push([k, o.min, o.max]) };
+      const z = zoomState();
+      chart.data = [[0, 100, 200, 300, 400]];
+      restoreZoom(z);
+      chart = keep;
+      eq('zoom senza «Tutto»: si rimette uguale', [!!z, calls], [true, [['x', 100, 200]]]);
+    }
+    const Pd = allFeatures.map(f => f.properties).find(p => p._region === 'VEN' && p.scode === '234');
+    if(PHONE.matches && Pd){                          // telefono: l'aggiornamento non riporta la scheda in cima
+      await selectStation(Pd); await until(() => currentStation === Pd && !!chart, 8000);
+      drawVar('PREC'); await pickMode('near'); await until(() => !!stackObj && !!stackObj.near, 15000); await sleep(300);
+      const pn = el('panel');
+      pn.scrollTop = 150; await sleep(50);
+      const top = pn.scrollTop;
+      newer(Pd);
+      await liveStation(); await sleep(100);
+      log(top > 0 && Math.abs(pn.scrollTop - top) <= 2, 'telefono: l\'aggiornamento non riporta la scheda in cima',
+          JSON.stringify([top, pn.scrollTop]));
+      await pickMode('week');
+    } else log(true, 'scorrimento della scheda: solo sul telefono (prova saltata)', '');
 
+    // CURSORE
     showMapView(); await sleep(100);
     setMapVar('TEMP'); await sleep(100);
     await openSlider(); await until(() => snap.on && snap.T.length > 0, 8000);
     setFrame(snapSource.max());
+    asked.length = 0;
     bump(); await refreshStations();
     log(snap.on && tsK === snapSource.max(), 'Cursore: resta all\'ultimo fotogramma', JSON.stringify([tsK, snapSource.max()]));
+    log(asked.some(a => /VEN\/snap\/TEMP\.json$/.test(a.u) && a.c === 'no-cache'), 'Cursore: fotogrammi ricontrollati sul server',
+        JSON.stringify(asked.filter(a => /snap/.test(a.u)).slice(0, 2)));
     setFrame(snapSource.max() - 5);
     const tb = snap.T[tsK];
     bump(); await refreshStations();
     eq('Cursore: resta alla stessa ora', snap.T[tsK], tb);
+    {                                                 // fotogrammi in ritardo: intanto si sposta il Cursore e cambia il
+                                                      // messaggio; restano quelli scelti dopo
+      fake['VEN/snap/TEMP.json'] = later(300, 'VEN/snap/TEMP.json');
+      setFrame(snapSource.max()); setStatus('prima');
+      bump();
+      const pr = refreshStations(); await sleep(80);
+      setFrame(snapSource.max() - 3); setStatus('dopo');
+      const td = snap.T[tsK];
+      await pr;
+      delete fake['VEN/snap/TEMP.json'];
+      eq('Cursore: spostato durante l\'aggiornamento, resta dove l\'ho messo', snap.T[tsK], td);
+      eq('messaggio: resta il più recente', el('status').textContent, 'dopo');
+      setStatus('');
+    }
     closeSlider();
 
+    // PAGINA NASCOSTA
     Object.defineProperty(document, 'hidden', { configurable:true, get:() => true });
     asked.length = 0;
     await liveTick();
@@ -3651,9 +3769,9 @@
     delete document.hidden;
     _liveAt = 0;
     document.dispatchEvent(new Event('visibilitychange'));
-    await until(() => asked.some(u => /stations\.geojson$/.test(u)), 5000);
-    log(asked.some(u => /status\.json$/.test(u)) && asked.some(u => /stations\.geojson$/.test(u)),
-        'tornando sulla pagina: ricontrollo subito', JSON.stringify(asked.slice(0, 3)));
+    await until(() => askedFor(/stations\.geojson$/), 5000);
+    log(askedFor(/status\.json$/) && askedFor(/stations\.geojson$/), 'tornando sulla pagina: ricontrollo subito',
+        JSON.stringify(asked.slice(0, 3)));
     await until(() => !_liveRun, 10000);
 
     window.fetch = realFetch;
