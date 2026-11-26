@@ -493,6 +493,15 @@ body.hist-mode #hvChart { flex:1 1 0; min-height:240px; }
 body.dark .hv-k1 { background:#3b5f8a; } body.dark .hv-k2 { background:#2c4058; }
 body.dark .hv-k3 { background:#223146; } body.dark .hv-k4 { background:#4a2f38; }
 body.dark .hv-k5 { background:#8a3b3b; }
+/* Livelli e portate: marrone piu' basso del solito, verde acqua piu' alto (hv-w3 nella norma) */
+#hvTable .warm td[class*="hv-w"] { border:2px solid var(--bg); }
+#hvTable .warm td.hv-w0, #hvTable .warm td.hv-w6 { color:#fff; }
+.hv-w0 { background:#8c510a; color:#fff; } .hv-w1 { background:#d8b365; } .hv-w2 { background:#f6e8c3; }
+.hv-w3 { background:#eeeeec; } .hv-w4 { background:#c7eae5; } .hv-w5 { background:#5ab4ac; }
+.hv-w6 { background:#01665e; color:#fff; }
+body.dark .hv-w1 { background:#6b5024; } body.dark .hv-w2 { background:#3e3627; }
+body.dark .hv-w3 { background:#223146; } body.dark .hv-w4 { background:#1f4644; }
+body.dark .hv-w5 { background:#2a6f69; }
 /* nota: "Dati dal ... al ..." e la "i" che apre il metodo */
 #hvNote { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; color:var(--muted); font-size:12px;
           line-height:1.5; }

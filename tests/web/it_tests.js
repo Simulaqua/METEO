@@ -1592,7 +1592,8 @@
     await open(L);
     log(!vis(el('histbtn')), 'regione non in index.json: pulsante nascosto', '');
     await open(N);
-    log(!vis(el('histbtn')), 'senza pioggia ne temperatura: pulsante nascosto', JSON.stringify(N.variables));
+    log(vis(el('histbtn')) === stationHistVars(N).length > 0, 'senza pioggia ne temperatura: pulsante solo con livello o portata',
+        JSON.stringify(N.variables));
     await open(V);
     log(vis(el('histbtn')), 'Valdagno (PREC+TEMP): pulsante visibile', '');
     for(const v of ['UMID', 'PREC24', 'TEMP']){                                    // il pulsante non dipende dalla variabile aperta
@@ -1613,9 +1614,14 @@
       noOverflow('Giorni, apertura');
     }
     await setHistMode(false);
-    await setHistMode(true, 'PREC', 'mesi');                                        // con lo Storico aperto, una stazione senza pioggia/temperatura lo chiude
+    await setHistMode(true, 'PREC', 'mesi');      // con lo Storico aperto, una stazione senza pioggia/temperatura lo chiude, se non ha livello o portata
     await open(N);
-    log(!histMode && !vis(el('histview')) && !vis(el('histbtn')), 'stazione senza PREC/TEMP: Storico chiuso', histMode);
+    {
+      const nv = stationHistVars(N);
+      log(nv.length ? histMode && histVar === nv[0] : !histMode && !vis(el('histview')) && !vis(el('histbtn')),
+          'stazione senza PREC/TEMP: Storico ' + (nv.length ? 'su ' + nv[0] : 'chiuso'), histMode + ' ' + histVar);
+      if(histMode) await setHistMode(false);
+    }
     await open(V);
     // viste
     const EP = expMonths(true), ET = expMonths(false);

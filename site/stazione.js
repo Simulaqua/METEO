@@ -131,10 +131,11 @@ async function selectStation(props){
   if(stationVars.includes('PREC') && stationVars.includes('ET0')) stationVars.push(WBIL);
   if(stationVars.includes('LIVNEVE')) stationVars.push(SNOWNEW);
   const hasHist = stationHistVars(props).length > 0;
-  if(hasHist) stationVars.push(WCLIMA);              // la Climatologia viene dai dati dello Storico
+  // la Climatologia viene dalla pioggia e dalla temperatura dello Storico
+  if(stationHistVars(props).some(v => v === 'PREC' || v === 'TEMP')) stationVars.push(WCLIMA);
   extraVars = [];
   document.body.classList.remove('rose-mode', 'clima-mode');
-  el('histbtn').style.display = 'none';   // "Storico": solo con pioggia/temperatura E storico pubblicato
+  el('histbtn').style.display = 'none';   // "Storico": con una sua variabile E storico pubblicato
   if(hasHist) histIndex().then(ix => {
     if(currentStation !== props) return;
     if(ix && ix.regions && ix.regions[props._region]) el('histbtn').style.display = '';
@@ -147,8 +148,7 @@ async function selectStation(props){
   // Impilate resta acceso cambiando stazione, con le variabili di prima che questa ha
   const keep = prevSel.filter(v => !isView(v) && stationVars.includes(v));
   if(histMode && hasHist){
-    if(!['PREC', 'TEMP'].includes(histVar) || !stationHistVars(props).includes(histVar))
-      histVar = stationHistVars(props)[0];
+    if(!stationHistVars(props).includes(histVar)) histVar = stationHistVars(props)[0];
     currentVar = histVar;
     buildVarRow();
     renderHist();
@@ -265,7 +265,7 @@ function showNow(){
 
 function drawVar(v){
   if(histMode){
-    if(v === 'PREC' || v === 'TEMP'){
+    if(stationHistVars(currentStation).includes(v)){
       currentVar = v;
       histVar = v;
       buildVarRow();
