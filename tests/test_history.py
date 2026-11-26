@@ -65,7 +65,7 @@ class AggregatesTest(HistoryBase):
         ist = ['202001010000', '202001010100', '202001010210', '202001010250']
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ist, [0.2, 1.0, 0.4, 0.4])}, 'VALORE')
         days, _ = self.run_region('LOM')
-        self.assertEqual(days['20200101']['A'][:2], [2.0, 3])
+        self.assertEqual(days['20200101']['A']['PREC'], [2.0, 3])
         s = self.station('LOM', 'A')
         self.assertEqual((s['v'], s['d0'], s['p'], s['hp']), (1, '20200101', [2.0], [3]))
         self.assertNotIn('tn', s)
@@ -75,7 +75,7 @@ class AggregatesTest(HistoryBase):
         ist = ['202001010010', '202001010040', '202001010100']
         write_day(self.parse('LOM'), 'TEMP', '20200101', {'A': (ist, [10.0, 20.0, 5.0])}, 'VALORE')
         days, _ = self.run_region('LOM')
-        self.assertEqual(days['20200101']['A'][2:], [5.0, 20.0, 10.0, 2])
+        self.assertEqual(days['20200101']['A']['TEMP'], [5.0, 20.0, 10.0, 2])
 
     def test_quality_rejects(self):
         p = self.parse('LOM')
@@ -84,8 +84,8 @@ class AggregatesTest(HistoryBase):
         write_day(p, 'TEMP', '20200101', {'A': (ist, [-999, 12.0, 80.0, 'x'])}, 'VALORE')
         days, _ = self.run_region('LOM')
         r = days['20200101']['A']
-        self.assertEqual(r[:2], [1.5, 2])
-        self.assertEqual(r[2:], [12.0, 12.0, 12.0, 1])
+        self.assertEqual(r['PREC'], [1.5, 2])
+        self.assertEqual(r['TEMP'], [12.0, 12.0, 12.0, 1])
 
     def test_prec_day_over_limit_is_dropped(self):
         # 3 x 600 mm: ogni valore e' plausibile ma la somma giornaliera no
@@ -101,7 +101,7 @@ class AggregatesTest(HistoryBase):
         days, _ = self.run_region('LOM')
         # alle 00 TEMP=0 & UMID=0: guasto; alle 01 TEMP=0 con UMID reale: dato vero
         r = days['20200101']['A']
-        self.assertEqual((r[2], r[3], r[4], r[5]), (0.0, 0.0, 0.0, 1))
+        self.assertEqual(r['TEMP'], [0.0, 0.0, 0.0, 1])
 
     def test_station_day_without_data_is_null(self):
         p = self.parse('LOM')
@@ -130,7 +130,7 @@ class AggregatesTest(HistoryBase):
             write_day(p, 'PREC', day, {'A': (ts_list(day, range(24)), [0.1] * 24)}, 'VALORE')
         days, _ = self.run_region('LOM')
         for day in ('20251026', '20250330'):
-            self.assertEqual(days[day]['A'][:2], [2.4, 24])
+            self.assertEqual(days[day]['A']['PREC'], [2.4, 24])
 
     def test_gz_and_json_both_read_json_preferred(self):
         p = self.parse('LOM')
@@ -139,7 +139,7 @@ class AggregatesTest(HistoryBase):
         write_day(p, 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
         self.assertTrue(comune.day_files(os.path.join(p, 'PREC'), 'PREC')['20200101'].endswith('.json'))
         days, _ = self.run_region('LOM')
-        self.assertEqual(days['20200101']['A'][0], 1.0)
+        self.assertEqual(days['20200101']['A']['PREC'][0], 1.0)
 
     def test_corrupt_file_is_skipped(self):
         p = self.parse('LOM')
@@ -148,6 +148,46 @@ class AggregatesTest(HistoryBase):
             f.write('{rotto')
         days, _ = self.run_region('LOM')
         self.assertEqual(list(days), ['20200101'])
+
+
+class LevelsAndDischargeTest(HistoryBase):
+    def test_level_min_max_mean_of_hourly_means(self):
+        # ora 00: 1.234 e 1.236 -> media oraria 1.235; ora 01: 1.5. Due decimali (il centimetro)
+        ist = ['202001010010', '202001010040', '202001010100']
+        write_day(self.parse('LOM'), 'LIVIDRO', '20200101', {'A': (ist, [1.234, 1.236, 1.5])}, 'VALORE')
+        days, _ = self.run_region('LOM')
+        self.assertEqual(days['20200101']['A']['LIVIDRO'], [1.23, 1.5, 1.37, 2])
+        s = self.station('LOM', 'A')
+        self.assertEqual((s['ln'], s['lx'], s['lm'], s['hl']), ([1.23], [1.5], [1.37], [2]))
+        self.assertNotIn('p', s)
+
+    def test_discharge_three_decimals_and_negative(self):
+        # tre decimali per i torrenti quasi asciutti; alla foce la marea fa risalire l'acqua: negativa e' vera
+        ist = ts_list('20200101', [0, 1])
+        write_day(self.parse('PC_FVG'), 'PORTATA', '20200101',
+                  {'A': (ist, [0.0121, 0.0141]), 'B': (ist, [-5.9, 39.7])}, 'VALORE')
+        days, _ = self.run_region('PC_FVG')
+        self.assertEqual(days['20200101']['A']['PORTATA'], [0.012, 0.014, 0.013, 2])
+        self.assertEqual(days['20200101']['B']['PORTATA'], [-5.9, 39.7, 16.9, 2])
+        self.assertEqual(self.station('PC_FVG', 'B')['qn'], [-5.9])
+
+    def test_lake_level_keys(self):
+        write_day(self.parse('LAGHI'), 'LIVLAGO', '20200101', {'Garda': (ts_list('20200101', [0]), [0.6])}, 'VALORE')
+        self.run_region('LAGHI')
+        self.assertEqual(self.station('LAGHI', 'Garda'),
+                         {'v': 1, 'd0': '20200101', 'gn': [0.6], 'gx': [0.6], 'gm': [0.6], 'hg': [1]})
+
+    def test_region_with_only_levels_is_found(self):
+        write_day(self.parse('PC_PO'), 'LIVIDRO', '20200101', {'A': (ts_list('20200101', [0]), [2.0])}, 'VALORE')
+        self.assertEqual(history.discover_regions(), ['PC_PO'])
+
+    def test_veneto_levels_from_old_archive(self):
+        # i livelli del vecchio archivio ARPAV (dal 2022) e quelli nuovi finiscono nella stessa serie
+        write_day(self.old, 'LIVIDRO', '20220506', {'A': (ts_list('20220506', [0, 1]), [0.5, 0.7])}, 'VM')
+        write_day(self.parse('VEN'), 'LIVIDRO', '20220508', {'A': (ts_list('20220508', [0]), [0.9])}, 'VM')
+        self.run_region('VEN')
+        s = self.station('VEN', 'A')
+        self.assertEqual((s['d0'], s['lm'], s['hl']), ('20220506', [0.6, None, 0.9], [2, None, 1]))
 
 
 class VenetoOverlapTest(HistoryBase):
@@ -159,27 +199,27 @@ class VenetoOverlapTest(HistoryBase):
         write_day(self.old, 'PREC', '20200102', {'A': (ts_list('20200102', range(2)), [1.0] * 2)}, 'VM')
         write_day(self.parse('VEN'), 'PREC', '20200102', {'A': (ts_list('20200102', range(4)), [2.0] * 4)}, 'VM')
         days, _ = self.run_region('VEN')
-        self.assertEqual(days['20200101']['A'][:2], [5.0, 5])
-        self.assertEqual(days['20200102']['A'][:2], [8.0, 4])
+        self.assertEqual(days['20200101']['A']['PREC'], [5.0, 5])
+        self.assertEqual(days['20200102']['A']['PREC'], [8.0, 4])
 
     def test_tie_goes_to_newer_source(self):
         write_day(self.old, 'PREC', '20200101', {'A': (ts_list('20200101', range(2)), [1.0] * 2)}, 'VM')
         write_day(self.parse('VEN'), 'PREC', '20200101', {'A': (ts_list('20200101', range(2)), [2.0] * 2)}, 'VM')
         days, _ = self.run_region('VEN')
-        self.assertEqual(days['20200101']['A'][:2], [4.0, 2])
+        self.assertEqual(days['20200101']['A']['PREC'], [4.0, 2])
 
     def test_temp_tie_goes_to_newer_source(self):
         write_day(self.old, 'TEMP', '20200101', {'A': (ts_list('20200101', range(3)), [10.0] * 3)}, 'VM')
         write_day(self.parse('VEN'), 'TEMP', '20200101', {'A': (ts_list('20200101', range(3)), [20.0] * 3)}, 'VM')
         days, _ = self.run_region('VEN')
-        self.assertEqual(days['20200101']['A'][2:], [20.0, 20.0, 20.0, 3])
+        self.assertEqual(days['20200101']['A']['TEMP'], [20.0, 20.0, 20.0, 3])
 
     def test_temp_overlap_is_per_variable(self):
         write_day(self.old, 'TEMP', '20200101', {'A': (ts_list('20200101', range(6)), [10.0] * 6)}, 'VM')
         write_day(self.parse('VEN'), 'TEMP', '20200101', {'A': (ts_list('20200101', range(2)), [20.0] * 2)}, 'VM')
         write_day(self.parse('VEN'), 'PREC', '20200101', {'A': (ts_list('20200101', range(2)), [1.0] * 2)}, 'VM')
         days, _ = self.run_region('VEN')
-        self.assertEqual(days['20200101']['A'], [2.0, 2, 10.0, 10.0, 10.0, 6])
+        self.assertEqual(days['20200101']['A'], {'PREC': [2.0, 2], 'TEMP': [10.0, 10.0, 10.0, 6]})
 
     def test_old_only_and_new_only_days_join(self):
         write_day(self.old, 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VM')
@@ -236,8 +276,8 @@ class CacheAndOutputTest(HistoryBase):
         write_day(p, 'PREC', today, {'A': (ts_list(today, [0]), [7.0])}, 'VALORE')
         days, n = self.run_region('LOM')
         self.assertEqual(n, 1)
-        self.assertEqual(days['20200101']['A'][0], 1.0)         # vecchio: dalla cache
-        self.assertEqual(days[today]['A'][0], 7.0)              # recente: rielaborato
+        self.assertEqual(days['20200101']['A']['PREC'][0], 1.0)     # vecchio: dalla cache
+        self.assertEqual(days[today]['A']['PREC'][0], 7.0)          # recente: rielaborato
 
     def test_finestra_otto_giorni(self):
         p = self.parse('LOM')
@@ -248,8 +288,8 @@ class CacheAndOutputTest(HistoryBase):
             write_day(p, 'PREC', d, {'A': (ts_list(d, [0]), [7.0])}, 'VALORE')
         days, n = self.run_region('LOM', today='20261105')
         self.assertEqual(n, 1)
-        self.assertEqual(days['20261028']['A'][0], 7.0)         # G-8: rielaborato
-        self.assertEqual(days['20261027']['A'][0], 1.0)         # G-9: dalla cache
+        self.assertEqual(days['20261028']['A']['PREC'][0], 7.0)     # G-8: rielaborato
+        self.assertEqual(days['20261027']['A']['PREC'][0], 1.0)     # G-9: dalla cache
 
     def test_bad_cache_version_is_ignored(self):
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
