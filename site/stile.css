@@ -466,7 +466,7 @@ body.hist-mode #hvChart { flex:1 1 0; min-height:240px; }
 /* tabella: mesi in riga, anni in colonna (--ny anni: ~96 px l'uno, al massimo 520 px; sul telefono larga
    quanto lo schermo; se non ci sta scorre e i mesi restano fermi). Pioggia: barra lunga --f dello spazio
    prima del numero */
-#hvTable { overflow-x:auto; max-width:520px; }
+#hvTable { overflow-x:auto; }
 #hvTable table { width:min(100%, calc(48px + var(--ny) * 96px)); border-collapse:collapse; font-size:12px;
                  font-variant-numeric:tabular-nums; }
 @media (max-width:720px){ #hvTable table { width:100%; } }

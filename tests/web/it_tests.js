@@ -1510,7 +1510,8 @@
       log(getComputedStyle(c1[0]).position === 'sticky' && getComputedStyle(t.rows[0].cells[0]).position === 'sticky', name + ': colonna dei mesi ferma se la tabella scorre', getComputedStyle(c1[0]).position);
       const pn = el('panel'), ps = getComputedStyle(pn), x0 = R(pn).left + parseFloat(ps.paddingLeft),
             avail = pn.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight), tw = R(t).width;
-      if(avail > 520) log(tw <= 520.5 && Math.abs(R(t).left - x0) <= 1, name + ': tabella stretta (al massimo 520 px), a sinistra', JSON.stringify([R(t).left, tw, x0, avail]));
+      const need = 48 + (t.rows[0].cells.length - 1) * 96;                       // 96 px per anno: con molti anni riempie la scheda, poi scorre
+      if(!PHONE.matches && avail > need) log(Math.abs(tw - need) <= 1 && Math.abs(R(t).left - x0) <= 1, name + ': tabella larga quanto servono gli anni, a sinistra', JSON.stringify([R(t).left, tw, x0, avail, need]));
       else log(Math.abs(tw - avail) <= 1 && Math.abs(R(t).left - x0) <= 1, name + ': tabella larga quanto lo schermo', JSON.stringify([R(t).left, tw, x0, avail]));
     };
 
