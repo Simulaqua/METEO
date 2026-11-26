@@ -5,8 +5,9 @@
 # valore di ogni giorno cosi' come lo da' ARPAV (minimo, media e massimo; per la pioggia il totale).
 #
 # Uscita: arpav_storico/<VAR>/<VAR>-<ANNO>.json.gz
-#   {"fonte", "coordcd", "anno", "scaricato", "stazioni": {"<codseq>": {"codice", "nome", "lat", "lon", "quota",
-#    "comune", "provincia", "tipo", "sensore", "unita", "aggiornamento", "giorni": {"AAAA-MM-GG": valore}}}}
+#   {"fonte", "coordcd", "anno", "scaricato", "stazioni": {"<codseq>": {"codice", "nome", "lat", "lon",
+#    "quota", "comune", "provincia", "tipo", "sensore", "unita", "aggiornamento",
+#    "giorni": {"AAAA-MM-GG": valore}}}}
 # codseq identifica il sensore (una stazione puo' averne piu' d'uno); codice e' il codice ARPAV della
 # stazione, lo stesso del nostro archivio VEN.
 # ARPAV aggiunge un mese il 25 di ogni mese: gli anni chiusi si scaricano una volta, l'anno in corso e il
@@ -70,8 +71,9 @@ def scarica_anno(var, anno):
         out['stazioni'][str(s['codseq'])] = {
             'codice': s.get('codice_stazione'), 'nome': s.get('nome_stazione'), 'lat': s.get('latitudine'),
             'lon': s.get('longitudine'), 'quota': s.get('altitude'), 'comune': s.get('comune'),
-            'provincia': s.get('provincia'), 'tipo': s.get('tipo'), 'sensore': uno_o_tutti(righe, 'nome_sensore'),
-            'unita': uno_o_tutti(righe, 'unitnm'), 'aggiornamento': max(agg) if agg else None,
+            'provincia': s.get('provincia'), 'tipo': s.get('tipo'),
+            'sensore': uno_o_tutti(righe, 'nome_sensore'), 'unita': uno_o_tutti(righe, 'unitnm'),
+            'aggiornamento': max(agg) if agg else None,
             'giorni': {(r.get('dataora') or '')[:10]: valore(r.get('valore')) for r in righe}}
     return out
 

@@ -325,5 +325,71 @@ class CacheAndOutputTest(HistoryBase):
         self.assertEqual(c, {'v': 1, 'd0': '20200102', 'tn': [3.0], 'tx': [3.0], 'tm': [3.0], 'ht': [1]})
 
 
+class ArpavDailyTest(HistoryBase):
+    """Giornalieri ARPAV dal 2010 (arpav_storico.py) uniti allo storico del Veneto."""
+
+    def setUp(self):
+        super().setUp()
+        self.arpav = os.path.join(self.tmp, 'arpav')
+        p = mock.patch.object(history, 'ARPAV_DIR', self.arpav)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def write_arpav(self, var, year, sensors):
+        """sensors = {codseq: (codice, {'AAAA-MM-GG': valore})}, come li salva arpav_storico.py."""
+        d = os.path.join(self.arpav, var)
+        os.makedirs(d, exist_ok=True)
+        st = {cs: {'codice': code, 'giorni': g} for cs, (code, g) in sensors.items()}
+        data = {'anno': year, 'stazioni': st}
+        with gzip.open(os.path.join(d, '%s-%d.json.gz' % (var, year)), 'wt', encoding='utf-8') as f:
+            json.dump(data, f)
+
+    def run_ven(self):
+        days, _ = history.process_region('VEN', self.cache)
+        history.write_region('VEN', days, self.out, history.arpav_series(self.cache))
+        return self.station('VEN', '270')
+
+    def test_arpav_before_archive_and_wins_on_overlap(self):
+        self.write_arpav('LIVIDRO', 2019, {'300005668': (270, {
+            '2019-12-30': {'MINIMO': -7.5, 'MEDIO': -7.4, 'MASSIMO': -7.3},
+            '2019-12-31': {'MINIMO': -7.2, 'MEDIO': -7.1, 'MASSIMO': -7.0}})})
+        self.write_arpav('PREC', 2019, {'300000313': (270, {'2019-12-30': 4.2, '2019-12-31': '-999'})})
+        full_day = (ts_list('20191231', range(24)), [-6.0] * 24)
+        two_hours = (ts_list('20200101', [0, 1]), [-6.5, -6.3])
+        write_day(self.parse('VEN'), 'LIVIDRO', '20191231', {'270': full_day}, 'VM')
+        write_day(self.parse('VEN'), 'LIVIDRO', '20200101', {'270': two_hours}, 'VM')
+        s = self.run_ven()
+        self.assertEqual(s['d0'], '20191230')
+        self.assertEqual(s['ln'], [-7.5, -7.2, -6.5])              # il 31 vale ARPAV, anche con 24 ore nostre
+        self.assertEqual(s['lm'], [-7.4, -7.1, -6.4])
+        self.assertEqual(s['hl'], [24, 24, 2])
+        self.assertEqual((s['p'], s['hp']), ([4.2, None, None], [24, None, None]))   # -999 scartato
+
+    def test_sensor_with_more_days_wins(self):
+        self.write_arpav('PORTATA', 2019, {
+            'a': (270, {'2019-12-31': {'MINIMO': 1, 'MEDIO': 2, 'MASSIMO': 3}}),
+            'b': (270, {'2019-12-30': {'MINIMO': 10, 'MEDIO': 20, 'MASSIMO': 30},
+                        '2019-12-31': {'MINIMO': 11, 'MEDIO': 21, 'MASSIMO': 31}})})
+        write_day(self.parse('VEN'), 'PORTATA', '20200101', {'270': (ts_list('20200101', [0]), [5.0])}, 'VM')
+        s = self.run_ven()
+        self.assertEqual((s['d0'], s['qm'], s['hq']), ('20191230', [20.0, 21.0, 5.0], [24, 24, 1]))
+
+    def test_rebuilt_only_when_files_change(self):
+        self.write_arpav('TEMP', 2019, {'x': (270, {'2019-12-31': {'MINIMO': 1, 'MEDIO': 2, 'MASSIMO': 3}})})
+        out = history.arpav_series(self.cache)
+        f = os.path.join(out, 'TEMP', '270.json')
+        self.assertEqual(comune.load_json(f), {'d0': '20191231', 'a': [[1.0, 3.0, 2.0, 24]]})
+        os.remove(f)
+        history.arpav_series(self.cache)
+        self.assertFalse(os.path.exists(f))                           # niente di nuovo: non rifa'
+        self.write_arpav('TEMP', 2020, {'x': (270, {'2020-01-02': {'MINIMO': 4, 'MEDIO': 5, 'MASSIMO': 6}})})
+        history.arpav_series(self.cache)
+        self.assertEqual(comune.load_json(f), {'d0': '20191231', 'a': [[1.0, 3.0, 2.0, 24], None,
+                                                                         [4.0, 6.0, 5.0, 24]]})
+
+    def test_no_arpav_files(self):
+        self.assertIsNone(history.arpav_series(self.cache))
+
+
 if __name__ == '__main__':
     unittest.main()

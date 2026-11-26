@@ -14,6 +14,8 @@
 #
 # Sorgenti: <regione>/data-parsed/ e, per il Veneto, anche l'archivio ARPAV di sola lettura (stesso
 # formato, livelli e pioggia dal 2022). Dove si sovrappongono vince il giorno con piu' ore di dato.
+# Per il Veneto ci sono anche i giornalieri ufficiali ARPAV dal 2010 (arpav_storico/, di arpav_storico.py):
+# dove ci sono valgono loro, come giorni completi; il mese in corso viene sempre dall'archivio.
 #
 # Una cache per regione tiene gli aggregati gia' calcolati: ogni notte si rielaborano i giorni nuovi
 # e gli ultimi 8 (possono ricevere dati in ritardo). Il primo giro rilegge tutto l'archivio.
@@ -25,6 +27,7 @@
 
 import argparse
 import datetime
+import glob
 import os
 import re
 import sys
@@ -35,6 +38,7 @@ import quality
 
 BASE = os.path.dirname(os.path.realpath(__file__))
 OLD_VEN = '/home/manuel/dati/arpav/live/data-parsed'          # archivio ARPAV (sola lettura)
+ARPAV_DIR = os.path.join(BASE, 'arpav_storico')               # giornalieri ARPAV dal 2010
 # variabile -> chiavi nel file della stazione (somma e ore per la pioggia; minima, massima, media e ore per
 # le altre) e decimali
 OUT_KEYS = {'PREC': (('p', 'hp'), 1),
@@ -162,6 +166,69 @@ def load_cache(path):
 def day_span(d0, d1):
     return (datetime.datetime.strptime(d1, '%Y%m%d') - datetime.datetime.strptime(d0, '%Y%m%d')).days + 1
 
+def ordinal(day):
+    return datetime.date(int(day[:4]), int(day[4:6]), int(day[6:8])).toordinal()
+
+def safe_name(scode):
+    return re.sub(r'[^A-Za-z0-9_.-]', '_', scode) + '.json'
+
+def arpav_agg(var, val):
+    ''' Valore ARPAV di un giorno -> aggregato come quelli dell'archivio, giorno completo (24 ore). '''
+    dec = OUT_KEYS[var][1]
+    if var == 'PREC':
+        x = comune.to_float(val)
+        return [round(x, dec), 24] if quality.valid(var, x) and x <= PREC_DAY_MAX else None
+    if not isinstance(val, dict):
+        return None
+    xs = [comune.to_float(val.get(k)) for k in ('MINIMO', 'MASSIMO', 'MEDIO')]
+    if not all(quality.valid(var, x) for x in xs):
+        return None
+    return [round(x, dec) for x in xs] + [24]
+
+def arpav_series(cache_dir, full=False):
+    ''' Giornalieri ARPAV del Veneto per stazione: <cache>/VEN_arpav/<VAR>/<codice>.json =
+        {"d0": "AAAAMMGG", "a": [aggregato o null, un elemento per giorno]}, rifatti quando cambiano i file di
+        arpav_storico/. Piu' sensori della stessa stazione in un anno: vale quello con piu' giorni.
+        Ritorna la cartella, None se non ci sono dati ARPAV. '''
+    files = {v: sorted(glob.glob(os.path.join(ARPAV_DIR, v, v + '-*.json.gz'))) for v in VARS}
+    sig = {os.path.relpath(p, ARPAV_DIR): [int(os.path.getmtime(p)), os.path.getsize(p)]
+           for paths in files.values() for p in paths}
+    if not sig:
+        return None
+    out = os.path.join(cache_dir, 'VEN_arpav')
+    mpath = os.path.join(out, 'manifest.json')
+    if not full and comune.load_json(mpath) == sig:
+        return out
+    for var, paths in files.items():
+        per = {}
+        for path in paths:
+            best = {}
+            for s in (comune.load_json(path).get('stazioni') or {}).values():
+                code, g = str(s.get('codice')), s.get('giorni') or {}
+                if len(g) > len(best.get(code, {})):
+                    best[code] = g
+            for code, g in best.items():
+                dd = per.setdefault(code, {})
+                for day, val in g.items():
+                    agg = arpav_agg(var, val)
+                    if agg:
+                        dd[day.replace('-', '')] = agg
+        vdir = os.path.join(out, var)
+        os.makedirs(vdir, exist_ok=True)
+        for fn in os.listdir(vdir):
+            os.remove(os.path.join(vdir, fn))
+        for code, dd in per.items():
+            if not dd:
+                continue
+            d0 = min(dd)
+            o0 = ordinal(d0)
+            arr = [None] * (ordinal(max(dd)) - o0 + 1)
+            for day, agg in dd.items():
+                arr[ordinal(day) - o0] = agg
+            comune.save_json({'d0': d0, 'a': arr}, os.path.join(vdir, safe_name(code)))
+    comune.save_json(sig, mpath)
+    return out
+
 def process_region(region, cache_dir, full=False, verbose=False, today=None):
     ''' today = giorno solare corrente AAAAMMGG (None: adesso). '''
     srcs = sources_of(region)
@@ -193,11 +260,11 @@ def process_region(region, cache_dir, full=False, verbose=False, today=None):
         comune.save_json(cache, cpath)
     return days, len(todo)
 
-def write_region(region, days, out_dir):
-    ''' Scrive un file per stazione. Ritorna (n_stazioni, primo_giorno, ultimo_giorno). '''
+def write_region(region, days, out_dir, arpav=None):
+    ''' Scrive un file per stazione; arpav = cartella di arpav_series (solo Veneto): dove ci sono, valgono i
+        giornalieri ARPAV. Ritorna (n_stazioni, primo_giorno, ultimo_giorno). '''
     if not days:
         return 0, None, None
-    d_first = min(days)
     d_last = max(days)
     st_days = {}
     for day, recs in days.items():
@@ -206,9 +273,16 @@ def write_region(region, days, out_dir):
     rdir = os.path.join(out_dir, region)
     os.makedirs(rdir, exist_ok=True)
     keep = set()
+    firsts = []
     keys = [key for names, _ in OUT_KEYS.values() for key in names]
     for scode, dl in st_days.items():
-        d0 = min(dl)
+        fn = safe_name(scode)
+        ext = {}
+        for var in (VARS if arpav else ()):
+            e = comune.load_json(os.path.join(arpav, var, fn))
+            if e.get('a') and e['d0'] <= d_last:
+                ext[var] = e
+        d0 = min([min(dl)] + [e['d0'] for e in ext.values()])
         n = day_span(d0, d_last)
         cols = {key: [None] * n for key in keys}
         for day in dl:
@@ -216,21 +290,27 @@ def write_region(region, days, out_dir):
             for var, values in days[day][scode].items():
                 for key, value in zip(OUT_KEYS[var][0], values):
                     cols[key][k] = value
+        for var, e in ext.items():
+            k0 = day_span(d0, e['d0']) - 1
+            for i, agg in enumerate(e['a'][:n - k0]):
+                if agg:
+                    for key, value in zip(OUT_KEYS[var][0], agg):
+                        cols[key][k0 + i] = value
         obj = {'v': 1, 'd0': d0}
         for key in keys:
             if any(x is not None for x in cols[key]):
                 obj[key] = cols[key]
         if len(obj) <= 2:
             continue
-        fn = re.sub(r'[^A-Za-z0-9_.-]', '_', scode) + '.json'
         keep.add(fn)
+        firsts.append(d0)
         comune.save_json(obj, os.path.join(rdir, fn))
     for fn in os.listdir(rdir):                                # via le stazioni sparite
         if fn.endswith('.json') and fn not in keep:
             os.remove(os.path.join(rdir, fn))
         elif fn.endswith('.tmp'):
             os.remove(os.path.join(rdir, fn))
-    return len(keep), d_first, d_last
+    return len(keep), min(firsts) if firsts else None, d_last
 
 def main():
     ap = argparse.ArgumentParser(
@@ -254,7 +334,8 @@ def main():
             print('%-8s nessun dato' % region)
             continue
         days, n_new = res
-        ns, d_first, d_last = write_region(region, days, a.out)
+        arpav = arpav_series(a.cache, a.full) if region == 'VEN' else None
+        ns, d_first, d_last = write_region(region, days, a.out, arpav)
         print('%-8s %4d stazioni, giorni %s..%s (%d elaborati ora)' % (region, ns, d_first, d_last, n_new))
         if ns:
             index['regions'][region] = {'stations': ns, 'from': d_first, 'to': d_last}
