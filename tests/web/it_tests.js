@@ -1664,7 +1664,7 @@
     checkTable(true, 'Pioggia/Tabella');
     noOverflow('Pioggia/Tabella');
     histView = 'mesi'; await renderHist();
-    log(inside(el('hvVar')) && inside(el('hvView')) && inside(el('expBtn')), 'comandi dentro lo schermo', '');
+    log(inside(el('vars')) && inside(el('hvView')) && inside(el('expBtn')), 'comandi dentro lo schermo', '');
     histView = 'anni'; await renderHist(); okView('Pioggia/Anni');
     log(!el('hvChart').querySelector('.hv-yrs'), 'Pioggia/Anni: niente scelta dell\'anno', '');
     log(!!histU && histU.series.some(s => s.scale === 'cum') === false, 'Pioggia/Anni: cumulata sull\'asse destro assente', histU && histU.series.map(s => s.scale).join(','));
@@ -1900,10 +1900,10 @@
       document.body.classList.remove('dark'); await renderHist(); await sleep(100);
     }
     {                                                                // un anno solo: la sua linea, niente fascia, media ne' anni da scegliere
-      const key = V._region + '|' + V.scode, keep = histCache[key], i0 = raw.tm.findIndex((x, i) => x != null && dayOf(i).getUTCFullYear() === tLast);
-      const one = Object.assign({}, raw, { d0:dayOf(i0).toISOString().slice(0, 10).replace(/-/g, '') });
-      ['p', 'hp', 'tn', 'tx', 'tm', 'ht'].forEach(k => { if(raw[k]) one[k] = raw[k].slice(i0); });
-      histCache[key] = { t:Date.now(), h:prepHist(one) };
+      const key = V._region + '|' + V.scode + '|TEMP', keep = histCache[key], i0 = raw.tm.findIndex((x, i) => x != null && dayOf(i).getUTCFullYear() === tLast);
+      const one = { v:2, d0:dayOf(i0).toISOString().slice(0, 10).replace(/-/g, ''), k:'band', u:'°C',
+                    n:raw.tn.slice(i0), x:raw.tx.slice(i0), m:raw.tm.slice(i0), h:raw.ht.slice(i0) };
+      histCache[key] = { t:Date.now(), h:prepHistVar(one) };
       await renderHist();
       eq('un anno solo: niente anni da scegliere, niente chiave, una linea leggera sotto la sua', [!!el('hvChart').querySelector('.hv-yrs'), !!el('hvChart').querySelector('.hv-key'),
          histU && histU.series.length, histU && histU.data[histU.series.length - 2].every(v => v == null)], [false, false, 6, true]);
@@ -1918,7 +1918,7 @@
     { const i = dayWith(false); await okTip('Temperatura/Giorni, ' + dayOf(i).toISOString().slice(0, 10), d0 / 1000 + 86400 * i, dayTxt(false, i)); }
     // i pulsanti veri (clic DOM) cambiano vista e variabile
     el('hvView').querySelector('[data-w="mesi"]').click(); await sleep(300);
-    el('hvVar').querySelector('[data-v="PREC"]').click(); await sleep(300);
+    el('vars').querySelector('button[data-var="PREC"]').click(); await sleep(300);
     eq('clic su Mesi e Pioggia', [histView, histVar, currentVar], ['mesi', 'PREC', 'PREC']);
 
     // CSV: una riga per giorno
@@ -1932,14 +1932,14 @@
     URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = oclick; window.Blob = OB;
     const lines = csv && csvText != null ? csvText.trim().split('\n') : [];
     const days = lines.slice(1).map(l => l.split(';')[0]);
-    eq('CSV: intestazione', lines[0], 'data;pioggia_mm;ore_pioggia;tmin;tmax;tmedia;ore_temp');
+    eq('CSV: intestazione', lines[0], 'data;TEMP_min [°C];TEMP_max [°C];TEMP_media [°C];TEMP_ore;PREC_totale [mm];PREC_ore');
     eq('CSV: una riga per giorno con dati', lines.length - 1, nrow);
     log(new Set(days).size === days.length && days.every((d, i) => i === 0 || d > days[i - 1]) && days[0] === '2024-10-23', 'CSV: giorni distinti e in ordine', days.slice(0, 3).join(','));
     log(lines.slice(1).every(l => l.split(';').length === 7), 'CSV: sette colonne', '');
     const k = raw.p.findIndex((x, i) => x != null && raw.hp[i] != null && raw.tn[i] != null && raw.tx[i] != null && raw.tn[i] !== raw.tx[i] && raw.tm[i] != null && raw.ht[i] != null);
     const ds = dayOf(k).toISOString().slice(0, 10), row = (lines.find(l => l.startsWith(ds + ';')) || '').split(';');
-    eq('CSV: ' + ds + ' uguale al file (pioggia, ore, tmin, tmax, tmedia, ore)', row.slice(1).map(Number), [raw.p[k], raw.hp[k], raw.tn[k], raw.tx[k], raw.tm[k], raw.ht[k]]);
-    log(+row[3] < +row[4], 'CSV: tmin < tmax', row.join(';'));
+    eq('CSV: ' + ds + ' uguale al file (tmin, tmax, tmedia, ore, pioggia, ore)', row.slice(1).map(Number), [raw.tn[k], raw.tx[k], raw.tm[k], raw.ht[k], raw.p[k], raw.hp[k]]);
+    log(+row[1] < +row[2], 'CSV: tmin < tmax', row.join(';'));
 
     // PNG di ogni vista dello Storico (grafico ridisegnato grande; Tabella disegnata)
     {
@@ -2162,9 +2162,9 @@
     hb.click(); await until(() => histMode && !!histU, 8000); await sleep(300);
     log(histMode && hb.classList.contains('active') && hb.getAttribute('aria-pressed') === 'true' && hb.textContent.trim() === 'Storico',
         'Storico: acceso fra le viste', hb.outerHTML.slice(0, 120));
-    log(![...el('vars').children].some(vis) && ['hvVar', 'hvView', 'hvRange'].every(id => vis(el(id))), 'Storico: nella riga 2 la sua barra', '');
-    if(!phone) log(sameRow([el('hvVar'), ...tools()]), 'Storico: la sua barra e i tempi sulla stessa riga',
-                   JSON.stringify([el('hvVar'), ...tools()].map(e => Math.round(mid(e)))));
+    log([...el('vars').children].some(vis) && ['hvView', 'hvRange'].every(id => vis(el(id))), 'Storico: nella riga 2 le variabili e la sua barra', '');
+    if(!phone) log(sameRow([el('vars'), ...tools()]), 'Storico: le variabili e i tempi sulla stessa riga',
+                   JSON.stringify([el('vars'), ...tools()].map(e => Math.round(mid(e)))));
     eq('Storico: azioni', acts(), ['expBtn']);
     log(![...document.querySelectorAll('#modes .mode')].some(b => b.classList.contains('active')), 'Storico: nessun periodo acceso', '');
     M.storico = gap('hvChart');

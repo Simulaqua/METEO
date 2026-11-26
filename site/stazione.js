@@ -130,25 +130,27 @@ async function selectStation(props){
   if(windObsCount(table) >= 10) stationVars.push(WARROW, WROSE);
   if(stationVars.includes('PREC') && stationVars.includes('ET0')) stationVars.push(WBIL);
   if(stationVars.includes('LIVNEVE')) stationVars.push(SNOWNEW);
-  const hasHist = stationHistVars(props).length > 0;
   // la Climatologia viene dalla pioggia e dalla temperatura dello Storico
-  if(stationHistVars(props).some(v => v === 'PREC' || v === 'TEMP')) stationVars.push(WCLIMA);
+  if(stationVars.some(v => v === 'PREC' || v === 'TEMP')) stationVars.push(WCLIMA);
   extraVars = [];
   document.body.classList.remove('rose-mode', 'clima-mode');
-  el('histbtn').style.display = 'none';   // "Storico": con una sua variabile E storico pubblicato
-  if(hasHist) histIndex().then(ix => {
-    if(currentStation !== props) return;
-    if(ix && ix.regions && ix.regions[props._region]) el('histbtn').style.display = '';
-    else {                                          // regione senza Storico: niente Climatologia
-      stationVars = stationVars.filter(v => v !== WCLIMA);
-      if(currentVar !== WCLIMA) buildVarRow();
-    }
+  el('histbtn').style.display = 'none';   // "Storico": se la stazione ha variabili con lo Storico pubblicato
+  histIndex().then(ix => {                // regione senza Storico: niente Climatologia
+    if(currentStation !== props || (ix && ix.regions && ix.regions[props._region])) return;
+    stationVars = stationVars.filter(v => v !== WCLIMA);
+    if(currentVar !== WCLIMA) buildVarRow();
   });
-  if(histMode && !hasHist) exitHist();
+  const histReady = histVarsReady(props).then(hv => {
+    if(currentStation === props && hv.length) el('histbtn').style.display = '';
+    return hv;
+  });
   // Impilate resta acceso cambiando stazione, con le variabili di prima che questa ha
   const keep = prevSel.filter(v => !isView(v) && stationVars.includes(v));
-  if(histMode && hasHist){
-    if(!stationHistVars(props).includes(histVar)) histVar = stationHistVars(props)[0];
+  const hv = histMode ? await histReady : [];
+  if(currentStation !== props) return;
+  if(histMode && !hv.length) exitHist();
+  if(histMode){
+    if(!hv.includes(histVar)) histVar = hv.includes(currentVar) ? currentVar : hv[0];
     currentVar = histVar;
     buildVarRow();
     renderHist();
@@ -230,9 +232,10 @@ function keepFocus(box, build){
 function buildVarRow(){
   keepFocus(el('vars'), fillVarRow);
 }
-// variabili della riga: nelle Vicine solo quelle che valgono; nei confronti niente neve fresca (la calcola la
-// pagina, non c'e' nelle serie)
-const rowVars = () => chartMode === 'near' ? stationVars.filter(nearOk)
+// variabili della riga: nello Storico quelle che ce l'hanno; nelle Vicine solo quelle che valgono; nei
+// confronti niente neve fresca (la calcola la pagina, non c'e' nelle serie)
+const rowVars = () => histMode ? stationHistVars(currentStation)
+                    : chartMode === 'near' ? stationVars.filter(nearOk)
                     : isCompareMode() ? stationVars.filter(v => v !== SNOWNEW) : stationVars;
 function fillVarRow(){
   const box = el('vars'), all = rowVars(), cmp = isCompareMode();

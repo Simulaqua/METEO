@@ -422,26 +422,14 @@ body.dark .leaflet-control-layers-toggle { filter:invert(1); }
   .dk-credits { flex:1 0 100%; margin-left:0; text-align:center; }
   .dk-menu { left:8px; right:8px; width:auto; max-width:none; bottom:calc(var(--dockh, 60px) + 16px); }
 }
-/* STORICO LUNGO: aggregati giornalieri (pioggia, temperatura) da tutto l'archivio, al posto del grafico */
+/* STORICO LUNGO: aggregati giornalieri di ogni grandezza da tutto l'archivio, al posto del grafico */
 #histview { display:none; flex-direction:column; gap:8px; }
 /* lo Storico e' alto quanto il grafico delle misure */
 body.hist-mode #histview { display:flex; flex:1 1 auto; min-height:0; }
-body.hist-mode #chartwrap, body.hist-mode #windrose, body.hist-mode #vars { display:none; }
+body.hist-mode #chartwrap, body.hist-mode #windrose { display:none; }
 .hv-bar { display:none; }
 body.hist-mode .hv-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:1 1 auto;
-                         min-width:0; }       /* nella riga 2, al posto delle variabili */
-/* Pioggia e Temperatura come le chip delle variabili: la scelta col bordo, il velo e il trattino del suo
-   colore */
-#hvVar { border:0; border-radius:0; overflow:visible; gap:6px; }
-#hvVar button, #hvVar button:first-child { height:24px; padding:0 11px; border:1px solid var(--ctl);
-                                           border-radius:12px; }
-#hvVar button.on { background:var(--kt); color:var(--fg); border-color:var(--k); }
-#hvVar button.on::before { content:''; display:inline-block; width:12px; height:2px; margin-right:6px;
-                           border-radius:1px; vertical-align:middle; background:var(--k); }
-#hvVar [data-v="PREC"] { --k:#1f6fd1; --kt:rgba(31,111,209,.09); }
-#hvVar [data-v="TEMP"] { --k:#e34948; --kt:rgba(227,73,72,.09); }
-body.dark #hvVar [data-v="PREC"] { --k:#4d94ea; --kt:rgba(77,148,234,.2); }
-body.dark #hvVar [data-v="TEMP"] { --kt:rgba(227,73,72,.2); }
+                         min-width:0; }       /* nella riga 2, dopo le variabili */
 /* barre della tabella: pioggia, temperatura (calda), incompleto */
 #histview { --hv-rain:#b5d4f4; --hv-warm:#f5c4b3; --hv-part:var(--line); }
 body.dark #histview { --hv-rain:rgba(99,164,232,.42); --hv-warm:rgba(237,137,54,.36); }
@@ -704,9 +692,9 @@ body.sheet-open #dock, body.sheet-open #prodMenu { display:none; }
   #pbar { flex-wrap:wrap; gap:8px; }
   #ptools { order:-1; flex:1 0 100%; margin-left:0; gap:8px; }
   /* comandi alti 32 px, da toccare col dito */
-  #ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn, #hvVar button { height:32px; font-size:14px; }
+  #ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn { height:32px; font-size:14px; }
   #modes .mode, .hv-seg button { height:30px; font-size:14px; }
-  #vars .vn, #altBtn, #stackbtn, #hvVar button, #hvVar button:first-child { border-radius:16px; }
+  #vars .vn, #altBtn, #stackbtn { border-radius:16px; }
   #vars .vb { height:30px; }
   #vars .vp { width:28px; height:28px; line-height:28px; margin-right:1px; }
   #pact .act { padding:0 9px; }

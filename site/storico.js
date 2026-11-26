@@ -2,10 +2,12 @@
 // Gli ascoltatori sono in buildHistControls(), chiamata dall'avvio (comune.js).
 
 // ------------------------------------------------------------------------------------------------
-// Aggregati giornalieri di pioggia, temperatura, livelli di fiumi e laghi e portate, scritti ogni giorno da
-// history.py sul ramo 'history': <REGIONE>/<STAZIONE>.json = {d0:'YYYYMMDD', p:[mm], hp:[ore], tn:[], tx:[],
-// tm:[], ht:[ore], ...} con le chiavi di HIST_KEYS.
-// Un elemento per giorno SOLARE da d0; null = nessun dato. "ore" = ore del giorno con almeno una misura.
+// Aggregati giornalieri di ogni grandezza, scritti ogni giorno da history.py sul ramo 'history':
+//   <REGIONE>/<STAZIONE>/<VAR>.json = {v:2, d0:'AAAAMMGG', k:tipo, u:unita', ...}: tipo 'band' minima n,
+//   massima x e media m; 'sum' totale s (pioggia, ore di sole, energia); 'dir' direzione prevalente d; in h
+//   le ore del giorno con almeno una misura. Un elemento per giorno SOLARE da d0; null = nessun dato.
+//   <REGIONE>/vars.json = {stazione: [variabili]}. La Climatologia legge ancora <REGIONE>/<STAZIONE>.json
+//   (pioggia p, hp e temperatura tn, tx, tm, ht).
 // Giorno completo con >= 20 ore; mese completo se intero e con il 90% dei giorni completi.
 // ------------------------------------------------------------------------------------------------
 const HIST_FALLBACK = 'https://cdn.jsdelivr.net/gh/Simulaqua/METEO@history';
@@ -30,67 +32,114 @@ function histIndex(){
   return _histIndexP;
 }
 const histSafe = c => String(c).replace(/[^A-Za-z0-9_.-]/g, '_');
-// variabile -> chiavi nel file: per la pioggia somma e ore, per le altre minima, massima, media e ore
-const HIST_KEYS = {
-  PREC:['p', 'hp'], TEMP:['tn', 'tx', 'tm', 'ht'], LIVIDRO:['ln', 'lx', 'lm', 'hl'],
-  LIVLAGO:['gn', 'gx', 'gm', 'hg'], PORTATA:['qn', 'qx', 'qm', 'hq']
-};
-const HIST_VARS = Object.keys(HIST_KEYS);
 const HIST_NAME = {
   PREC:'pioggia', TEMP:'temperatura', LIVIDRO:'livello', LIVLAGO:'livello', PORTATA:'portata'
 };
-const stationHistVars = st => HIST_VARS.filter(v => ((st && st.variables) || []).includes(v));
+const histName = v => HIST_NAME[v] || (VAR_LABELS[v] || v).toLowerCase();
 const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1);
 const daysInMonth = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-
-function prepHist(j){
-  const d0 = Date.UTC(+j.d0.slice(0, 4), +j.d0.slice(4, 6) - 1, +j.d0.slice(6, 8)) / 1000;
-  const keys = Object.values(HIST_KEYS).flat();
-  const n = Math.max(...keys.map(k => (j[k] || []).length));
-  const x = new Array(n);
-  for(let i = 0; i < n; i++) x[i] = d0 + 86400 * i;
-  const col = a => (a && a.length === n) ? a : new Array(n).fill(null);
-  const h = { x, n, has:{} };
-  keys.forEach(k => { h[k] = col(j[k]); });
-  HIST_VARS.forEach(v => { h.has[v] = HIST_KEYS[v].slice(0, -1).some(k => !!j[k]); });
-  h.hasP = h.has.PREC;
-  h.hasT = h.has.TEMP;
-  return h;
-}
-// Minima, massima, media e ore del giorno di v (non la pioggia) nelle unita' dei grafici della stazione: il
-// livello sullo zero idrometrico (m s.m.m.) dove lo zero c'e', come nelle misure
-function hvCols(h, v){
-  const [kn, kx, km, kh] = HIST_KEYS[v], off = varOffset(v, currentStation), sc = varScale(v, currentStation);
-  const key = v + '|' + off + '|' + sc, memo = h._cols || (h._cols = {});
-  return memo[key] || (memo[key] = {
-    mn:applyOff(h[kn], off, sc), mx:applyOff(h[kx], off, sc), me:applyOff(h[km], off, sc), hr:h[kh]
-  });
-}
-const HV_UNIT0 = { PREC:'mm', TEMP:'°C', LIVIDRO:'m', LIVLAGO:'m', PORTATA:'m³/s' };
-const hvUnit = v => (v === 'PREC' || v === 'TEMP') ? HV_UNIT0[v]
-  : normUnit(varUnit(v, currentStation)) || HV_UNIT0[v];
-const hvFmt = (v, x) => v === 'TEMP' ? fmt1(x) : fmtNum(x, v);
-// medie arrotondate: al decimo per pioggia e temperatura, al millesimo per livelli e portate
-const hvRound = (v, x) => {
-  const f = (v === 'PREC' || v === 'TEMP') ? 10 : 1000;
-  return Math.round(x * f) / f;
-};
-async function histLoad(st){
-  const key = st._region + '|' + st.scode, c = histCache[key];
+const histDay = d0 => Date.UTC(+d0.slice(0, 4), +d0.slice(4, 6) - 1, +d0.slice(6, 8)) / 1000;
+const histTimes = (d0, n) => Array.from({ length:n }, (_, i) => histDay(d0) + 86400 * i);
+async function histCached(key, load){
+  const c = histCache[key];
   if(c && Date.now() - c.t < 3600e3) return c.h;
   let h = null;
-  try {
-    const r = await fhist(st._region + '/' + histSafe(st.scode) + '.json');
-    if(r.ok) h = prepHist(await r.json());
-  } catch(e){}
+  try { h = await load(); } catch(e){}
   histCache[key] = { t: Date.now(), h };
   return h;
 }
 
-// aggregati mensili di v: [{y, m, x, val, mn, mx, have, span, dim, full}]
+// variabili con lo Storico: per regione (vars.json) e per stazione (st._hv, nell'ordine della scheda)
+const _histVarsP = {};
+function histRegionVars(region){
+  if(!_histVarsP[region])
+    _histVarsP[region] = fhist(region + '/vars.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  return _histVarsP[region];
+}
+async function histVarsReady(st){
+  if(!st) return [];
+  if(!st._hv){
+    const ix = await histRegionVars(st._region);
+    st._hv = ((ix && ix[histSafe(st.scode)]) || []).slice().sort(byVarOrder);
+  }
+  return st._hv;
+}
+const stationHistVars = st => (st && st._hv) || [];
+
+// Una variabile (versione 2): {x, n, k, u, mn, mx, me, s, d, hr}
+function prepHistVar(j){
+  const keys = { band:['n', 'x', 'm', 'h'], sum:['s', 'h'], dir:['d', 'h'] }[j.k] || [];
+  const n = Math.max(0, ...keys.map(k => (j[k] || []).length));
+  const col = k => (j[k] && j[k].length === n) ? j[k] : new Array(n).fill(null);
+  return {
+    x:histTimes(j.d0, n), n, k:j.k, u:normUnit(j.u),
+    mn:col('n'), mx:col('x'), me:col('m'), s:col('s'), d:col('d'), hr:col('h')
+  };
+}
+const histLoadVar = (st, v) => histCached(st._region + '|' + st.scode + '|' + v, async () => {
+  const r = await fhist(st._region + '/' + histSafe(st.scode) + '/' + v + '.json');
+  return r.ok ? prepHistVar(await r.json()) : null;
+});
+// Climatologia (versione 1): pioggia e temperatura in un file
+const HIST_KEYS = { PREC:['p', 'hp'], TEMP:['tn', 'tx', 'tm', 'ht'] };
+function prepHist(j){
+  const keys = Object.values(HIST_KEYS).flat();
+  const n = Math.max(...keys.map(k => (j[k] || []).length));
+  const col = a => (a && a.length === n) ? a : new Array(n).fill(null);
+  const h = { x:histTimes(j.d0, n), n };
+  keys.forEach(k => { h[k] = col(j[k]); });
+  h.hasP = !!j.p;
+  h.hasT = !!(j.tm || j.tn);
+  return h;
+}
+const histLoad = st => histCached(st._region + '|' + st.scode, async () => {
+  const r = await fhist(st._region + '/' + histSafe(st.scode) + '.json');
+  return r.ok ? prepHist(await r.json()) : null;
+});
+
+// totale del giorno (pioggia e le altre somme) e sue ore, in un file della versione 2 o 1
+const hvSum = (h, v) => h.k ? h.k === 'sum' : v === 'PREC';
+const sumCols = h => h.k ? { s:h.s, hr:h.hr } : { s:h.p, hr:h.hp };
+// Raffiche e onde massime: conta il massimo del giorno (ARPAV da' solo quello); le altre la media
+const HV_MAX = new Set(['VVENTOMAX', 'VVENTOMAX2', 'VVENTOMAX1S', 'ONDEMAX']);
+const hvMainLabel = v => HV_MAX.has(v) ? 'max' : 'media';
+// Minima, massima, media (o massimo, per HV_MAX) e ore del giorno di v nelle unita' dei grafici della
+// stazione: il livello sullo zero idrometrico (m s.m.m.) dove lo zero c'e', come nelle misure. Senza media
+// (umidita' ARPAV: solo minima e massima) la media e' (minima + massima) / 2, come in FAO-56.
+function hvCols(h, v){
+  if(!h.k){
+    const [kn, kx, km, kh] = HIST_KEYS[v];
+    return { mn:h[kn], mx:h[kx], me:h[km], hr:h[kh] };
+  }
+  const off = varOffset(v, currentStation), sc = off && h.u === 'cm' ? 0.01 : 1;
+  const key = v + '|' + off, memo = h._cols || (h._cols = {});
+  if(memo[key]) return memo[key];
+  const none = new Array(h.n).fill(null);
+  const me = HV_MAX.has(v) ? h.mx
+    : h.me.map((m, i) => m != null ? m
+                                   : (h.mn[i] != null && h.mx[i] != null ? (h.mn[i] + h.mx[i]) / 2 : null));
+  return (memo[key] = {
+    mn:HV_MAX.has(v) ? none : applyOff(h.mn, off, sc), mx:HV_MAX.has(v) ? none : applyOff(h.mx, off, sc),
+    me:applyOff(me, off, sc), hr:h.hr
+  });
+}
+// unita' della variabile mostrata: quella del suo file, il livello sullo zero idrometrico in m s.m.m.
+const hvUnit = v => {
+  if(v === 'LIVIDRO' && varOffset(v, currentStation)) return 'm s.m.m.';
+  return (histData && histData.k && histData.u) || ({ PREC:'mm', TEMP:'°C' })[v] || '';
+};
+const hvFmt = (v, x) => v === 'TEMP' ? fmt1(x) : fmtNum(x, v);
+// medie arrotondate: al decimo per pioggia e temperatura, al millesimo per le altre
+const hvRound = (v, x) => {
+  const f = (v === 'PREC' || v === 'TEMP') ? 10 : 1000;
+  return Math.round(x * f) / f;
+};
+
+// aggregati mensili di v: [{y, m, x, val, mn, mx, have, span, dim, full}]; val = totale (somme), massimo
+// (raffiche, HV_MAX) o media dei giorni completi
 function histMonths(h, v){
-  const isP = v === 'PREC', c = isP ? null : hvCols(h, v);
-  const val = isP ? h.p : c.me, hrs = isP ? h.hp : c.hr;
+  const isP = hvSum(h, v), top = !isP && HV_MAX.has(v), c = isP ? sumCols(h) : hvCols(h, v);
+  const val = isP ? c.s : c.me, hrs = c.hr;
   let i0 = -1;
   for(let i = 0; i < h.n; i++){
     if(val[i] != null){ i0 = i; break; }
@@ -101,12 +150,16 @@ function histMonths(h, v){
   for(let i = i0; i < h.n; i++){
     const d = new Date(h.x[i] * 1000), y = d.getUTCFullYear(), m = d.getUTCMonth();
     if(!cur || cur.y !== y || cur.m !== m){
-      cur = { y, m, x:Date.UTC(y, m, 1) / 1000, sum:0, tsum:0, mn:null, mx:null, have:0, span:0, any:0 };
+      cur = { y, m, x:Date.UTC(y, m, 1) / 1000, sum:0, tsum:0, mn:null, mx:null, have:0, span:0, any:0,
+              top:null };
       out.push(cur);
     }
     cur.span++;
     if(isP){
-      if(h.p[i] != null){ cur.sum += h.p[i]; cur.any++; }
+      if(val[i] != null){ cur.sum += val[i]; cur.any++; }
+    }
+    else if(top){
+      if(val[i] != null){ cur.top = cur.top == null ? val[i] : Math.max(cur.top, val[i]); cur.any++; }
     }
     else {
       if(c.mn[i] != null){
@@ -123,20 +176,19 @@ function histMonths(h, v){
   out.forEach(o => {
     o.dim = daysInMonth(o.y, o.m);
     o.full = o.span === o.dim && o.have >= 0.9 * o.dim;
-    o.val = isP
-      ? (o.any ? Math.round(o.sum * 10) / 10 : null)
-      : (o.have ? hvRound(v, o.tsum / o.have) : null);
+    o.val = isP ? (o.any ? Math.round(o.sum * 10) / 10 : null)
+      : top ? o.top : (o.have ? hvRound(v, o.tsum / o.have) : null);
   });
   return out;
 }
 
-// Tabella mesi x anni: una riga per mese, in fondo il totale (pioggia, mm interi) o la media delle medie
-// (le altre); una colonna per anno dal piu' vecchio. Pioggia: a sinistra del numero una barra in
-// proporzione al mese piu' piovoso. Le altre: la casella ha il colore dello scarto dalla media di quel
-// mese fra gli anni, con la chiave sopra (temperatura in gradi, livelli e portate in proporzione a quanto
+// Tabella mesi x anni: una riga per mese, in fondo il totale (somme: pioggia, ore, energia; interi) o la
+// media delle medie (le altre); una colonna per anno dal piu' vecchio. Somme: a sinistra del numero una barra
+// in proporzione al mese col totale piu' alto. Le altre: la casella ha il colore dello scarto dalla media di
+// quel mese fra gli anni, con la chiave sopra (temperatura in gradi, le altre in proporzione a quanto
 // variano di solito in quel mese). Incompleto = piu' chiaro, col perche'.
-function hvTableHtml(months, v){
-  const isP = v === 'PREC', isT = v === 'TEMP', by = {}, vals = [];
+function hvTableHtml(months, v, sum){
+  const isP = sum, isT = v === 'TEMP', by = {}, vals = [];
   months.forEach(c => {
     if(c.val != null){ by[c.y + '-' + c.m] = c; vals.push(c.val); }
   });
@@ -229,19 +281,28 @@ const hvAxes = unit => [
   { grid:{ stroke:GRID() }, stroke:AXTX(), font:cssFont(12), values:hvTimeVals, incrs:HV_INCRS },
   hvYAxis(unit)
 ];
-// Mesi e Giorni (days). Pioggia: barre, le incomplete piu' chiare, e la cumulata del periodo mostrato
-// sull'asse destro (riparte da zero al bordo sinistro anche con lo zoom, come nei grafici delle stazioni).
-// Temperatura: banda min-max, media in linea.
-const hvRainOpts = days => hvBase({
-  scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] }, cum:cumY() },
-  axes:hvAxes('mm').concat(cumAxis(false, CUMC())),
-  series:[
-    {},
-    { stroke:'#2b6cb0', fill:'#2b6cb0cc', width:1, paths:hvBars(), points:{ show:false } },
-    { stroke:'#8fb3da', fill:'#8fb3da88', width:1, paths:hvBars(), points:{ show:false } },
-    { stroke:CUMC(), width:2, scale:'cum', points:{ show:false } }
-  ]
-}, days);
+// Mesi e Giorni (days). Somme (pioggia, ore di sole, energia): barre, le incomplete piu' chiare, e la
+// cumulata del periodo mostrato sull'asse destro (riparte da zero al bordo sinistro anche con lo zoom, come
+// nei grafici delle stazioni); la pioggia in blu, le altre nel colore della variabile.
+// Le altre: banda min-max, media in linea.
+function hvSumColors(v){
+  if(v === 'PREC') return { full:'#2b6cb0', fullFill:'#2b6cb0cc', part:'#8fb3da', partFill:'#8fb3da88' };
+  const c = varColor(v);
+  return { full:c, fullFill:withAlpha(c, 0.8), part:withAlpha(c, 0.5), partFill:withAlpha(c, 0.3) };
+}
+const hvSumOpts = (v, days) => {
+  const c = hvSumColors(v);
+  return hvBase({
+    scales:{ x:{ time:true }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.08, 1)] }, cum:cumY() },
+    axes:hvAxes(hvUnit(v)).concat(cumAxis(false, CUMC())),
+    series:[
+      {},
+      { stroke:c.full, fill:c.fullFill, width:1, paths:hvBars(), points:{ show:false } },
+      { stroke:c.part, fill:c.partFill, width:1, paths:hvBars(), points:{ show:false } },
+      { stroke:CUMC(), width:2, scale:'cum', points:{ show:false } }
+    ]
+  }, days);
+};
 // un giorno o un mese senza dato interrompe la cumulata, che poi riprende dal valore raggiunto
 function hvCum(vals){
   let c = 0;
@@ -275,40 +336,45 @@ const hvBandOpts = (v, w, days) => {
 const hvSw = (c, line, cls) =>
   '<span class="sw' + (line ? ' ln' : '') + (cls ? ' ' + cls : '') + '" style="' +
   (line ? 'border-color:' : 'background:') + c + '"></span>';
-const hvRainKey = () => [hvSw('#2b6cb0cc') + 'mm', hvSw('#8fb3da88') + 'incompleto'];
-const hvBandKey = v => [hvSw(hvBandColors(v).key) + 'min–max', hvSw(AXTX(), true) + 'media'];
+const hvSumKey = v => {
+  const c = hvSumColors(v);
+  return [hvSw(c.fullFill) + hvUnit(v), hvSw(c.partFill) + 'incompleto'];
+};
+const hvBandKey = v => (HV_MAX.has(v) ? [] : [hvSw(hvBandColors(v).key) + 'min–max'])
+  .concat([hvSw(AXTX(), true) + hvMainLabel(v)]);
 // Riquadro al passaggio: in alto il mese o il giorno, sotto i valori ("291 mm"; "media 23.8 °C" e
 // "min 15.8 · max 35.6"), in fondo "incompleto" se lo e'
 const hvLines = (v, m, mn, mx) => {
   const u = ' ' + hvUnit(v);
   const r = [mn, mx].map((x, k) => x == null ? '' : (k ? 'max ' : 'min ') + hvFmt(v, x))
     .filter(Boolean).join(' · ');
-  return [m == null ? '' : 'media ' + hvFmt(v, m) + u, r && m == null ? r + u : r].filter(Boolean);
+  return [m == null ? '' : hvMainLabel(v) + ' ' + hvFmt(v, m) + u, r && m == null ? r + u : r]
+    .filter(Boolean);
 };
 const hvTip = (lab, lines, part) =>
   '<b>' + lab + '</b>' + (lines.length ? lines : ['nessun dato']).map(s => '<div>' + s + '</div>').join('') +
   (part && lines.length ? '<div class="part">incompleto</div>' : '');
 
-// ---- vista "Mesi": totali mensili (pioggia) o banda min-max e media mensile (le altre) ----
+// ---- vista "Mesi": totali mensili (somme) o banda min-max e media mensile (le altre) ----
 function hvMonthsView(h, v){
-  const months = histMonths(h, v), isP = v === 'PREC';
+  const months = histMonths(h, v), isP = hvSum(h, v);
   if(!months.length) return { msg:'Nessun dato' };
   const x = months.map(c => c.x);
   const read = i => {
     const c = months[i];
     return hvTip(
       hvMonLabel(c.x),
-      isP ? (c.val == null ? [] : [Math.round(c.val) + ' mm']) : hvLines(v, c.val, c.mn, c.mx),
+      isP ? (c.val == null ? [] : [Math.round(c.val) + ' ' + hvUnit(v)]) : hvLines(v, c.val, c.mn, c.mx),
       !c.full
     );
   };
   if(isP) return {
-    opts:hvRainOpts(),
+    opts:hvSumOpts(v),
     data:[
       x, months.map(c => c.full ? c.val : null), months.map(c => c.full ? null : c.val),
       hvCum(months.map(c => c.val))
     ],
-    read, key:hvRainKey()
+    read, key:hvSumKey(v)
   };
   return {
     opts:hvBandOpts(v, 2),
@@ -324,7 +390,7 @@ const hvMonthAxis = (splits, right) => ({
     (u.width - 58 - right) / 12 < 26 && k % 2 ? '' : MESI_BR[splits.indexOf(i)])
 });
 
-// ---- vista "Anni", pioggia: la cumulata dal 1 gennaio, una linea per anno ----
+// ---- vista "Anni", somme (pioggia, ore, energia): la cumulata dal 1 gennaio, una linea per anno ----
 // Un colore per anno dal piu' recente: blu (piu' spessa), ambra, verde acqua, viola, rosso, magenta, verde;
 // gli incompleti piu' sottili; il nome dell'anno in fondo alla linea. Tavolozza provata (OKLab): fra due
 // qualsiasi dei primi sei anni distanza >= 16 (>= 8.6 per protanopia e deuteranopia), contrasto >= 3.4
@@ -337,17 +403,17 @@ const hvYearColor = age => {
   const dark = document.body.classList.contains('dark'), p = HV_YEARS[dark ? 'dark' : 'light'];
   return age < p.length ? p[age] : (dark ? '#8fa1b5' : '#6b7a8d');
 };
-function hvRainYearsView(h){
-  const yrs = {};
+function hvSumYearsView(h, v){
+  const yrs = {}, { s, hr } = sumCols(h), u = hvUnit(v);
   for(let i = 0; i < h.n; i++){
     const d = new Date(h.x[i] * 1000), y = d.getUTCFullYear();
     const Y = yrs[y] || (yrs[y] = { y, arr:new Array(366).fill(null), run:0, have:0, first:-1, last:-1 });
     const doy = Math.round((Date.UTC(y, d.getUTCMonth(), d.getUTCDate()) - Date.UTC(y, 0, 1)) / 86400000);
-    if(h.p[i] == null) continue;
+    if(s[i] == null) continue;
     if(Y.first < 0) Y.first = doy;
     Y.last = doy;
-    if(h.hp[i] >= 20) Y.have++;
-    Y.run += h.p[i];
+    if(hr[i] >= 20) Y.have++;
+    Y.run += s[i];
     Y.arr[doy] = Math.round(Y.run * 10) / 10;
   }
   const list = Object.values(yrs).filter(Y => Y.first >= 0).sort((a, b) => a.y - b.y);
@@ -374,7 +440,7 @@ function hvRainYearsView(h){
     dayLab(i),
     lines.filter(o => o.Y.arr[i] != null).reverse().map(o =>          // dal piu' recente
       '<span' + (o.part ? ' class="part"' : '') + '>' + hvSw(o.color, true, o.part && 'thin') + o.Y.y + ' ' +
-      Math.round(o.Y.arr[i]) + ' mm</span>')
+      Math.round(o.Y.arr[i]) + ' ' + u + '</span>')
   );
   const opts = hvBase({
     scales:{ x:{ time:false, range:[0, 365] }, y:{ range:(u, mn, mx) => [0, Math.max(mx * 1.06, 1)] } },
@@ -383,7 +449,7 @@ function hvRainYearsView(h){
       label:String(o.Y.y), stroke:o.color, width:(k < n - 1 ? 1.6 : 2.6) - (o.part ? 0.6 : 0),
       spanGaps:false, points:{ show:false }
     }))),
-    axes:[hvMonthAxis(MS, 44), hvYAxis('mm da inizio anno')]
+    axes:[hvMonthAxis(MS, 44), hvYAxis(u + ' da inizio anno')]
   });
   // gli anni in una riga sopra il grafico (nel PNG nella chiave), mai in fondo alle linee
   const yearKey = lines.map(o => ({ name:String(o.Y.y), color:o.color }));
@@ -494,25 +560,90 @@ function hvYearPicker(years, year){
   return d;
 }
 
-// ---- vista "Giorni": serie giornaliera (pioggia: barre; le altre: banda min-max + media) ----
+// ---- vista "Giorni": serie giornaliera (somme: barre; le altre: banda min-max + media) ----
 function hvDaysView(h, v){
-  const isP = v === 'PREC', c = isP ? null : hvCols(h, v);
+  const isP = hvSum(h, v), c = isP ? sumCols(h) : hvCols(h, v);
   const read = i => hvTip(
     hvDayLabel(h.x[i]),
-    isP ? (h.p[i] == null ? [] : [fmt1(h.p[i]) + ' mm']) : hvLines(v, c.me[i], c.mn[i], c.mx[i]),
-    !((isP ? h.hp[i] : c.hr[i]) >= 20)
+    isP ? (c.s[i] == null ? [] : [fmt1(c.s[i]) + ' ' + hvUnit(v)]) : hvLines(v, c.me[i], c.mn[i], c.mx[i]),
+    !(c.hr[i] >= 20)
   );
   if(isP) return {
-    opts:hvRainOpts(true),
+    opts:hvSumOpts(v, true),
     data:[
       h.x,
-      h.p.map((p, i) => (p != null && h.hp[i] >= 20) ? p : null),
-      h.p.map((p, i) => (p != null && h.hp[i] < 20) ? p : null),
-      hvCum(h.p)
+      c.s.map((p, i) => (p != null && c.hr[i] >= 20) ? p : null),
+      c.s.map((p, i) => (p != null && c.hr[i] < 20) ? p : null),
+      hvCum(c.s)
     ],
-    read, key:hvRainKey(), days:true
+    read, key:hvSumKey(v), days:true
   };
   return { opts:hvBandOpts(v, 1.6, true), data:[h.x, c.mx, c.mn, c.me], read, key:hvBandKey(v), days:true };
+}
+
+// ---- direzioni (vento, onde, correnti): la prevalente del giorno o del mese, a puntini come nei grafici
+// delle misure; niente Anni ----
+const HV_SECT = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+const hvSect = d => HV_SECT[Math.round(d / 45) % 8];
+// la prevalente del mese: il settore che e' stato il prevalente nel maggior numero di giorni
+function hvDirMonths(h){
+  const out = [];
+  let cur = null;
+  for(let i = 0; i < h.n; i++){
+    const t = new Date(h.x[i] * 1000), y = t.getUTCFullYear(), m = t.getUTCMonth();
+    if(!cur || cur.y !== y || cur.m !== m){
+      cur = { y, m, x:Date.UTC(y, m, 1) / 1000, cnt:new Array(8).fill(0), have:0, any:0, span:0 };
+      out.push(cur);
+    }
+    cur.span++;
+    if(h.d[i] == null) continue;
+    cur.any++;
+    cur.cnt[Math.round(h.d[i] / 45) % 8]++;
+    if(h.hr[i] >= 20) cur.have++;
+  }
+  return out.filter(c => c.any).map(c => {
+    const k = c.cnt.indexOf(Math.max(...c.cnt)), dim = daysInMonth(c.y, c.m);
+    return Object.assign(c, { val:k * 45, days:c.cnt[k], dim, full:c.span === dim && c.have >= 0.9 * dim });
+  });
+}
+function hvDirOpts(days, size){
+  const c = varColor(histVar);
+  return hvBase({
+    scales:{ x:{ time:true }, y:dirY() },
+    axes:[hvAxes('')[0], dirAxis(hvYAxis(''))],
+    series:[{}, { stroke:c, width:0, paths:() => null, points:{ show:true, size, fill:c, stroke:c } }]
+  }, days);
+}
+function hvDirView(h){
+  if(histView === 'giorni'){
+    const read = i => hvTip(hvDayLabel(h.x[i]),
+                            h.d[i] == null ? [] : [hvSect(h.d[i]) + ' (' + h.d[i] + '°)'], !(h.hr[i] >= 20));
+    return { opts:hvDirOpts(true, 5), data:[h.x, h.d], read, key:[], days:true };
+  }
+  const months = hvDirMonths(h);
+  if(!months.length) return { msg:'Nessun dato' };
+  const read = i => {
+    const c = months[i];
+    return hvTip(hvMonLabel(c.x), [hvSect(c.val) + ' · ' + c.days + ' giorni su ' + c.any], !c.full);
+  };
+  return { opts:hvDirOpts(false, 9), data:[months.map(c => c.x), months.map(c => c.val)], read, key:[] };
+}
+// Tabella delle direzioni: il settore prevalente di ogni mese, col numero di giorni al passaggio
+function hvDirTableHtml(h){
+  const months = hvDirMonths(h), by = {}, years = [...new Set(months.map(c => c.y))];
+  months.forEach(c => { by[c.y + '-' + c.m] = c; });
+  const row = (head, cells) => '<tr><th>' + head + '</th>' + cells.join('') + '</tr>';
+  let html = '<table class="warm" style="--ny:' + years.length + '"><thead>' +
+             row('', years.map(y => '<th>' + y + '</th>')) + '</thead><tbody>';
+  MESI_BR.forEach((name, m) => {
+    html += row(name, years.map(y => {
+      const c = by[y + '-' + m];
+      if(!c) return '<td></td>';
+      const tip = c.days + ' giorni su ' + c.any + (c.full ? '' : ', incompleto');
+      return '<td' + (c.full ? '' : ' class="part"') + ' title="' + tip + '">' + hvSect(c.val) + '</td>';
+    }));
+  });
+  return html + '</tbody></table>';
 }
 
 // riquadro coi valori dove sta il puntatore (mouse; sul telefono tocco e trascinamento) e, sopra il grafico,
@@ -557,14 +688,15 @@ function hvDecorate(u, r){
 // Gli ascoltatori stanno su u.over e se ne vanno con il grafico (destroy a ogni cambio di vista).
 const HV_MINW = 3 * 86400;
 const hvKey = st => st ? st._region + '|' + st.scode : '';
-// primo e ultimo giorno con un dato della variabile mostrata (le altre della stazione possono partire prima)
+// primo e ultimo giorno con un dato della variabile mostrata
 function hvSpan(h){
-  const k = histVar === 'PREC' ? 'p' : HIST_KEYS[histVar][2], a = h[k], memo = h._span || (h._span = {});
-  if(memo[k]) return memo[k];
+  if(h._span) return h._span;
+  const arrs = h.k === 'sum' ? [h.s] : h.k === 'dir' ? [h.d] : [h.mn, h.mx, h.me];
+  const has = i => arrs.some(a => a[i] != null);
   let i0 = 0, i1 = h.n - 1;
-  while(i0 < i1 && a[i0] == null) i0++;
-  while(i1 > i0 && a[i1] == null) i1--;
-  return (memo[k] = { first:h.x[i0], last:h.x[i1] });
+  while(i0 < i1 && !has(i0)) i0++;
+  while(i1 > i0 && !has(i1)) i1--;
+  return (h._span = { first:h.x[i0], last:h.x[i1] });
 }
 const hvFull = h => ({ min:hvSpan(h).first - 43200, max:hvSpan(h).last + 43200 }); // mezza giornata ai lati
 function hvRangeWin(h, r){
@@ -751,24 +883,24 @@ function hvApplyRange(){
   hvSetWin(histU, w.min, w.max, false);
 }
 function hvSync(h){
-  const hv = stationHistVars(currentStation);
-  [...el('hvVar').children].forEach(b => {
-    b.style.display = (h.has[b.dataset.v] && hv.includes(b.dataset.v)) ? '' : 'none';
-    b.classList.toggle('on', b.dataset.v === histVar);
+  [...el('hvView').children].forEach(b => {
+    b.classList.toggle('on', b.dataset.w === histView);
+    b.style.display = h.k === 'dir' && b.dataset.w === 'anni' ? 'none' : '';
   });
-  [...el('hvView').children].forEach(b => b.classList.toggle('on', b.dataset.w === histView));
   el('hvRange').style.display = histView === 'giorni' ? '' : 'none';
   el('hvChart').style.display = histView === 'tabella' ? 'none' : '';
   hvRangeLit();
 }
-const hvView = h => histView === 'anni'
-  ? (histVar === 'PREC' ? hvRainYearsView(h) : hvCurveView(h, histVar))
+const hvView = h => h.k === 'dir' ? hvDirView(h)
+  : histView === 'anni' ? (hvSum(h, histVar) ? hvSumYearsView(h, histVar) : hvCurveView(h, histVar))
   : histView === 'giorni' ? hvDaysView(h, histVar) : hvMonthsView(h, histVar);
 async function renderHist(){
   const st = currentStation;
   if(!st || !histMode) return;
   hvNoteSet(null, 'Carico lo storico…');
-  const h = await histLoad(st);
+  const hv = await histVarsReady(st);
+  if(!hv.includes(histVar) && hv.length) histVar = hv.includes(currentVar) ? currentVar : hv[0];
+  const h = hv.length ? await histLoadVar(st, histVar) : null;
   if(st !== currentStation || !histMode) return;
   if(histU){ histU.destroy(); histU = null; }
   el('hvChart').innerHTML = '';
@@ -779,12 +911,12 @@ async function renderHist(){
   }
   histData = h;
   if(histWin && histWin.key !== hvKey(st)) histWin = null;
-  if(!h.has[histVar]) histVar = stationHistVars(st).find(v => h.has[v]) || histVar;
+  if(h.k === 'dir' && histView === 'anni') histView = 'mesi';
   hvSync(h);
   if(histView === 'tabella'){
-    const months = histMonths(h, histVar);
-    el('hvTable').innerHTML = months.length
-      ? hvTableHtml(months, histVar)
+    const months = h.k === 'dir' ? null : histMonths(h, histVar);
+    el('hvTable').innerHTML = h.k === 'dir' ? hvDirTableHtml(h)
+      : months.length ? hvTableHtml(months, histVar, hvSum(h, histVar))
       : '<div class="hint">Nessun dato</div>';
   } else {
     const r = hvView(h);
@@ -832,7 +964,8 @@ async function setHistMode(on, v, w){
     return;
   }
   if(!currentStation) return;
-  const hv = stationHistVars(currentStation);
+  const st = currentStation, hv = await histVarsReady(st);
+  if(st !== currentStation) return;
   if(!hv.length){ toast('Nessuno storico per questa stazione'); return; }
   exitStack();
   document.body.classList.remove('rose-mode', 'clima-mode');
@@ -847,24 +980,34 @@ async function setHistMode(on, v, w){
   buildVarRow();
   await renderHist();
 }
-// pioggia e temperatura sempre; livelli e portate se la stazione li ha, nelle unita' dei grafici
-const HV_CSV = { LIVIDRO:'livello', LIVLAGO:'lago', PORTATA:'portata' };
-function exportHistCSV(){
-  const h = histData;
-  if(!h || !currentStation) return;
-  const head = ['data;pioggia_mm;ore_pioggia;tmin;tmax;tmedia;ore_temp'];
-  const cols = [h.p, h.hp, h.tn, h.tx, h.tm, h.ht];
-  Object.keys(HV_CSV).filter(v => h.has[v]).forEach(v => {
-    const c = hvCols(h, v), u = ' [' + hvUnit(v) + ']', n = HV_CSV[v];
-    head.push(n + '_min' + u, n + '_max' + u, n + '_media' + u, 'ore_' + n);
-    cols.push(c.mn, c.mx, c.me, c.hr);
-  });
-  const rows = [head.join(';')], c = v => v == null ? '' : v;
-  const seen = [h.p, h.tn, h.tm].concat(cols.slice(6));          // un giorno entra se ha almeno un valore
-  for(let i = 0; i < h.n; i++){
-    if(seen.every(a => a[i] == null)) continue;
-    rows.push([new Date(h.x[i] * 1000).toISOString().slice(0, 10)].concat(cols.map(a => c(a[i]))).join(';'));
+// Dati (CSV): tutte le variabili con lo Storico della stazione, un giorno per riga, nelle unita' dei grafici
+const HV_CSV_COLS = { band:['min', 'max', 'media'], sum:['totale'], dir:['direzione'] };
+async function exportHistCSV(){
+  const st = currentStation;
+  if(!histData || !st) return;
+  const vars = await histVarsReady(st), head = ['data'], cols = [];
+  for(const v of vars){
+    const h = await histLoadVar(st, v);
+    if(!h) continue;
+    const u = v === 'LIVIDRO' && varOffset(v, st) ? 'm s.m.m.' : h.u, a = h.k === 'band' ? hvCols(h, v)
+      : h.k === 'sum' ? { totale:h.s } : { direzione:h.d };
+    const arrs = h.k === 'band' ? [a.mn, a.mx, a.me] : h.k === 'sum' ? [a.totale] : [a.direzione];
+    HV_CSV_COLS[h.k].forEach((name, k) => {
+      head.push(v + '_' + name + (u ? ' [' + u + ']' : ''));
+      cols.push({ x:h.x, a:arrs[k] });
+    });
+    head.push(v + '_ore');
+    cols.push({ x:h.x, a:h.hr });
   }
+  const days = new Map();
+  cols.forEach((c, k) => c.a.forEach((val, i) => {
+    if(val == null) return;
+    const row = days.get(c.x[i]) || new Array(cols.length).fill('');
+    row[k] = val;
+    days.set(c.x[i], row);
+  }));
+  const rows = [head.join(';')].concat([...days.keys()].sort((a, b) => a - b)
+    .map(t => [new Date(t * 1000).toISOString().slice(0, 10)].concat(days.get(t)).join(';')));
   saveBlob(new Blob([rows.join('\n') + '\n'], { type:'text/csv;charset=utf-8' }),
            'storico_' + pngBase() + '.csv');
 }
@@ -881,7 +1024,7 @@ async function histPNG(){
   const h = histData, st = currentStation;
   if(!h || !st) return null;
   const d = ts => new Date(ts * 1000).toISOString().slice(0, 10).split('-').reverse().join('/');
-  const title = prettyName(st.name || st.scode) + ' — Storico ' + HIST_NAME[histVar] + ', ' +
+  const title = prettyName(st.name || st.scode) + ' — Storico ' + histName(histVar) + ', ' +
                 HV_VIEW_TXT[histView];
   const what = 'Dati dal ' + d(hvSpan(h).first) + ' al ' + d(hvSpan(h).last);
   const cv = histView === 'tabella' ? hvLight(() => hvTableCanvas(title, what))
@@ -907,7 +1050,7 @@ async function hvChartCanvas(h, title, what){
     const xr = [histU.scales.x.min, histU.scales.x.max];
     o.scales.x.range = () => xr;
   }
-  if(histView === 'anni' && histVar !== 'PREC') title += ' (' + r.year + ')';
+  if(r.year) title += ' (' + r.year + ')';
   const plot = await offPlot(o, r.data, W, H);
   const { cv, ctx } = pngCanvas(L + W + 12, TOP + H + 20);
   pngHead(ctx, title, what, true, 'Giorno solare (UTC+1)');
@@ -1005,13 +1148,6 @@ function hvDrawBox(ctx, c, base, ox, oy, Z){
 function buildHistControls(){
   el('histbtn').addEventListener('click', () => setHistMode(!histMode));
   el('histOff').addEventListener('click', () => setHistMode(false));
-  el('hvVar').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if(!b) return;
-    histVar = b.dataset.v;
-    currentVar = histVar;
-    renderHist();
-  });
   el('hvView').addEventListener('click', e => {
     const b = e.target.closest('button');
     if(!b) return;
