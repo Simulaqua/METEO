@@ -23,13 +23,19 @@
 #       python3 recover.py -r LOM --days 2        (una regione, finestra 2 giorni)
 #       python3 recover.py -r all --force         (ignora il gate: scarica comunque lo storico)
 #       python3 recover.py -r BZ --force --debug  (in piu' l'avanzamento e le richieste saltate)
+#       python3 recover.py -r BZ,LOM --da 2022-01-01 --a 2026-07-05   (storico lungo, a blocchi)
 
 import argparse
+import contextlib
 import datetime
+import fcntl
+import gzip
 import importlib
 import os
+import shutil
 import subprocess
 import sys
+import time
 
 import comune
 
@@ -95,6 +101,7 @@ def flush_points(parse_dir, points, station_records, um_map):
         stazioni.json le stazioni di station_records che non ha. Ritorna i punti inseriti. '''
     stazioni_path = os.path.join(parse_dir, 'stazioni.json')
     station_list = comune.load_json(stazioni_path)
+    known = set(station_list)
     for sc, record in station_records.items():
         station_list.setdefault(sc, record)
     added = 0
@@ -104,14 +111,13 @@ def flush_points(parse_dir, points, station_records, um_map):
                                           'UM': um_map.get((var, sc)) or None,
                                           'MISURE': {'ISTANTE': [], 'VALORE': []}}
         added += comune.merge_readings(os.path.join(parse_dir, var), var, per_scode, new_record)
-    comune.save_json(station_list, stazioni_path)
+    if not os.path.exists(stazioni_path) or any(sc not in known for sc in station_list):
+        comune.save_json(station_list, stazioni_path)
     return added
 
 # --- Fonti storiche per regione -> points, station_records, um_map
-def fetch_bz(mod, days, debug=False):
-    ''' Bolzano: /timeseries per ogni coppia (stazione, sensore) attiva. DATE e' CET/CEST. '''
-    now = comune.now_solar()
-    d_from, d_to = (now - datetime.timedelta(days=days)).strftime('%Y%m%d'), now.strftime('%Y%m%d')
+def bz_pairs(mod):
+    ''' Coppie (stazione, sensore, variabile) attive di Bolzano e unita' per (variabile, stazione). '''
     type2var = {ty: v for v, ty in mod.VARIABLES.items()}
     pairs, um_map = [], {}
     for r in comune.get_json(mod.SENSORS_URL, timeout=90):
@@ -120,21 +126,33 @@ def fetch_bz(mod, days, debug=False):
         if var and sc:
             pairs.append((sc, ty, var))
             um_map[(var, sc)] = r.get('UNIT')
+    return pairs, um_map
+
+def bz_series(mod, sc, ty, d_from, d_to, timeout=60):
+    ''' Letture di un sensore fra due giorni AAAAMMGG compresi, in ora solare. '''
+    data = comune.get_json(BZ_TIMESERIES_URL,
+                           {'station_code': sc, 'sensor_code': ty, 'output_format': 'JSON',
+                            'date_from': d_from, 'date_to': d_to}, timeout=timeout)
+    pts = []
+    for reading in data:
+        ist = mod.solar_moment(reading.get('DATE'))
+        if ist is not None:
+            pts.append((ist, reading.get('VALUE')))
+    return pts
+
+def fetch_bz(mod, days, debug=False):
+    ''' Bolzano: /timeseries per ogni coppia (stazione, sensore) attiva. DATE e' CET/CEST. '''
+    now = comune.now_solar()
+    d_from, d_to = (now - datetime.timedelta(days=days)).strftime('%Y%m%d'), now.strftime('%Y%m%d')
+    pairs, um_map = bz_pairs(mod)
     points = {}
     for i, (sc, ty, var) in enumerate(pairs):
         try:
-            data = comune.get_json(BZ_TIMESERIES_URL,
-                                   {'station_code': sc, 'sensor_code': ty, 'output_format': 'JSON',
-                                    'date_from': d_from, 'date_to': d_to}, timeout=60)
+            pts = bz_series(mod, sc, ty, d_from, d_to)
         except Exception as e:
             if debug:
                 print(f'  BZ {sc}/{ty} skip: {e}')
             continue
-        pts = []
-        for reading in data:
-            ist = mod.solar_moment(reading.get('DATE'))
-            if ist is not None:
-                pts.append((ist, reading.get('VALUE')))
         if pts:
             points.setdefault(var, {})[sc] = pts
         if debug and i % 100 == 0:
@@ -176,11 +194,40 @@ def fetch_er(mod, days, debug=False):
             print(f'  ER {i}/{len(stations)} stazioni...')
     return points, {}, um_map
 
-def fetch_lom(mod, days, debug=False):
-    ''' Lombardia: Socrata storico a chunk di 4h (<50000 righe/richiesta). `data` e' ora solare. '''
+def lom_registry(mod):
     sensors = {a.get('idsensore'): a
                for a in comune.get_json(mod.REGISTRY_URL, {'$limit': '10000'}, timeout=90)}
-    type2var = {tipo: v for v, tipo in mod.VARIABLES.items()}
+    return sensors, {tipo: v for v, tipo in mod.VARIABLES.items()}
+
+def lom_rows(mod, t0, t1):
+    ''' Righe Socrata con data in (t0, t1]: al massimo 4 ore, per stare sotto le 50000 righe. '''
+    where = "data > '%s' AND data <= '%s'" % (t0.strftime('%Y-%m-%dT%H:%M:%S'),
+                                              t1.strftime('%Y-%m-%dT%H:%M:%S'))
+    return comune.get_json(mod.DATA_URL, {'$where': where, '$order': 'data', '$limit': '50000'}, timeout=90)
+
+def lom_add(mod, sensors, type2var, rows, points, station_records, um_map):
+    for r in rows:
+        a = sensors.get(r.get('idsensore'))
+        var = type2var.get(a.get('tipologia')) if a else None
+        if var is None or r.get('idoperatore') != mod.OPERATORS.get(var, '1'):
+            continue
+        val = r.get('valore')
+        if val is None or val in mod.SKIP_VALUES or (var == 'DVENTO' and val in mod.SKIP_DIR_VALUES):
+            continue
+        ist, sc = mod.compact_moment(r.get('data')), a.get('idstazione')
+        if ist is None or sc is None:
+            continue
+        if sc not in station_records:
+            station_records[sc] = {'SCODE': sc, 'NOME': a.get('nomestazione'),
+                                   'LAT': mod.coordinate(a.get('lat')),
+                                   'LON': mod.coordinate(a.get('lng')),
+                                   'QUOTA': a.get('quota'), 'PROVINCIA': a.get('provincia')}
+        um_map[(var, sc)] = a.get('unit_dimisura')
+        points.setdefault(var, {}).setdefault(sc, []).append((ist, val))
+
+def fetch_lom(mod, days, debug=False):
+    ''' Lombardia: Socrata storico a chunk di 4h (<50000 righe/richiesta). `data` e' ora solare. '''
+    sensors, type2var = lom_registry(mod)
     # Finestra ancorata all'ultimo timestamp del dataset, non all'orologio: il portale pubblica in
     # ritardo e l'ora di sistema perderebbe i dati piu' recenti.
     latest = comune.get_json(mod.DATA_URL, {'$select': 'data', '$order': 'data DESC', '$limit': '1'},
@@ -193,39 +240,121 @@ def fetch_lom(mod, days, debug=False):
     t0 = now - datetime.timedelta(days=days)
     while t0 < now:
         t1 = min(t0 + datetime.timedelta(hours=4), now)
-        where = "data > '%s' AND data <= '%s'" % (t0.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                  t1.strftime('%Y-%m-%dT%H:%M:%S'))
         try:
-            rows = comune.get_json(mod.DATA_URL, {'$where': where, '$order': 'data', '$limit': '50000'},
-                                   timeout=90)
+            rows = lom_rows(mod, t0, t1)
         except Exception as e:
             if debug:
-                print(f'  LOM chunk {where} skip: {e}')
+                print(f'  LOM chunk {t0} skip: {e}')
             t0 = t1
             continue
-        for r in rows:
-            a = sensors.get(r.get('idsensore'))
-            var = type2var.get(a.get('tipologia')) if a else None
-            if var is None or r.get('idoperatore') != mod.OPERATORS.get(var, '1'):
-                continue
-            val = r.get('valore')
-            if val is None or val in mod.SKIP_VALUES or (var == 'DVENTO'
-                                                         and val in mod.SKIP_DIR_VALUES):
-                continue
-            ist, sc = mod.compact_moment(r.get('data')), a.get('idstazione')
-            if ist is None or sc is None:
-                continue
-            if sc not in station_records:
-                station_records[sc] = {'SCODE': sc, 'NOME': a.get('nomestazione'),
-                                       'LAT': mod.coordinate(a.get('lat')),
-                                       'LON': mod.coordinate(a.get('lng')),
-                                       'QUOTA': a.get('quota'), 'PROVINCIA': a.get('provincia')}
-            um_map[(var, sc)] = a.get('unit_dimisura')
-            points.setdefault(var, {}).setdefault(sc, []).append((ist, val))
+        lom_add(mod, sensors, type2var, rows, points, station_records, um_map)
         if debug:
             print(f'  LOM chunk {t0:%m-%d %H:%M}->{t1:%H:%M}: {len(rows)} righe')
         t0 = t1
     return points, station_records, um_map
+
+# --- Storico lungo (--da): a blocchi in ordine di tempo, ognuno scritto e subito compresso (aperti, gli
+# anni recuperati riempirebbero il disco prima della compressione notturna, che aspetta 8 giorni). Il file
+# di avanzamento fa ripartire un giro interrotto dal primo blocco mancante. Il blocco della regione
+# (<REG>/.lock, lo stesso degli scarichi) si prende solo mentre si scrive.
+STATE_PATH = os.path.join(comune.BASE, '.tracking', 'recover_storico.json')
+PAUSE = 0.5                                                    # secondi fra due richieste
+
+@contextlib.contextmanager
+def region_lock(region):
+    with open(os.path.join(comune.region_dir(region), '.lock'), 'a') as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+def patient(fn, *args, tries=5):
+    ''' fn(*args) con qualche ritentativo, sempre piu' distanziati (le fonti limitano le richieste). '''
+    for k in range(tries):
+        try:
+            out = fn(*args)
+            time.sleep(PAUSE)
+            return out
+        except Exception as e:
+            if k == tries - 1:
+                raise
+            print(f'  riprovo fra {60 * (k + 1)} s: {e}', flush=True)
+            time.sleep(60 * (k + 1))
+
+def compress_days(parse_dir, variables, days):
+    ''' Comprime i file dei giorni dati; il .json appena fuso contiene gia' il .json.gz di prima. '''
+    oldest = (comune.now_solar() - datetime.timedelta(days=8)).strftime('%Y%m%d')
+    for var in variables:
+        for day in days:
+            fn = os.path.join(parse_dir, var, var + '-' + day + '.json')
+            if day >= oldest or not os.path.exists(fn):
+                continue
+            with open(fn, 'rb') as a, gzip.open(fn + '.gz.tmp', 'wb') as b:
+                shutil.copyfileobj(a, b)
+            os.replace(fn + '.gz.tmp', fn + '.gz')
+            os.remove(fn)
+
+def day_list(d0, d1):
+    return [(d0 + datetime.timedelta(days=k)).strftime('%Y%m%d') for k in range((d1 - d0).days + 1)]
+
+def quarters(start, end):
+    d0 = start
+    while d0 <= end:
+        nxt = datetime.date(d0.year + (d0.month + 2) // 12, (d0.month + 2) % 12 + 1, 1)
+        yield d0, min(nxt - datetime.timedelta(days=1), end)
+        d0 = nxt
+
+def load_state():
+    return comune.load_json(STATE_PATH) or {}
+
+def backfill_bz(mod, start, end, state):
+    ''' Bolzano: per trimestre e variabile una chiamata per sensore, poi scrittura. '''
+    pairs, um_map = bz_pairs(mod)
+    by_var = {}
+    for sc, ty, var in pairs:
+        by_var.setdefault(var, []).append((sc, ty))
+    for q0, q1 in quarters(start, end):
+        key = 'BZ ' + q0.strftime('%Y%m%d')
+        if key in state:
+            continue
+        added, days = 0, day_list(q0, q1)
+        for var, sensors in sorted(by_var.items()):
+            per = {}
+            for sc, ty in sensors:
+                try:
+                    pts = patient(bz_series, mod, sc, ty, days[0], days[-1], 180)
+                except Exception as e:
+                    print(f'  BZ {sc}/{ty} {key}: saltato ({e})', flush=True)
+                    continue
+                if pts:
+                    per[sc] = pts
+            with region_lock('BZ'):
+                added += flush_points(mod.PARSE_DIR, {var: per}, {}, um_map)
+                compress_days(mod.PARSE_DIR, [var], days)
+        state[key] = added
+        comune.save_json(state, STATE_PATH)
+        print(f'[BZ] {days[0]}..{days[-1]}: {added} letture', flush=True)
+
+def backfill_lom(mod, start, end, state):
+    ''' Lombardia: un giorno alla volta, in sei richieste di 4 ore. '''
+    sensors, type2var = lom_registry(mod)
+    for day in day_list(start, end):
+        key = 'LOM ' + day
+        if key in state:
+            continue
+        points, station_records, um_map = {}, {}, {}
+        t = datetime.datetime.strptime(day, '%Y%m%d')
+        for k in range(6):
+            t0, t1 = t + datetime.timedelta(hours=4 * k), t + datetime.timedelta(hours=4 * (k + 1))
+            rows = patient(lom_rows, mod, t0, t1)
+            lom_add(mod, sensors, type2var, rows, points, station_records, um_map)
+        with region_lock('LOM'):
+            added = flush_points(mod.PARSE_DIR, points, station_records, um_map)
+            compress_days(mod.PARSE_DIR, list(points), [day])
+        state[key] = added
+        comune.save_json(state, STATE_PATH)
+        print(f'[LOM] {day}: {added} letture', flush=True)
 
 # --- Recupero per regione
 def recover_snapshot_region(region, fetcher, days, force, debug):
@@ -279,7 +408,22 @@ def main():
     ap.add_argument('--days', type=int, default=7, help='profondita\' massima del recupero (giorni)')
     ap.add_argument('--force', action='store_true', help='ignora il gate e scarica comunque')
     ap.add_argument('--debug', action='store_true')
+    ap.add_argument('--da', help='storico lungo (BZ, LOM) dal giorno AAAA-MM-GG, a blocchi')
+    ap.add_argument('--a', help='fino al giorno AAAA-MM-GG compreso (default: ieri)')
     args = ap.parse_args()
+
+    if args.da:
+        day = lambda s: datetime.datetime.strptime(s, '%Y-%m-%d').date()
+        start = day(args.da)
+        end = day(args.a) if args.a else comune.now_solar().date() - datetime.timedelta(days=1)
+        state = load_state()
+        for region in [r.upper() for r in args.region.split(',')]:
+            backfill = {'BZ': backfill_bz, 'LOM': backfill_lom}.get(region)
+            if backfill is None:
+                print(f'[{region}] nessuno storico lungo: solo BZ e LOM.')
+                continue
+            backfill(importlib.import_module(REGION_MODULE[region]), start, end, state)
+        return
 
     fetchers = {'BZ': fetch_bz, 'ER': fetch_er, 'LOM': fetch_lom}
     if args.region.lower() == 'all':
