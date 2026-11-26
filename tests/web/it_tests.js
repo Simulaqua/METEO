@@ -1638,6 +1638,10 @@
     const tClass = (y, m) => { const v = tMean(y, m), s = tStat(m); if(v == null || !s) return null;
       const d = r1(v - s.mean), a = Math.abs(d); return 3 + Math.sign(d) * (a < 0.5 ? 0 : a < 1.5 ? 1 : a < 2.5 ? 2 : 3); };
     await setHistMode(true, 'PREC', 'mesi');
+    log(vis(el('histOff')) && R(el('histOff')).left >= R(el('histbtn')).right - 1, 'Storico acceso: c\'è la × per chiuderlo, accanto', '');
+    el('histOff').click(); await until(() => !histMode, 4000);
+    log(!histMode && !vis(el('histview')) && !vis(el('histOff')) && !!el('chart').querySelector('.uplot'), '×: si torna al grafico delle misure', histMode);
+    await setHistMode(true, 'PREC', 'mesi');
     log(histMode && vis(el('histview')) && el('histbtn').classList.contains('active'), 'Storico aperto', '');
     eq('vista iniziale', [histVar, histView], ['PREC', 'mesi']);
     okView('Pioggia/Mesi');

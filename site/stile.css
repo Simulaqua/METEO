@@ -84,9 +84,14 @@ body.dark #stationMeta { color:#f0a35e; }
 #pviews, #pact { display:flex; align-items:center; gap:6px; }
 #pact { margin-left:auto; }
 /* × accanto al confronto acceso: lo spegne e torna al periodo di prima */
-#cmpOff { padding:0 7px; }
-#ptools #cmpOff[hidden] { display:none; }
-#cmpOff svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+#ptools #cmpOff, #ptools #histOff { padding:0 6px; }
+#ptools #cmpOff[hidden], #ptools #histOff[hidden] { display:none; }
+/* Storico su schermi stretti: periodi e Giorni un po' piu' fitti, cosi' con la × stanno su una riga */
+@media (max-width:1100px) and (min-width:721px){
+  body.hist-mode #modes .mode, body.hist-mode #hvRange button { padding:0 7px; }
+}
+#cmpOff svg, #histOff svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2;
+                            stroke-linecap:round; }
 #ptools[hidden], #pact[hidden], #pbar[hidden] { display:none; }
 #modes, .hv-seg { display:inline-flex; border:1px solid var(--ctl); border-radius:7px; overflow:hidden; }
 #ptools .mode, #pact .act, #vars .vn, #altBtn, #stackbtn {

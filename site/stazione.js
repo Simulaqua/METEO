@@ -753,6 +753,7 @@ function syncModes(){
   el('cmpOff').hidden = !cmp;
   el('histbtn').classList.toggle('active', histMode);
   el('histbtn').setAttribute('aria-pressed', String(histMode));
+  el('histOff').hidden = !histMode;
 }
 
 // Menu sotto il comando: frecce, Inizio e Fine fra le voci; Esc e Tab chiudono tornando al comando; il clic

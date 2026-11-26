@@ -1004,6 +1004,7 @@ function hvDrawBox(ctx, c, base, ox, oy, Z){
 }
 function buildHistControls(){
   el('histbtn').addEventListener('click', () => setHistMode(!histMode));
+  el('histOff').addEventListener('click', () => setHistMode(false));
   el('hvVar').addEventListener('click', e => {
     const b = e.target.closest('button');
     if(!b) return;
