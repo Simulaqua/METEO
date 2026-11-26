@@ -18,11 +18,11 @@ def ts_list(day, hours, minutes=(0,)):
     return [day + '%02d%02d' % (h, m) for h in hours for m in minutes]
 
 
-def write_day(parse_dir, var, day, stations, vkey, gz=False):
+def write_day(parse_dir, var, day, stations, vkey, gz=False, unit=None):
     """stations = {scode: (istanti, valori)}; stesso formato dell'archivio."""
     d = os.path.join(parse_dir, var)
     os.makedirs(d, exist_ok=True)
-    data = {s: {'MISURE': {'ISTANTE': i, vkey: v}} for s, (i, v) in stations.items()}
+    data = {s: {'UM': unit, 'MISURE': {'ISTANTE': i, vkey: v}} for s, (i, v) in stations.items()}
     p = os.path.join(d, '%s-%s.json' % (var, day))
     if gz:
         with gzip.open(p + '.gz', 'wt', encoding='utf-8') as f:
@@ -50,8 +50,8 @@ class HistoryBase(unittest.TestCase):
         return os.path.join(self.base, region, 'data-parsed')
 
     def run_region(self, region, full=False, today=None):
-        days, n = history.process_region(region, self.cache, full=full, today=today)
-        history.write_region(region, days, self.out)
+        days, n, meta = history.process_region(region, self.cache, full=full, today=today)
+        history.write_region(region, days, self.out, meta=meta)
         return days, n
 
     def station(self, region, scode):
@@ -91,7 +91,8 @@ class AggregatesTest(HistoryBase):
         # 3 x 600 mm: ogni valore e' plausibile ma la somma giornaliera no
         write_day(self.parse('LOM'), 'PREC', '20200101',
                   {'A': (ts_list('20200101', [0, 1, 2]), [600.0, 600.0, 600.0])}, 'VALORE')
-        self.assertEqual(history.aggregate_file('LOM', 'PREC', os.path.join(self.parse('LOM'), 'PREC', 'PREC-20200101.json')), {})
+        self.assertEqual(history.aggregate_file('LOM', 'PREC', os.path.join(self.parse('LOM'), 'PREC', 'PREC-20200101.json')),
+                         ({}, {}))
 
     def test_zero_glitch_temp_and_umid(self):
         p = self.parse('LOM')
@@ -120,7 +121,7 @@ class AggregatesTest(HistoryBase):
         # il giorno e' quello dell'ISTANTE, non quello del nome del file
         write_day(self.parse('LOM'), 'PREC', '20200101',
                   {'A': (['202001010000', '202001020000'], [1.0, 3.0])}, 'VALORE')
-        agg = history.aggregate_file('LOM', 'PREC', os.path.join(self.parse('LOM'), 'PREC', 'PREC-20200101.json'))
+        agg, _ = history.aggregate_file('LOM', 'PREC', os.path.join(self.parse('LOM'), 'PREC', 'PREC-20200101.json'))
         self.assertEqual(agg['A'], {'20200101': [1.0, 1], '20200102': [3.0, 1]})
 
     def test_solar_day_bounds_dst_days(self):
@@ -233,9 +234,10 @@ class DiscoverTest(HistoryBase):
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
         write_day(os.path.join(self.base, 'old', 'data-parsed'), 'PREC', '20200101',
                   {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
-        os.makedirs(os.path.join(self.base, 'PIE', 'data-parsed', 'UMID'))     # solo UMID: non interessa
+        os.makedirs(os.path.join(self.base, 'PIE', 'data-parsed', 'UMID'))     # ogni variabile conta
+        os.makedirs(os.path.join(self.base, 'ER', 'data-parsed', 'PREC_TYPE'))  # i codici no
         os.makedirs(os.path.join(self.base, 'tests'))
-        self.assertEqual(history.discover_regions(), ['LOM'])
+        self.assertEqual(history.discover_regions(), ['LOM', 'PIE'])
 
     def test_ven_found_through_old_archive_only(self):
         os.makedirs(os.path.join(self.base, 'VEN'))             # la regione si cerca tra le cartelle di BASE
@@ -305,7 +307,7 @@ class CacheAndOutputTest(HistoryBase):
         for fn in ('Z.json', 'x.json.tmp'):
             open(os.path.join(self.out, 'LOM', fn), 'w').close()
         self.run_region('LOM')
-        self.assertEqual(sorted(os.listdir(os.path.join(self.out, 'LOM'))), ['A.json'])
+        self.assertEqual(sorted(os.listdir(os.path.join(self.out, 'LOM'))), ['A', 'A.json', 'vars.json'])
 
     def test_main_writes_index(self):
         write_day(self.parse('LOM'), 'PREC', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
@@ -323,6 +325,62 @@ class CacheAndOutputTest(HistoryBase):
                                           'PIE': {'stations': 1, 'from': '20200102', 'to': '20200102'}})
         c = self.station('PIE', 'C')
         self.assertEqual(c, {'v': 1, 'd0': '20200102', 'tn': [3.0], 'tx': [3.0], 'tm': [3.0], 'ht': [1]})
+
+
+class AllVariablesTest(HistoryBase):
+    """Ogni grandezza dell'archivio: tipo secondo variabile e unita', un file per stazione e variabile."""
+
+    def v2(self, region, scode, var):
+        with open(os.path.join(self.out, region, scode, var + '.json'), encoding='utf-8') as f:
+            return json.load(f)
+
+    def test_sums_in_hours_and_energy(self):
+        p = self.parse('BZ')
+        sec = ts_list('20200101', [10], range(0, 60, 10))                   # 6 x 600 s = un'ora di sole
+        write_day(p, 'SOLEGG', '20200101', {'A': (sec, [600.0] * 6)}, 'VALORE', unit='s')
+        write_day(p, 'RADSOL', '20200101', {'A': (ts_list('20200101', [10, 11]), [1000.0, 2000.0])}, 'VALORE',
+                  unit='KJ/m^2')
+        write_day(p, 'RADRIFL', '20200101', {'A': (ts_list('20200101', range(24)), [100.0] * 24)}, 'VALORE',
+                  unit='W/mq')
+        self.run_region('BZ')
+        self.assertEqual(self.v2('BZ', 'A', 'SOLEGG'), {'v': 2, 'd0': '20200101', 'k': 'sum', 'u': 'h',
+                                                         's': [1.0], 'h': [1]})
+        rad = self.v2('BZ', 'A', 'RADSOL')
+        self.assertEqual((rad['s'], rad['u']), ([3.0], 'MJ/m²'))
+        self.assertEqual(self.v2('BZ', 'A', 'RADRIFL')['s'], [8.64])            # 100 W/m2 tutto il giorno
+
+    def test_percent_wetness_is_a_band_and_direction_prevails(self):
+        p = self.parse('LIG')
+        write_day(p, 'BAGNATURA', '20200101', {'A': (ts_list('20200101', [0, 1]), [20.0, 40.0])}, 'VALORE',
+                  unit='%')
+        write_day(p, 'DVENTO', '20200101', {'A': (ts_list('20200101', [0, 1, 2]), [10.0, 350.0, 200.0])},
+                  'VALORE', unit='gradi')
+        self.run_region('LIG')
+        b = self.v2('LIG', 'A', 'BAGNATURA')
+        self.assertEqual((b['k'], b['u'], b['n'], b['x'], b['m'], b['h']),
+                         ('band', '%', [20.0], [40.0], [30.0], [2]))
+        self.assertEqual(self.v2('LIG', 'A', 'DVENTO'), {'v': 2, 'd0': '20200101', 'k': 'dir', 'u': '°',
+                                                          'd': [0], 'h': [3]})
+
+    def test_vars_index_codes_skipped_and_odd_folders_ignored(self):
+        p = self.parse('FVG')
+        write_day(p, 'UMID', '20200101', {'A': (ts_list('20200101', [0]), [80.0])}, 'VALORE', unit='%')
+        write_day(p, 'PREC_TYPE', '20200101', {'A': (ts_list('20200101', [0]), [1.0])}, 'VALORE')
+        write_day(p, 'TEMPACQUA 2', '20200101', {'A': (ts_list('20200101', [0]), [9.0])}, 'VALORE')
+        self.run_region('FVG')
+        with open(os.path.join(self.out, 'FVG', 'vars.json'), encoding='utf-8') as f:
+            self.assertEqual(json.load(f), {'A': ['UMID']})
+        self.assertFalse(os.path.exists(os.path.join(self.out, 'FVG', 'A.json')))   # nessuna delle cinque v1
+
+    def test_each_variable_starts_on_its_first_day(self):
+        p = self.parse('LOM')
+        write_day(p, 'TEMP', '20200101', {'A': (ts_list('20200101', [0]), [3.0])}, 'VALORE', unit='°C')
+        write_day(p, 'UMID', '20200103', {'A': (ts_list('20200103', [0]), [70.0])}, 'VALORE', unit='%')
+        self.run_region('LOM')
+        self.assertEqual((self.v2('LOM', 'A', 'TEMP')['d0'], self.v2('LOM', 'A', 'TEMP')['m']),
+                         ('20200101', [3.0, None, None]))
+        umid = self.v2('LOM', 'A', 'UMID')
+        self.assertEqual((umid['d0'], umid['m']), ('20200103', [70.0]))
 
 
 class ArpavDailyTest(HistoryBase):
@@ -345,8 +403,8 @@ class ArpavDailyTest(HistoryBase):
             json.dump(data, f)
 
     def run_ven(self):
-        days, _ = history.process_region('VEN', self.cache)
-        history.write_region('VEN', days, self.out, history.arpav_series(self.cache))
+        days, _, meta = history.process_region('VEN', self.cache)
+        history.write_region('VEN', days, self.out, history.arpav_series(self.cache), meta)
         return self.station('VEN', '270')
 
     def test_arpav_before_archive_and_wins_on_overlap(self):
@@ -378,17 +436,40 @@ class ArpavDailyTest(HistoryBase):
         self.write_arpav('TEMP', 2019, {'x': (270, {'2019-12-31': {'MINIMO': 1, 'MEDIO': 2, 'MASSIMO': 3}})})
         out = history.arpav_series(self.cache)
         f = os.path.join(out, 'TEMP', '270.json')
-        self.assertEqual(comune.load_json(f), {'d0': '20191231', 'a': [[1.0, 3.0, 2.0, 24]]})
+        self.assertEqual(comune.load_json(f),
+                         {'d0': '20191231', 'k': 'band', 'u': '°C', 'a': [[1.0, 3.0, 2.0, 24]]})
         os.remove(f)
         history.arpav_series(self.cache)
         self.assertFalse(os.path.exists(f))                           # niente di nuovo: non rifa'
         self.write_arpav('TEMP', 2020, {'x': (270, {'2020-01-02': {'MINIMO': 4, 'MEDIO': 5, 'MASSIMO': 6}})})
         history.arpav_series(self.cache)
-        self.assertEqual(comune.load_json(f), {'d0': '20191231', 'a': [[1.0, 3.0, 2.0, 24], None,
-                                                                         [4.0, 6.0, 5.0, 24]]})
+        self.assertEqual(comune.load_json(f)['a'], [[1.0, 3.0, 2.0, 24], None, [4.0, 6.0, 5.0, 24]])
 
     def test_no_arpav_files(self):
         self.assertIsNone(history.arpav_series(self.cache))
+
+    def test_one_value_variables_and_gusts(self):
+        day = {'2019-12-31': None}
+        for src, val in (('VVENTO', 2.5), ('RAFF', {'MASSIMO': 11.2, 'ORAMINUTI': '15:40'}),
+                         ('UMID', {'MINIMO': 38, 'MASSIMO': 100}),
+                         ('DVENTO', {'GRADI': 225.0, 'SETTORE': 'SO'}),
+                         ('RADSOL', '24.130')):
+            day['2019-12-31'] = val
+            self.write_arpav(src, 2019, {'x' + src: (270, dict(day))})
+        write_day(self.parse('VEN'), 'PREC', '20200101', {'270': (ts_list('20200101', [0]), [0.0])}, 'VM')
+        self.run_ven()
+        v = lambda var: json.load(open(os.path.join(self.out, 'VEN', '270', var + '.json'), encoding='utf-8'))
+        self.assertEqual((v('VVENTO')['n'], v('VVENTO')['x'], v('VVENTO')['m']), ([None, None], [None, None],
+                                                                                  [2.5, None]))
+        self.assertEqual((v('VVENTOMAX')['x'], v('VVENTOMAX')['u']), ([11.2, None], 'm/s'))   # raffica ARPAV
+        self.assertEqual((v('UMID')['n'], v('UMID')['x'], v('UMID')['m']), ([38.0, None], [100.0, None],
+                                                                            [None, None]))
+        self.assertEqual((v('DVENTO')['k'], v('DVENTO')['d']), ('dir', [225, None]))
+        self.assertEqual((v('RADSOL')['k'], v('RADSOL')['u'], v('RADSOL')['s']),
+                         ('sum', 'MJ/m²', [24.13, None]))
+        with open(os.path.join(self.out, 'VEN', 'vars.json'), encoding='utf-8') as f:
+            self.assertEqual(json.load(f),
+                             {'270': ['DVENTO', 'PREC', 'RADSOL', 'UMID', 'VVENTO', 'VVENTOMAX']})
 
 
 if __name__ == '__main__':
