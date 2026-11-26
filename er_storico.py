@@ -178,7 +178,7 @@ def main():
     recent = (today.replace(day=1) - datetime.timedelta(days=40)).strftime('%Y-%m')
     units = {'ER': dati_mare.ER_LAND_UNITS, 'MAR_ER': dati_mare.UNITS}
     api, acc, prev = land_codes(), {}, None
-    tmp = os.path.join(OUT, '.mese.json.gz')
+    tmp = os.path.join(OUT, '.mese-%d.json.gz' % os.getpid())     # piu' giri insieme, ognuno il suo
     os.makedirs(OUT, exist_ok=True)
     t0 = time.time()
     for month in months(a.da, a.a):
