@@ -17,6 +17,7 @@ tracking.log
 radar_out/
 history_cache/
 history_out/
+/arpav_storico/
 
 # Zeri idrometrici: li riscrive dati_pc.py sul Pi a ogni giro
 /PIE/zero_idrometrici.json
