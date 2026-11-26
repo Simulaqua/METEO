@@ -17,7 +17,7 @@ export_web.py        dall'archivio ai file del sito (ultimi 7 o 30 giorni, geojs
 derive.py            grandezze derivate e indici, calcolati al volo (mai archiviati)
 history.py           aggregati giornalieri di pioggia, temperatura, livelli e portate di tutto l'archivio (Storico e
                      Climatologia); per il Veneto anche i giornalieri ARPAV dal 2010
-arpav_storico.py     copia dei giornalieri ARPAV del Veneto dal 2010 in arpav_storico/ (ogni 26 del mese)
+arpav_storico.py     copia dei giornalieri ARPAV del Veneto dal 2010 in arpav_storico/ (il 26 e il 28 del mese)
 recover.py           riempie i buchi (dopo un blackout) scaricando lo storico dalle fonti
 check_updates.py     segnala stazioni nuove e variabili non mappate
 status.py            stato del sito (site/STATUS/status.json): banner "dati fermi" e avvisi
