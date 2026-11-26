@@ -109,11 +109,16 @@ PYTHON=/usr/bin/python3
 # montata: non scrive nulla. Mai due insieme (flock nello script). Controllo: ~/METEO/check_size.sh.
 40 4 * * * mkdir -p $BASE/logs && /bin/bash $BASE/backup_usb.sh >> $BASE/logs/backup-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
 
-# --- STORICO LUNGO (07:20): history.py aggrega pioggia e temperatura giornaliere dell'archivio e
-# publish_history.sh li pubblica sul branch 'history' (scheda "Storico"). Rielabora i giorni nuovi e
-# gli ultimi 8 (cache in history_cache/). Alle 07:20 il giorno prima e' arrivato anche dalle fonti
-# lente (Lombardia pubblica con 4-5 ore di ritardo). flock: mai due giri insieme.
+# --- STORICO LUNGO (07:20): history.py aggrega pioggia, temperatura, livelli e portate giornaliere
+# dell'archivio (per il Veneto anche i giornalieri ARPAV dal 2010) e publish_history.sh li pubblica sul
+# branch 'history' (scheda "Storico"). Rielabora i giorni nuovi e gli ultimi 8 (cache in history_cache/).
+# Alle 07:20 il giorno prima e' arrivato anche dalle fonti lente (Lombardia pubblica con 4-5 ore di
+# ritardo). flock: mai due giri insieme.
 20 7 * * * mkdir -p $BASE/logs && flock -n $BASE/.history.lock /bin/bash $BASE/publish_history.sh >> $BASE/logs/history-`date +\%Y\%m\%d\%H\%M\%S`.log 2>&1
+
+# --- GIORNALIERI ARPAV (il 26 alle 02:10): arpav_storico.py riscarica l'anno in corso e il precedente
+# (ARPAV aggiunge il mese passato la sera del 25), circa mezz'ora; lo Storico delle 07:20 li unisce.
+10 2 26 * * mkdir -p $BASE/logs && flock -n $BASE/.arpav_storico.lock nice -n 19 $PYTHON $BASE/arpav_storico.py >> $BASE/logs/arpav_storico-`date +\%Y\%m\%d`.log 2>&1
 
 # --- RADAR DPC (dati_radar.py): radar SRI della Protezione Civile, ultime 6 ore in PNG per la mappa,
 # sul branch 'radar' (letto da site/radar.js). Ogni 5 min a :03/:08/...: il DPC pubblica ogni
